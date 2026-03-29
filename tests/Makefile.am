@@ -388,7 +388,8 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_enhanced_buffer_pool \
 	test_surface_from_bmp_error \
 	test_extensibility_utils \
-	test_lastfm_url_encode_unit
+	test_lastfm_url_encode_unit \
+	test_track_utils
 
 if HAVE_AAC
 check_PROGRAMS += test_aac_integration
@@ -1297,6 +1298,17 @@ endif
 # A-law codec table verification test
 test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
 test_alaw_table_verification_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS) $(COMMON_CODEC_LIBS)
+
+test_track_utils_SOURCES = test_track_utils.cpp
+test_track_utils_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(AM_LDFLAGS)
 
 test_raw_audio_tag_safety_SOURCES = test_raw_audio_tag_safety.cpp
 test_raw_audio_tag_safety_LDADD = \

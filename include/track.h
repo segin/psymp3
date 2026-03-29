@@ -37,6 +37,8 @@ class track
         TagLib::String GetTitle() const { return m_Title; }
         TagLib::String GetAlbum() const { return m_Album; }
         TagLib::String GetFilePath() const { return m_FilePath; }
+        static bool isKnownRawAudioExtension(const TagLib::String& path);
+        static bool shouldCreateTagLibRefForPath(const TagLib::String& path);
         explicit track(const TagLib::String& a_FilePath, const TagLib::String& extinf_artist = "", const TagLib::String& extinf_title = "", long extinf_duration = 0);
         void SetFilePath(TagLib::String val) { m_FilePath = val; }
         unsigned int GetLen() const { return m_Len; }
