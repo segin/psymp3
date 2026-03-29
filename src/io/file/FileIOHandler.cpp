@@ -223,7 +223,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     Debug::log("io", "FileIOHandler::FileIOHandler() - Successfully opened file: ", path.to8Bit(false));
     
     // Get and log file size for debugging and optimization (without locks during construction)
-    off_t fileSize = getFileSizeInternal();
+    filesize_t fileSize = getFileSizeInternal();
     if (fileSize >= 0) {
         m_cached_file_size.store(fileSize);  // Cache for performance
         Debug::log("io", "FileIOHandler::FileIOHandler() - File size: ", fileSize, 
@@ -447,12 +447,12 @@ size_t FileIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
  * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
  * @return 0 on success, -1 on failure
  */
-int FileIOHandler::seek(off_t offset, int whence) {
+int FileIOHandler::seek(filesize_t offset, int whence) {
     // Use base class locking - call base class seek which will call our seek_unlocked
     return IOHandler::seek(offset, whence);
 }
 
-int FileIOHandler::seek_unlocked(off_t offset, int whence) {
+int FileIOHandler::seek_unlocked(filesize_t offset, int whence) {
     // Acquire file-specific lock for this operation
     std::lock_guard<std::mutex> file_lock(m_file_mutex);
     
@@ -474,15 +474,15 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
     // Additional validation for large file support
     // Check for potential overflow in SEEK_CUR operations
     if (whence == SEEK_CUR) {
-        off_t current_pos = tell_internal();
+        filesize_t current_pos = tell_internal();
         if (current_pos < 0) {
             // tell_internal() failed, error already set
             return -1;
         }
         
         // Define max/min values for off_t based on its size
-        static const off_t OFF_T_MAX_VAL = (sizeof(off_t) == 8) ? 0x7FFFFFFFFFFFFFFFLL : 0x7FFFFFFFL;
-        static const off_t OFF_T_MIN_VAL = (sizeof(off_t) == 8) ? (-0x7FFFFFFFFFFFFFFFLL - 1) : (-0x7FFFFFFFL - 1);
+        static const filesize_t OFF_T_MAX_VAL = std::numeric_limits<filesize_t>::max();
+        static const filesize_t OFF_T_MIN_VAL = std::numeric_limits<filesize_t>::min();
         
         // Check for overflow in addition
         if (offset > 0 && current_pos > OFF_T_MAX_VAL - offset) {
@@ -563,7 +563,7 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
     
     if (result == 0) {
         // Seek successful, calculate the logical position based on seek parameters
-        off_t new_logical_position;
+        filesize_t new_logical_position;
         switch (whence) {
             case SEEK_SET:
                 new_logical_position = offset;
@@ -594,7 +594,7 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
         } else {
             // Check if we're at the end of the file
             off_t cached_size = m_cached_file_size.load();
-            off_t file_size = (cached_size >= 0) ? cached_size : getFileSizeInternal();
+            filesize_t file_size = (cached_size >= 0) ? cached_size : getFileSizeInternal();
             if (file_size >= 0 && new_logical_position >= file_size) {
                 updateEofState(true);
             } else {
@@ -630,22 +630,22 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
  * 
  * @return Current position as off_t for large file support, -1 on failure
  */
-off_t FileIOHandler::tell() {
+filesize_t FileIOHandler::tell() {
     // Use base class locking - call base class tell which will call our tell_unlocked
     return IOHandler::tell();
 }
 
-off_t FileIOHandler::tell_unlocked() {
+filesize_t FileIOHandler::tell_unlocked() {
     // Return the logical position, not the physical file position
     // The physical file position may be ahead due to buffering
-    off_t logical_position = m_position.load();
+    filesize_t logical_position = m_position.load();
     
     Debug::log("io", "FileIOHandler::tell_unlocked() - Returning logical position: ", logical_position);
     
     return logical_position;
 }
 
-off_t FileIOHandler::tell_internal() {
+filesize_t FileIOHandler::tell_internal() {
     // Reset error state
     updateErrorState(0);
     
@@ -659,7 +659,7 @@ off_t FileIOHandler::tell_internal() {
     // Get current position
 #ifdef _WIN32
     // Windows: Use _ftelli64 for large file support
-    off_t position = _ftelli64(m_file_handle.get());
+    filesize_t position = _ftelli64(m_file_handle.get());
     
     if (position < 0) {
         // Error occurred - get Windows-specific error details
@@ -669,7 +669,7 @@ off_t FileIOHandler::tell_internal() {
     }
 #else
     // Unix/Linux: Use ftello for large file support
-    off_t position = ftello(m_file_handle.get());
+    filesize_t position = ftello(m_file_handle.get());
     
     if (position < 0) {
         // Error occurred
@@ -766,9 +766,9 @@ bool FileIOHandler::eof() {
  * 
  * @return Size in bytes, or -1 if unknown
  */
-off_t FileIOHandler::getFileSize() {
+filesize_t FileIOHandler::getFileSize() {
     // Check cached size atomically first (performance optimization)
-    off_t cached_size = m_cached_file_size.load();
+    filesize_t cached_size = m_cached_file_size.load();
     if (cached_size >= 0) {
         Debug::log("io", "FileIOHandler::getFileSize() - Returning cached size: ", cached_size);
         return cached_size;
@@ -896,7 +896,7 @@ off_t FileIOHandler::getFileSize() {
     return file_stat.st_size;
 }
 
-off_t FileIOHandler::getFileSizeInternal() {
+filesize_t FileIOHandler::getFileSizeInternal() {
     // Internal method for constructor use - no locks to avoid deadlock
     // This assumes the file handle is valid and the object is being constructed
     
@@ -1052,7 +1052,7 @@ bool FileIOHandler::attemptErrorRecovery() {
     return false;
 }
 
-bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
+bool FileIOHandler::fillBuffer(filesize_t file_position, size_t min_bytes) {
     Debug::log("io", "FileIOHandler::fillBuffer() - Filling buffer at position ", file_position, " (min bytes: ", min_bytes, ")");
     
     // Validate file handle
@@ -1069,9 +1069,9 @@ bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
     }
     
     // Don't read beyond file size if known
-    off_t cached_size = m_cached_file_size.load();
+    filesize_t cached_size = m_cached_file_size.load();
     if (cached_size > 0) {
-        off_t remaining = cached_size - file_position;
+        filesize_t remaining = cached_size - file_position;
         if (remaining <= 0) {
             Debug::log("io", "FileIOHandler::fillBuffer() - Position beyond file size");
             updateEofState(true);
@@ -1186,7 +1186,7 @@ size_t FileIOHandler::readFromBuffer(void* buffer, size_t bytes_requested) {
     return readFromBufferAtPosition(buffer, bytes_requested, m_position.load());
 }
 
-size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_requested, off_t logical_position) {
+size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_requested, filesize_t logical_position) {
     if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0) {
         Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Buffer is empty or invalid");
         return 0;
@@ -1212,7 +1212,7 @@ size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_reques
     return bytes_to_copy;
 }
 
-bool FileIOHandler::isPositionBuffered(off_t file_position) const {
+bool FileIOHandler::isPositionBuffered(filesize_t file_position) const {
     if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0) {
         return false;
     }
@@ -1221,7 +1221,7 @@ bool FileIOHandler::isPositionBuffered(off_t file_position) const {
     return (file_position >= m_buffer_file_position && file_position < buffer_end);
 }
 
-void FileIOHandler::updateAccessPattern(off_t current_position) {
+void FileIOHandler::updateAccessPattern(filesize_t current_position) {
     if (m_last_read_position >= 0) {
         // Check if this is sequential access
         off_t position_diff = current_position - m_last_read_position;
@@ -1251,7 +1251,7 @@ void FileIOHandler::invalidateBuffer() {
     Debug::log("io", "FileIOHandler::invalidateBuffer() - Buffer invalidated");
 }
 
-size_t FileIOHandler::getOptimalBufferSize(off_t file_size) const {
+size_t FileIOHandler::getOptimalBufferSize(filesize_t file_size) const {
     // Base buffer size
     size_t optimal_size = 64 * 1024; // 64KB default
     

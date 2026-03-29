@@ -166,8 +166,7 @@
 #include "codecs/flac/FLACRFC9639.cpp"
 #include "codecs/flac/FLACRFCValidator.cpp"
 
-#ifdef HAVE_NATIVE_FLAC
-// Native FLAC decoder (no libFLAC dependency)
+// Native FLAC decoder
 #include "codecs/flac/BitstreamReader.cpp"
 #include "codecs/flac/CRCValidator.cpp"
 #include "codecs/flac/ChannelDecorrelator.cpp"
@@ -178,11 +177,6 @@
 #include "codecs/flac/ResidualDecoder.cpp"
 #include "codecs/flac/SampleReconstructor.cpp"
 #include "codecs/flac/SubframeDecoder.cpp"
-#else
-// libFLAC wrapper
-#include "codecs/flac/FLACCodec.cpp"
-#include "codecs/flac/LibFLACWrapper.cpp"
-#endif // HAVE_NATIVE_FLAC
 #endif // HAVE_FLAC
 
 // ============================================================================

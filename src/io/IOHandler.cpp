@@ -99,14 +99,14 @@ size_t IOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
     return 0;
 }
 
-int IOHandler::seek(off_t offset, int whence) {
+int IOHandler::seek(filesize_t offset, int whence) {
     // Thread-safe seek operation using exclusive lock
     std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
     
     return seek_unlocked(offset, whence);
 }
 
-int IOHandler::seek_unlocked(off_t offset, int whence) {
+int IOHandler::seek_unlocked(filesize_t offset, int whence) {
     // Default implementation returns -1 (failure) for non-functional state
     // Support SEEK_SET, SEEK_CUR, SEEK_END positioning modes
     
@@ -119,8 +119,8 @@ int IOHandler::seek_unlocked(off_t offset, int whence) {
     }
     
     // Calculate new position based on whence
-    off_t current_pos = m_position.load();
-    off_t new_position = current_pos;
+    filesize_t current_pos = m_position.load();
+    filesize_t new_position = current_pos;
     switch (whence) {
         case SEEK_SET:
             new_position = offset;
@@ -150,14 +150,14 @@ int IOHandler::seek_unlocked(off_t offset, int whence) {
     return 0;
 }
 
-off_t IOHandler::tell() {
+filesize_t IOHandler::tell() {
     // Thread-safe tell operation using shared lock
     std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
     
     return tell_unlocked();
 }
 
-off_t IOHandler::tell_unlocked() {
+filesize_t IOHandler::tell_unlocked() {
     // Return current byte offset with off_t for large file support
     // Return -1 on failure (e.g., if closed)
     
@@ -203,7 +203,7 @@ bool IOHandler::eof() {
     return m_closed.load() || m_eof.load();
 }
 
-off_t IOHandler::getFileSize() {
+filesize_t IOHandler::getFileSize() {
     // Return total size in bytes or -1 if unknown
     // Base implementation doesn't know the size, so return -1
     return -1;
@@ -373,18 +373,7 @@ bool IOHandler::isRecoverableError(int error_code) {
 }
 
 filesize_t IOHandler::getMaxFileSize() {
-    // Return maximum file size supported on current platform
-#ifdef _WIN32
-    // Windows with MinGW: Use _off64_t maximum for large file support
-    return 0x7FFFFFFFFFFFFFFFLL;  // Maximum signed 64-bit value
-#else
-    // Unix/Linux: Use native off_t maximum
-    if (sizeof(off_t) == 8) {
-        return 0x7FFFFFFFFFFFFFFFLL;  // Maximum signed 64-bit value
-    } else {
-        return 0x7FFFFFFF;  // Maximum signed 32-bit value
-    }
-#endif
+    return std::numeric_limits<filesize_t>::max();
 }
 
 std::map<std::string, size_t> IOHandler::getMemoryStats() {
@@ -458,9 +447,9 @@ void IOHandler::updateMemoryUsage_unlocked(size_t new_usage) {
               " to ", new_usage, ", total: ", s_total_memory_usage);
 }
 
-bool IOHandler::updatePosition(off_t new_position) {
+bool IOHandler::updatePosition(filesize_t new_position) {
     // Check for overflow before updating
-    static const off_t OFF_T_MAX_VAL = (sizeof(off_t) == 8) ? 0x7FFFFFFFFFFFFFFFLL : 0x7FFFFFFFL;
+    static const filesize_t OFF_T_MAX_VAL = std::numeric_limits<filesize_t>::max();
     
     if (new_position < 0 || new_position > OFF_T_MAX_VAL) {
         Debug::log("io", "IOHandler::updatePosition() - Position overflow/underflow prevented: ", new_position);

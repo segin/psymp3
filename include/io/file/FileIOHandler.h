@@ -65,13 +65,13 @@ public:
      * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
      * @return 0 on success, -1 on failure
      */
-    int seek(off_t offset, int whence) override;
+    int seek(filesize_t offset, int whence) override;
     
     /**
      * @brief Get current byte offset position in the file
      * @return Current position as off_t for large file support, -1 on failure
      */
-    off_t tell() override;
+    filesize_t tell() override;
     
     /**
      * @brief Close the file and cleanup resources
@@ -89,7 +89,7 @@ public:
      * @brief Get total size of the file in bytes
      * @return Size in bytes, or -1 if unknown
      */
-    off_t getFileSize() override;
+    filesize_t getFileSize() override;
 
 private:
     // Private unlocked methods for thread-safe implementation
@@ -109,13 +109,13 @@ private:
      * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
      * @return 0 on success, -1 on failure
      */
-    int seek_unlocked(off_t offset, int whence) override;
+    int seek_unlocked(filesize_t offset, int whence) override;
     
     /**
      * @brief Get current byte offset position in the file (unlocked version)
      * @return Current position as off_t, -1 on failure
      */
-    off_t tell_unlocked() override;
+    filesize_t tell_unlocked() override;
     
     /**
      * @brief Close the file and cleanup resources (unlocked version)
@@ -128,10 +128,10 @@ private:
     TagLib::String m_file_path;     // Original file path for error reporting
     
     // Internal method for constructor use (no locks)
-    off_t getFileSizeInternal();
+    filesize_t getFileSizeInternal();
     
     // Internal tell method that assumes file mutex is already held
-    off_t tell_internal();
+    filesize_t tell_internal();
     
     // Thread safety for file operations
     mutable std::mutex m_file_mutex;        // Protects file handle operations
@@ -140,18 +140,18 @@ private:
     // Performance optimization members
     IOBufferPool::Buffer m_read_buffer;     // Internal read buffer for performance (from pool)
     size_t m_buffer_size = 64 * 1024;       // Default 64KB buffer size
-    off_t m_buffer_file_position = -1;      // File position of buffer start
+    filesize_t m_buffer_file_position = -1;      // File position of buffer start
     size_t m_buffer_valid_bytes = 0;        // Number of valid bytes in buffer
     size_t m_buffer_offset = 0;             // Current offset within buffer
     
     // Read-ahead optimization
     bool m_read_ahead_enabled = true;       // Enable read-ahead optimization
     size_t m_read_ahead_size = 128 * 1024;  // Read-ahead buffer size (128KB)
-    off_t m_last_read_position = -1;        // Track sequential access patterns
+    filesize_t m_last_read_position = -1;        // Track sequential access patterns
     bool m_sequential_access = false;       // Detected sequential access pattern
     
     // Seeking optimization
-    std::atomic<off_t> m_cached_file_size{-1};          // Cached file size to avoid repeated fstat calls
+    std::atomic<filesize_t> m_cached_file_size{-1};          // Cached file size to avoid repeated fstat calls
     
     // Error handling and recovery
     int m_retry_count = 0;                  // Current retry count for operations
@@ -228,7 +228,7 @@ private:
      * @param min_bytes Minimum number of bytes to read
      * @return true if buffer was filled successfully, false on error
      */
-    bool fillBuffer(off_t file_position, size_t min_bytes = 0);
+    bool fillBuffer(filesize_t file_position, size_t min_bytes = 0);
     
     /**
      * @brief Read data from internal buffer
@@ -245,20 +245,20 @@ private:
      * @param logical_position The logical file position to read from
      * @return Number of bytes actually read from buffer
      */
-    size_t readFromBufferAtPosition(void* buffer, size_t bytes_requested, off_t logical_position);
+    size_t readFromBufferAtPosition(void* buffer, size_t bytes_requested, filesize_t logical_position);
     
     /**
      * @brief Check if a file position is currently buffered
      * @param file_position Position to check
      * @return true if position is in current buffer, false otherwise
      */
-    bool isPositionBuffered(off_t file_position) const;
+    bool isPositionBuffered(filesize_t file_position) const;
     
     /**
      * @brief Detect and optimize for sequential access patterns
      * @param current_position Current read position
      */
-    void updateAccessPattern(off_t current_position);
+    void updateAccessPattern(filesize_t current_position);
     
     /**
      * @brief Invalidate internal buffer (call when seeking or on errors)
@@ -270,7 +270,7 @@ private:
      * @param file_size Size of the file
      * @return Optimal buffer size in bytes
      */
-    size_t getOptimalBufferSize(off_t file_size) const;
+    size_t getOptimalBufferSize(filesize_t file_size) const;
     
     /**
      * @brief Optimize buffer pool usage based on access patterns and memory pressure

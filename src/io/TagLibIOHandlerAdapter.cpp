@@ -101,7 +101,7 @@ TagLibOffset TagLibIOHandlerAdapter::tell() const
         return 0;
     }
 
-    long pos = m_io_handler->tell();
+    TagLibOffset pos = static_cast<TagLibOffset>(m_io_handler->tell());
     return pos >= 0 ? pos : 0;
 }
 
@@ -152,7 +152,7 @@ void TagLibIOHandlerAdapter::calculateLength()
     }
 
     // Save current position
-    long current_pos = m_io_handler->tell();
+    TagLibOffset current_pos = static_cast<TagLibOffset>(m_io_handler->tell());
     if (current_pos < 0) {
         m_length = 0;
         m_length_cached = true;
@@ -161,7 +161,7 @@ void TagLibIOHandlerAdapter::calculateLength()
 
     // Seek to end to get length
     if (m_io_handler->seek(0, SEEK_END) == 0) {
-        long end_pos = m_io_handler->tell();
+        TagLibOffset end_pos = static_cast<TagLibOffset>(m_io_handler->tell());
         if (end_pos >= 0) {
             m_length = end_pos;
         } else {

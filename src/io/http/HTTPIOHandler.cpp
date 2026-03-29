@@ -205,7 +205,7 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
     }
     
     // Get current position atomically
-    off_t current_position = m_current_position.load();
+    filesize_t current_position = m_current_position.load();
     
     // Update access pattern tracking
     updateAccessPattern(current_position);
@@ -226,7 +226,7 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
     // Read remaining data from main buffer or network
     while (total_bytes_read < bytes_requested && !m_eof) {
         size_t remaining_bytes = bytes_requested - total_bytes_read;
-        off_t read_position = current_position + total_bytes_read;
+        filesize_t read_position = current_position + total_bytes_read;
         
         // Check if we have data in main buffer
         if (isPositionBuffered(read_position)) {
@@ -285,12 +285,12 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
     return total_bytes_read / size;  // Return number of complete elements read
 }
 
-int HTTPIOHandler::seek(off_t offset, int whence) {
+int HTTPIOHandler::seek(filesize_t offset, int whence) {
     // Use base class locking - call base class seek which will call our seek_unlocked
     return IOHandler::seek(offset, whence);
 }
 
-int HTTPIOHandler::seek_unlocked(off_t offset, int whence) {
+int HTTPIOHandler::seek_unlocked(filesize_t offset, int whence) {
     // Acquire HTTP-specific lock for this operation
     std::lock_guard<std::mutex> http_lock(m_http_mutex);
     
@@ -357,12 +357,12 @@ int HTTPIOHandler::seek_unlocked(off_t offset, int whence) {
     return 0;
 }
 
-off_t HTTPIOHandler::tell() {
+filesize_t HTTPIOHandler::tell() {
     // Use base class locking - call base class tell which will call our tell_unlocked
     return IOHandler::tell();
 }
 
-off_t HTTPIOHandler::tell_unlocked() {
+filesize_t HTTPIOHandler::tell_unlocked() {
     // Return current position using atomic load
     return m_current_position.load();
 }
@@ -404,12 +404,12 @@ bool HTTPIOHandler::eof() {
     return m_eof.load();
 }
 
-off_t HTTPIOHandler::getFileSize() {
+filesize_t HTTPIOHandler::getFileSize() {
     // Thread-safe file size access using atomic load
     return m_content_length.load();
 }
 
-bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {
+bool HTTPIOHandler::fillBuffer(filesize_t position, size_t min_size) {
     auto start_time = std::chrono::steady_clock::now();
     
     Debug::log("HTTPIOHandler", "Filling buffer at position ", static_cast<long long>(position), " (min size: ", min_size, ")");
@@ -555,7 +555,7 @@ size_t HTTPIOHandler::readFromBuffer(void* buffer, size_t bytes_to_read) {
     return bytes_to_copy;
 }
 
-bool HTTPIOHandler::isPositionBuffered(off_t position) const {
+bool HTTPIOHandler::isPositionBuffered(filesize_t position) const {
     if (m_buffer.empty()) {
         return false;
     }
@@ -564,7 +564,7 @@ bool HTTPIOHandler::isPositionBuffered(off_t position) const {
     return (position >= m_buffer_start_position && position < buffer_end);
 }
 
-void HTTPIOHandler::updateAccessPattern(off_t position) {
+void HTTPIOHandler::updateAccessPattern(filesize_t position) {
     if (m_last_read_position >= 0) {
         off_t position_diff = position - m_last_read_position;
         
@@ -641,7 +641,7 @@ void HTTPIOHandler::updatePerformanceStats(size_t bytes_transferred, std::chrono
     m_last_request_time = std::chrono::steady_clock::now();
 }
 
-bool HTTPIOHandler::performReadAhead(off_t current_position) {
+bool HTTPIOHandler::performReadAhead(filesize_t current_position) {
     if (!m_sequential_access || m_read_ahead_active) {
         return false; // Only read-ahead for sequential access
     }
@@ -716,7 +716,7 @@ bool HTTPIOHandler::performReadAhead(off_t current_position) {
     return false;
 }
 
-bool HTTPIOHandler::isPositionInReadAhead(off_t position) const {
+bool HTTPIOHandler::isPositionInReadAhead(filesize_t position) const {
     if (!m_read_ahead_active || m_read_ahead_buffer.empty()) {
         return false;
     }
@@ -725,7 +725,7 @@ bool HTTPIOHandler::isPositionInReadAhead(off_t position) const {
     return (position >= m_read_ahead_position && position < read_ahead_end);
 }
 
-size_t HTTPIOHandler::readFromReadAhead(void* buffer, off_t position, size_t bytes_requested) {
+size_t HTTPIOHandler::readFromReadAhead(void* buffer, filesize_t position, size_t bytes_requested) {
     if (!isPositionInReadAhead(position)) {
         return 0;
     }

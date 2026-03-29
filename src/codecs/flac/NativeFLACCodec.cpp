@@ -1232,7 +1232,7 @@ std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info) {
 }
 
 std::string getCodecInfo() {
-    return "Native FLAC Codec v1.0 - RFC 9639 compliant, pure C++ implementation without libFLAC dependency";
+    return "Native FLAC Codec v1.0 - RFC 9639 compliant, pure C++ implementation";
 }
 
 } // namespace FLACCodecSupport

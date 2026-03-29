@@ -39,14 +39,10 @@
 namespace PsyMP3 {
 namespace IO {
 
-// Cross-platform file size type for large file support
-#ifdef _WIN32
-    // Windows with MinGW: Use _off64_t for 64-bit file sizes
-    typedef _off64_t filesize_t;
-#else
-    // Unix/Linux: Use off_t (which may be 32-bit or 64-bit depending on compilation flags)
-    typedef off_t filesize_t;
-#endif
+// Cross-platform file offset type for large file support.
+// configure.ac enables large-file mode so off_t is the canonical 64-bit API type.
+typedef off_t filesize_t;
+static_assert(sizeof(filesize_t) >= 8, "PsyMP3 requires 64-bit file offsets");
 
 /**
  * @brief Base IOHandler interface for unified I/O operations
@@ -82,13 +78,13 @@ public:
      * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
      * @return 0 on success, -1 on failure
      */
-    virtual int seek(off_t offset, int whence);
+    virtual int seek(filesize_t offset, int whence);
     
     /**
      * @brief Get current byte offset position
      * @param return Current position as off_t for large file support, -1 on failure
      */
-    virtual off_t tell();
+    virtual filesize_t tell();
     
     /**
      * @brief Close the I/O source and cleanup resources
@@ -106,7 +102,7 @@ public:
      * @brief Get total size of the source in bytes
      * @return Size in bytes, or -1 if unknown
      */
-    virtual off_t getFileSize();
+    virtual filesize_t getFileSize();
     
     /**
      * @brief Get the last error code
@@ -185,13 +181,13 @@ private:
      * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
      * @return 0 on success, -1 on failure
      */
-    virtual int seek_unlocked(off_t offset, int whence);
+    virtual int seek_unlocked(filesize_t offset, int whence);
     
     /**
      * @brief Get current byte offset position (unlocked version)
      * @return Current position as off_t, -1 on failure
      */
-    virtual off_t tell_unlocked();
+    virtual filesize_t tell_unlocked();
     
     /**
      * @brief Close the I/O source and cleanup resources (unlocked version)
@@ -238,7 +234,7 @@ protected:
      */
     std::atomic<bool> m_closed{false};   // Indicates if the handler is closed (thread-safe)
     std::atomic<bool> m_eof{false};      // Indicates end-of-stream condition (thread-safe)
-    std::atomic<off_t> m_position{0};    // Current byte offset position (thread-safe)
+    std::atomic<filesize_t> m_position{0};    // Current byte offset position (thread-safe)
     std::atomic<int> m_error{0};         // Last error code (0 = no error) (thread-safe)
     
     // Memory usage tracking (thread-safe)
@@ -259,7 +255,7 @@ protected:
      * @param new_position New position value
      * @return true if position was updated successfully, false if overflow would occur
      */
-    bool updatePosition(off_t new_position);
+    bool updatePosition(filesize_t new_position);
     
     /**
      * @brief Thread-safe error state update

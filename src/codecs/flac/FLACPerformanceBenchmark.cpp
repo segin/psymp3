@@ -643,7 +643,7 @@ std::vector<uint8_t> FLACPerformanceBenchmark::generateFLACFrameData(uint32_t sa
                                                                     uint16_t bits_per_sample, uint32_t block_size,
                                                                     const std::vector<int32_t>& samples) {
     // This is a simplified FLAC frame generator for testing purposes
-    // In a real implementation, this would use libFLAC encoding
+    // In a real implementation, this would use an encoder backend
     
     std::vector<uint8_t> frame_data;
     frame_data.reserve(block_size * channels * (bits_per_sample / 8) + 64); // Estimate with header overhead

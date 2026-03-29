@@ -38,8 +38,7 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 - libvorbis (for Ogg Vorbis support)
 - libopus (for Opus support)
 - libogg (required for Vorbis, Opus, and Ogg FLAC)
-- libFLAC++ 1.2 or later (for FLAC support)
-- libFLAC (for FLAC support)
+- No external FLAC library is required; PsyMP3 uses its native FLAC decoder
 
 **Optional integration dependencies**:
 - D-Bus 1.0 or later (for MPRIS desktop media control support)

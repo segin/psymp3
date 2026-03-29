@@ -57,7 +57,7 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 
 ### 3.1. Codec Subsystem (`src/codecs/`)
 - **Name**: Audio Codecs
-- **Description**: Responsible for decoding compressed audio data into raw PCM frames. Implements wrappers for external libraries (`faad2`, `libmpg123`, `libvorbis`, `libopus`, `spandsp`) and native decoders (RFC 9639 FLAC, PCM, G.711). AAC-in-MP4 uses `StreamInfo.codec_data` to carry the ISO `esds` AudioSpecificConfig from the demuxer into the decoder. Raw G.722 support is handled as a PCM-family codec backed by `spandsp`; unlike PCM and G.711, raw G.722 transport bytes do not map 1:1 to output sample frames, so the demuxer must track encoded bytes per frame separately from decoded PCM samples per frame when computing duration, timestamps, and seek offsets.
+- **Description**: Responsible for decoding compressed audio data into raw PCM frames. Implements wrappers for external libraries (`faad2`, `libmpg123`, `libvorbis`, `libopus`, `spandsp`) and native decoders (RFC 9639 FLAC, PCM, G.711). FLAC is now native-only; the old `libFLAC` wrapper path and legacy `Flac` stream class have been removed, and [`include/codecs/FLACCodec.h`](/home/segin/psymp3/include/codecs/FLACCodec.h) remains only as a compatibility include over the native codec. AAC-in-MP4 uses `StreamInfo.codec_data` to carry the ISO `esds` AudioSpecificConfig from the demuxer into the decoder. Raw G.722 support is handled as a PCM-family codec backed by `spandsp`; unlike PCM and G.711, raw G.722 transport bytes do not map 1:1 to output sample frames, so the demuxer must track encoded bytes per frame separately from decoded PCM samples per frame when computing duration, timestamps, and seek offsets.
 - **Technologies**: C++, `faad2`, `libmpg123`, `libvorbis`, `libopus`, `spandsp`.
 
 ### 3.2. Demuxer Subsystem (`src/demuxer/`)
@@ -67,7 +67,7 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 
 ### 3.3. I/O Layer (`src/io/`)
 - **Name**: IOHandler
-- **Description**: An abstraction layer for input sources, allowing the engine to transparently read from local files (`file/`) or remote HTTP streams (`http/`).
+- **Description**: An abstraction layer for input sources, allowing the engine to transparently read from local files (`file/`) or remote HTTP streams (`http/`). Large-file support is a build invariant: Autoconf enables large-file mode up front so `off_t` becomes the canonical 64-bit offset contract across the I/O subsystem. The public IOHandler API therefore uses a single `filesize_t` alias for logical positions and sizes, while platform-specific implementations such as Windows `_fseeki64` and `_ftelli64` stay hidden underneath that unified contract.
 - **Technologies**: C++, `libcurl` (for HTTP).
 
 ### 3.4. Media Control & Scrobbling (`src/mpris/`, `src/lastfm/`)

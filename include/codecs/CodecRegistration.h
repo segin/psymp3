@@ -44,7 +44,6 @@
  * 
  * Legacy Stream architecture (not registered with CodecRegistry):
  * - MP3 codec (HAVE_MP3) - uses Libmpg123 class
- * - FLAC codec (HAVE_FLAC) - uses Flac class
  * 
  * This function should be called once at application startup before
  * any codec creation is attempted.
@@ -66,9 +65,6 @@ void registerAllCodecs();
  * 
  * Conditionally registered (based on #ifdef):
  * - Ogg demuxer (HAVE_VORBIS || HAVE_OPUS || (HAVE_FLAC && HAVE_OGG)) - uses OggDemuxer
- * 
- * Legacy Stream architecture (no demuxer registration needed):
- * - FLAC (HAVE_FLAC) - uses Flac class directly
  * 
  * The Ogg demuxer is only registered if at least one Ogg-compatible
  * codec is available. This ensures proper FLAC codec and demuxer coupling

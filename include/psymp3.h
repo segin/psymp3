@@ -278,13 +278,6 @@ typedef struct bio_st BIO;
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #endif
-#ifdef HAVE_FLAC
-#ifndef HAVE_NATIVE_FLAC
-#ifndef HAVE_NATIVE_FLAC
-#include <FLAC++/decoder.h>
-#endif
-#endif
-#endif
 #ifdef HAVE_MP3
 #include <mpg123.h>
 #endif
@@ -553,8 +546,6 @@ using PsyMP3::Codec::Opus::OpusComments;
 #include "demuxer/flac/FLACDemuxer.h"
 using PsyMP3::Demuxer::FLAC::FLACDemuxer;
 using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
-#ifdef HAVE_NATIVE_FLAC
-// Native FLAC codec
 #include "codecs/flac/FLACError.h"
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/CRCValidator.h"
@@ -572,12 +563,6 @@ using PsyMP3::Codec::FLAC::FLACCodec;
 using PsyMP3::Codec::FLAC::FLACError;
 using PsyMP3::Codec::FLAC::FLACException;
 #include "codecs/flac/FLACPerformanceBenchmark.h"
-#else
-// libFLAC wrapper codec
-#include "codecs/flac.h"
-#include "codecs/FLACCodec.h"
-#include "codecs/flac/FLACPerformanceBenchmark.h"
-#endif
 #endif
 #include "demuxer/ChainedStream.h"
 

@@ -146,7 +146,7 @@ struct FLACCodecStats {
     size_t crc_errors = 0;           ///< CRC validation failures
     size_t sync_errors = 0;          ///< Frame synchronization errors
     size_t memory_errors = 0;        ///< Memory allocation failures
-    size_t libflac_errors = 0;       ///< libFLAC internal errors
+    size_t decoder_errors = 0;       ///< Internal decoder errors
     
     /**
      * @brief Calculate average decode time per frame in microseconds

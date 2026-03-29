@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(FLAC_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -203,7 +203,7 @@ COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
 MPRIS_TEST_LIBS = $(COMMON_TEST_LIBS)
 
 # Common library links for codec tests
-COMMON_CODEC_LIBS = -lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg
+COMMON_CODEC_LIBS = -lmpg123 -lvorbis -lopus -logg
 AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS) $(AAC_LIBS) $(G722_LIBS)
 
 # Common test utilities library
@@ -1399,7 +1399,7 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg \
+	-lmpg123 -lvorbis -lopus -logg \
 	$(AM_LDFLAGS)
 
 # Codec thread safety test
@@ -2377,9 +2377,7 @@ test_frame_size_estimation_consistency_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
-# FLAC AudioFrame creation test (uses libFLAC wrapper FLACCodec, not native codec)
-# NOTE: This test is disabled when HAVE_NATIVE_FLAC is defined because it uses
-# the libFLAC++ wrapper (FLACCodec) which is incompatible with the native codec.
+# FLAC AudioFrame creation test
 # To enable this test, configure with --disable-native-flac
 #test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
 #test_flac_audioframe_creation_LDADD = \
@@ -3126,7 +3124,7 @@ test_native_flac_edge_cases_LDADD = \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
-# Performance test: Benchmark against libFLAC
+# Performance test: benchmark native FLAC decoding
 test_native_flac_performance_benchmark_SOURCES = test_native_flac_performance_benchmark.cpp
 test_native_flac_performance_benchmark_LDADD = \
 	$(FULL_CODEC_LIBS) \

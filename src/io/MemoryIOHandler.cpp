@@ -101,7 +101,7 @@ size_t MemoryIOHandler::read(void* buffer, size_t size, size_t count) {
     return (size > 0) ? (to_read / size) : 0;
 }
 
-int MemoryIOHandler::seek(off_t offset, int whence) {
+int MemoryIOHandler::seek(filesize_t offset, int whence) {
     std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
 
     if (m_closed.load()) {
@@ -114,8 +114,8 @@ int MemoryIOHandler::seek(off_t offset, int whence) {
     size_t logical_size = (m_own_buffer ? m_buffer.size() : m_external_size) + m_discarded_bytes;
 
     // Current logical position
-    off_t logical_pos = static_cast<off_t>(m_pos + m_discarded_bytes);
-    off_t new_logical_pos = logical_pos;
+    filesize_t logical_pos = static_cast<filesize_t>(m_pos + m_discarded_bytes);
+    filesize_t new_logical_pos = logical_pos;
 
     switch (whence) {
         case SEEK_SET:
@@ -166,10 +166,10 @@ int MemoryIOHandler::seek(off_t offset, int whence) {
     return 0;
 }
 
-off_t MemoryIOHandler::tell() {
+filesize_t MemoryIOHandler::tell() {
     std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
     // Return logical position
-    return static_cast<off_t>(m_pos + m_discarded_bytes);
+    return static_cast<filesize_t>(m_pos + m_discarded_bytes);
 }
 
 int MemoryIOHandler::close() {
@@ -187,9 +187,9 @@ bool MemoryIOHandler::eof() {
     return m_pos >= total_size;
 }
 
-off_t MemoryIOHandler::getFileSize() {
+filesize_t MemoryIOHandler::getFileSize() {
     std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
-    return static_cast<off_t>(m_own_buffer ? m_buffer.size() : m_external_size);
+    return static_cast<filesize_t>(m_own_buffer ? m_buffer.size() : m_external_size);
 }
 
 size_t MemoryIOHandler::write(const void* data, size_t size) {
@@ -253,7 +253,7 @@ void MemoryIOHandler::discard(size_t count) {
     // However, if we discard data *before* the read pointer, the read pointer's logical position is unchanged.
     // If we discard data *including* the read pointer, the read pointer is now at the new start.
     // Let's recalculate logical position.
-    updatePosition(static_cast<off_t>(m_pos + m_discarded_bytes));
+    updatePosition(static_cast<filesize_t>(m_pos + m_discarded_bytes));
 }
 
 void MemoryIOHandler::discardRead() {

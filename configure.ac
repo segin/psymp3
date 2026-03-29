@@ -8,6 +8,7 @@ AC_PROG_CPP
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_RANLIB
+AC_SYS_LARGEFILE
 AC_HEADER_STDBOOL
 AC_FUNC_MALLOC
 AX_CXX_COMPILE_STDCXX_17
@@ -240,7 +241,6 @@ fi
 
 AM_CONDITIONAL([HAVE_G711], [test "x$have_g711" = "xyes"])
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
-AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
@@ -482,10 +482,8 @@ echo ""
 echo "Audio Codec Support:"
 echo "  MP3 (libmpg123):   $have_mp3"
 echo "  FLAC:              $have_flac"
-if test "x$have_native_flac" = "xyes"; then
-  echo "    Implementation:  Native (no libFLAC)"
-else
-  echo "    Implementation:  libFLAC wrapper"
+if test "x$have_flac" = "xyes"; then
+  echo "    Implementation:  Native"
 fi
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
@@ -517,3 +515,4 @@ echo "=========================================="
 echo ""
 
 AC_OUTPUT
+AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])

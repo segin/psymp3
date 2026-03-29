@@ -38,9 +38,6 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 
 # Optional codec flags
 if HAVE_FLAC
-if !HAVE_NATIVE_FLAC
-AM_CPPFLAGS += $(FLAC_CFLAGS)
-endif
 endif
 
 if HAVE_MP3
@@ -81,11 +78,7 @@ DEMUXER_LIBS =
 
 if HAVE_FLAC
 DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
-if HAVE_NATIVE_FLAC
 CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
-else
-CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
-endif
 endif
 
 if HAVE_MP3
@@ -171,12 +164,6 @@ psymp3_LDADD += \
 	$(WINSOCK_LIBS)
 
 # Optional codec system libraries (must come after our libraries)
-if HAVE_FLAC
-if !HAVE_NATIVE_FLAC
-psymp3_LDADD += $(FLAC_LIBS)
-endif
-endif
-
 if HAVE_MP3
 psymp3_LDADD += $(LIBMPG123_LIBS)
 endif

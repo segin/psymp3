@@ -59,11 +59,11 @@ public:
     
     // IOHandler interface implementation
     size_t read(void* buffer, size_t size, size_t count) override;
-    int seek(off_t offset, int whence) override;
-    off_t tell() override;
+    int seek(filesize_t offset, int whence) override;
+    filesize_t tell() override;
     int close() override;
     bool eof() override;
-    off_t getFileSize() override;
+    filesize_t getFileSize() override;
     
     // HTTP-specific methods
     
@@ -109,13 +109,13 @@ private:
      * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
      * @return 0 on success, -1 on failure
      */
-    int seek_unlocked(off_t offset, int whence) override;
+    int seek_unlocked(filesize_t offset, int whence) override;
     
     /**
      * @brief Get current byte offset position (unlocked version)
      * @return Current position as off_t, -1 on failure
      */
-    off_t tell_unlocked() override;
+    filesize_t tell_unlocked() override;
     
     /**
      * @brief Close HTTP stream and cleanup resources (unlocked version)
@@ -127,7 +127,7 @@ private:
     // HTTP stream properties
     std::string m_url;                    // The HTTP URL
     std::atomic<long> m_content_length{-1};           // Total content length (-1 if unknown) (thread-safe)
-    std::atomic<off_t> m_current_position{0};         // Current logical position in stream (thread-safe)
+    std::atomic<filesize_t> m_current_position{0};         // Current logical position in stream (thread-safe)
     std::string m_mime_type;              // Content-Type from HTTP headers
     std::atomic<bool> m_supports_ranges{false};       // Server supports range requests (thread-safe)
     std::atomic<bool> m_initialized{false};           // Initialization completed (thread-safe)
@@ -140,11 +140,11 @@ private:
     // Enhanced buffering system
     IOBufferPool::Buffer m_buffer;          // Primary data buffer (from pool)
     size_t m_buffer_offset = 0;           // Current offset within buffer
-    off_t m_buffer_start_position = 0;    // Stream position of buffer start
+    filesize_t m_buffer_start_position = 0;    // Stream position of buffer start
     
     // Read-ahead buffering for performance
     IOBufferPool::Buffer m_read_ahead_buffer;    // Read-ahead buffer for sequential access (from pool)
-    off_t m_read_ahead_position = -1;          // Position of read-ahead buffer
+    filesize_t m_read_ahead_position = -1;          // Position of read-ahead buffer
     bool m_read_ahead_active = false;          // Read-ahead is active
     
     // Adaptive buffer configuration
@@ -160,7 +160,7 @@ private:
     double m_average_speed = 0.0;  // bytes per second
     
     // Access pattern detection
-    off_t m_last_read_position = -1;
+    filesize_t m_last_read_position = -1;
     bool m_sequential_access = false;
     size_t m_sequential_reads = 0;
     
@@ -183,7 +183,7 @@ private:
      * @param min_size Minimum number of bytes to read (default: MIN_RANGE_SIZE)
      * @return true if buffer was filled successfully, false on error
      */
-    bool fillBuffer(off_t position, size_t min_size = MIN_RANGE_SIZE);
+    bool fillBuffer(filesize_t position, size_t min_size = MIN_RANGE_SIZE);
     
     /**
      * @brief Read data from internal buffer
@@ -198,7 +198,7 @@ private:
      * @param position Stream position to check
      * @return true if position is in current buffer, false otherwise
      */
-    bool isPositionBuffered(off_t position) const;
+    bool isPositionBuffered(filesize_t position) const;
     
     /**
      * @brief Parse Content-Type header and normalize MIME type
@@ -211,7 +211,7 @@ private:
      * @brief Update access pattern tracking for optimization
      * @param position Current read position
      */
-    void updateAccessPattern(off_t position);
+    void updateAccessPattern(filesize_t position);
     
     /**
      * @brief Get optimal buffer size based on network conditions and access patterns
@@ -231,14 +231,14 @@ private:
      * @param current_position Current read position
      * @return true if read-ahead was performed, false otherwise
      */
-    bool performReadAhead(off_t current_position);
+    bool performReadAhead(filesize_t current_position);
     
     /**
      * @brief Check if read-ahead buffer contains the requested position
      * @param position Position to check
      * @return true if position is in read-ahead buffer, false otherwise
      */
-    bool isPositionInReadAhead(off_t position) const;
+    bool isPositionInReadAhead(filesize_t position) const;
     
     // Network error handling methods
     
@@ -309,7 +309,7 @@ private:
      * @param bytes_requested Number of bytes to read
      * @return Number of bytes actually read from read-ahead buffer
      */
-    size_t readFromReadAhead(void* buffer, off_t position, size_t bytes_requested);
+    size_t readFromReadAhead(void* buffer, filesize_t position, size_t bytes_requested);
     
     /**
      * @brief Optimize range request size based on network conditions

@@ -1,5 +1,5 @@
 /*
- * NativeFLACCodec.h - Native FLAC decoder without libFLAC dependency
+ * NativeFLACCodec.h - Native FLAC decoder
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -49,12 +49,11 @@ struct FLAC__Frame {
 };
 
 /**
- * @brief Native FLAC decoder implementation without libFLAC dependency
+ * @brief Native FLAC decoder implementation
  * 
  * This codec implements a complete FLAC decoder following RFC 9639 specification
- * without requiring the external libFLAC library. It provides the same FLACCodec
- * interface as the libFLAC wrapper, allowing build-time selection between
- * implementations via configure flags.
+ * without requiring an external FLAC decoder library. It provides the FLACCodec
+ * interface used by the rest of PsyMP3.
  * 
  * ARCHITECTURE OVERVIEW:
  * =====================
