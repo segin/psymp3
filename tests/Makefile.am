@@ -553,7 +553,7 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 	test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic \
 	test_flac_quality_simple test_flac_thread_safety_validation test_flac_codec_unit_minimal \
 	test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_unit_comprehensive \
-	test_flac_codec_error_handling test_flac_codec_performance_comprehensive \
+	test_flac_codec_error_handling test_flac_rfc9639_error_handling test_flac_codec_performance_comprehensive \
 	test_flac_codec_multithreaded test_flac_codec_demuxer_integration \
 	test_flac_performance_benchmarking test_flac_conditional_compilation \
 	test_flac_binary_search_limitations test_flac_demuxer_threading \
@@ -2459,6 +2459,12 @@ test_flac_codec_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_flac_rfc9639_error_handling_SOURCES = test_flac_rfc9639_error_handling.cpp
+test_flac_rfc9639_error_handling_LDADD = \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
 # FLAC codec performance comprehensive tests

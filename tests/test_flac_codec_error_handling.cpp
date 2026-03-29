@@ -92,16 +92,42 @@ private:
     static bool testParameterValidation() {
         std::cout << "Testing parameter validation..." << std::endl;
         
-        // Test sample rate validation (RFC 9639: 1-655350 Hz)
-        if (!isValidSampleRate(44100) || !isValidSampleRate(48000) || !isValidSampleRate(96000)) {
+        // Test sample rate validation (RFC 9639: 1-1048575 Hz)
+        if (!isValidSampleRate(44100) || !isValidSampleRate(48000) ||
+            !isValidSampleRate(96000) || !isValidSampleRate(1048575)) {
             std::cout << "  ERROR: Valid sample rates rejected" << std::endl;
             return false;
         }
         
-        if (isValidSampleRate(0) || isValidSampleRate(655351)) {
+        if (isValidSampleRate(0) || isValidSampleRate(1048576)) {
             std::cout << "  ERROR: Invalid sample rates accepted" << std::endl;
             return false;
         }
+
+#ifdef HAVE_NATIVE_FLAC
+        StreamInfo upper_bound_info;
+        upper_bound_info.codec_type = "audio";
+        upper_bound_info.codec_name = "flac";
+        upper_bound_info.sample_rate = 1048575;
+        upper_bound_info.channels = 2;
+        upper_bound_info.bits_per_sample = 16;
+
+        FLACCodec valid_upper_bound_codec(upper_bound_info);
+        if (!valid_upper_bound_codec.canDecode(upper_bound_info) ||
+            !valid_upper_bound_codec.initialize()) {
+            std::cout << "  ERROR: Native FLAC codec rejected RFC-valid 1048575 Hz stream" << std::endl;
+            return false;
+        }
+
+        StreamInfo out_of_range_info = upper_bound_info;
+        out_of_range_info.sample_rate = 1048576;
+        FLACCodec invalid_rate_codec(out_of_range_info);
+        if (invalid_rate_codec.canDecode(out_of_range_info) ||
+            invalid_rate_codec.initialize()) {
+            std::cout << "  ERROR: Native FLAC codec accepted out-of-range 1048576 Hz stream" << std::endl;
+            return false;
+        }
+#endif
         
         // Test channel count validation (RFC 9639: 1-8 channels)
         if (!isValidChannelCount(1) || !isValidChannelCount(2) || !isValidChannelCount(8)) {
@@ -207,7 +233,7 @@ private:
     }
     
     static bool isValidSampleRate(uint32_t sample_rate) {
-        return sample_rate >= 1 && sample_rate <= 655350;
+        return sample_rate >= 1 && sample_rate <= 1048575;
     }
     
     static bool isValidChannelCount(uint16_t channels) {

@@ -38,8 +38,7 @@ void test_forbidden_bit_patterns() {
     chunk.timestamp_samples = 0;
     
     AudioFrame result = codec.decode(chunk);
-    // Should return silence frame due to forbidden pattern
-    assert(result.getSampleFrameCount() > 0); // Should get silence, not empty frame
+    assert(result.getSampleFrameCount() == 0);
     
     std::cout << "✓ Forbidden block size pattern handled correctly" << std::endl;
     
@@ -51,8 +50,7 @@ void test_forbidden_bit_patterns() {
     
     chunk.data = forbidden_sample_rate;
     result = codec.decode(chunk);
-    // Should return silence frame due to forbidden pattern
-    assert(result.getSampleFrameCount() > 0);
+    assert(result.getSampleFrameCount() == 0);
     
     std::cout << "✓ Forbidden sample rate pattern handled correctly" << std::endl;
     
@@ -64,8 +62,7 @@ void test_forbidden_bit_patterns() {
     
     chunk.data = reserved_channel;
     result = codec.decode(chunk);
-    // Should return silence frame due to reserved pattern
-    assert(result.getSampleFrameCount() > 0);
+    assert(result.getSampleFrameCount() == 0);
     
     std::cout << "✓ Reserved channel assignment pattern handled correctly" << std::endl;
 }
@@ -95,8 +92,7 @@ void test_reserved_field_violations() {
     chunk.timestamp_samples = 0;
     
     AudioFrame result = codec.decode(chunk);
-    // Should handle gracefully per RFC 9639 error handling
-    assert(result.getSampleFrameCount() >= 0); // Should not crash
+    assert(result.getSampleFrameCount() == 0);
     
     std::cout << "✓ Reserved bit violation handled correctly" << std::endl;
 }
@@ -126,8 +122,7 @@ void test_stream_termination() {
     chunk.timestamp_samples = 0;
     
     AudioFrame result = codec.decode(chunk);
-    // Should return silence or empty frame for invalid sync
-    // The codec should handle this gracefully without crashing
+    assert(result.getSampleFrameCount() == 0);
     
     std::cout << "✓ Invalid sync pattern handled with appropriate termination logic" << std::endl;
 }
@@ -161,10 +156,10 @@ void test_error_logging() {
     chunk.timestamp_samples = 0;
     
     AudioFrame result = codec.decode(chunk);
-    
-    // Check that error was logged
+    assert(result.getSampleFrameCount() == 0);
+
     FLACCodecStats final_stats = codec.getStats();
-    // Note: Error counting might be handled differently, so we just verify no crash
+    assert(final_stats.error_count >= initial_errors);
     
     std::cout << "✓ Error logging completed without crashes" << std::endl;
 }
