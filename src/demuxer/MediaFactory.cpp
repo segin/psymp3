@@ -169,6 +169,12 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
         Debug::log("loader", "MediaFactory::analyzeContent extension detection found format: ", 
                   ext_result.detected_format, ", confidence: ", ext_result.confidence);
     }
+
+    // Raw telephony/PCM formats have no reliable container signatures, so known
+    // raw extensions must win over heuristic content guesses such as fake MPEG sync.
+    if (ext_result.detected_format == "raw") {
+        return ext_result;
+    }
     
     // Try content analysis with IOHandler for more detailed detection
     Debug::log("loader", "MediaFactory::analyzeContent trying content-based detection for: ", uri);
@@ -656,12 +662,12 @@ void MediaFactory::initializeDefaultFormats() {
         });
     }
     
-    if (DemuxerRegistry::getInstance().isFormatSupported("raw_audio")) {
+    if (DemuxerRegistry::getInstance().isFormatSupported("raw")) {
         // Raw audio formats
         MediaFormat raw_format;
-        raw_format.format_id = "raw_audio";
+        raw_format.format_id = "raw";
         raw_format.display_name = "Raw Audio";
-        raw_format.extensions = {"PCM", "RAW", "AL", "ALAW", "UL", "ULAW", "MULAW", "G722", "722", "AU", "SND"};
+        raw_format.extensions = {"PCM", "RAW", "S8", "U8", "AL", "ALAW", "UL", "ULAW", "MULAW", "G722", "722", "AU", "SND"};
         raw_format.mime_types = {"audio/pcm", "audio/raw", "audio/alaw", "audio/ulaw", "audio/basic", "audio/g722", "audio/G722"};
         raw_format.priority = 90; // Lower priority since no magic signature
         raw_format.supports_streaming = true;

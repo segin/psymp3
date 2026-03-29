@@ -113,6 +113,10 @@ std::unique_ptr<Demuxer> DemuxerRegistry::createDemuxer(std::unique_ptr<IOHandle
         
         auto it = m_formats.find(format_id);
         if (it != m_formats.end()) {
+            if (format_id == "raw") {
+                return std::make_unique<PsyMP3::Demuxer::Raw::RawAudioDemuxer>(
+                    std::move(handler), file_path);
+            }
             return it->second.factory_func(std::move(handler));
         }
     }

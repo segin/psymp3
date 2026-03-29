@@ -65,8 +65,15 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["mp3"] = "mp3";
     s_extension_to_format["pcm"] = "raw";
     s_extension_to_format["raw"] = "raw";
+    s_extension_to_format["s8"] = "raw";
+    s_extension_to_format["u8"] = "raw";
+    s_extension_to_format["ul"] = "raw";
+    s_extension_to_format["mulaw"] = "raw";
+    s_extension_to_format["al"] = "raw";
     s_extension_to_format["alaw"] = "raw";
     s_extension_to_format["ulaw"] = "raw";
+    s_extension_to_format["g722"] = "raw";
+    s_extension_to_format["722"] = "raw";
     s_extension_to_format["au"] = "raw";
     
     s_initialized = true;
@@ -187,6 +194,13 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     }
     
     try {
+        if (format_id == "raw") {
+            auto demuxer = std::make_unique<PsyMP3::Demuxer::Raw::RawAudioDemuxer>(
+                std::move(handler), file_path);
+            Debug::log("demuxer", "DemuxerFactory: Successfully created raw demuxer with file path hint for file: ", file_path);
+            return demuxer;
+        }
+
         auto demuxer = factory_func(std::move(handler));
         if (!demuxer) {
             Debug::log("demuxer", "DemuxerFactory: Factory returned null demuxer for format: ", format_id, " (file: ", file_path, ")");

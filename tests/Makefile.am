@@ -507,6 +507,8 @@ if HAVE_G722
 check_PROGRAMS += test_g722_integration
 endif
 
+check_PROGRAMS += test_raw_audio_stream_integration
+
 # G711 codec tests (both A-law and μ-law)
 if HAVE_G711
   # A-law tests
@@ -1327,6 +1329,11 @@ test_g722_integration_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(FULL_CODEC_LIBS) \
 	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_raw_audio_stream_integration_SOURCES = test_raw_audio_stream_integration.cpp
+test_raw_audio_stream_integration_LDADD = \
+	$(COMMON_TEST_LIBS) \
 	$(AM_LDFLAGS)
 
 # A-law codec sample conversion test
