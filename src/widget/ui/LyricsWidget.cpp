@@ -30,30 +30,6 @@ namespace UI {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
-namespace {
-
-std::unique_ptr<::Surface> createBoldTextSurface(::Font* font, const std::string& text, SDL_Color color)
-{
-    if (!font || text.empty()) {
-        return nullptr;
-    }
-
-    auto base_surface = font->Render(TagLib::String(text, TagLib::String::UTF8),
-                                     color.r, color.g, color.b);
-    if (!base_surface || !base_surface->isValid()) {
-        return nullptr;
-    }
-
-    auto bold_surface = std::make_unique<::Surface>(base_surface->width() + 1,
-                                                    base_surface->height(),
-                                                    true);
-    bold_surface->Blit(*base_surface, Rect(0, 0, base_surface->width(), base_surface->height()));
-    bold_surface->Blit(*base_surface, Rect(1, 0, base_surface->width(), base_surface->height()));
-    return bold_surface;
-}
-
-} // namespace
-
 LyricsWidget::LyricsWidget(Font* font, int width)
     : TransparentWindowWidget(width, 100, 0.9f, true)  // width, height, opacity, mouse-transparent
     , m_font(font)
@@ -180,24 +156,23 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     const int LINE_SPACING = 6;
     const int PADDING = 12;
 
-    std::vector<std::unique_ptr<::Surface>> line_surfaces;
-    std::vector<uint8_t> line_alphas;
+    std::vector<std::unique_ptr<Surface>> line_surfaces;
 
-    auto render_line = [&](const std::string& text, SDL_Color color, uint8_t alpha) {
+    auto render_line = [&](const std::string& text, SDL_Color color) {
         if (text.empty()) {
             return;
         }
 
-        auto surface = createBoldTextSurface(m_font, text, color);
+        auto surface = m_font->Render(TagLib::String(text, TagLib::String::UTF8),
+                                      color.r, color.g, color.b);
         if (surface && surface->isValid()) {
-            line_alphas.push_back(alpha);
             line_surfaces.push_back(std::move(surface));
         }
     };
 
-    render_line(m_current_line_text, SDL_Color{0, 192, 192, 255}, 255);
+    render_line(m_current_line_text, SDL_Color{0, 192, 192, 255});
     for (const auto& line : m_preview_lines) {
-        render_line(line, SDL_Color{255, 215, 0, 255}, 220);
+        render_line(line, SDL_Color{255, 215, 0, 255});
     }
 
     if (line_surfaces.empty()) {
@@ -224,8 +199,12 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     // Create the final surface with alpha support
     auto final_surface = std::make_unique<Surface>(surface_width, surface_height, true);
     
-    // Draw semi-transparent background
-    final_surface->roundedBoxRGBA(0, 0, surface_width - 1, surface_height - 1, 8, 0, 0, 0, 160);
+    // Match the toast widget treatment: darker inner fill with a lighter outer shell.
+    final_surface->FillRect(final_surface->MapRGBA(0, 0, 0, 0));
+    final_surface->roundedBoxRGBA(0, 0, surface_width - 1, surface_height - 1, 8, 100, 100, 100, 255);
+    if (surface_width > 4 && surface_height > 4) {
+        final_surface->roundedBoxRGBA(1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, 255);
+    }
     
     int y_offset = PADDING;
 
@@ -233,7 +212,6 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
         auto& surface = line_surfaces[i];
         int x_offset = (surface_width - surface->width()) / 2;
         Rect rect(x_offset, y_offset, 0, 0);
-        surface->SetAlpha(SDL_SRCALPHA, line_alphas[i]);
         final_surface->Blit(*surface, rect);
         y_offset += surface->height();
         if (i + 1 < line_surfaces.size()) {
