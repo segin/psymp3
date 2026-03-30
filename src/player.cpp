@@ -1508,8 +1508,10 @@ bool Player::Initialize(const PlayerOptions& options) {
     m_unattended_quit = options.unattended_quit;
     m_show_mpris_errors = options.show_mpris_errors;
 
-    // initialize SDL video
-    if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
+    // Initialize only the SDL subsystems needed to bring up the UI promptly.
+    // Audio is initialized on demand in Audio::setup() so a stuck backend
+    // (for example PipeWire) cannot hang the entire application at startup.
+    if ( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER ) < 0 )
     {
         Debug::log("system", "Unable to init SDL: ", SDL_GetError());
         return false;
