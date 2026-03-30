@@ -114,15 +114,21 @@ clean_workdir() {
 
 # dist-related functions
 
-distfiles_check() { # does the distfile exist?
+distfiles_check() { # does the distfile exist and is it valid?
 	package=$1
 	package_check ${package}
 	distfile="${DISTDIR}/$(basename ${DISTS[$package]})"
 	
 	if [ -f ${distfile} ]; then
 		distnotice "$(basename ${distfile}) exists in ${DISTDIR}."
+		# Capture output to avoid noisy logging when checking
+		if distfiles_sum MD5 ${package} >/dev/null && distfiles_sum SHA256 ${package} >/dev/null; then
+			return 0
+		else
+			return 1
+		fi
 	else
-
+		return 1
 	fi
 }
 
@@ -133,18 +139,18 @@ distfiles_sum () {
 	case $1 in
 		SHA256)
 			distsum=${DISTSHA256[$package]}
-			filesum=$(sha256sum ${distfile})
+			filesum=$(sha256sum ${distfile} 2>/dev/null)
 			;;
 		MD5)
 			distsum=${DISTMD5[$package]}
-			filesum=$(md5sum ${distfile})
+			filesum=$(md5sum ${distfile} 2>/dev/null)
 			;;
 		*)
 			notice "Invalid checksum algorithm tried! Bailing!"
 			exit 1
 			;;
 	esac
-	if [ ${filesum} = "${distsum}  ${distfile}" ]; then
+	if [ "${filesum}" = "${distsum}  ${distfile}" ]; then
 		distnotice "$1 Checksum OK for $(basename ${distfile})."
 		return 0;
 	else
@@ -156,19 +162,28 @@ distfiles_sum () {
 distfiles_fetch () { 
 	package=$1
 	package_check ${package}
+	distfile="${DISTDIR}/$(basename ${DISTS[$package]})"
+
+	if distfiles_check ${package}; then
+		distnotice "Valid distfile already exists for ${package}-${DISTVERS[$package]}, skipping fetch."
+		return 0
+	fi
+
+	# If the file exists but didn't pass check, or doesn't exist, we download it using -c (continue)
 	notice "Fetching for ${package}-${DISTVERS[$package]}"
-	wget -O ${DISTDIR}/$(basename ${DISTS[$package]}) ${DISTS[$package]}
-	distfiles_sum MD5 ${package}
-	distfiles_sum SHA256 ${package}
+	wget -c -O ${distfile} ${DISTS[$package]}
+
+	if distfiles_sum MD5 ${package} && distfiles_sum SHA256 ${package}; then
+		return 0
+	else
+		notice "Checksum verification failed for ${package}-${DISTVERS[$package]}! Bailing!"
+		exit 1
+	fi
 }
 
 # Initialize our build environment 
 mkdir -p ${BUILDDIR} ${DISTDIR} ${TARGETDIR} ${WORKDIR}
 
-
-# XXX: better system for fetching distfiles needed!!
-
 for i in ${PACKAGES}; do
-	# wget -O ${DISTFILES}/$(basename ${DISTS[$i]}) ${DISTS[$i]}
 	distfiles_fetch ${i}
 done
