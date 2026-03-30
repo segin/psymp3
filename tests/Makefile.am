@@ -382,7 +382,19 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_bounded_buffer \
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
-	test_surface_from_bmp_error
+	test_surface_from_bmp_error \
+	test_extensibility_utils
+
+test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
+test_extensibility_utils_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	-lcurl \
+	$(AM_LDFLAGS)
 
 if HAVE_AAC
 check_PROGRAMS += test_aac_integration
