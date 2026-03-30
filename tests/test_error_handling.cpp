@@ -13,6 +13,7 @@
 
 // Use qualified names from PsyMP3 namespaces
 using PsyMP3::IO::IOHandler;
+using PsyMP3::IO::filesize_t;
 using PsyMP3::Demuxer::Ogg::OggDemuxer;
 
 // Mock IOHandler for testing
@@ -25,6 +26,10 @@ public:
     explicit MemoryIOHandler(const std::vector<uint8_t>& test_data) : data(test_data) {}
     
     size_t read(void* buffer, size_t size, size_t count) override {
+        if (size == 0 || count == 0 || position >= data.size()) {
+            return 0;
+        }
+
         size_t bytes_to_read = std::min(size * count, data.size() - position);
         if (bytes_to_read > 0) {
             std::memcpy(buffer, data.data() + position, bytes_to_read);
@@ -33,13 +38,13 @@ public:
         return bytes_to_read / size;
     }
     
-    int seek(long offset, int whence) override {
+    int seek(filesize_t offset, int whence) override {
         switch (whence) {
             case SEEK_SET:
-                position = std::min(static_cast<size_t>(std::max(0L, offset)), data.size());
+                position = std::min(static_cast<size_t>(std::max<filesize_t>(0, offset)), data.size());
                 break;
             case SEEK_CUR:
-                position = std::min(position + static_cast<size_t>(std::max(0L, offset)), data.size());
+                position = std::min(position + static_cast<size_t>(std::max<filesize_t>(0, offset)), data.size());
                 break;
             case SEEK_END:
                 position = data.size();
@@ -50,16 +55,16 @@ public:
         return 0;
     }
     
-    long tell() override {
-        return static_cast<long>(position);
+    filesize_t tell() override {
+        return static_cast<filesize_t>(position);
     }
     
     bool eof() override {
         return position >= data.size();
     }
     
-    off_t getFileSize() override {
-        return static_cast<off_t>(data.size());
+    filesize_t getFileSize() override {
+        return static_cast<filesize_t>(data.size());
     }
 };
 

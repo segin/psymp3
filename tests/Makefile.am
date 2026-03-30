@@ -143,6 +143,27 @@ MINIMAL_TEST_LIBS = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a
 
+# Common library set for Ogg demuxer-focused tests
+OGG_DEMUXER_TEST_LIBS = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(OGG_LIBS) \
+	$(VORBIS_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
 # Common object files needed by tests (not in libraries)
 # These are standalone .o files from src/ that tests commonly need
 # Note: Memory management files (MemoryPoolManager, MemoryTracker, BufferPool, etc.)
@@ -187,6 +208,9 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1237,24 +1261,7 @@ test_ogg_memory_safety_LDADD = \
 
 # OggDemuxer error handling test
 test_error_handling_SOURCES = test_error_handling.cpp
-test_error_handling_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
-	$(OPUS_LIBS) \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
+test_error_handling_LDADD = $(OGG_DEMUXER_TEST_LIBS)
 
 # OggDemuxer seeking integration test
 	libtest_utilities.a \
