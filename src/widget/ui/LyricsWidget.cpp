@@ -30,6 +30,30 @@ namespace UI {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+namespace {
+
+std::unique_ptr<::Surface> createBoldTextSurface(::Font* font, const std::string& text, SDL_Color color)
+{
+    if (!font || text.empty()) {
+        return nullptr;
+    }
+
+    auto base_surface = font->Render(TagLib::String(text, TagLib::String::UTF8),
+                                     color.r, color.g, color.b);
+    if (!base_surface || !base_surface->isValid()) {
+        return nullptr;
+    }
+
+    auto bold_surface = std::make_unique<::Surface>(base_surface->width() + 1,
+                                                    base_surface->height(),
+                                                    true);
+    bold_surface->Blit(*base_surface, Rect(0, 0, base_surface->width(), base_surface->height()));
+    bold_surface->Blit(*base_surface, Rect(1, 0, base_surface->width(), base_surface->height()));
+    return bold_surface;
+}
+
+} // namespace
+
 LyricsWidget::LyricsWidget(Font* font, int width)
     : TransparentWindowWidget(width, 100, 0.9f, true)  // width, height, opacity, mouse-transparent
     , m_font(font)
@@ -156,7 +180,7 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     const int LINE_SPACING = 6;
     const int PADDING = 12;
 
-    std::vector<std::unique_ptr<Surface>> line_surfaces;
+    std::vector<std::unique_ptr<::Surface>> line_surfaces;
     std::vector<uint8_t> line_alphas;
 
     auto render_line = [&](const std::string& text, SDL_Color color, uint8_t alpha) {
@@ -164,17 +188,16 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
             return;
         }
 
-        auto surface = m_font->Render(TagLib::String(text, TagLib::String::UTF8),
-                                      color.r, color.g, color.b);
+        auto surface = createBoldTextSurface(m_font, text, color);
         if (surface && surface->isValid()) {
             line_alphas.push_back(alpha);
             line_surfaces.push_back(std::move(surface));
         }
     };
 
-    render_line(m_current_line_text, SDL_Color{255, 255, 255, 255}, 255);
+    render_line(m_current_line_text, SDL_Color{0, 192, 192, 255}, 255);
     for (const auto& line : m_preview_lines) {
-        render_line(line, SDL_Color{180, 180, 180, 255}, 180);
+        render_line(line, SDL_Color{255, 215, 0, 255}, 220);
     }
 
     if (line_surfaces.empty()) {
