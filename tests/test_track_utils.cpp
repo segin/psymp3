@@ -19,25 +19,51 @@ public:
 protected:
     void runTest() override {
         // Test isKnownRawAudioExtension
+        struct RawExtTestCase {
+            const char* path;
+            bool expected;
+            const char* description;
+        };
 
-        // Positive cases (known raw extensions)
-        ASSERT_TRUE(track::isKnownRawAudioExtension(".ulaw"), ".ulaw should be known raw extension");
-        ASSERT_TRUE(track::isKnownRawAudioExtension(".ULAW"), ".ULAW should be case-insensitive");
-        ASSERT_TRUE(track::isKnownRawAudioExtension("test.ulaw"), "test.ulaw should be recognized");
-        ASSERT_TRUE(track::isKnownRawAudioExtension("/path/to/file.pcm"), "path with .pcm should be recognized");
-        ASSERT_TRUE(track::isKnownRawAudioExtension(".722"), ".722 should be recognized");
-        ASSERT_TRUE(track::isKnownRawAudioExtension(".f64be"), ".f64be should be recognized");
+        std::vector<RawExtTestCase> testCases = {
+            // Positive cases (known raw extensions)
+            {".ulaw", true, ".ulaw should be known raw extension"},
+            {".ULAW", true, ".ULAW should be case-insensitive"},
+            {"test.ulaw", true, "test.ulaw should be recognized"},
+            {"/path/to/file.pcm", true, "path with .pcm should be recognized"},
+            {".722", true, ".722 should be recognized"},
+            {".f64be", true, ".f64be should be recognized"},
+            // More raw extensions from the list in track.cpp
+            {".alaw", true, ".alaw should be recognized"},
+            {".s16le", true, ".s16le should be recognized"},
+            {".mulaw", true, ".mulaw should be recognized"},
+            {".s8", true, ".s8 should be recognized"},
 
-        // Negative cases (non-raw extensions)
-        ASSERT_FALSE(track::isKnownRawAudioExtension(".mp3"), ".mp3 is not raw audio");
-        ASSERT_FALSE(track::isKnownRawAudioExtension(".flac"), ".flac is not raw audio");
-        ASSERT_FALSE(track::isKnownRawAudioExtension(".wav"), ".wav is not raw audio (it is a container)");
-        ASSERT_FALSE(track::isKnownRawAudioExtension("test.txt"), ".txt is not raw audio");
+            // Negative cases (non-raw extensions)
+            {".mp3", false, ".mp3 is not raw audio"},
+            {".flac", false, ".flac is not raw audio"},
+            {".wav", false, ".wav is not raw audio (it is a container)"},
+            {"test.txt", false, ".txt is not raw audio"},
+            {".ulaww", false, ".ulaww is not a known raw extension"},
+            {"ulaw", false, "ulaw without dot is not an extension"},
+            {".PCM ", false, "extension with trailing space is not recognized"},
 
-        // Edge cases
-        ASSERT_FALSE(track::isKnownRawAudioExtension(""), "Empty path should not be raw extension");
-        ASSERT_FALSE(track::isKnownRawAudioExtension("no_extension"), "Path without extension should not be raw");
-        ASSERT_FALSE(track::isKnownRawAudioExtension("."), "Path with only dot should not be raw");
+            // Edge cases
+            {"", false, "Empty path should not be raw extension"},
+            {"no_extension", false, "Path without extension should not be raw"},
+            {".", false, "Path with only dot should not be raw"},
+            {"...", false, "Path with multiple dots but no valid extension should not be raw"},
+            {"file.", false, "Path ending with dot should not be raw"}
+        };
+
+        for (const auto& tc : testCases) {
+            bool actual = track::isKnownRawAudioExtension(tc.path);
+            if (tc.expected) {
+                ASSERT_TRUE(actual, tc.description);
+            } else {
+                ASSERT_FALSE(actual, tc.description);
+            }
+        }
 
         // Test shouldCreateTagLibRefForPath
 
