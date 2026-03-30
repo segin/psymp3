@@ -24,7 +24,8 @@ protected:
             std::ofstream raw_file(path, std::ios::binary);
             ASSERT_TRUE(raw_file.good(), "Raw audio test file should be creatable");
 
-            const std::array<uint8_t, 8> payload = {0x55, 0xD5, 0x00, 0x80, 0x7F, 0xFF, 0x12, 0x34};
+            std::array<uint8_t, 8000> payload{};
+            payload.fill(0x55);
             raw_file.write(reinterpret_cast<const char*>(payload.data()), payload.size());
             ASSERT_TRUE(raw_file.good(), "Raw audio payload should be writable");
         }
@@ -34,7 +35,9 @@ protected:
         ASSERT_TRUE(raw_track.GetArtist().isEmpty(), "Raw tracks should not synthesize artist metadata");
         ASSERT_TRUE(raw_track.GetTitle().isEmpty(), "Raw tracks should not synthesize title metadata");
         ASSERT_TRUE(raw_track.GetAlbum().isEmpty(), "Raw tracks should not synthesize album metadata");
-        ASSERT_EQUALS(0u, raw_track.GetLen(), "Raw tracks should not query TagLib audio properties");
+        ASSERT_EQUALS(1u, raw_track.GetLen(), "Raw tracks should synthesize duration without querying TagLib");
+
+        std::remove(path.c_str());
     }
 };
 

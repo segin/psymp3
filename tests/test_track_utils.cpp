@@ -50,6 +50,7 @@ protected:
         ASSERT_FALSE(track::shouldCreateTagLibRefForPath(""), "Should not create TagLib ref for empty path");
         ASSERT_FALSE(track::shouldCreateTagLibRefForPath("test.pcm"), "Should not create TagLib ref for raw audio (.pcm)");
         ASSERT_FALSE(track::shouldCreateTagLibRefForPath("test.alaw"), "Should not create TagLib ref for raw audio (.alaw)");
+        ASSERT_TRUE(track::shouldCreateTagLibRefForPath("test.wav"), "Should allow TagLib for .wav because RIFF can carry metadata");
     }
 };
 
