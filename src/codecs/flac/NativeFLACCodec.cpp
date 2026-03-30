@@ -597,14 +597,26 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         // Step 7: Validate frame footer CRC with error recovery (Requirement 11.4)
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Parsing frame footer");
         FrameFooter footer;
-        if (!m_frame_parser->parseFrameFooter(footer)) {
-            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Frame footer parsing failed");
-            transitionState(DecoderState::DECODER_ERROR);
-            return AudioFrame();
+        bool frame_crc_valid = false;
+        if (chunk.data.size() >= 2 && m_crc_validator) {
+            footer.crc16 = (static_cast<uint16_t>(chunk.data[chunk.data.size() - 2]) << 8) |
+                           static_cast<uint16_t>(chunk.data[chunk.data.size() - 1]);
+            uint16_t computed_crc = m_crc_validator->computeCRC16(
+                chunk.data.data(), chunk.data.size() - 2);
+            frame_crc_valid = (computed_crc == footer.crc16);
+
+            if (!frame_crc_valid) {
+                Debug::log("flac_codec",
+                          "[NativeFLACCodec::decode_unlocked] Frame CRC validation failed: computed=0x",
+                          std::hex, std::setw(4), std::setfill('0'), computed_crc,
+                          " expected=0x", std::setw(4), footer.crc16, std::dec);
+            }
+        } else {
+            Debug::log("flac_codec",
+                      "[NativeFLACCodec::decode_unlocked] Cannot validate frame CRC: chunk too small or CRC validator unavailable");
         }
-        
-        if (!m_frame_parser->validateFrame(header, footer)) {
-            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Frame CRC validation failed");
+
+        if (!frame_crc_valid) {
             
             // Attempt CRC error recovery
             if (!recoverFromCRCError(FLACError::CRC_MISMATCH)) {
