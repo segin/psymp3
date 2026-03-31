@@ -42,6 +42,16 @@ bool widgetBelongsToWindow(const Widget* candidate, const WindowFrameWidget* win
     return false;
 }
 
+bool canReuseAudioForStream(const Audio* audio, Stream* stream)
+{
+    if (!audio || !stream) {
+        return false;
+    }
+
+    return static_cast<unsigned int>(audio->getRate()) == stream->getRate() &&
+           static_cast<unsigned int>(audio->getChannels()) == stream->getChannels();
+}
+
 std::unique_ptr<Widget> createTestWindowHClient(Font* font)
 {
     auto client = std::make_unique<LayoutWidget>(170, 142, false);
@@ -414,10 +424,7 @@ void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
 
 void Player::handleTrackSeamlessSwapEvent() {
     // This event is triggered when a track ends and a preloaded track is ready.
-    // Check if we need to recreate the Audio object or can reuse it
-    bool recreate_audio = (!audio || (m_next_stream &&
-        (static_cast<unsigned int>(audio->getRate()) != m_next_stream->getRate() ||
-         static_cast<unsigned int>(audio->getChannels()) != m_next_stream->getChannels())));
+    const bool recreate_audio = !canReuseAudioForStream(audio.get(), m_next_stream.get());
 
     if (recreate_audio) {
         // Different audio format, need to recreate Audio object
@@ -2480,17 +2487,19 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
 
     m_loading_track = false; // Loading complete
 
-    // If we were stopped, audio is null. If playing, check if format changed.
-    // Per request, always re-initialize the audio object on a new track.
-    // This is simpler and more robust than trying to reuse it.
-    audio.reset();
-
     // Take ownership of the new stream from the loader thread.
     std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
+    const bool recreate_audio = !canReuseAudioForStream(audio.get(), owned_new_stream.get());
 
-    // Create a new audio object, which takes ownership of the stream.
-    audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
-    audio->setVolume(m_volume);
+    if (recreate_audio) {
+        Debug::log("audio", "Track load changed audio format, recreating Audio object.");
+        audio.reset();
+        audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
+        audio->setVolume(m_volume);
+    } else {
+        Debug::log("audio", "Track load reusing existing Audio device.");
+        audio->setStream(std::move(owned_new_stream));
+    }
 
     // Update the player's current stream pointer to reflect the one now owned by Audio
     // This is a raw pointer, for read-only access by Player.
