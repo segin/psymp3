@@ -31,7 +31,7 @@ using Foundation::Widget;
 using Foundation::DrawableWidget;
 
 LyricsWidget::LyricsWidget(Font* font, int width)
-    : TransparentWindowWidget(width, 100, 0.9f, true)  // width, height, opacity, mouse-transparent
+    : TransparentWindowWidget(width, 100, 0.85f, true)  // Match toast opacity, mouse-transparent
     , m_font(font)
     , m_lyrics(nullptr)
     , m_last_update_time(0)
@@ -205,6 +205,7 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     if (surface_width > 4 && surface_height > 4) {
         final_surface->roundedBoxRGBA(1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, 255);
     }
+    final_surface->SetAlpha(static_cast<uint8_t>(getOpacity() * 255.0f));
     
     int y_offset = PADDING;
 

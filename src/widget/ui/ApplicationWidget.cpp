@@ -32,9 +32,17 @@ using Foundation::DrawableWidget;
 
 namespace {
 
+int getWindowZOrder(const Widget* window)
+{
+    if (auto* transparent_window = dynamic_cast<const TransparentWindowWidget*>(window)) {
+        return transparent_window->getZOrder();
+    }
+    return ZOrder::NORMAL;
+}
+
 bool isAlwaysOnTopWindow(const Widget* window)
 {
-    return dynamic_cast<const ToastWidget*>(window) != nullptr;
+    return getWindowZOrder(window) >= ZOrder::TOAST;
 }
 
 }
@@ -236,10 +244,12 @@ void ApplicationWidget::bringWindowToFront(Widget* window)
         m_windows.erase(it);
 
         if (isAlwaysOnTopWindow(window_ptr.get())) {
-            // Toasts stay above every other window.
+            // Always-on-top overlays stay above every other window, but keep
+            // their relative ordering stable inside that reserved band.
             m_windows.push_back(std::move(window_ptr));
         } else {
-            // Ordinary windows can come to the front, but never above toasts.
+            // Ordinary windows can come to the front, but never above windows
+            // in the reserved always-on-top band.
             auto first_always_on_top = std::find_if(
                 m_windows.begin(), m_windows.end(),
                 [](const std::unique_ptr<Widget>& candidate) {

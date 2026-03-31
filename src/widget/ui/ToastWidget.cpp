@@ -38,8 +38,9 @@ ToastWidget::ToastWidget(const std::string& message, Font* font, int duration_ms
     , m_duration_ms(duration_ms)
     , m_start_time(std::chrono::steady_clock::now())
 {
-    // Set Z-order to maximum (always on top)
-    setZOrder(ZOrder::MAX);
+    // Keep toast notifications in the reserved always-on-top band while
+    // leaving the absolute maximum slot available for future system overlays.
+    setZOrder(ZOrder::TOAST);
     
     // Set dark background color to match original Android Toast notification style (ignore alpha, focus on RGB)
     setBackgroundColor(50, 50, 50);  // Original inner background color
