@@ -23,6 +23,8 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3::Core {
+
 namespace {
 
 constexpr int kGlyphLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
@@ -124,3 +126,5 @@ bool Font::isValid()
 {
     return m_face != nullptr;
 }
+
+} // namespace PsyMP3::Core

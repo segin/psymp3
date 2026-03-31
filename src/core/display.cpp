@@ -24,6 +24,8 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3::Core {
+
 /**
  * @brief Constructs the main Display object.
  * 
@@ -123,3 +125,5 @@ bool Display::handleWindowEvent(const SDL_WindowEvent& event)
         return false;
     }
 }
+
+} // namespace PsyMP3::Core

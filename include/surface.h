@@ -25,15 +25,22 @@
 #ifndef SURFACE_H
 #define SURFACE_H
 
-class Display;
-
 // Forward declaration for Widget (now in namespace)
 namespace PsyMP3 {
 namespace Widget {
 namespace Foundation {
     class Widget;
-}}}
+}
+}
+namespace Core {
+class Display;
+class Font;
+class Surface;
+}
+}
 using PsyMP3::Widget::Foundation::Widget;
+
+namespace PsyMP3::Core {
 
 class Surface
 {
@@ -86,8 +93,8 @@ class Surface
         int16_t width();
         SDL_Surface * getHandle();
         friend class Display;
-        friend class Widget;
         friend class Font;
+        friend class PsyMP3::Widget::Foundation::Widget;
     protected:
         std::unique_ptr<SDL_Surface, void (*)(SDL_Surface*)> m_handle;
         void wrapNonOwnedSurface(SDL_Surface* non_owned_sfc);
@@ -133,6 +140,8 @@ class Surface
         void floodFill_unlocked(Sint16 x, Sint16 y, uint32_t new_color, uint32_t original_color);
         void bezierCurve_unlocked(const std::vector<std::pair<double, double>>& points, uint32_t color, double step);
 };
+
+} // namespace PsyMP3::Core
 
 /* This is experimental */
 

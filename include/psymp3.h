@@ -328,6 +328,10 @@ using PsyMP3::Core::Rect;
 #include "font.h"
 #include "truetype.h"
 #include "core/lyrics.h"
+using PsyMP3::Core::Surface;
+using PsyMP3::Core::Display;
+using PsyMP3::Core::Font;
+using PsyMP3::Core::TrueType;
 using PsyMP3::Core::LyricLine;
 using PsyMP3::Core::LyricsFile;
 namespace LyricsUtils = PsyMP3::Core::LyricsUtils;

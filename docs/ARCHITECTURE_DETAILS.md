@@ -72,6 +72,7 @@ This file holds the extended subsystem notes that would otherwise bloat [ARCHITE
 ## Display and Presentation
 
 - PsyMP3 remains software-rendered.
+- `Display` and `Surface` now live under `PsyMP3::Core`.
 - `Display` owns the SDL window and wraps the active window surface from `SDL_GetWindowSurface()`.
 - Presentation currently uses `SDL_UpdateWindowSurface()`.
 - `System` now receives the live `SDL_Window*` and only converts it to platform-native handles when needed.
@@ -79,8 +80,9 @@ This file holds the extended subsystem notes that would otherwise bloat [ARCHITE
 
 ## Font Rendering
 
-- UI text rendering uses the original FreeType-based `Font` + `TrueType` path.
-- `TrueType` owns the global FreeType library lifecycle through a process-wide static manager.
+- UI text rendering uses the original FreeType-based `Font` + `PsyMP3::Core::TrueType` path.
+- `Font` now lives under `PsyMP3::Core` alongside `Display`, `Surface`, and `TrueType`.
+- `src/core/truetype.cpp` owns the global FreeType library lifecycle through a process-wide static manager.
 - `Font` loads `FT_Face` instances directly and rasterizes glyph bitmaps into PsyMP3-owned `Surface` instances.
 - This preserves the older glyph metrics and rasterization behavior without relying on an SDL text-rendering wrapper.
 

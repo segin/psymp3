@@ -119,13 +119,13 @@ else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
  audio.cpp \
- debug.cpp display.cpp \
- font.cpp \
+ debug.cpp core/display.cpp \
+ core/font.cpp \
  main.cpp mediafile.cpp \
  player.cpp playlist.cpp \
- stream.cpp surface.cpp \
+ stream.cpp core/surface.cpp \
  system.cpp \
- track.cpp truetype.cpp
+ track.cpp core/truetype.cpp
 
 # Link static libraries from subdirectories FIRST (regular build only)
 # Order matters: our convenience libraries must come BEFORE system libraries

@@ -57,8 +57,8 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - `src/io/`: Provide the file/HTTP abstraction and the large-file-safe offset contract used across the pipeline.
 - `src/audio.cpp`: Own the SDL audio device, decode thread, PCM queue, and FFT feed.
 - `src/widget/`: Render the software UI, manage event routing, z-order, floating windows, and overlays.
-- `src/display.cpp` and `src/surface.cpp`: Present the software-rendered UI through SDL surfaces.
-- `src/font.cpp`: Render all UI text through the FreeType-based font layer into PsyMP3-owned surfaces.
+- `src/core/display.cpp` and `src/core/surface.cpp`: Present the software-rendered UI through SDL surfaces.
+- `src/core/font.cpp`: Render all UI text through the FreeType-based font layer into PsyMP3-owned surfaces.
 - `src/player.cpp`: Coordinate playback state, loading, preloading, GUI updates, and integration points.
 
 ## Key Runtime Rules
@@ -76,7 +76,7 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - `Display` owns the SDL window and presents through the wrapped window surface.
 - Text input uses `SDL_TEXTINPUT`.
 - Audio uses SDL2 device APIs.
-- Font rendering uses the original FreeType path.
+- Font rendering uses the original FreeType path, with the shared FreeType bootstrap living under `src/core/`.
 - Ongoing SDL2 work is tracked in [docs/SDL2_PORT_PLAN.md](/home/segin/psymp3/docs/SDL2_PORT_PLAN.md).
 
 ## Supporting Docs

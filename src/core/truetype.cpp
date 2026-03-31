@@ -9,9 +9,9 @@
 
 #include "psymp3.h"
 
-FT_Library TrueType::m_library;
+FT_Library PsyMP3::Core::TrueType::m_library;
 
-void TrueType::Init() {
+void PsyMP3::Core::TrueType::Init() {
   Debug::log("font", "TrueType::Init() called.");
   FT_Error error = FT_Init_FreeType(&m_library);
   if (error) {
@@ -23,12 +23,12 @@ void TrueType::Init() {
   Debug::log("font", "TrueType::Init() successful.");
 }
 
-void TrueType::Done() { FT_Done_FreeType(m_library); }
+void PsyMP3::Core::TrueType::Done() { FT_Done_FreeType(m_library); }
 
 class TrueTypeLifecycleManager {
 public:
-  TrueTypeLifecycleManager() { TrueType::Init(); }
-  ~TrueTypeLifecycleManager() { TrueType::Done(); }
+  TrueTypeLifecycleManager() { PsyMP3::Core::TrueType::Init(); }
+  ~TrueTypeLifecycleManager() { PsyMP3::Core::TrueType::Done(); }
 };
 
 static TrueTypeLifecycleManager s_truetype_manager;

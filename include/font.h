@@ -26,6 +26,8 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3::Core {
+
 class Font
 {
     public:
@@ -37,5 +39,7 @@ class Font
     private:
         FT_Face m_face = nullptr;
 };
+
+} // namespace PsyMP3::Core
 
 #endif // FONT_H

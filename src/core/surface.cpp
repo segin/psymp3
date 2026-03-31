@@ -24,6 +24,8 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3::Core {
+
 /**
  * @brief Default constructor — creates a Surface with a null handle.
  */
@@ -1040,3 +1042,5 @@ void Surface::bezierCurve(const std::vector<std::pair<double, double>>& points, 
     SDLLockGuard lock_guard(m_handle.get());
     bezierCurve_unlocked(points, color, step);
 }
+
+} // namespace PsyMP3::Core

@@ -24,6 +24,8 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
+namespace PsyMP3::Core {
+
 class Display : public Surface
 {
     public:
@@ -39,5 +41,7 @@ class Display : public Surface
     private:
         SDL_Window* m_window = nullptr;
 };
+
+} // namespace PsyMP3::Core
 
 #endif // DISPLAY_H
