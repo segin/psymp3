@@ -1,5 +1,5 @@
 /*
- * font.cpp - wrapper for SDL_ttf's TTF_Font type, class header.
+ * font.h - FreeType-backed font wrapper, class header.
  * This file is part of PsyMP3.
  * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
  *
@@ -32,10 +32,10 @@ class Font
         explicit Font(const TagLib::String& file, int ptsize = 12);
         virtual ~Font();
         std::unique_ptr<Surface> Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b);
-        bool isValid() const;
+        bool isValid();
     protected:
     private:
-        TTF_Font* m_font = nullptr;
+        FT_Face m_face = nullptr;
 };
 
 #endif // FONT_H

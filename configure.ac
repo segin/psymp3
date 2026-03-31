@@ -44,9 +44,7 @@ PKG_CHECK_MODULES([SDL], [sdl2 >= 2.0], [], [
   AC_MSG_ERROR([SDL2 >= 2.0 is required. Install libsdl2-dev or equivalent.])
 ])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
-PKG_CHECK_MODULES([FREETYPE], [SDL2_ttf], [], [
-  AC_MSG_ERROR([SDL2_ttf is required. Install SDL2_ttf development files or equivalent.])
-])
+PKG_CHECK_MODULES([FREETYPE], [freetype2])
 PKG_CHECK_MODULES([OPENSSL], [openssl])
 PKG_CHECK_MODULES([CURL], [libcurl])
 
@@ -466,7 +464,7 @@ echo ""
 echo "Core Dependencies:"
 echo "  SDL:           yes"
 echo "  TagLib:        yes"
-echo "  SDL2_ttf:      yes"
+echo "  FreeType2:     yes"
 echo "  OpenSSL:       yes"
 echo "  libcurl:       yes"
 echo ""

@@ -52,6 +52,31 @@ bool canReuseAudioForStream(const Audio* audio, Stream* stream)
            static_cast<unsigned int>(audio->getChannels()) == stream->getChannels();
 }
 
+size_t getPrimeSampleCount(Stream* stream)
+{
+    if (!stream) {
+        return 0;
+    }
+
+    const size_t samples_per_half_second =
+        (static_cast<size_t>(stream->getRate()) *
+         static_cast<size_t>(stream->getChannels())) / 2;
+    return std::max<size_t>(4096, samples_per_half_second);
+}
+
+std::pair<std::vector<int16_t>, bool> primeLoadedStream(Stream* stream)
+{
+    if (!stream) {
+        return {{}, false};
+    }
+
+    const size_t prime_samples = getPrimeSampleCount(stream);
+    std::vector<int16_t> primed_samples(prime_samples);
+    const size_t bytes_read = stream->getData(prime_samples * sizeof(int16_t), primed_samples.data());
+    primed_samples.resize(bytes_read / sizeof(int16_t));
+    return {std::move(primed_samples), stream->eof()};
+}
+
 std::unique_ptr<Widget> createTestWindowHClient(Font* font)
 {
     auto client = std::make_unique<LayoutWidget>(170, 142, false);
@@ -278,6 +303,8 @@ void Player::requestTrackLoad(TagLib::String path) {
     m_loading_track = true;
     m_preloading_track = false; // A "play now" request cancels any pending preload
     m_next_stream.reset(); // Clear any existing preloaded stream
+    m_next_stream_primed_samples.clear();
+    m_next_stream_primed_eof = false;
 
     // Update UI to show "loading" state
     updateInfo(true);
@@ -346,6 +373,8 @@ void Player::loaderThreadLoop() {
         Stream* new_stream = nullptr;
         TagLib::String error_msg;
         size_t num_chained = 1;
+        std::vector<int16_t> primed_samples;
+        bool primed_eof = false;
 
         try {
             switch (request.type) {
@@ -359,6 +388,12 @@ void Player::loaderThreadLoop() {
                     num_chained = request.paths.size();
                     break;
             }
+
+            if (new_stream) {
+                auto primed = primeLoadedStream(new_stream);
+                primed_samples = std::move(primed.first);
+                primed_eof = primed.second;
+            }
         } catch (const std::exception& e) {
             error_msg = e.what();
             new_stream = nullptr; // Ensure null if exception
@@ -370,6 +405,8 @@ void Player::loaderThreadLoop() {
         result->stream = new_stream;
         result->error_message = error_msg;
         result->num_chained_tracks = num_chained;
+        result->primed_samples = std::move(primed_samples);
+        result->primed_eof = primed_eof;
 
         int success_event = (request.type == LoadRequestType::PlayNow) ? TRACK_LOAD_SUCCESS : TRACK_PRELOAD_SUCCESS;
         int failure_event = (request.type == LoadRequestType::PlayNow) ? TRACK_LOAD_FAILURE : TRACK_PRELOAD_FAILURE;
@@ -431,14 +468,23 @@ void Player::handleTrackSeamlessSwapEvent() {
         Debug::log("audio", "Audio format changed, recreating Audio object for seamless transition.");
         audio.reset();
         auto owned_stream = std::move(m_next_stream);
-        audio = std::make_unique<Audio>(std::move(owned_stream), fft.get(), mutex.get());
+        audio = std::make_unique<Audio>(std::move(owned_stream),
+                                        fft.get(),
+                                        mutex.get(),
+                                        std::move(m_next_stream_primed_samples),
+                                        m_next_stream_primed_eof);
         audio->setVolume(m_volume);
     } else {
         // Same audio format, can seamlessly switch streams
         Debug::log("audio", "Performing seamless stream transition.");
         auto owned_stream = std::move(m_next_stream);
-        audio->setStream(std::move(owned_stream));
+        audio->setStream(std::move(owned_stream),
+                         std::move(m_next_stream_primed_samples),
+                         m_next_stream_primed_eof);
     }
+
+    m_next_stream_primed_samples.clear();
+    m_next_stream_primed_eof = false;
 
     // Advance the playlist for the track(s) that just finished
     for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
@@ -697,6 +743,9 @@ bool Player::stop(void) {
     }
     audio.reset(); // Destroy the audio object when stopping.
     stream = nullptr;
+    m_next_stream.reset();
+    m_next_stream_primed_samples.clear();
+    m_next_stream_primed_eof = false;
 
     if (m_lyrics_widget) {
         m_lyrics_widget->clearLyrics();
@@ -2481,6 +2530,8 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     m_skip_attempts = 0; // Reset skip counter on a successful load.
     Stream* new_stream = result->stream;
     m_num_tracks_in_current_stream = result->num_chained_tracks;
+    std::vector<int16_t> primed_samples = std::move(result->primed_samples);
+    const bool primed_eof = result->primed_eof;
     delete result; // Free the result struct
 
     m_loading_track = false; // Loading complete
@@ -2492,11 +2543,15 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     if (recreate_audio) {
         Debug::log("audio", "Track load changed audio format, recreating Audio object.");
         audio.reset();
-        audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
+        audio = std::make_unique<Audio>(std::move(owned_new_stream),
+                                        fft.get(),
+                                        mutex.get(),
+                                        std::move(primed_samples),
+                                        primed_eof);
         audio->setVolume(m_volume);
     } else {
         Debug::log("audio", "Track load reusing existing Audio device.");
-        audio->setStream(std::move(owned_new_stream));
+        audio->setStream(std::move(owned_new_stream), std::move(primed_samples), primed_eof);
     }
 
     // Update the player's current stream pointer to reflect the one now owned by Audio
@@ -2560,6 +2615,8 @@ void Player::handleTrackPreloadSuccessEvent(TrackLoadResult* result) {
     // Store the preloaded stream for seamless transition
     m_preloading_track = false;
     m_next_stream.reset(result->stream); // Take ownership of the preloaded stream
+    m_next_stream_primed_samples = std::move(result->primed_samples);
+    m_next_stream_primed_eof = result->primed_eof;
     Debug::log("loader", "Track preloaded successfully for seamless transition.");
     delete result; // Free the result struct but keep the stream
 }
@@ -2567,6 +2624,8 @@ void Player::handleTrackPreloadSuccessEvent(TrackLoadResult* result) {
 void Player::handleTrackPreloadFailureEvent(TrackLoadResult* result) {
     // Handle preload failure - no seamless transition possible
     m_preloading_track = false;
+    m_next_stream_primed_samples.clear();
+    m_next_stream_primed_eof = false;
     Debug::log("loader", "Failed to preload track: ", result->error_message.to8Bit(true));
     delete result;
 }

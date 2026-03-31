@@ -30,6 +30,99 @@ namespace UI {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+namespace {
+
+void drawRoundedCorner(::Surface& surface, int cx, int cy, int radius,
+                       uint8_t r, uint8_t g, uint8_t b, uint8_t a, int corner)
+{
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            if (dx * dx + dy * dy > radius * radius) {
+                continue;
+            }
+
+            int px = cx;
+            int py = cy;
+            bool draw = false;
+
+            switch (corner) {
+                case 0:
+                    if (dx <= 0 && dy <= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                    break;
+                case 1:
+                    if (dx >= 0 && dy <= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                    break;
+                case 2:
+                    if (dx <= 0 && dy >= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                    break;
+                case 3:
+                    if (dx >= 0 && dy >= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                    break;
+            }
+
+            if (draw && px >= 0 && px < surface.width() && py >= 0 && py < surface.height()) {
+                surface.pixel(px, py, r, g, b, a);
+            }
+        }
+    }
+}
+
+void drawToastStyleRoundedRect(::Surface& surface, int x, int y, int width, int height, int radius,
+                               uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    const int max_radius = std::min(width / 2, height / 2);
+    radius = std::min(radius, max_radius);
+
+    if (radius <= 0) {
+        surface.box(x, y, x + width - 1, y + height - 1, r, g, b, a);
+        return;
+    }
+
+    if (height > 2 * radius && width > 2 * radius) {
+        surface.box(x + radius, y, x + width - radius - 1, y + height - 1, r, g, b, a);
+        surface.box(x, y + radius, x + radius - 1, y + height - radius - 1, r, g, b, a);
+        surface.box(x + width - radius, y + radius, x + width - 1, y + height - radius - 1, r, g, b, a);
+    }
+
+    drawRoundedCorner(surface, x + radius, y + radius, radius, r, g, b, a, 0);
+    drawRoundedCorner(surface, x + width - radius - 1, y + radius, radius, r, g, b, a, 1);
+    drawRoundedCorner(surface, x + radius, y + height - radius - 1, radius, r, g, b, a, 2);
+    drawRoundedCorner(surface, x + width - radius - 1, y + height - radius - 1, radius, r, g, b, a, 3);
+}
+
+void applyRelativeOpacity(::Surface& surface, float opacity)
+{
+    SDL_Surface* sdl_surface = surface.getHandle();
+    if (!sdl_surface || !sdl_surface->pixels) {
+        return;
+    }
+
+    const bool must_lock = SDL_MUSTLOCK(sdl_surface);
+    if (must_lock && SDL_LockSurface(sdl_surface) != 0) {
+        return;
+    }
+
+    for (int y = 0; y < surface.height(); y++) {
+        auto* row = reinterpret_cast<uint32_t*>(
+            static_cast<uint8_t*>(sdl_surface->pixels) + y * sdl_surface->pitch);
+        for (int x = 0; x < surface.width(); x++) {
+            uint32_t& pixel = row[x];
+            uint8_t r, g, b, a;
+            SDL_GetRGBA(pixel, sdl_surface->format, &r, &g, &b, &a);
+            if (a > 0) {
+                a = static_cast<uint8_t>(a * opacity);
+            }
+            pixel = SDL_MapRGBA(sdl_surface->format, r, g, b, a);
+        }
+    }
+
+    if (must_lock) {
+        SDL_UnlockSurface(sdl_surface);
+    }
+}
+
+} // namespace
+
 LyricsWidget::LyricsWidget(Font* font, int width)
     : TransparentWindowWidget(width, 100, 0.85f, true)  // Match toast opacity, mouse-transparent
     , m_font(font)
@@ -198,15 +291,17 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     
     // Create the final surface with alpha support
     auto final_surface = std::make_unique<Surface>(surface_width, surface_height, true);
-    
-    // Match the toast widget treatment: darker inner fill with a lighter outer shell.
+
+    // Follow ToastWidget's exact basic shell construction:
+    // draw the shell fully opaque, then apply relative opacity afterward so
+    // transparent pixels stay transparent instead of turning into an opaque slab.
     final_surface->FillRect(final_surface->MapRGBA(0, 0, 0, 0));
-    const uint8_t background_alpha = static_cast<uint8_t>(getOpacity() * 255.0f);
-    final_surface->roundedBoxRGBA(0, 0, surface_width - 1, surface_height - 1, 8, 100, 100, 100, background_alpha);
+    drawToastStyleRoundedRect(*final_surface, 0, 0, surface_width, surface_height, 8, 100, 100, 100, 255);
     if (surface_width > 4 && surface_height > 4) {
-        final_surface->roundedBoxRGBA(1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, background_alpha);
+        drawToastStyleRoundedRect(*final_surface, 1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, 255);
     }
-    
+    applyRelativeOpacity(*final_surface, getOpacity());
+
     int y_offset = PADDING;
 
     for (size_t i = 0; i < line_surfaces.size(); ++i) {

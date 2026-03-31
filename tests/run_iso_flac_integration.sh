@@ -20,7 +20,7 @@ g++ -std=c++17 -I../include -I/usr/include/SDL2 -D_GNU_SOURCE=1 -D_REENTRANT \
     ../src/ISODemuxerErrorRecovery.o ../src/ISODemuxerComplianceValidator.o \
     ../src/FileIOHandler.o ../src/IOHandler.o ../src/Demuxer.o \
     ../src/MemoryTracker.o ../src/debug.o \
-    -lSDL2 -lSDL2_ttf -ltag -lpng -lxml2 -lz -lm -ldl -lpthread
+    -lSDL2 -lfreetype -ltag -lpng -lxml2 -lz -lm -ldl -lpthread
 
 echo "Running FLAC-in-MP4 integration test..."
 ./test_iso_flac_integration
