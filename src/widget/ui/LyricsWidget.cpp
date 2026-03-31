@@ -201,11 +201,11 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     
     // Match the toast widget treatment: darker inner fill with a lighter outer shell.
     final_surface->FillRect(final_surface->MapRGBA(0, 0, 0, 0));
-    final_surface->roundedBoxRGBA(0, 0, surface_width - 1, surface_height - 1, 8, 100, 100, 100, 255);
+    const uint8_t background_alpha = static_cast<uint8_t>(getOpacity() * 255.0f);
+    final_surface->roundedBoxRGBA(0, 0, surface_width - 1, surface_height - 1, 8, 100, 100, 100, background_alpha);
     if (surface_width > 4 && surface_height > 4) {
-        final_surface->roundedBoxRGBA(1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, 255);
+        final_surface->roundedBoxRGBA(1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, background_alpha);
     }
-    final_surface->SetAlpha(static_cast<uint8_t>(getOpacity() * 255.0f));
     
     int y_offset = PADDING;
 

@@ -31,7 +31,6 @@ void ensureSDLVideo()
         throw std::runtime_error(std::string("SDL_Init failed: ") + SDL_GetError());
     }
 
-    TrueType::Init();
     initialized = true;
 }
 

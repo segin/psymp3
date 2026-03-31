@@ -1364,8 +1364,9 @@ void Player::showToast(const std::string& message, Uint32 duration_ms)
     toast_pos.y(350 - toast_pos.height() - 40);   // 40px above bottom of FFT area
     toast->setPos(toast_pos);
     
-    // Add to ApplicationWidget with maximum Z-order (always on top)
-    ApplicationWidget::getInstance().addWindow(std::move(toast), ZOrder::MAX);
+    // Add to the dedicated toast band so notifications stay above ordinary
+    // windows without consuming the emergency/system overlay slot.
+    ApplicationWidget::getInstance().addWindow(std::move(toast), ZOrder::TOAST);
 }
 
 /**
@@ -1533,9 +1534,6 @@ bool Player::Initialize(const PlayerOptions& options) {
     Debug::log("system", "System::getStoragePath: ", System::getStoragePath().to8Bit(true));
     Debug::log("system", "System::getUser: ", System::getUser().to8Bit(true));
     Debug::log("system", "System::getHome: ", System::getHome().to8Bit(true));
-
-    TrueType::Init();
-    // FastFourier::init();
 
     // Initialize UI and essential components first to show the window quickly.
     screen = std::make_unique<Display>();

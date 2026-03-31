@@ -125,7 +125,7 @@ psymp3_SOURCES = \
  player.cpp playlist.cpp \
  stream.cpp surface.cpp \
  system.cpp \
- track.cpp truetype.cpp
+ track.cpp
 
 # Link static libraries from subdirectories FIRST (regular build only)
 # Order matters: our convenience libraries must come BEFORE system libraries

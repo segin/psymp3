@@ -148,6 +148,11 @@ public:
      * @return Z-order level (higher values are in front)
      */
     int getZOrder() const { return m_z_order; }
+
+    /**
+     * @brief Returns whether this frame is currently the active window.
+     */
+    bool isActive() const;
     
     /**
      * @brief Sets drag callback for window movement.
@@ -262,6 +267,7 @@ private:
     static SDL_Cursor* s_cursor_ew;
     static SDL_Cursor* s_cursor_ns;
     static SDL_Cursor* s_default_cursor;
+    static WindowFrameWidget* s_active_window;
     
     // Drag state
     bool m_is_dragging;
@@ -318,6 +324,7 @@ private:
      * @brief Updates the layout of the client area.
      */
     void updateLayout();
+    static void setActiveWindow(WindowFrameWidget* window);
     static void setCursorShape(SDL_Cursor* cursor);
     
     /**

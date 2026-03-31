@@ -34,7 +34,6 @@
 #include "surface.cpp"
 #include "system.cpp"
 #include "track.cpp"
-#include "truetype.cpp"
 
 // ============================================================================
 // Utility

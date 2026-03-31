@@ -85,7 +85,12 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 - **Description**: PsyMP3 currently renders its UI and visualization into software `Surface` objects and presents through the top-level `Display`. As preparation for the SDL2 port, `Display` no longer assumes its identity is permanently bound to the result of `SDL_SetVideoMode`; instead it can attach to a non-owned window surface through the `Surface` wrapper. That seam is the first step toward an SDL2 model where `Display` owns the real window object separately and refreshes the wrapped presentation surface as needed. The current Plan A checkpoint uses `SDL_CreateWindow`, wraps the active window surface from `SDL_GetWindowSurface()`, and presents with `SDL_UpdateWindowSurface()` while keeping the existing software renderer intact. On Windows, `System` no longer asks SDL for a global window handle; the active `SDL_Window*` from `Display` is explicitly threaded into the taskbar and IPC path, then converted to `HWND` through SDL2 window-manager info only when Win32 integration needs it. Surface alpha is now expressed directly in SDL2 terms at the call sites, with `Surface::SetAlpha()` translating widget fade/text/persistence behavior onto SDL2 blend and alpha-mod APIs instead of carrying SDL 1.2 flag semantics upward.
 - **Technologies**: C++, SDL software surfaces, custom `Surface` wrapper.
 
-### 3.7. Audio Output (`src/audio.cpp`)
+### 3.7. Font Rendering (`src/font.cpp`)
+- **Name**: SDL2_ttf Font Layer
+- **Description**: UI text rendering now goes directly through SDL2_ttf. The old FreeType bootstrap helper (`TrueType`) has been removed, and `Font` is the sole text-rendering seam used by labels, window titles, toast notifications, and lyrics. `Font` lazily initializes SDL2_ttf once per process, loads `TTF_Font` handles on demand, renders UTF-8 text with blended alpha into temporary SDL surfaces, and copies that output into PsyMP3-owned `Surface` objects so the rest of the widget stack can continue using the software blit pipeline unchanged.
+- **Technologies**: C++, SDL2_ttf, SDL software surfaces.
+
+### 3.8. Audio Output (`src/audio.cpp`)
 - **Name**: SDL Callback Audio Device
 - **Description**: Audio playback remains callback-driven under the SDL2 Plan A migration. `Audio` still owns the decode thread, shared PCM buffer, and FFT feed, but it now opens an explicit `SDL_AudioDeviceID` and uses SDL2 device-specific pause, lock, unlock, and close calls instead of the old SDL 1.x global audio functions.
 - **Technologies**: C++, SDL audio device API, `std::thread`, `std::mutex`, `std::condition_variable`.

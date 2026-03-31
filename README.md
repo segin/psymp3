@@ -27,9 +27,9 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 
 ### Linux/BSD
 **Core dependencies** (always required):
-- SDL 1.2 or later (SDL 2.0 planned)
+- SDL2
+- SDL2_ttf
 - taglib 1.6 or later
-- FreeType 2.4 or later
 - OpenSSL 1.0 or later
 - libcurl 7.20.0 or later
 
@@ -129,7 +129,7 @@ For detailed testing information, see [TESTING.md](TESTING.md).
 
 ## Notes
 
-**Unicode Support**: Unicode ID3 tags are supported. Please replace the included `vera.ttf` with a different font file containing the Unicode glyphs you desire.
+**Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text through SDL2_ttf; replace the bundled `vera.ttf` with a font file containing the glyph coverage you want.
 
 ---
 

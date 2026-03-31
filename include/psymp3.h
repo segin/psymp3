@@ -294,10 +294,6 @@ using SDLKey = SDL_Keycode;
 #include <taglib/tstring.h>
 #include <taglib/tiostream.h>
 
-// FreeType headers
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 // Additional system headers needed by source files
 #include <getopt.h>
 #ifdef __SSE2__
@@ -327,7 +323,6 @@ using PsyMP3::Core::Rect;
 #include "surface.h"
 #include "display.h"
 #include "font.h"
-#include "truetype.h"
 #include "core/lyrics.h"
 using PsyMP3::Core::LyricLine;
 using PsyMP3::Core::LyricsFile;

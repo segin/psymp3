@@ -32,10 +32,10 @@ class Font
         explicit Font(const TagLib::String& file, int ptsize = 12);
         virtual ~Font();
         std::unique_ptr<Surface> Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b);
-        bool isValid();
+        bool isValid() const;
     protected:
     private:
-        FT_Face m_face;
+        TTF_Font* m_font = nullptr;
 };
 
 #endif // FONT_H
