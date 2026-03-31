@@ -93,6 +93,84 @@ private:
     size_t m_position = 0;
 };
 
+class LimitedReadMemoryIOHandler : public IOHandler {
+public:
+    LimitedReadMemoryIOHandler(std::vector<uint8_t> data, size_t max_single_read)
+        : m_data(std::move(data))
+        , m_max_single_read(max_single_read)
+    {
+    }
+
+    size_t read(void* buffer, size_t size, size_t count) override
+    {
+        if (size == 0 || count == 0 || m_position >= m_data.size()) {
+            return 0;
+        }
+
+        const size_t bytes_requested = size * count;
+        if (bytes_requested > m_max_single_read) {
+            return 0;
+        }
+
+        const size_t bytes_available = m_data.size() - m_position;
+        const size_t bytes_to_read = std::min(bytes_requested, bytes_available);
+
+        std::memcpy(buffer, m_data.data() + m_position, bytes_to_read);
+        m_position += bytes_to_read;
+        return bytes_to_read / size;
+    }
+
+    int seek(PsyMP3::IO::filesize_t offset, int whence) override
+    {
+        PsyMP3::IO::filesize_t new_position = 0;
+        switch (whence) {
+        case SEEK_SET:
+            new_position = offset;
+            break;
+        case SEEK_CUR:
+            new_position = static_cast<PsyMP3::IO::filesize_t>(m_position) + offset;
+            break;
+        case SEEK_END:
+            new_position = static_cast<PsyMP3::IO::filesize_t>(m_data.size()) + offset;
+            break;
+        default:
+            return -1;
+        }
+
+        if (new_position < 0 || new_position > static_cast<PsyMP3::IO::filesize_t>(m_data.size())) {
+            return -1;
+        }
+
+        m_position = static_cast<size_t>(new_position);
+        return 0;
+    }
+
+    PsyMP3::IO::filesize_t tell() override
+    {
+        return static_cast<PsyMP3::IO::filesize_t>(m_position);
+    }
+
+    bool eof() override
+    {
+        return m_position >= m_data.size();
+    }
+
+    int close() override
+    {
+        return 0;
+    }
+
+    PsyMP3::IO::filesize_t getFileSize() override
+    {
+        return static_cast<PsyMP3::IO::filesize_t>(m_data.size());
+    }
+
+private:
+    std::vector<uint8_t> m_data;
+    size_t m_position = 0;
+    size_t m_max_single_read = 0;
+};
+
 struct FrameOptions {
     bool variable_block_size = false;
     bool reserved_bit = false;
@@ -224,6 +302,43 @@ std::vector<uint8_t> makePaddingBlock(uint32_t length, bool is_last)
     return block;
 }
 
+std::vector<uint8_t> makePictureBlock(uint32_t picture_bytes, bool is_last)
+{
+    std::vector<uint8_t> payload;
+
+    auto appendU32 = [&payload](uint32_t value) {
+        payload.push_back(static_cast<uint8_t>((value >> 24) & 0xFF));
+        payload.push_back(static_cast<uint8_t>((value >> 16) & 0xFF));
+        payload.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
+        payload.push_back(static_cast<uint8_t>(value & 0xFF));
+    };
+
+    appendU32(3);  // Front cover
+
+    const std::string mime = "image/jpeg";
+    appendU32(static_cast<uint32_t>(mime.size()));
+    payload.insert(payload.end(), mime.begin(), mime.end());
+
+    const std::string description = "Large artwork";
+    appendU32(static_cast<uint32_t>(description.size()));
+    payload.insert(payload.end(), description.begin(), description.end());
+
+    appendU32(1200);
+    appendU32(1200);
+    appendU32(24);
+    appendU32(0);
+    appendU32(picture_bytes);
+    payload.insert(payload.end(), picture_bytes, 0x5A);
+
+    std::vector<uint8_t> block;
+    block.push_back(static_cast<uint8_t>((is_last ? 0x80 : 0x00) | 0x06));
+    block.push_back(static_cast<uint8_t>((payload.size() >> 16) & 0xFF));
+    block.push_back(static_cast<uint8_t>((payload.size() >> 8) & 0xFF));
+    block.push_back(static_cast<uint8_t>(payload.size() & 0xFF));
+    block.insert(block.end(), payload.begin(), payload.end());
+    return block;
+}
+
 std::vector<uint8_t> makeFrame(const FrameOptions& options)
 {
     std::vector<uint8_t> header;
@@ -269,6 +384,12 @@ std::vector<uint8_t> makeFlacFile(const std::vector<std::vector<uint8_t>>& metad
 std::unique_ptr<FLACDemuxer> makeDemuxer(std::vector<uint8_t> data)
 {
     return std::make_unique<FLACDemuxer>(std::make_unique<MemoryIOHandler>(std::move(data)));
+}
+
+std::unique_ptr<FLACDemuxer> makeLimitedReadDemuxer(std::vector<uint8_t> data, size_t max_single_read)
+{
+    return std::make_unique<FLACDemuxer>(
+        std::make_unique<LimitedReadMemoryIOHandler>(std::move(data), max_single_read));
 }
 
 bool testRejectsMissingLeadingStreamInfo()
@@ -355,6 +476,27 @@ bool testSkipsNonFinalSmallUncommonBlockSize()
     return true;
 }
 
+bool testReadsLargePictureBlocksWithoutOversizedSingleRead()
+{
+    FrameOptions frame;
+    frame.payload.assign(24, 0x11);
+    std::vector<uint8_t> streaminfo = makeStreamInfoBlock();
+    streaminfo[0] = 0x00;
+
+    auto demuxer = makeLimitedReadDemuxer(
+        makeFlacFile({streaminfo, makePictureBlock(200000, true)}, {makeFrame(frame)}),
+        65536);
+
+    if (!assertTrue(demuxer->parseContainer(),
+                    "FLACDemuxer should parse files whose PICTURE block requires chunked reads")) {
+        return false;
+    }
+
+    MediaChunk chunk = demuxer->readChunk();
+    return assertTrue(chunk.isValid(),
+                      "FLACDemuxer should still reach audio frames after a large PICTURE block");
+}
+
 } // namespace
 
 int main()
@@ -367,6 +509,7 @@ int main()
     ok &= testRejectsReservedFrameHeaderBit();
     ok &= testRejectsBadFrameFooterCRC();
     ok &= testSkipsNonFinalSmallUncommonBlockSize();
+    ok &= testReadsLargePictureBlocksWithoutOversizedSingleRead();
 
     if (!ok) {
         return 1;

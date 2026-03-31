@@ -2449,30 +2449,55 @@ bool FLACDemuxer::parsePictureBlock_unlocked(const FLACMetadataBlock& block)
     if (picture_data_len > 0) {
         // Sanity check: limit picture data to reasonable size (16 MB)
         static constexpr uint32_t MAX_PICTURE_SIZE = 16 * 1024 * 1024;
+        static constexpr size_t PICTURE_READ_CHUNK_SIZE = 64 * 1024;
         
         if (picture_data_len > MAX_PICTURE_SIZE) {
             FLAC_DEBUG("[parsePicture] Picture data too large: ", picture_data_len, 
                        " bytes (max ", MAX_PICTURE_SIZE, ") - skipping data");
             // Skip the oversized picture data
-            if (m_handler->seek(static_cast<off_t>(picture_data_len), SEEK_CUR) != 0) {
+            if (m_handler->seek(static_cast<PsyMP3::IO::filesize_t>(picture_data_len), SEEK_CUR) != 0) {
                 return false;
             }
             bytes_remaining -= picture_data_len;
         } else {
-            picture.data.resize(picture_data_len);
-            if (m_handler->read(picture.data.data(), 1, picture_data_len) != picture_data_len) {
-                FLAC_DEBUG("[parsePicture] Failed to read picture data");
-                return false;
+            bool skipped_picture_data = false;
+            try {
+                picture.data.resize(picture_data_len);
+            } catch (const std::bad_alloc&) {
+                FLAC_DEBUG("[parsePicture] Unable to allocate ", picture_data_len,
+                           " bytes for picture data - skipping embedded artwork");
+                if (m_handler->seek(static_cast<PsyMP3::IO::filesize_t>(picture_data_len), SEEK_CUR) != 0) {
+                    return false;
+                }
+                bytes_remaining -= picture_data_len;
+                picture.data.clear();
+                skipped_picture_data = true;
             }
-            bytes_remaining -= picture_data_len;
-            
-            FLAC_DEBUG("[parsePicture] Read ", picture.data.size(), " bytes of picture data");
-            
-            // If this is a URI, log it
-            if (picture.is_uri) {
-                std::string uri(picture.data.begin(), picture.data.end());
-                FLAC_DEBUG("[parsePicture] URI: '", 
-                           (uri.length() > 100 ? uri.substr(0, 100) + "..." : uri), "'");
+
+            if (!skipped_picture_data) {
+                size_t total_read = 0;
+                while (total_read < picture_data_len) {
+                    const size_t to_read = std::min<size_t>(PICTURE_READ_CHUNK_SIZE,
+                                                            static_cast<size_t>(picture_data_len) - total_read);
+                    const size_t bytes_read =
+                        m_handler->read(picture.data.data() + total_read, 1, to_read);
+                    if (bytes_read != to_read) {
+                        FLAC_DEBUG("[parsePicture] Failed to read picture data chunk at offset ", total_read,
+                                   " (wanted ", to_read, " bytes, got ", bytes_read, ")");
+                        return false;
+                    }
+                    total_read += bytes_read;
+                }
+                bytes_remaining -= picture_data_len;
+                
+                FLAC_DEBUG("[parsePicture] Read ", picture.data.size(), " bytes of picture data");
+                
+                // If this is a URI, log it
+                if (picture.is_uri) {
+                    std::string uri(picture.data.begin(), picture.data.end());
+                    FLAC_DEBUG("[parsePicture] URI: '", 
+                               (uri.length() > 100 ? uri.substr(0, 100) + "..." : uri), "'");
+                }
             }
         }
     } else {
