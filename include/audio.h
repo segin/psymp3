@@ -77,6 +77,7 @@ private:
     
     int m_rate;
     int m_channels;
+    SDL_AudioDeviceID m_device_id = 0;
     std::atomic<float> m_volume{1.0f};
     std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};

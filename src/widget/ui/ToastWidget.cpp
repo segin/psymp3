@@ -322,16 +322,20 @@ void ToastWidget::applyOpacity(Surface& surface, float opacity)
     // Apply opacity to all pixels in the surface using SDL surface access
     SDL_Surface* sdl_surface = surface.getHandle();
     if (!sdl_surface || !sdl_surface->pixels) return;
-    
-    SDL_LockSurface(sdl_surface);
-    
-    uint32_t* pixels = static_cast<uint32_t*>(sdl_surface->pixels);
+
+    const bool must_lock = SDL_MUSTLOCK(sdl_surface);
+    if (must_lock && SDL_LockSurface(sdl_surface) != 0) {
+        return;
+    }
+
     int width = surface.width();
     int height = surface.height();
-    
+
     for (int y = 0; y < height; y++) {
+        auto* row = reinterpret_cast<uint32_t*>(
+            static_cast<uint8_t*>(sdl_surface->pixels) + y * sdl_surface->pitch);
         for (int x = 0; x < width; x++) {
-            uint32_t& pixel = pixels[y * width + x];
+            uint32_t& pixel = row[x];
             
             // Extract RGBA components
             uint8_t r, g, b, a;
@@ -344,8 +348,10 @@ void ToastWidget::applyOpacity(Surface& surface, float opacity)
             pixel = SDL_MapRGBA(sdl_surface->format, r, g, b, a);
         }
     }
-    
-    SDL_UnlockSurface(sdl_surface);
+
+    if (must_lock) {
+        SDL_UnlockSurface(sdl_surface);
+    }
 }
 
 void ToastWidget::applyRelativeOpacity(Surface& surface, float opacity)
@@ -353,16 +359,20 @@ void ToastWidget::applyRelativeOpacity(Surface& surface, float opacity)
     // Apply relative opacity - only affects pixels that are already non-transparent
     SDL_Surface* sdl_surface = surface.getHandle();
     if (!sdl_surface || !sdl_surface->pixels) return;
-    
-    SDL_LockSurface(sdl_surface);
-    
-    uint32_t* pixels = static_cast<uint32_t*>(sdl_surface->pixels);
+
+    const bool must_lock = SDL_MUSTLOCK(sdl_surface);
+    if (must_lock && SDL_LockSurface(sdl_surface) != 0) {
+        return;
+    }
+
     int width = surface.width();
     int height = surface.height();
-    
+
     for (int y = 0; y < height; y++) {
+        auto* row = reinterpret_cast<uint32_t*>(
+            static_cast<uint8_t*>(sdl_surface->pixels) + y * sdl_surface->pitch);
         for (int x = 0; x < width; x++) {
-            uint32_t& pixel = pixels[y * width + x];
+            uint32_t& pixel = row[x];
             
             // Extract RGBA components
             uint8_t r, g, b, a;
@@ -377,8 +387,10 @@ void ToastWidget::applyRelativeOpacity(Surface& surface, float opacity)
             pixel = SDL_MapRGBA(sdl_surface->format, r, g, b, a);
         }
     }
-    
-    SDL_UnlockSurface(sdl_surface);
+
+    if (must_lock) {
+        SDL_UnlockSurface(sdl_surface);
+    }
 }
 
 } // namespace UI

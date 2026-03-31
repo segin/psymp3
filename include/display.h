@@ -28,7 +28,16 @@ class Display : public Surface
 {
     public:
         Display();
+        ~Display() override;
         void SetCaption(TagLib::String, TagLib::String);
+        void Flip() override;
+        SDL_Window* getWindowHandle() const;
+        bool handleWindowEvent(const SDL_WindowEvent& event);
+    protected:
+        void attachWindowSurface(SDL_Surface* window_surface);
+        void refreshWindowSurface();
+    private:
+        SDL_Window* m_window = nullptr;
 };
 
 #endif // DISPLAY_H

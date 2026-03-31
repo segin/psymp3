@@ -262,21 +262,19 @@ typedef struct ssl_method_st SSL_METHOD;
 typedef struct bio_st BIO;
 
 // Third-party library headers
-#if defined(__APPLE__)
-#include <SDL/SDL.h>
-#include <SDL/SDL_ttf.h>
-#include <SDL/SDL_thread.h>
-#include <SDL/SDL_mutex.h>
-#else
 #include <SDL.h>
+#include <SDL_ttf.h>
+#include <SDL_thread.h>
+#include <SDL_mutex.h>
+
+using SDL_keysym = SDL_Keysym;
+using SDLKey = SDL_Keycode;
+
 
 #ifdef HAVE_SPEEX
 #include <speex/speex.h>
 #include <speex/speex_header.h>
 #include <speex/speex_stereo.h>
-#endif
-#include <SDL_thread.h>
-#include <SDL_mutex.h>
 #endif
 #ifdef HAVE_MP3
 #include <mpg123.h>

@@ -103,6 +103,8 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
         return nullptr;
     }
 
+    SDL_SetSurfaceBlendMode(sfc->getHandle(), SDL_BLENDMODE_BLEND);
+
     // Initialize surface with transparent background
     sfc->FillRect(sfc->MapRGBA(0, 0, 0, 0));
 

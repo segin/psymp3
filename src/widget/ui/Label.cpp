@@ -58,8 +58,6 @@ void Label::setText(const TagLib::String& text)
         std::cerr << "Failed to render text surface for label." << std::endl;
         return;
     }
-    // Enable per-pixel alpha for proper transparent text rendering
-    m_text_surface->SetAlpha(SDL_SRCALPHA | SDL_RLEACCEL, SDL_ALPHA_TRANSPARENT);
     setSurface(std::move(m_text_surface));
     
     // Notify parent that this widget needs repainting

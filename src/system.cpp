@@ -36,6 +36,10 @@ typedef struct tagTHREADNAME_INFO {
 #pragma pack(pop)
 #endif
 
+#ifdef _WIN32
+SDL_Window* System::s_main_window = nullptr;
+#endif
+
 /**
  * @brief Percent-encodes a wide string.
  *
@@ -95,6 +99,8 @@ System::~System() {
 }
 
 #ifdef _WIN32
+void System::setMainWindow(SDL_Window* window) { s_main_window = window; }
+
 /**
  * @brief Initialises the Winamp-compatible IPC window for inter-process communication (Windows only).
  *
@@ -527,13 +533,17 @@ bool System::createStoragePath() {
  * @return The window handle, or 0 if it cannot be retrieved.
  */
 HWND System::getHwnd() {
-  SDL_SysWMinfo wmi;
+  if (!s_main_window) {
+    return 0;
+  }
+
+  SDL_SysWMinfo wmi{};
   SDL_VERSION(&wmi.version);
 
-  if (!SDL_GetWMInfo(&wmi))
+  if (!SDL_GetWindowWMInfo(s_main_window, &wmi))
     return 0;
 
-  return wmi.window;
+  return wmi.info.win.window;
 }
 
 /**

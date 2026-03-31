@@ -70,7 +70,10 @@ Audio::~Audio() {
         m_decoder_thread.join();
     }
     
-    SDL_CloseAudio();
+    if (m_device_id != 0) {
+        SDL_CloseAudioDevice(m_device_id);
+        m_device_id = 0;
+    }
 }
 
 /**
@@ -80,7 +83,7 @@ Audio::~Audio() {
  * of the current stream and registers the static `callback` function to be called by SDL.
  */
 void Audio::setup() {
-    SDL_AudioSpec desired, obtained;
+    SDL_AudioSpec desired{}, obtained{};
 
     if ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) == 0) {
         Debug::log("audio", "Audio::setup: Initializing SDL audio subsystem on demand");
@@ -99,7 +102,8 @@ void Audio::setup() {
     desired.callback = callback;
     desired.userdata = this;
     
-    if ( SDL_OpenAudio(&desired, &obtained) < 0 ) {
+    m_device_id = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
+    if (m_device_id == 0) {
         Debug::log("audio", "Unable to open audio: ", SDL_GetError());
         // throw;
     } else {
@@ -130,7 +134,9 @@ void Audio::setup() {
  */
 void Audio::play(bool go) {
     m_playing = go;
-    SDL_PauseAudio(go ? 0 : 1);
+    if (m_device_id != 0) {
+        SDL_PauseAudioDevice(m_device_id, go ? 0 : 1);
+    }
     
     // Notify decoder thread about playback state change
     // This is critical for proper shutdown when play(false) is called
@@ -173,7 +179,9 @@ bool Audio::isFinished() const
  * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
  */
 void Audio::lock(void) {
-    SDL_LockAudio();
+    if (m_device_id != 0) {
+        SDL_LockAudioDevice(m_device_id);
+    }
 }
 
 /**
@@ -181,7 +189,9 @@ void Audio::lock(void) {
  * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
  */
 void Audio::unlock(void) {
-    SDL_UnlockAudio();
+    if (m_device_id != 0) {
+        SDL_UnlockAudioDevice(m_device_id);
+    }
 }
 
 /**

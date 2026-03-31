@@ -209,7 +209,7 @@ Player::~Player() {
  * @param kpress The SDLKey symbol for the key to be pressed.
  */
 void Player::synthesizeKeyEvent(SDLKey kpress) {
-    SDL_Event event;
+    SDL_Event event{};
     event.type = SDL_KEYDOWN;
     event.key.keysym.sym = kpress;
     SDL_PushEvent(&event);
@@ -226,7 +226,7 @@ void Player::synthesizeKeyEvent(SDLKey kpress) {
  * @param data2 A pointer to the second data payload.
  */
 void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
-    SDL_Event event;
+    SDL_Event event{};
 
     event.type = SDL_USEREVENT;
     event.user.code = code;
@@ -1516,16 +1516,13 @@ bool Player::Initialize(const PlayerOptions& options) {
         Debug::log("system", "Unable to init SDL: ", SDL_GetError());
         return false;
     }
-    SDL_EnableUNICODE(1);
+    SDL_StartTextInput();
 
 
 
     Debug::log("system", "System::getStoragePath: ", System::getStoragePath().to8Bit(true));
     Debug::log("system", "System::getUser: ", System::getUser().to8Bit(true));
     Debug::log("system", "System::getHome: ", System::getHome().to8Bit(true));
-#ifdef _WIN32
-    Debug::log("system", "System::getHwnd: ", std::hex, System::getHwnd());
-#endif /* _WIN32 */
 
     TrueType::Init();
     // FastFourier::init();
@@ -1534,6 +1531,8 @@ bool Player::Initialize(const PlayerOptions& options) {
     screen = std::make_unique<Display>();
     system = std::make_unique<System>();
 #ifdef _WIN32
+    System::setMainWindow(screen->getWindowHandle());
+    Debug::log("system", "System::getHwnd: ", std::hex, System::getHwnd());
     system->InitializeIPC(this);
 #endif
 #if defined(_WIN32)
@@ -1561,7 +1560,7 @@ bool Player::Initialize(const PlayerOptions& options) {
     graph = std::make_unique<Surface>(640, 400);
     // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
     // destination for other alpha-blended surfaces (like the fade effect, toasts, etc.).
-    graph->SetAlpha(SDL_SRCALPHA, 255);
+    graph->SetAlpha(255);
     precomputeSpectrumColors();
 
     // Create an empty playlist. It will be populated in the background.
@@ -1685,6 +1684,11 @@ void Player::EventLoop() {
         SDL_Event event;
         while (SDL_WaitEvent(&event)) {
             switch (event.type) {
+            case SDL_WINDOWEVENT:
+                if (handleWindowEvent(event.window)) {
+                    synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+                }
+                break;
                 // exit if the window is closed
             case SDL_QUIT:
                 done = true;
@@ -1694,6 +1698,11 @@ void Player::EventLoop() {
             case SDL_KEYDOWN:
             {
                 done = handleKeyPress(event.key.keysym);
+                break;
+            }
+            case SDL_TEXTINPUT:
+            {
+                TextInputWidget::handleFocusedTextInput(event.text.text);
                 break;
             }
             case SDL_MOUSEBUTTONDOWN:
@@ -1794,9 +1803,11 @@ void Player::Cleanup() {
     if (m_app_loop_timer_id) {
         SDL_RemoveTimer(m_app_loop_timer_id);
     }
+    SDL_StopTextInput();
 #ifdef _WIN32
     if (system) system->progressState(TBPF_NOPROGRESS);
     if (system) system->updateProgress(0, 0);
+    System::setMainWindow(nullptr);
 #endif
     if (audio) audio->play(false);
 
@@ -1934,6 +1945,15 @@ bool Player::handleUnplayableTrack() {
     }
 
     return true; // Continue trying
+}
+
+bool Player::handleWindowEvent(const SDL_WindowEvent& event)
+{
+    if (!screen) {
+        return false;
+    }
+
+    return screen->handleWindowEvent(event);
 }
 
 /**

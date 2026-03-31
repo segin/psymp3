@@ -32,11 +32,28 @@
  * It then sets the initial window caption. The resulting SDL_Surface for the
  * screen is passed to the base `Surface` class constructor.
  */
-Display::Display() : Surface(SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF))
+Display::Display() : Surface()
 {
-    //ctor
+    m_window = SDL_CreateWindow("PsyMP3 " PSYMP3_VERSION,
+                                SDL_WINDOWPOS_CENTERED,
+                                SDL_WINDOWPOS_CENTERED,
+                                640,
+                                400,
+                                SDL_WINDOW_SHOWN);
+    if (!m_window) {
+        throw SDLException("Could not create SDL window");
+    }
+
+    refreshWindowSurface();
     Debug::log("display", "Display::Display() got 0x", std::hex, getHandle());
-    SDL_WM_SetCaption("PsyMP3 " PSYMP3_VERSION, "PsyMP3");
+}
+
+Display::~Display()
+{
+    if (m_window) {
+        SDL_DestroyWindow(m_window);
+        m_window = nullptr;
+    }
 }
 
 /**
@@ -46,5 +63,63 @@ Display::Display() : Surface(SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_
  */
 void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
-    SDL_WM_SetCaption(title.toCString(false), icon_title.toCString(false));
+    (void)icon_title;
+    if (m_window) {
+        SDL_SetWindowTitle(m_window, title.toCString(false));
+    }
+}
+
+void Display::Flip()
+{
+    if (!m_window) {
+        return;
+    }
+
+    SDL_UpdateWindowSurface(m_window);
+}
+
+void Display::attachWindowSurface(SDL_Surface* window_surface)
+{
+    wrapNonOwnedSurface(window_surface);
+}
+
+void Display::refreshWindowSurface()
+{
+    if (!m_window) {
+        throw SDLException("Cannot refresh window surface without an SDL window");
+    }
+
+    SDL_Surface* window_surface = SDL_GetWindowSurface(m_window);
+    if (!window_surface) {
+        throw SDLException("Could not get SDL window surface");
+    }
+
+    attachWindowSurface(window_surface);
+}
+
+SDL_Window* Display::getWindowHandle() const
+{
+    return m_window;
+}
+
+bool Display::handleWindowEvent(const SDL_WindowEvent& event)
+{
+    if (!m_window) {
+        return false;
+    }
+
+    if (event.windowID != SDL_GetWindowID(m_window)) {
+        return false;
+    }
+
+    switch (event.event) {
+    case SDL_WINDOWEVENT_EXPOSED:
+    case SDL_WINDOWEVENT_RESIZED:
+    case SDL_WINDOWEVENT_SIZE_CHANGED:
+    case SDL_WINDOWEVENT_SHOWN:
+        refreshWindowSurface();
+        return true;
+    default:
+        return false;
+    }
 }

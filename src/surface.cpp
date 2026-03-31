@@ -46,6 +46,12 @@ Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Su
     // The custom empty deleter ensures SDL_FreeSurface is not called on it.
 }
 
+void Surface::wrapNonOwnedSurface(SDL_Surface* non_owned_sfc)
+{
+    m_handle = std::unique_ptr<SDL_Surface, void (*)(SDL_Surface*)>(
+        non_owned_sfc, [](SDL_Surface*) { /* do nothing */ });
+}
+
 /**
  * @brief Creates a new 32-bit RGBA software surface of the given dimensions.
  *
@@ -55,7 +61,7 @@ Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Su
  * @param height Height in pixels.
  */
 Surface::Surface(int width, int height)
-    : m_handle(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
+    : m_handle(SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
 {
     if (!m_handle) {
         throw SDLException("Could not create RGB surface");
@@ -90,10 +96,10 @@ Surface::Surface(int width, int height, bool for_text)
         amask = 0xff000000;
 #endif
         
-        m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 
+        m_handle.reset(SDL_CreateRGBSurface(0, width, height, 32,
                                             rmask, gmask, bmask, amask));
     } else {
-        m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 0, 0, 0, 0));
+        m_handle.reset(SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0));
     }
     
     if (!m_handle) {
@@ -133,10 +139,17 @@ std::unique_ptr<Surface> Surface::FromBMP(const char *a_file)
  * @param flags SDL alpha flags (e.g., `SDL_SRCALPHA`).
  * @param alpha 0 = fully transparent, 255 = fully opaque.
  */
+void Surface::SetAlpha(uint8_t alpha)
+{
+    SetAlpha(0, alpha);
+}
+
 void Surface::SetAlpha(uint32_t flags, uint8_t alpha)
 {
+    (void)flags;
     if (!m_handle) return;
-    SDL_SetAlpha(m_handle.get(), flags, alpha);
+    SDL_SetSurfaceBlendMode(m_handle.get(), alpha < 255 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+    SDL_SetSurfaceAlphaMod(m_handle.get(), alpha);
 }
 
 /**
@@ -197,15 +210,9 @@ void Surface::FillRect(uint32_t color)
     SDL_FillRect(m_handle.get(), 0, color);
 }
 
-/**
- * @brief Flips the display surface to the screen (double-buffer swap).
- *
- * Calls `SDL_Flip`. Only meaningful for the primary display surface.
- */
 void Surface::Flip()
 {
-    if (!m_handle) return;
-    SDL_Flip(m_handle.get());
+    // Base surfaces do not have a presentation target.
 }
 
 /**

@@ -40,19 +40,8 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 AC_CHECK_FUNCS([atexit getcwd memset])
 
 # Core mandatory dependencies
-# SDL: Try pkg-config first, fall back to sdl-config
-PKG_CHECK_MODULES([SDL], [sdl >= 1.2], [], [
-  AC_MSG_CHECKING([for SDL using sdl-config])
-  if test -x "`which sdl-config 2>/dev/null`"; then
-    SDL_CFLAGS="`sdl-config --cflags`"
-    SDL_LIBS="`sdl-config --libs`"
-    AC_MSG_RESULT([yes])
-    AC_SUBST([SDL_CFLAGS])
-    AC_SUBST([SDL_LIBS])
-  else
-    AC_MSG_RESULT([no])
-    AC_MSG_ERROR([SDL >= 1.2 is required. Install libsdl1.2-dev or equivalent.])
-  fi
+PKG_CHECK_MODULES([SDL], [sdl2 >= 2.0], [], [
+  AC_MSG_ERROR([SDL2 >= 2.0 is required. Install libsdl2-dev or equivalent.])
 ])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])

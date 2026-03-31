@@ -214,6 +214,7 @@ class System
 #endif
         void InitializeTaskbar();
         #if defined(_WIN32)
+        static void setMainWindow(SDL_Window* window);
         void announceNowPlaying(const TagLib::String& artist, const TagLib::String& title, const TagLib::String& album);
         void clearNowPlaying();
         #endif
@@ -230,6 +231,7 @@ class System
     private:
     #if defined(_WIN32)
         static LRESULT CALLBACK ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+        static SDL_Window* s_main_window;
         void broadcastMsnMessage(const std::wstring& message);
         // Using a smart pointer for the COM object automates Release() calls,
         // making resource management safer and simpler (RAII).

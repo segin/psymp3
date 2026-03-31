@@ -43,24 +43,24 @@ public:
         return bytes_to_read / size;
     }
 
-    int seek(off_t offset, int whence) override
+    int seek(PsyMP3::IO::filesize_t offset, int whence) override
     {
-        off_t new_position = 0;
+        PsyMP3::IO::filesize_t new_position = 0;
         switch (whence) {
         case SEEK_SET:
             new_position = offset;
             break;
         case SEEK_CUR:
-            new_position = static_cast<off_t>(m_position) + offset;
+            new_position = static_cast<PsyMP3::IO::filesize_t>(m_position) + offset;
             break;
         case SEEK_END:
-            new_position = static_cast<off_t>(m_data.size()) + offset;
+            new_position = static_cast<PsyMP3::IO::filesize_t>(m_data.size()) + offset;
             break;
         default:
             return -1;
         }
 
-        if (new_position < 0 || new_position > static_cast<off_t>(m_data.size())) {
+        if (new_position < 0 || new_position > static_cast<PsyMP3::IO::filesize_t>(m_data.size())) {
             return -1;
         }
 
@@ -68,9 +68,9 @@ public:
         return 0;
     }
 
-    off_t tell() override
+    PsyMP3::IO::filesize_t tell() override
     {
-        return static_cast<off_t>(m_position);
+        return static_cast<PsyMP3::IO::filesize_t>(m_position);
     }
 
     bool eof() override
@@ -83,9 +83,9 @@ public:
         return 0;
     }
 
-    off_t getFileSize() override
+    PsyMP3::IO::filesize_t getFileSize() override
     {
-        return static_cast<off_t>(m_data.size());
+        return static_cast<PsyMP3::IO::filesize_t>(m_data.size());
     }
 
 private:
@@ -319,6 +319,11 @@ bool testRejectsBadFrameFooterCRC()
 
 bool testSkipsNonFinalSmallUncommonBlockSize()
 {
+    std::vector<uint8_t> streaminfo = makeStreamInfoBlock();
+    streaminfo[11] = 0x00;
+    streaminfo[12] = 0x00;
+    streaminfo[13] = 0x80;
+
     FrameOptions invalid_first;
     invalid_first.block_size_bits = 0x06;
     invalid_first.uncommon_block_size_bytes = {0x0E};
@@ -329,9 +334,9 @@ bool testSkipsNonFinalSmallUncommonBlockSize()
     valid_second.payload.assign(20, 0x00);
 
     std::vector<uint8_t> invalid_frame = makeFrame(invalid_first);
-    const uint64_t expected_second_offset = 4 + makeStreamInfoBlock().size() + invalid_frame.size();
+    const uint64_t expected_second_offset = 4 + streaminfo.size() + invalid_frame.size();
 
-    auto demuxer = makeDemuxer(makeFlacFile({makeStreamInfoBlock()}, {invalid_frame, makeFrame(valid_second)}));
+    auto demuxer = makeDemuxer(makeFlacFile({streaminfo}, {invalid_frame, makeFrame(valid_second)}));
     if (!assertTrue(demuxer->parseContainer(), "Container with valid metadata should parse")) {
         return false;
     }

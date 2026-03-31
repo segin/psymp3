@@ -167,6 +167,7 @@ class Player
         void renderOverlay(Stream* current_stream, unsigned long current_pos_ms);
 
         bool updateGUI();
+        bool handleWindowEvent(const SDL_WindowEvent& event);
         bool handleKeyPress(const SDL_keysym& keysym);
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
         void handleMouseMotion(const SDL_MouseMotionEvent& event);

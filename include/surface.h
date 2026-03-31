@@ -58,11 +58,12 @@ class Surface
         static std::unique_ptr<Surface> FromBMP(std::string a_file);
         bool isValid();
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
+        void SetAlpha(uint8_t alpha);
         void SetAlpha(uint32_t flags, uint8_t alpha); // SDL_SRCALPHA, SDL_ALPHA_OPAQUE, etc.
         uint32_t MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void Blit(Surface& src, const Rect& rect); // Changed to const Rect&
         void FillRect(uint32_t color);
-        void Flip();
+        virtual void Flip();
         void pixel(int16_t x, int16_t y, uint32_t color);
         void pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color);
@@ -89,6 +90,7 @@ class Surface
         friend class Font;
     protected:
         std::unique_ptr<SDL_Surface, void (*)(SDL_Surface*)> m_handle;
+        void wrapNonOwnedSurface(SDL_Surface* non_owned_sfc);
     private:
         // RAII helper for SDL surface locking
         class SDLLockGuard {
