@@ -23,6 +23,34 @@
 
 #include "psymp3.h"
 
+namespace {
+
+bool ensureSDLAudioSubsystem()
+{
+    static std::once_flag init_once;
+    static bool init_ok = false;
+
+    std::call_once(init_once, []() {
+        if ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) != 0) {
+            init_ok = true;
+            return;
+        }
+
+        Debug::log("audio", "Audio::setup: Initializing SDL audio subsystem on demand");
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+            Debug::log("audio", "Unable to init SDL audio subsystem: ", SDL_GetError());
+            init_ok = false;
+            return;
+        }
+
+        init_ok = true;
+    });
+
+    return init_ok || ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) != 0);
+}
+
+} // namespace
+
 /**
  * @brief Constructs an Audio object.
  * @param data A pointer to a struct containing shared data from the Player,
@@ -85,12 +113,8 @@ Audio::~Audio() {
 void Audio::setup() {
     SDL_AudioSpec desired{}, obtained{};
 
-    if ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) == 0) {
-        Debug::log("audio", "Audio::setup: Initializing SDL audio subsystem on demand");
-        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
-            Debug::log("audio", "Unable to init SDL audio subsystem: ", SDL_GetError());
-            return;
-        }
+    if (!ensureSDLAudioSubsystem()) {
+        return;
     }
 
     // Use m_current_stream_raw_ptr to get rate and channels

@@ -1043,10 +1043,13 @@ bool Player::updateGUI()
         updateState(current_stream, current_pos_ms, total_len_ms, artist, title);
     }
 
-    // Now use the copied data for rendering, outside the lock.
-    if(current_stream) {
-        renderOverlay(current_stream, current_pos_ms);
+    // Render the overlay and widget tree regardless of stream state so
+    // labels, test windows, and other UI remain visible when playback is
+    // idle or between tracks.
+    renderOverlay(current_stream, current_pos_ms);
 
+    // Now use the copied data for stream-specific integration, outside the lock.
+    if(current_stream) {
 #ifdef HAVE_DBUS
         // Update MPRIS position (outside of Player mutex to avoid deadlocks)
         if (m_mpris_manager && state == PlayerState::Playing) {

@@ -84,14 +84,14 @@ bool ApplicationWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             // Calculate relative coordinates for window
             int window_relative_x = relative_x - window_pos.x();
             int window_relative_y = relative_y - window_pos.y();
-            
-            // Bring window to front if clicked
-            bringWindowToFront(window.get());
-            
-            // Forward event to window
-            if (window->handleMouseDown(event, window_relative_x, window_relative_y)) {
-                return true; // Event was handled by window
-            }
+
+            Widget* clicked_window = window.get();
+            bool handled = clicked_window->handleMouseDown(event, window_relative_x, window_relative_y);
+
+            // Reordering the backing vector invalidates the iterator/reference, so
+            // do it only after the target window has finished handling the click.
+            bringWindowToFront(clicked_window);
+            return handled;
         }
     }
     

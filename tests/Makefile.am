@@ -405,6 +405,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
 	test_widget_event_routing \
+	test_widget_rendering \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_bounded_buffer \
@@ -424,6 +425,9 @@ endif
 check_PROGRAMS += test_extensibility_utils
 test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
 test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_widget_rendering_SOURCES = test_widget_rendering.cpp
+test_widget_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
