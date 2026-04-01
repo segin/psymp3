@@ -127,6 +127,31 @@ protected:
     }
 };
 
+class IsValidURITest : public TestCase {
+public:
+    IsValidURITest() : TestCase("ExtensibilityUtils::isValidURI") {}
+
+protected:
+    void runTest() override {
+        // Valid URIs with protocols
+        ASSERT_TRUE(isValidURI("http://example.com/file.mp3"), "Should be valid: http://example.com/file.mp3");
+        ASSERT_TRUE(isValidURI("https://example.com"), "Should be valid: https://example.com");
+        ASSERT_TRUE(isValidURI("file:///path/to/file.mp3"), "Should be valid: file:///path/to/file.mp3");
+        ASSERT_TRUE(isValidURI("custom-scheme://test"), "Should be valid: custom-scheme://test");
+
+        // Local file paths
+        ASSERT_TRUE(isValidURI("/path/to/local/file.mp3"), "Should be valid local path");
+        ASSERT_TRUE(isValidURI("local_file.mp3"), "Should be valid local file");
+        ASSERT_TRUE(isValidURI("example.com"), "Should be valid local domain-like file");
+        ASSERT_TRUE(isValidURI("scheme:path"), "Should be valid path with colon");
+
+        // Invalid URIs
+        ASSERT_FALSE(isValidURI(""), "Empty string should be invalid");
+        ASSERT_FALSE(isValidURI("http://"), "Missing path should be invalid");
+        ASSERT_FALSE(isValidURI("://"), "Empty protocol should be invalid");
+    }
+};
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -136,6 +161,7 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ExtractParamsTest>());
     suite.addTest(std::make_unique<FormatConfigStringTest>());
     suite.addTest(std::make_unique<ConfigStringRoundTripTest>());
+    suite.addTest(std::make_unique<IsValidURITest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
