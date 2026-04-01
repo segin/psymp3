@@ -114,38 +114,41 @@ std::string XMLUtil::escapeXML(const std::string& text) {
 }
 
 std::string XMLUtil::unescapeXML(const std::string& text) {
-    std::string result = text;
-    
-    // Replace entities (order matters for &amp;)
-    size_t pos = 0;
-    while ((pos = result.find("&lt;", pos)) != std::string::npos) {
-        result.replace(pos, 4, "<");
-        pos += 1;
+    if (text.find('&') == std::string::npos) {
+        return text;
     }
-    
-    pos = 0;
-    while ((pos = result.find("&gt;", pos)) != std::string::npos) {
-        result.replace(pos, 4, ">");
-        pos += 1;
-    }
-    
-    pos = 0;
-    while ((pos = result.find("&quot;", pos)) != std::string::npos) {
-        result.replace(pos, 6, "\"");
-        pos += 1;
-    }
-    
-    pos = 0;
-    while ((pos = result.find("&apos;", pos)) != std::string::npos) {
-        result.replace(pos, 6, "'");
-        pos += 1;
-    }
-    
-    // &amp; must be last to avoid double-unescaping
-    pos = 0;
-    while ((pos = result.find("&amp;", pos)) != std::string::npos) {
-        result.replace(pos, 5, "&");
-        pos += 1;
+
+    std::string result;
+    result.reserve(text.length()); // Output will be at most the length of input
+
+    size_t i = 0;
+    size_t len = text.length();
+    while (i < len) {
+        if (text[i] == '&') {
+            size_t remaining = len - i;
+            if (remaining >= 4 && text.compare(i, 4, "&lt;") == 0) {
+                result += '<';
+                i += 4;
+            } else if (remaining >= 4 && text.compare(i, 4, "&gt;") == 0) {
+                result += '>';
+                i += 4;
+            } else if (remaining >= 5 && text.compare(i, 5, "&amp;") == 0) {
+                result += '&';
+                i += 5;
+            } else if (remaining >= 6 && text.compare(i, 6, "&quot;") == 0) {
+                result += '"';
+                i += 6;
+            } else if (remaining >= 6 && text.compare(i, 6, "&apos;") == 0) {
+                result += '\'';
+                i += 6;
+            } else {
+                result += '&';
+                i += 1;
+            }
+        } else {
+            result += text[i];
+            i += 1;
+        }
     }
     
     return result;
