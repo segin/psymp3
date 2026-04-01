@@ -1676,15 +1676,16 @@ bool Player::Initialize(const PlayerOptions& options) {
         m_is_dragging = false;
     });
     
-    auto add_label = [&](Widget& parent, const std::string& key, const Rect& pos) {
+    auto add_label = [&](Widget& parent, const std::string& key, const Rect& pos, bool marquee = false) {
         auto label = std::make_unique<Label>(font.get(), pos);
+        label->setMarqueeEnabled(marquee);
         m_labels[key] = label.get(); // Store non-owning pointer in map
         parent.addChild(std::move(label));
     };
 
-    add_label(*hud_panel_ptr, "artist",   Rect(1, 4, 200, 16));
-    add_label(*hud_panel_ptr, "title",    Rect(1, 19, 200, 16));
-    add_label(*hud_panel_ptr, "album",    Rect(1, 34, 200, 16));
+    add_label(*hud_panel_ptr, "artist",   Rect(1, 4, 240, 16), true);
+    add_label(*hud_panel_ptr, "title",    Rect(1, 19, 350, 16), true);
+    add_label(*hud_panel_ptr, "album",    Rect(1, 34, 350, 16), true);
     add_label(*hud_panel_ptr, "playlist", Rect(270, 4, 120, 16));
     add_label(*hud_panel_ptr, "position", Rect(400, 3, 150, 16));
     add_label(app_widget,     "scale",    Rect(545, 0, 95, 16));

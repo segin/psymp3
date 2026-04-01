@@ -140,12 +140,41 @@ protected:
     }
 };
 
+class OverflowLabelRenderingTest : public WidgetRenderingTest {
+public:
+    OverflowLabelRenderingTest()
+        : WidgetRenderingTest("Overflowing labels render marquee text within a bounded viewport")
+    {
+    }
+
+protected:
+    void runTest() override
+    {
+        ensureVideoAndFont();
+
+        ::Surface target(320, 120);
+        target.FillRect(target.MapRGB(0, 0, 0));
+
+        Label label(m_font.get(),
+                    Rect(10, 10, 120, 16),
+                    TagLib::String("Artist: This is a very long metadata value that should marquee"),
+                    SDL_Color{255, 255, 255, 255},
+                    SDL_Color{0, 0, 0, 255});
+        label.setMarqueeEnabled(true);
+        label.BlitTo(target);
+
+        ASSERT_TRUE(countNonBlackPixels(target) > 0,
+                    "Rendering an overflowing label should still produce visible pixels");
+    }
+};
+
 } // namespace
 
 int main()
 {
     TestSuite suite("Widget Rendering Regression Tests");
     suite.addTest(std::make_unique<LabelRenderingTest>());
+    suite.addTest(std::make_unique<OverflowLabelRenderingTest>());
     suite.addTest(std::make_unique<WindowFrameRenderingTest>());
 
     auto results = suite.runAll();

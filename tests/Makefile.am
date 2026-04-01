@@ -89,11 +89,11 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/playlist.o \
 	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/core/surface.o \
 	$(top_builddir)/src/mediafile.o \
-	$(top_builddir)/src/display.o \
-	$(top_builddir)/src/font.o \
-	$(top_builddir)/src/truetype.o \
+	$(top_builddir)/src/core/display.o \
+	$(top_builddir)/src/core/font.o \
+	$(top_builddir)/src/core/truetype.o \
 	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
 	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
 	$(top_builddir)/src/widget/ui/libpsymp3-widget-ui.a \
