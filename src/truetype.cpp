@@ -30,13 +30,6 @@ void TrueType::Init() {
 }
 
 /**
- * @brief Shuts down the global FreeType library instance, releasing all resources.
- *
- * Should only be called after all `Font` objects have been destroyed.
- */
-void TrueType::Done() { FT_Done_FreeType(m_library); }
-
-/**
  * @brief RAII wrapper that manages the lifetime of the global FreeType library.
  *
  * Its constructor calls `TrueType::Init()` and its destructor calls
