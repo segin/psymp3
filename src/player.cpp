@@ -1395,14 +1395,15 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
 /**
  * @brief Displays a short-lived "toast" notification on the screen.
- * Forces immediate fade-out of existing toast, then smooth fade-in of new toast.
+ * Crossfades any existing toast into a newly created one.
  * @param message The text message to display.
  * @param duration_ms The duration in milliseconds for the toast to be visible.
  */
 void Player::showToast(const std::string& message, Uint32 duration_ms)
 {
-    // Remove all existing toasts first (like Android behavior)
-    ApplicationWidget::getInstance().removeAllToasts();
+    // Crossfade any existing toasts into the new one instead of snapping them
+    // out immediately. The incoming toast uses its normal 350ms fade-in.
+    ApplicationWidget::getInstance().removeAllToasts(ToastWidget::CROSSFADE_MS);
     
     // Convert to new ToastWidget system
     auto toast = std::make_unique<ToastWidget>(message, font.get(), static_cast<int>(duration_ms));

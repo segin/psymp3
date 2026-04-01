@@ -37,6 +37,9 @@ ToastWidget::ToastWidget(const std::string& message, Font* font, int duration_ms
     , m_font(font)
     , m_duration_ms(duration_ms)
     , m_start_time(std::chrono::steady_clock::now())
+    , m_exit_start_time()
+    , m_exit_duration_ms(FADE_OUT_MS)
+    , m_exiting(false)
 {
     // Keep toast notifications in the reserved always-on-top band while
     // leaving the absolute maximum slot available for future system overlays.
@@ -68,15 +71,56 @@ void ToastWidget::dismiss()
     }
 }
 
+void ToastWidget::beginDismiss(int fade_duration_ms)
+{
+    if (m_exiting) {
+        if (fade_duration_ms > 0 && fade_duration_ms < m_exit_duration_ms) {
+            m_exit_duration_ms = fade_duration_ms;
+        }
+        return;
+    }
+
+    m_exiting = true;
+    m_exit_duration_ms = std::max(1, fade_duration_ms);
+    m_exit_start_time = std::chrono::steady_clock::now();
+}
+
 bool ToastWidget::shouldDismiss() const
 {
-    if (m_duration_ms <= 0) {
+    if (m_duration_ms <= 0 || m_exiting) {
         return false; // No auto-dismiss
     }
     
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time);
     return elapsed.count() >= m_duration_ms;
+}
+
+bool ToastWidget::isFinished() const
+{
+    if (!m_exiting) {
+        return false;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_exit_start_time);
+    return elapsed.count() >= m_exit_duration_ms;
+}
+
+void ToastWidget::BlitTo(Surface& target)
+{
+    if (isAnimationActive()) {
+        invalidate();
+    }
+    TransparentWindowWidget::BlitTo(target);
+}
+
+void ToastWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    if (isAnimationActive()) {
+        invalidate();
+    }
+    TransparentWindowWidget::recursiveBlitTo(target, parent_absolute_pos);
 }
 
 void ToastWidget::resetTimer()
@@ -89,6 +133,10 @@ void ToastWidget::draw(Surface& surface)
     // Step 1: Use actual surface dimensions (should match calculateSize result)
     int window_width = surface.width();
     int window_height = surface.height();
+
+    if (surface.getHandle()) {
+        SDL_SetSurfaceBlendMode(surface.getHandle(), SDL_BLENDMODE_BLEND);
+    }
     
     // Step 2: Clear surface to fully transparent
     surface.FillRect(surface.MapRGBA(0, 0, 0, 0));
@@ -103,10 +151,7 @@ void ToastWidget::draw(Surface& surface)
         drawSimpleRoundedRect(surface, 1, 1, window_width - 2, window_height - 2, corner_radius - 1, 50, 50, 50, 255);
     }
     
-    // Step 5: Apply 85% opacity while preserving transparent areas
-    applyRelativeOpacity(surface, 0.85f);
-    
-    // Step 6: Render the Label (handling multiline)
+    // Step 5: Render the Label (handling multiline)
     std::stringstream ss(m_message);
     std::string line;
     int y_offset = 8;
@@ -124,6 +169,11 @@ void ToastWidget::draw(Surface& surface)
              y_offset += 12;
         }
     }
+
+    // Step 6: Apply animation-scaled opacity to the complete toast so the
+    // shell and text fade together.
+    const float animation_opacity = std::clamp(currentAnimationOpacity(), 0.0f, 1.0f);
+    applyRelativeOpacity(surface, 0.85f * animation_opacity);
 }
 
 ::Rect ToastWidget::calculateSize(const std::string& message, ::Font* font, int padding)
@@ -392,6 +442,35 @@ void ToastWidget::applyRelativeOpacity(Surface& surface, float opacity)
     if (must_lock) {
         SDL_UnlockSurface(sdl_surface);
     }
+}
+
+float ToastWidget::currentAnimationOpacity() const
+{
+    const auto now = std::chrono::steady_clock::now();
+    const auto enter_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time).count();
+
+    float enter_factor = 1.0f;
+    if (FADE_IN_MS > 0) {
+        enter_factor = std::clamp(static_cast<float>(enter_elapsed) / static_cast<float>(FADE_IN_MS), 0.0f, 1.0f);
+    }
+
+    float exit_factor = 1.0f;
+    if (m_exiting) {
+        const auto exit_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_exit_start_time).count();
+        const float progress = static_cast<float>(exit_elapsed) / static_cast<float>(std::max(1, m_exit_duration_ms));
+        exit_factor = 1.0f - std::clamp(progress, 0.0f, 1.0f);
+    }
+
+    return enter_factor * exit_factor;
+}
+
+bool ToastWidget::isAnimationActive() const
+{
+    const auto now = std::chrono::steady_clock::now();
+    const auto enter_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time).count();
+    const bool entering = enter_elapsed < FADE_IN_MS;
+    const bool exiting = m_exiting && !isFinished();
+    return entering || exiting;
 }
 
 } // namespace UI

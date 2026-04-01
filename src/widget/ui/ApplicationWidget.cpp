@@ -306,6 +306,9 @@ void ApplicationWidget::updateWindows()
     while (it != m_windows.end()) {
         if (auto* toast = dynamic_cast<ToastWidget*>(it->get())) {
             if (toast->shouldDismiss()) {
+                toast->beginDismiss();
+            }
+            if (toast->isFinished()) {
                 toast->dismiss(); // Call dismiss callback
                 it = m_windows.erase(it); // Remove from window list
                 continue;
@@ -315,16 +318,19 @@ void ApplicationWidget::updateWindows()
     }
 }
 
-void ApplicationWidget::removeAllToasts()
+void ApplicationWidget::removeAllToasts(int fade_out_ms)
 {
-    // Remove all existing toasts immediately
+    // Remove all existing toasts immediately, or let them crossfade out.
     auto it = m_windows.begin();
     while (it != m_windows.end()) {
-        if (dynamic_cast<ToastWidget*>(it->get())) {
-            it = m_windows.erase(it);
-        } else {
-            ++it;
+        if (auto* toast = dynamic_cast<ToastWidget*>(it->get())) {
+            if (fade_out_ms <= 0) {
+                it = m_windows.erase(it);
+                continue;
+            }
+            toast->beginDismiss(fade_out_ms);
         }
+        ++it;
     }
 }
 

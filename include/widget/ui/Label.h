@@ -48,7 +48,8 @@ class Label : public Widget
         std::unique_ptr<Surface> createViewportSurface(int viewport_width, int viewport_height) const;
         int calculateMarqueeOffset(uint32_t tick_ms) const;
         bool isInMarqueeHomePause(uint32_t tick_ms) const;
-        void applyEdgeFade(Surface& surface, bool fade_left_edge) const;
+        float calculateLeftEdgeFadeStrength(uint32_t tick_ms) const;
+        void applyEdgeFade(Surface& surface, float left_fade_strength) const;
 
         Font* m_font; // Non-owning pointer to the global font
         TagLib::String m_text;
@@ -62,6 +63,7 @@ class Label : public Widget
         static constexpr int kMarqueeGapPixels = 48;
         static constexpr int kMarqueePauseMs = 2000;
         static constexpr int kMarqueePixelsPerSecond = 36;
+        static constexpr int kGradientTransitionMs = 220;
 };
 
 } // namespace UI

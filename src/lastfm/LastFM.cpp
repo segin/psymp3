@@ -757,15 +757,22 @@ bool LastFM::isConfigured() const
 
 std::string LastFM::urlEncode(const std::string& input)
 {
-    std::string output = "";
-    char buffer[4];
-    for (size_t i = 0; i < input.length(); i++) {
-        unsigned char c = input[i];
+    if (input.empty()) {
+        return "";
+    }
+
+    std::string output;
+    output.reserve(input.length() * 3);
+
+    static const char hex_chars[] = "0123456789ABCDEF";
+
+    for (unsigned char c : input) {
         if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
             output += c;
         } else {
-            snprintf(buffer, sizeof(buffer), "%%%02X", c);
-            output += buffer;
+            output += '%';
+            output += hex_chars[(c >> 4) & 0x0F];
+            output += hex_chars[c & 0x0F];
         }
     }
     return output;

@@ -70,6 +70,40 @@ size_t countNonBlackPixels(::Surface& surface)
     return count;
 }
 
+size_t countNonTransparentPixels(::Surface& surface)
+{
+    SDL_Surface* handle = surface.getHandle();
+    if (!handle || !handle->pixels) {
+        return 0;
+    }
+
+    const bool must_lock = SDL_MUSTLOCK(handle);
+    if (must_lock && SDL_LockSurface(handle) != 0) {
+        throw std::runtime_error(std::string("SDL_LockSurface failed: ") + SDL_GetError());
+    }
+
+    size_t count = 0;
+    for (int y = 0; y < handle->h; ++y) {
+        auto* row = static_cast<uint8_t*>(handle->pixels) + y * handle->pitch;
+        for (int x = 0; x < handle->w; ++x) {
+            uint32_t pixel = 0;
+            std::memcpy(&pixel, row + x * handle->format->BytesPerPixel, handle->format->BytesPerPixel);
+
+            uint8_t a = 0;
+            SDL_GetRGBA(pixel, handle->format, nullptr, nullptr, nullptr, &a);
+            if (a != 0) {
+                ++count;
+            }
+        }
+    }
+
+    if (must_lock) {
+        SDL_UnlockSurface(handle);
+    }
+
+    return count;
+}
+
 size_t countNonBlackPixelsInRect(::Surface& surface, int x0, int y0, int width, int height)
 {
     SDL_Surface* handle = surface.getHandle();
@@ -212,6 +246,38 @@ protected:
     }
 };
 
+class ToastFadeRenderingTest : public WidgetRenderingTest {
+public:
+    ToastFadeRenderingTest()
+        : WidgetRenderingTest("ToastWidget fades out instead of disappearing abruptly")
+    {
+    }
+
+protected:
+    void runTest() override
+    {
+        ensureVideoAndFont();
+
+        ::Surface target(320, 120);
+        ToastWidget toast("Toast fade regression", m_font.get(), ToastWidget::DURATION_LONG);
+        toast.setPos(Rect(10, 10, toast.getPos().width(), toast.getPos().height()));
+
+        toast.BlitTo(target);
+        ASSERT_TRUE(countNonTransparentPixels(toast) > 0,
+                    "A newly created toast should render visible pixels in its backing surface");
+
+        toast.beginDismiss(ToastWidget::CROSSFADE_MS);
+        toast.BlitTo(target);
+        ASSERT_TRUE(countNonTransparentPixels(toast) > 0,
+                    "A toast beginning dismissal should remain visible during the crossfade");
+
+        SDL_Delay(ToastWidget::CROSSFADE_MS + 40);
+        toast.BlitTo(target);
+        ASSERT_TRUE(countNonTransparentPixels(toast) == 0,
+                    "A toast should become fully transparent after its fade-out finishes");
+    }
+};
+
 } // namespace
 
 int main()
@@ -219,6 +285,7 @@ int main()
     TestSuite suite("Widget Rendering Regression Tests");
     suite.addTest(std::make_unique<LabelRenderingTest>());
     suite.addTest(std::make_unique<OverflowLabelRenderingTest>());
+    suite.addTest(std::make_unique<ToastFadeRenderingTest>());
     suite.addTest(std::make_unique<WindowFrameRenderingTest>());
 
     auto results = suite.runAll();

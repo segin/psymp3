@@ -156,7 +156,7 @@ std::unique_ptr<Surface> Label::createViewportSurface(int viewport_width, int vi
                            Rect(m_text_surface->width() + kMarqueeGapPixels - marquee_offset,
                                 text_y,
                                 m_text_surface->width(), m_text_surface->height()));
-    applyEdgeFade(*viewport_surface, !isInMarqueeHomePause(tick_ms));
+    applyEdgeFade(*viewport_surface, calculateLeftEdgeFadeStrength(tick_ms));
     return viewport_surface;
 }
 
@@ -199,7 +199,43 @@ bool Label::isInMarqueeHomePause(uint32_t tick_ms) const
     return phase < kMarqueePauseMs;
 }
 
-void Label::applyEdgeFade(Surface& surface, bool fade_left_edge) const
+float Label::calculateLeftEdgeFadeStrength(uint32_t tick_ms) const
+{
+    if (!m_text_surface || !m_text_surface->isValid()) {
+        return 0.0f;
+    }
+
+    const int loop_width = m_text_surface->width() + kMarqueeGapPixels;
+    if (loop_width <= 0) {
+        return 0.0f;
+    }
+
+    const int scroll_duration_ms = std::max((loop_width * 1000) / kMarqueePixelsPerSecond, 1);
+    const int cycle_ms = kMarqueePauseMs + scroll_duration_ms;
+    const int phase = static_cast<int>(tick_ms % static_cast<uint32_t>(cycle_ms));
+
+    if (phase < kMarqueePauseMs) {
+        if (phase >= kMarqueePauseMs - kGradientTransitionMs) {
+            const int transition_phase = phase - (kMarqueePauseMs - kGradientTransitionMs);
+            return std::clamp(static_cast<float>(transition_phase) /
+                                  static_cast<float>(kGradientTransitionMs),
+                              0.0f, 1.0f);
+        }
+        return 0.0f;
+    }
+
+    const int scroll_phase = phase - kMarqueePauseMs;
+    if (scroll_phase >= scroll_duration_ms - kGradientTransitionMs) {
+        const int transition_phase = scroll_phase - (scroll_duration_ms - kGradientTransitionMs);
+        return std::clamp(1.0f - (static_cast<float>(transition_phase) /
+                                      static_cast<float>(kGradientTransitionMs)),
+                          0.0f, 1.0f);
+    }
+
+    return 1.0f;
+}
+
+void Label::applyEdgeFade(Surface& surface, float left_fade_strength) const
 {
     SDL_Surface* handle = surface.getHandle();
     if (!handle || !handle->pixels) {
@@ -220,8 +256,9 @@ void Label::applyEdgeFade(Surface& surface, bool fade_left_edge) const
         auto* row = static_cast<uint8_t*>(handle->pixels) + y * handle->pitch;
         for (int x = 0; x < surface.width(); ++x) {
             float fade = 1.0f;
-            if (fade_left_edge && x < fade_width) {
-                fade = static_cast<float>(x) / static_cast<float>(fade_width);
+            if (left_fade_strength > 0.0f && x < fade_width) {
+                const float edge_fade = static_cast<float>(x) / static_cast<float>(fade_width);
+                fade = ((1.0f - left_fade_strength) * 1.0f) + (left_fade_strength * edge_fade);
             } else if (x >= surface.width() - fade_width) {
                 fade = static_cast<float>((surface.width() - 1) - x) / static_cast<float>(fade_width);
             }
