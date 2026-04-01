@@ -70,6 +70,48 @@ size_t countNonBlackPixels(::Surface& surface)
     return count;
 }
 
+size_t countNonBlackPixelsInRect(::Surface& surface, int x0, int y0, int width, int height)
+{
+    SDL_Surface* handle = surface.getHandle();
+    if (!handle || !handle->pixels) {
+        return 0;
+    }
+
+    const int x1 = std::min(x0 + width, handle->w);
+    const int y1 = std::min(y0 + height, handle->h);
+    if (x0 >= x1 || y0 >= y1) {
+        return 0;
+    }
+
+    const bool must_lock = SDL_MUSTLOCK(handle);
+    if (must_lock && SDL_LockSurface(handle) != 0) {
+        throw std::runtime_error(std::string("SDL_LockSurface failed: ") + SDL_GetError());
+    }
+
+    size_t count = 0;
+    for (int y = y0; y < y1; ++y) {
+        auto* row = static_cast<uint8_t*>(handle->pixels) + y * handle->pitch;
+        for (int x = x0; x < x1; ++x) {
+            uint32_t pixel = 0;
+            std::memcpy(&pixel, row + x * handle->format->BytesPerPixel, handle->format->BytesPerPixel);
+
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+            SDL_GetRGB(pixel, handle->format, &r, &g, &b);
+            if (r != 0 || g != 0 || b != 0) {
+                ++count;
+            }
+        }
+    }
+
+    if (must_lock) {
+        SDL_UnlockSurface(handle);
+    }
+
+    return count;
+}
+
 class WidgetRenderingTest : public TestCase {
 public:
     explicit WidgetRenderingTest(const std::string& name)
@@ -165,6 +207,8 @@ protected:
 
         ASSERT_TRUE(countNonBlackPixels(target) > 0,
                     "Rendering an overflowing label should still produce visible pixels");
+        ASSERT_TRUE(countNonBlackPixelsInRect(target, 10 + 120, 10, 160, 16) == 0,
+                    "Overflowing marquee labels must not paint beyond their configured viewport");
     }
 };
 
