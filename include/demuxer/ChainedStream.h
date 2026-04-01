@@ -30,7 +30,7 @@ namespace Demuxer {
 class ChainedStream : public Stream
 {
 public:
-    explicit ChainedStream(std::vector<TagLib::String> paths);
+    explicit ChainedStream(const std::vector<TagLib::String>& paths);
     virtual ~ChainedStream() = default;
 
     // Overridden methods from Stream

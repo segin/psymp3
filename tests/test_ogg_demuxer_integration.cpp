@@ -19,6 +19,9 @@
 #include <vector>
 #include <fstream>
 #include <cstring>
+#include <cstdio>
+#include <ogg/ogg.h>
+#include <vorbis/vorbisenc.h>
 
 using namespace PsyMP3;
 using namespace PsyMP3::Demuxer;
@@ -64,11 +67,14 @@ public:
         
         // Test 8: Complete workflow integration
         testCompleteWorkflowIntegration();
-        
+
         // Test 9: DemuxerRegistry integration
         testDemuxerRegistryIntegration();
-        
-        // Test 10: MediaFactory integration (skipped due to dependencies)
+
+        // Test 10: Valid Vorbis setup header handling
+        testValidVorbisPlaybackBootstrap();
+
+        // Test 11: MediaFactory integration (skipped due to dependencies)
         // testMediaFactoryIntegration();
         
         std::cout << "=== All OggDemuxer Integration Tests Completed ===" << std::endl;
@@ -384,6 +390,41 @@ private:
         
         std::cout << "✓ Complete workflow integration test passed" << std::endl;
     }
+
+    static void testValidVorbisPlaybackBootstrap() {
+        std::cout << "Testing valid Vorbis playback bootstrap..." << std::endl;
+
+        std::string path = createValidVorbisTestFile();
+        auto demuxer = std::make_unique<OggDemuxer>(std::make_unique<FileIOHandler>(path));
+
+        ASSERT_TRUE(demuxer->parseContainer(), "Valid Vorbis file should parse successfully");
+
+        auto streams = demuxer->getStreams();
+        ASSERT_FALSE(streams.empty(), "Valid Vorbis file should expose at least one stream");
+        ASSERT_EQUALS(std::string("vorbis"), streams[0].codec_name, "Codec should be Vorbis");
+
+        MediaChunk chunk1 = demuxer->readChunk();
+        MediaChunk chunk2 = demuxer->readChunk();
+        MediaChunk chunk3 = demuxer->readChunk();
+        MediaChunk audio = demuxer->readChunk();
+
+        ASSERT_FALSE(chunk1.data.empty(), "First replayed packet should exist");
+        ASSERT_FALSE(chunk2.data.empty(), "Second replayed packet should exist");
+        ASSERT_FALSE(chunk3.data.empty(), "Third replayed packet should exist");
+        ASSERT_FALSE(audio.data.empty(), "First audio packet should exist");
+
+        ASSERT_TRUE(chunk1.data.size() >= 7 && chunk1.data[0] == 0x01,
+                    "First replayed packet should be Vorbis identification header");
+        ASSERT_TRUE(chunk2.data.size() >= 7 && chunk2.data[0] == 0x03,
+                    "Second replayed packet should be Vorbis comment header");
+        ASSERT_TRUE(chunk3.data.size() >= 7 && chunk3.data[0] == 0x05,
+                    "Third replayed packet should be Vorbis setup header");
+        ASSERT_TRUE(audio.data[0] != 0x01 && audio.data[0] != 0x03 && audio.data[0] != 0x05,
+                    "Audio playback should continue after replayed Vorbis headers");
+
+        std::remove(path.c_str());
+        std::cout << "✓ Valid Vorbis playback bootstrap test passed" << std::endl;
+    }
     
     /**
      * @brief Test DemuxerRegistry integration
@@ -549,6 +590,92 @@ private:
         // Create FileIOHandler for the temporary file
         // Note: In a real implementation, we might want a proper MemoryIOHandler
         return std::make_unique<FileIOHandler>(temp_filename);
+    }
+
+    static std::string createValidVorbisTestFile() {
+        std::string temp_filename = "/tmp/ogg_vorbis_valid_" + std::to_string(rand()) + ".ogg";
+        std::ofstream out(temp_filename, std::ios::binary);
+        if (!out) {
+            throw std::runtime_error("Failed to create temporary Vorbis test file");
+        }
+
+        vorbis_info vi;
+        vorbis_info_init(&vi);
+        if (vorbis_encode_init_vbr(&vi, 1, 44100, 0.3f) != 0) {
+            vorbis_info_clear(&vi);
+            throw std::runtime_error("Failed to initialize Vorbis encoder");
+        }
+
+        vorbis_comment vc;
+        vorbis_comment_init(&vc);
+        vorbis_comment_add_tag(&vc, const_cast<char*>("ENCODER"), const_cast<char*>("PsyMP3 test"));
+
+        vorbis_dsp_state vd;
+        vorbis_analysis_init(&vd, &vi);
+
+        vorbis_block vb;
+        vorbis_block_init(&vd, &vb);
+
+        ogg_stream_state os;
+        ogg_stream_init(&os, rand());
+
+        ogg_packet header;
+        ogg_packet header_comm;
+        ogg_packet header_code;
+        vorbis_analysis_headerout(&vd, &vc, &header, &header_comm, &header_code);
+
+        ogg_stream_packetin(&os, &header);
+        ogg_stream_packetin(&os, &header_comm);
+        ogg_stream_packetin(&os, &header_code);
+        flushOggPages(out, os, true);
+
+        float** buffer = vorbis_analysis_buffer(&vd, 1024);
+        for (int i = 0; i < 1024; ++i) {
+            buffer[0][i] = 0.2f * std::sin((2.0 * M_PI * 440.0 * i) / 44100.0);
+        }
+        vorbis_analysis_wrote(&vd, 1024);
+
+        while (vorbis_analysis_blockout(&vd, &vb) == 1) {
+            vorbis_analysis(&vb, nullptr);
+            vorbis_bitrate_addblock(&vb);
+
+            ogg_packet packet;
+            while (vorbis_bitrate_flushpacket(&vd, &packet)) {
+                ogg_stream_packetin(&os, &packet);
+                flushOggPages(out, os, false);
+            }
+        }
+
+        vorbis_analysis_wrote(&vd, 0);
+        while (vorbis_analysis_blockout(&vd, &vb) == 1) {
+            vorbis_analysis(&vb, nullptr);
+            vorbis_bitrate_addblock(&vb);
+
+            ogg_packet packet;
+            while (vorbis_bitrate_flushpacket(&vd, &packet)) {
+                ogg_stream_packetin(&os, &packet);
+                flushOggPages(out, os, false);
+            }
+        }
+
+        flushOggPages(out, os, true);
+        out.close();
+
+        ogg_stream_clear(&os);
+        vorbis_block_clear(&vb);
+        vorbis_dsp_clear(&vd);
+        vorbis_comment_clear(&vc);
+        vorbis_info_clear(&vi);
+
+        return temp_filename;
+    }
+
+    static void flushOggPages(std::ofstream& out, ogg_stream_state& os, bool force_flush) {
+        ogg_page page;
+        while ((force_flush ? ogg_stream_flush(&os, &page) : ogg_stream_pageout(&os, &page)) != 0) {
+            out.write(reinterpret_cast<const char*>(page.header), page.header_len);
+            out.write(reinterpret_cast<const char*>(page.body), page.body_len);
+        }
     }
 };
 

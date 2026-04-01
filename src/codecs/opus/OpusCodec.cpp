@@ -202,8 +202,10 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         return getBufferedFrame_unlocked();
     }
     
-    // Handle empty packets and end-of-stream conditions
-    if (chunk.data.empty()) {
+    // Packet loss chunks are valid even with empty payload because they drive PLC.
+    if (chunk.packet_lost) {
+        Debug::log("opus", "Lost packet received - routing to PLC path");
+    } else if (chunk.data.empty()) {
         Debug::log("opus", "Empty chunk received - checking for buffered frames");
         if (hasBufferedFrames_unlocked()) {
             return getBufferedFrame_unlocked();
@@ -218,22 +220,11 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         return AudioFrame();
     }
     
-    // Handle partial packet data gracefully (Requirement 7.3)
-    if (!handlePartialPacketData_unlocked(chunk.data)) {
-        Debug::log("opus", "Partial packet handling failed - returning buffered frame if available");
-        if (hasBufferedFrames_unlocked()) {
-            return getBufferedFrame_unlocked();
-        }
-        return AudioFrame();
-    }
-    
-    // If partial packet handling consumed the data, return buffered frame
+    // MediaChunk objects from demuxers already represent whole container
+    // packets. Any stale partial fragment state is invalid in this path.
     if (!m_partial_packet_buffer.empty()) {
-        Debug::log("opus", "Packet data buffered for partial handling - returning existing buffered frame");
-        if (hasBufferedFrames_unlocked()) {
-            return getBufferedFrame_unlocked();
-        }
-        return AudioFrame();
+        Debug::log("opus", "Clearing stale partial packet buffer before decoding a demuxed packet");
+        m_partial_packet_buffer.clear();
     }
     
     // Process the new packet
@@ -493,21 +484,37 @@ bool OpusCodec::setupInternalBuffers_unlocked()
         // Initialize state variables
         m_sample_rate = 48000;  // Opus always outputs at 48kHz
         
-        // Use channel count from StreamInfo if available (demuxer already parsed headers)
-        // Otherwise, set to 0 and wait for header packets
-        if (m_stream_info.channels > 0 && m_stream_info.channels <= 255) {
-            m_channels = m_stream_info.channels;
-            // Demuxer already parsed headers, mark as received
-            m_header_packets_received = 2;
-            Debug::log("opus", "Using channel count from StreamInfo: ", m_channels, " (headers pre-parsed by demuxer)");
-        } else {
-            m_channels = 0;         // Will be set from identification header
-            m_header_packets_received = 0;
+        m_channels = 0;
+        m_header_packets_received = 0;
+        m_pre_skip = 0;
+        m_output_gain = 0;
+        m_channel_mapping_family = 0;  // Default to family 0 (mono/stereo)
+
+        // Only skip Opus header processing when we actually have an OpusHead packet.
+        // A bare StreamInfo channel count is just a container hint and is not enough
+        // for multistream decoder setup because mapping-family information lives in OpusHead.
+        if (!m_stream_info.codec_data.empty()) {
+            OpusHeader parsed_header = OpusHeader::parseFromPacket(m_stream_info.codec_data);
+            if (parsed_header.isValid()) {
+                m_channels = parsed_header.channel_count;
+                m_pre_skip = parsed_header.pre_skip;
+                m_output_gain = parsed_header.output_gain;
+                m_channel_mapping_family = parsed_header.channel_mapping_family;
+                m_stream_count = parsed_header.stream_count;
+                m_coupled_stream_count = parsed_header.coupled_stream_count;
+                m_channel_mapping = parsed_header.channel_mapping;
+                m_header_packets_received = 2;
+
+                Debug::log("opus", "Using pre-parsed OpusHead from StreamInfo codec_data: channels=",
+                           m_channels, ", mapping_family=", m_channel_mapping_family);
+            }
         }
         
-        m_pre_skip = 0;         // Will be set from identification header (or use 0 if not available)
-        m_output_gain = 0;      // Will be set from identification header (or use 0 if not available)
-        m_channel_mapping_family = 0;  // Default to family 0 (mono/stereo)
+        if (m_channels == 0 && m_stream_info.channels > 0 && m_stream_info.channels <= 255) {
+            m_channels = m_stream_info.channels;
+            Debug::log("opus", "Using channel count from StreamInfo as a hint: ", m_channels,
+                       " (waiting for OpusHead before decoder initialization)");
+        }
         
         // Initialize decoder if we have channel info
         m_decoder_initialized = false;
@@ -544,11 +551,6 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     
     AudioFrame frame;
     
-    if (packet_data.empty()) {
-        Debug::log("opus", "Empty packet, returning empty frame");
-        return frame;
-    }
-    
     // Check for error state
     if (m_error_state.load()) {
         Debug::log("opus", "Codec in error state, returning empty frame");
@@ -578,16 +580,27 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
         return frame; // Headers don't produce audio
     }
     
+    // Empty packet data is only meaningful after headers as Opus PLC input.
+    if (packet_data.empty() && m_header_packets_received < 2) {
+        Debug::log("opus", "Empty packet before audio stage, returning empty frame");
+        return frame;
+    }
+
     // Process audio packet
     if (!m_decoder_initialized || (!m_opus_decoder && !m_opus_ms_decoder)) {
         Debug::log("opus", "Decoder not initialized, skipping packet");
         return frame;
     }
-    
-    // Comprehensive input parameter validation (Requirement 8.6)
-    if (!validateInputParameters_unlocked(packet_data)) {
-        reportDetailedError_unlocked("Input Validation", "Invalid input parameters");
-        return frame;
+
+    const bool plc_decode = packet_data.empty();
+    if (plc_decode) {
+        Debug::log("opus", "Empty audio packet received after headers - using libopus PLC");
+    } else {
+        // Comprehensive input parameter validation (Requirement 8.6)
+        if (!validateInputParameters_unlocked(packet_data)) {
+            reportDetailedError_unlocked("Input Validation", "Invalid input parameters");
+            return frame;
+        }
     }
     
     // Validate decoder state before processing
@@ -600,13 +613,13 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     }
     
     // Validate packet before decoding
-    if (!packet_data.empty() && !validateOpusPacket_unlocked(packet_data)) {
+    if (!plc_decode && !validateOpusPacket_unlocked(packet_data)) {
         reportDetailedError_unlocked("Packet Validation", "Invalid Opus packet structure");
         return frame;
     }
     
     // Validate TOC if not empty
-    if (!packet_data.empty()) {
+    if (!plc_decode) {
         OpusTOC toc = OpusTOC::parse(packet_data[0], packet_data.size());
         // Verify stereo flag matches channel count (Requirement 17.3)
         // Note: Opus can code mono as stereo and vice versa, but we should at least check validity
@@ -623,6 +636,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     }
 
     int samples_decoded = 0;
+    const int decode_frame_size = (plc_decode && m_last_frame_size > 0) ? m_last_frame_size : 5760;
     
     // Call the appropriate decoder
     if (m_use_multistream) {
@@ -631,7 +645,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
             packet_data.empty() ? nullptr : packet_data.data(),
             packet_data.size(),
             m_output_buffer.data(),
-            5760, // Max frame size
+            decode_frame_size,
             0 // No FEC for now
         );
     } else {
@@ -640,7 +654,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
             packet_data.empty() ? nullptr : packet_data.data(),
             packet_data.size(),
             m_output_buffer.data(),
-            5760, // Max frame size
+            decode_frame_size,
             0 // No FEC for now
         );
     }
@@ -673,10 +687,6 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     frame.channels = m_channels;
     frame.samples.assign(m_output_buffer.begin(), m_output_buffer.begin() + total_samples);
     
-    // Update internal state
-    m_samples_decoded += samples_decoded;
-    m_frames_processed++;
-    
     return frame;
 }
 
@@ -685,62 +695,69 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
     // Handle Packet Loss Concealment (PLC) - Requirement 20
     if (chunk.packet_lost) {
         Debug::log("opus", "Packet loss detected - generating PLC audio");
-        // Pass empty vector to trigger PLC in lower-level function (or nullptr logic)
-        // But our lower-level function takes vector reference, so we can pass empty vector
-        // and rely on emptiness check, or we need to pass a flag.
-        // Actually, existing implementation checks .empty().
-        // So passing empty data triggers PLC?
-        // Let's verify opus_decode usage in the legacy function.
-        // It passes nullptr if data is empty.
         std::vector<uint8_t> empty_data;
-        AudioFrame frames = decodeAudioPacket_unlocked(empty_data);
-        // PLC generates samples, but we must respect duration if known
-        // For now, let libopus guess or we could constrain it if we knew duration
-        return frames;
+        AudioFrame frame = decodeAudioPacket_unlocked(empty_data);
+        if (!frame.samples.empty()) {
+            uint64_t expected_output_samples =
+                (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
+            uint64_t emitted_sample_frames = frame.getSampleFrameCount();
+            frame.timestamp_samples =
+                (expected_output_samples >= emitted_sample_frames)
+                    ? (expected_output_samples - emitted_sample_frames)
+                    : 0;
+            frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / 48000ULL;
+        }
+        return frame;
     }
     
     // Normal decoding
     AudioFrame frame = decodeAudioPacket_unlocked(chunk.data);
     
-    // End Trimming Support (Requirement 18)
-    // If granule position is set, we can trim the end of the stream
-    if (chunk.granule_position > 0 && frame.samples.size() > 0) {
-        uint64_t current_total_samples = m_samples_decoded.load();
-        
-        // Granule position is the absolute sample count at the end of this page/packet
-        // It includes pre-skip.
-        // Expected total output samples = granule_position - pre_skip
-        
-        // However, m_samples_decoded also includes everything we've decoded so far (post-preskip? No, raw decoded)
-        // Wait, m_samples_decoded is raw total from decoder.
-        // m_samples_to_skip is handled in applyPreSkip_unlocked.
-        // So granule position should be compared against (m_samples_decoded).
-        
-        // RFC 7845: "The granule position of an audio data page is in units of PCM audio samples 
-        // at a fixed rate of 48 kHz... It represents the number of samples ... up to the end of 
-        // the last packet on the page."
-        
-        // So if granule_pos < m_samples_decoded, we decoded too much and need to trim.
-        // But only if this is the *last* packet? The RFC says we should always trim if we exceed granule pos.
-        // But intermediate pages might have granule pos too.
-        
-        if (current_total_samples > chunk.granule_position) {
-            uint64_t excess_samples = current_total_samples - chunk.granule_position;
-            size_t samples_in_frame = frame.samples.size() / m_channels;
-            
-            if (excess_samples > 0 && excess_samples <= samples_in_frame) {
-                Debug::log("opus", "End trimming: removing ", excess_samples, " samples (Granule: ", 
-                          chunk.granule_position, ", Decoded: ", current_total_samples, ")");
-                
-                size_t samples_to_keep = samples_in_frame - excess_samples;
+    applyPreSkip_unlocked(frame);
+    applyOutputGain_unlocked(frame);
+
+    size_t emitted_sample_frames = frame.getSampleFrameCount();
+    uint64_t total_output_samples = m_samples_decoded.load() + emitted_sample_frames;
+    bool has_granule = chunk.granule_position != 0 &&
+                       chunk.granule_position != static_cast<uint64_t>(-1);
+
+    if (has_granule && emitted_sample_frames > 0) {
+        uint64_t expected_output_samples =
+            (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
+        frame.timestamp_samples =
+            (expected_output_samples >= emitted_sample_frames)
+                ? (expected_output_samples - emitted_sample_frames)
+                : 0;
+    } else {
+        frame.timestamp_samples = chunk.timestamp_samples;
+    }
+
+    // End trimming is only valid for the terminal packet of the stream.
+    // Ordinary page-ending Opus packets can carry granules too, but those
+    // granules must not cause PCM to be discarded during normal playback.
+    if (chunk.end_of_stream && has_granule && emitted_sample_frames > 0) {
+        uint64_t expected_output_samples =
+            (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
+
+        if (total_output_samples > expected_output_samples) {
+            uint64_t excess_samples = total_output_samples - expected_output_samples;
+
+            if (excess_samples > 0 && excess_samples <= emitted_sample_frames) {
+                Debug::log("opus", "End trimming: removing ", excess_samples, " samples (granule=",
+                          chunk.granule_position, ", expected_output=", expected_output_samples,
+                          ", emitted_total=", total_output_samples, ")");
+
+                size_t samples_to_keep = emitted_sample_frames - excess_samples;
                 frame.samples.resize(samples_to_keep * m_channels);
-                
-                // Adjust total count
-                m_samples_decoded -= excess_samples;
+                emitted_sample_frames = samples_to_keep;
+                total_output_samples = expected_output_samples;
             }
         }
     }
-    
+
+    frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / 48000ULL;
+    m_samples_decoded.store(total_output_samples);
+
     return frame;
 }
 
@@ -1790,10 +1807,8 @@ void OpusCodec::applyOutputGain_unlocked(AudioFrame& frame)
     
     Debug::log("opus", "Applying output gain: ", m_output_gain, " (Q7.8 format) to ", frame.samples.size(), " samples");
     
-    // Convert Q7.8 format gain to floating point factor
-    // Q7.8 format: output_gain / 256.0 gives the actual gain multiplier
-    // Range: -128.0 dB to +127.996 dB (approximately)
-    const float gain_factor = static_cast<float>(m_output_gain) / 256.0f;
+    const float gain_db = static_cast<float>(m_output_gain) / 256.0f;
+    const float gain_factor = std::pow(10.0f, gain_db / 20.0f);
     
     // Apply gain to all samples with proper clamping to prevent artifacts
     for (int16_t& sample : frame.samples) {
@@ -1813,7 +1828,7 @@ void OpusCodec::applyOutputGain_unlocked(AudioFrame& frame)
         }
     }
     
-    Debug::log("opus", "Output gain applied successfully - factor: ", gain_factor, 
+    Debug::log("opus", "Output gain applied successfully - factor: ", gain_factor,
               ", processed ", frame.samples.size(), " samples");
 }
 
@@ -1825,10 +1840,10 @@ bool OpusCodec::validateOpusPacket_unlocked(const std::vector<uint8_t>& packet_d
         return false;
     }
     
-    // Opus packets should not be excessively large
-    // Maximum theoretical packet size is around 1275 bytes for standard configurations
-    // Allow some headroom for unusual configurations
-    if (packet_data.size() > 2000) {
+    // Opus packet size in containers can legitimately exceed 1275 bytes when
+    // multiple frames are packed together. Keep the hard upper bound aligned
+    // with the broader input validator instead of rejecting real-world packets.
+    if (packet_data.size() > 65535) {
         Debug::log("opus", "Packet validation failed: suspiciously large packet: ", packet_data.size(), " bytes");
         return false;
     }
@@ -3120,13 +3135,12 @@ bool OpusCodec::isValidPartialPacket_unlocked(const std::vector<uint8_t>& packet
         return false;
     }
     
-    // For Opus packets, we can do some basic validation:
-    // - Minimum size check (Opus packets are at least 1 byte)
-    // - Maximum size check (Opus packets are typically under 1275 bytes)
-    // - TOC byte validation (first byte contains configuration)
+    // For Opus packets, do only lightweight framing checks here. Demuxed
+    // packets are usually complete already, and valid container packets can
+    // exceed 1275 bytes when they carry multiple coded frames.
     
     constexpr size_t MIN_OPUS_PACKET_SIZE = 1;
-    constexpr size_t MAX_OPUS_PACKET_SIZE = 1275;
+    constexpr size_t MAX_OPUS_PACKET_SIZE = 65535;
     
     if (packet_data.size() < MIN_OPUS_PACKET_SIZE) {
         Debug::log("opus", "Packet too small: ", packet_data.size(), " bytes");

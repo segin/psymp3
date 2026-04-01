@@ -196,6 +196,8 @@ public:
      * This replicates what happens during a resize to ensure consistent state.
      */
     void refresh();
+    
+    static void restoreDefaultCursor();
 
 private:
     static constexpr int TITLEBAR_HEIGHT = 18;  // Windows 3.x blue area
@@ -259,6 +261,7 @@ private:
     static SDL_Cursor* s_cursor_nesw;
     static SDL_Cursor* s_cursor_ew;
     static SDL_Cursor* s_cursor_ns;
+    static SDL_Cursor* s_default_cursor;
     
     // Drag state
     bool m_is_dragging;
@@ -315,6 +318,7 @@ private:
      * @brief Updates the layout of the client area.
      */
     void updateLayout();
+    static void setCursorShape(SDL_Cursor* cursor);
     
     /**
      * @brief Checks if a point is in the titlebar area.

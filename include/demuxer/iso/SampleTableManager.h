@@ -31,7 +31,7 @@ public:
     SampleTableManager() = default;
     ~SampleTableManager() = default;
     
-    bool BuildSampleTables(const SampleTableInfo& rawTables);
+    bool BuildSampleTables(const SampleTableInfo& rawTables, uint32_t timescale = 1000);
     SampleInfo GetSampleInfo(uint64_t sampleIndex);
     uint64_t TimeToSample(double timestamp);
     double SampleToTime(uint64_t sampleIndex);
@@ -57,6 +57,7 @@ private:
     // Optimized compressed sample-to-chunk mapping (Requirement 8.2)
     struct CompressedChunkInfo {
         uint64_t baseOffset;        // Base offset for chunk range
+        uint32_t firstChunkIndex;   // First chunk index covered by this range
         uint32_t chunkCount;        // Number of chunks in this range
         uint32_t samplesPerChunk;   // Samples per chunk (constant within range)
         uint32_t firstSample;       // First sample index in this range
@@ -64,6 +65,7 @@ private:
         uint32_t averageChunkSize = 0; // Average chunk size for memory optimization
     };
     std::vector<CompressedChunkInfo> compressedChunkTable;
+    std::vector<uint64_t> chunkOffsets;
     
     // Original chunk table for fallback (lazy loaded)
     mutable std::vector<ChunkInfo> chunkTable;
@@ -133,6 +135,7 @@ private:
     
     // Memory usage tracking
     mutable size_t estimatedMemoryUsage = 0;
+    uint32_t timeUnitsPerSecond = 1000;
     
     // Private helper methods for building and managing sample tables
     bool BuildOptimizedChunkTable(const SampleTableInfo& rawTables);

@@ -1,38 +1,170 @@
 /*
- * test_extensibility_utils.cpp - Tests for Demuxer ExtensibilityUtils
+ * test_extensibility_utils.cpp - Unit tests for Demuxer Extensibility utilities
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
-#include <iostream>
-#include <cassert>
+#endif
 
-void test_isValidURI() {
-    std::cout << "Testing ExtensibilityUtils::isValidURI..." << std::endl;
+#include "demuxer/DemuxerExtensibility.h"
+#include "test_framework.h"
+#include <map>
+#include <string>
 
-    // Valid URIs with protocols
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("http://example.com/file.mp3"));
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("https://example.com"));
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("file:///path/to/file.mp3"));
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("custom-scheme://test"));
+using namespace PsyMP3::Demuxer::ExtensibilityUtils;
+using namespace TestFramework;
 
-    // Local file paths (assumed valid if no protocol format `://` is present)
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("/path/to/local/file.mp3"));
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("local_file.mp3"));
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("example.com"));
-    assert(PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("scheme:path"));
+class BuildURITest : public TestCase {
+public:
+    BuildURITest() : TestCase("ExtensibilityUtils::buildURIWithParameters") {}
 
-    // Invalid URIs
-    assert(!PsyMP3::Demuxer::ExtensibilityUtils::isValidURI(""));        // Empty string
-    assert(!PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("http://")); // Missing path (protocol_pos + 3 >= uri.length())
-    assert(!PsyMP3::Demuxer::ExtensibilityUtils::isValidURI("://"));     // Empty protocol string
+protected:
+    void runTest() override {
+        std::map<std::string, std::string> params;
 
-    std::cout << "ExtensibilityUtils::isValidURI tests passed!" << std::endl;
-}
+        // Test empty parameters
+        ASSERT_EQUALS("http://example.com", buildURIWithParameters("http://example.com", params), "Empty params should return base URI");
 
-int main() {
-    test_isValidURI();
-    std::cout << "All ExtensibilityUtils tests passed!" << std::endl;
-    return 0;
+        // Test single parameter
+        params["key"] = "value";
+        ASSERT_EQUALS("http://example.com?key=value", buildURIWithParameters("http://example.com", params), "Single param with no query in base");
+
+        // Test multiple parameters (map is sorted by key)
+        params["a"] = "1";
+        ASSERT_EQUALS("http://example.com?a=1&key=value", buildURIWithParameters("http://example.com", params), "Multiple params with no query in base");
+
+        // Test with existing query
+        ASSERT_EQUALS("http://example.com?existing=true&a=1&key=value", buildURIWithParameters("http://example.com?existing=true", params), "Append to existing query");
+
+        // Test with base URI ending in ?
+        ASSERT_EQUALS("http://example.com?a=1&key=value", buildURIWithParameters("http://example.com?", params), "Base URI ending in ?");
+
+        // Test with base URI ending in &
+        ASSERT_EQUALS("http://example.com?foo=bar&a=1&key=value", buildURIWithParameters("http://example.com?foo=bar&", params), "Base URI ending in &");
+    }
+};
+
+class ExtractParamsTest : public TestCase {
+public:
+    ExtractParamsTest() : TestCase("ExtensibilityUtils::extractURIParameters") {}
+
+protected:
+    void runTest() override {
+        // Test no parameters
+        auto p1 = extractURIParameters("http://example.com");
+        ASSERT_TRUE(p1.empty(), "No query should return empty map");
+
+        // Test one parameter
+        auto p2 = extractURIParameters("http://example.com?key=value");
+        ASSERT_EQUALS(1, p2.size(), "Should have one parameter");
+        ASSERT_EQUALS("value", p2["key"], "Parameter value mismatch");
+
+        // Test multiple parameters
+        auto p3 = extractURIParameters("http://example.com?a=1&b=2&c=3");
+        ASSERT_EQUALS(3, p3.size(), "Should extract all 3 parameters");
+        ASSERT_EQUALS("1", p3["a"], "a mismatch");
+        ASSERT_EQUALS("2", p3["b"], "b mismatch");
+        ASSERT_EQUALS("3", p3["c"], "c mismatch");
+    }
+};
+
+class FormatConfigStringTest : public TestCase {
+public:
+    FormatConfigStringTest() : TestCase("ExtensibilityUtils::formatConfigString") {}
+
+protected:
+    void runTest() override {
+        // Empty
+        std::map<std::string, std::string> empty_map;
+        ASSERT_EQUALS("", formatConfigString(empty_map), "Empty map should return empty string");
+
+        // Single
+        std::map<std::string, std::string> single_map = {{"key1", "value1"}};
+        ASSERT_EQUALS("key1=value1", formatConfigString(single_map), "Single pair map formatting failed");
+
+        // Multiple
+        std::map<std::string, std::string> multi_map = {
+            {"key1", "value1"},
+            {"key2", "value2"},
+            {"key3", "value3"}
+        };
+        ASSERT_EQUALS("key1=value1;key2=value2;key3=value3", formatConfigString(multi_map), "Multiple pair map formatting failed");
+
+        // Special chars
+        std::map<std::string, std::string> special_map = {
+            {"key with spaces", "value with spaces"},
+            {"key=with=equals", "value;with;semicolons"},
+            {"", "empty_key"}
+        };
+        ASSERT_EQUALS("=empty_key;key with spaces=value with spaces;key=with=equals=value;with;semicolons", 
+            formatConfigString(special_map), "Special characters map formatting failed");
+    }
+};
+
+class ConfigStringRoundTripTest : public TestCase {
+public:
+    ConfigStringRoundTripTest() : TestCase("ExtensibilityUtils::ConfigString round-trip") {}
+
+protected:
+    void runTest() override {
+        std::map<std::string, std::string> original;
+        original["key1"] = "value1";
+        original["key2"] = "  value2  ";
+        original["key3"] = "value3";
+
+        std::string formatted = formatConfigString(original);
+        auto parsed = parseConfigString(formatted);
+
+        ASSERT_EQUALS(original.size(), parsed.size(), "Size mismatch after round-trip");
+        ASSERT_EQUALS("value1", parsed["key1"], "key1 mismatch");
+        ASSERT_EQUALS("value2", parsed["key2"], "key2 mismatch (should be trimmed)");
+        ASSERT_EQUALS("value3", parsed["key3"], "key3 mismatch");
+    }
+};
+
+class IsValidURITest : public TestCase {
+public:
+    IsValidURITest() : TestCase("ExtensibilityUtils::isValidURI") {}
+
+protected:
+    void runTest() override {
+        // Valid URIs with protocols
+        ASSERT_TRUE(isValidURI("http://example.com/file.mp3"), "Should be valid: http://example.com/file.mp3");
+        ASSERT_TRUE(isValidURI("https://example.com"), "Should be valid: https://example.com");
+        ASSERT_TRUE(isValidURI("file:///path/to/file.mp3"), "Should be valid: file:///path/to/file.mp3");
+        ASSERT_TRUE(isValidURI("custom-scheme://test"), "Should be valid: custom-scheme://test");
+
+        // Local file paths
+        ASSERT_TRUE(isValidURI("/path/to/local/file.mp3"), "Should be valid local path");
+        ASSERT_TRUE(isValidURI("local_file.mp3"), "Should be valid local file");
+        ASSERT_TRUE(isValidURI("example.com"), "Should be valid local domain-like file");
+        ASSERT_TRUE(isValidURI("scheme:path"), "Should be valid path with colon");
+
+        // Invalid URIs
+        ASSERT_FALSE(isValidURI(""), "Empty string should be invalid");
+        ASSERT_FALSE(isValidURI("http://"), "Missing path should be invalid");
+        ASSERT_FALSE(isValidURI("://"), "Empty protocol should be invalid");
+    }
+};
+
+int main(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
+
+    TestSuite suite("ExtensibilityUtils Unit Tests");
+    suite.addTest(std::make_unique<BuildURITest>());
+    suite.addTest(std::make_unique<ExtractParamsTest>());
+    suite.addTest(std::make_unique<FormatConfigStringTest>());
+    suite.addTest(std::make_unique<ConfigStringRoundTripTest>());
+    suite.addTest(std::make_unique<IsValidURITest>());
+
+    auto results = suite.runAll();
+    suite.printResults(results);
+
+    return suite.getFailureCount(results) > 0 ? 1 : 0;
 }

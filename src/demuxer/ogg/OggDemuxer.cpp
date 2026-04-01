@@ -37,6 +37,117 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
 
+namespace {
+void populateCodecData(const CodecHeaderParser& parser,
+                       StreamInfo& info)
+{
+    for (const auto& header : parser.getHeaderPackets()) {
+        info.codec_data.insert(info.codec_data.end(), header.begin(), header.end());
+    }
+}
+
+uint64_t computeTimestampSamples(const CodecInfo& codec_info,
+                                 uint64_t granule_position)
+{
+    if (granule_position == static_cast<uint64_t>(-1)) {
+        return 0;
+    }
+
+    std::string codec = codec_info.codec_name;
+    std::transform(codec.begin(), codec.end(), codec.begin(), ::tolower);
+
+    if (codec == "opus") {
+        if (granule_position <= codec_info.pre_skip) {
+            return 0;
+        }
+        return granule_position - codec_info.pre_skip;
+    }
+
+    return granule_position;
+}
+
+bool codecKeepsHeadersInBand(const CodecHeaderParser& parser)
+{
+    std::string codec = parser.getCodecInfo().codec_name;
+    std::transform(codec.begin(), codec.end(), codec.begin(), ::tolower);
+
+    // Vorbis decoding still expects the three setup packets to arrive through
+    // the normal chunk stream before audio packets.
+    return codec == "vorbis";
+}
+
+} // namespace
+
+bool OggDemuxer::resetForPlayback_unlocked() {
+  if (!m_sync->seek(0)) {
+    Debug::log("ogg", "OggDemuxer::resetForPlayback_unlocked() failed to seek to start");
+    return false;
+  }
+
+  for (auto& pair : m_streams) {
+    pair.second->reset();
+  }
+
+  std::map<int, size_t> headers_remaining;
+  for (const auto& pair : m_parsers) {
+    headers_remaining[pair.first] =
+        codecKeepsHeadersInBand(*pair.second) ? 0 : pair.second->getHeaderPackets().size();
+  }
+
+  ogg_page page;
+  while (true) {
+    bool all_headers_consumed = true;
+    for (const auto& pair : headers_remaining) {
+      if (pair.second != 0) {
+        all_headers_consumed = false;
+        break;
+      }
+    }
+
+    if (all_headers_consumed) {
+      auto primary = m_streams.find(m_primary_serial);
+      if (primary == m_streams.end()) {
+        break;
+      }
+
+      ogg_packet packet{};
+      if (primary->second->peekPacket(&packet) == 1) {
+        break;
+      }
+    }
+
+    int result = m_sync->getNextPage(&page);
+    if (result != 1) {
+      break;
+    }
+
+    int serial = ogg_page_serialno(&page);
+    auto stream_it = m_streams.find(serial);
+    if (stream_it == m_streams.end()) {
+      continue;
+    }
+
+    stream_it->second->submitPage(&page);
+
+    auto remaining_it = headers_remaining.find(serial);
+    if (remaining_it == headers_remaining.end()) {
+      continue;
+    }
+
+    while (remaining_it->second > 0) {
+      ogg_packet packet{};
+      int packet_result = stream_it->second->getPacket(&packet);
+      if (packet_result != 1) {
+        break;
+      }
+      remaining_it->second--;
+    }
+  }
+
+  m_eof = false;
+  return true;
+}
+
 // Note: Registration is handled by registerAllDemuxers() called from main().
 // Do NOT use static auto-registration here as it causes initialization order
 // issues.
@@ -83,6 +194,9 @@ bool OggDemuxer::parseContainer() {
       if (!m_streams.empty()) {
           createTagFromMetadata_unlocked();
           calculateInitialDuration_unlocked();
+      } else {
+          reportError("Format", "Could not find a valid Ogg bitstream",
+                      result, DemuxerErrorRecovery::NONE);
       }
       return !m_streams.empty(); // OK if we found at least one stream
     }
@@ -206,6 +320,7 @@ bool OggDemuxer::parseContainer() {
   if (!m_streams.empty()) {
     createTagFromMetadata_unlocked();
     calculateInitialDuration_unlocked();
+    resetForPlayback_unlocked();
   }
 
   return !m_streams.empty();
@@ -281,6 +396,11 @@ std::vector<StreamInfo> OggDemuxer::getStreams() const {
     info.codec_type = "audio"; // All currently supported Ogg codecs are audio
     info.channels = ci.channels;
     info.sample_rate = ci.rate;
+    info.duration_ms = m_cached_duration.load();
+    if (info.duration_ms > 0 && info.sample_rate > 0) {
+      info.duration_samples = (info.duration_ms * info.sample_rate) / 1000;
+    }
+    populateCodecData(*pair.second, info);
     result.push_back(info);
   }
 
@@ -307,6 +427,11 @@ StreamInfo OggDemuxer::getStreamInfo(uint32_t stream_id) const {
   info.codec_type = "audio"; // All currently supported Ogg codecs are audio
   info.channels = ci.channels;
   info.sample_rate = ci.rate;
+  info.duration_ms = m_cached_duration.load();
+  if (info.duration_ms > 0 && info.sample_rate > 0) {
+    info.duration_samples = (info.duration_ms * info.sample_rate) / 1000;
+  }
+  populateCodecData(*pit->second, info);
   return info;
 }
 
@@ -344,8 +469,11 @@ uint64_t OggDemuxer::getDuration() const {
 
 uint64_t OggDemuxer::getPosition() const {
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
-  // Return position of primary stream
-  return getGranulePosition(m_primary_serial);
+  if (!m_has_primary_serial) {
+    return 0;
+  }
+
+  return granuleToMs(getGranulePosition(m_primary_serial), m_primary_serial);
 }
 
 uint64_t OggDemuxer::getGranulePosition(uint32_t stream_id) const {
@@ -370,7 +498,26 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
   // Initialize to zero to avoid maybe-uninitialized warning in unity builds
   ogg_packet packet = {};
 
-  while (!sit->second->getPacket(&packet)) {
+  while (true) {
+    int packet_result = sit->second->getPacket(&packet);
+    if (packet_result == 1) {
+      break;
+    }
+
+    if (packet_result < 0) {
+      chunk.stream_id = stream_id;
+      chunk.packet_lost = true;
+      chunk.granule_position = getGranulePosition(stream_id);
+
+      auto pit = m_parsers.find(stream_id);
+      if (pit != m_parsers.end()) {
+        chunk.timestamp_samples =
+            computeTimestampSamples(pit->second->getCodecInfo(), chunk.granule_position);
+      }
+
+      return chunk;
+    }
+
     // Need more data - read next page
     ogg_page page;
     int result = m_sync->getNextPage(&page);
@@ -385,16 +532,21 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
       it->second->submitPage(&page);
     }
 
-    // Check for EOS
-    if (ogg_page_eos(&page) && serial == static_cast<int>(stream_id)) {
-      m_eof = true;
-    }
   }
 
   // Got a packet - copy data to chunk
   chunk.data.assign(packet.packet, packet.packet + packet.bytes);
   chunk.stream_id = stream_id;
-  chunk.granule_position = packet.granulepos;
+  chunk.granule_position =
+      (packet.granulepos >= 0) ? static_cast<uint64_t>(packet.granulepos)
+                               : static_cast<uint64_t>(-1);
+  chunk.end_of_stream = packet.e_o_s != 0;
+
+  auto pit = m_parsers.find(stream_id);
+  if (pit != m_parsers.end()) {
+    chunk.timestamp_samples =
+        computeTimestampSamples(pit->second->getCodecInfo(), chunk.granule_position);
+  }
 
   return chunk;
 }
@@ -432,6 +584,10 @@ long OggDemuxer::getSampleRate() const {
 
 uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
+
+    if (granule == static_cast<uint64_t>(-1)) {
+        return 0;
+    }
     
     // Check legacy test streams first
     auto tit = m_test_streams.find(stream_id);

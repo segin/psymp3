@@ -48,15 +48,9 @@ bool VorbisPassthroughCodec::canDecode(const StreamInfo& stream_info) const {
 }
 #endif // HAVE_VORBIS
 
-// Helper to select the correct FLAC codec implementation
 #ifdef HAVE_FLAC
-#ifdef HAVE_NATIVE_FLAC
-    #include "codecs/flac/NativeFLACCodec.h"
-    using FLACCodecImpl = PsyMP3::Codec::FLAC::FLACCodec;
-#else
-    #include "codecs/FLACCodec.h"
-    using FLACCodecImpl = FLACCodec;
-#endif
+#include "codecs/flac/NativeFLACCodec.h"
+using FLACCodecImpl = PsyMP3::Codec::FLAC::FLACCodec;
 #endif
 
 // OggFLACPassthroughCodec implementation
@@ -88,8 +82,6 @@ AudioFrame OggFLACPassthroughCodec::decode(const MediaChunk& chunk) {
     }
 
     // Check for Ogg FLAC header packet (starts with "fLaC")
-    // libFLAC wrapper (FLACCodec) synthesizes the STREAMINFO header based on StreamInfo,
-    // so we should skip the actual Ogg packet containing STREAMINFO to avoid confusing it.
     if (chunk.data.size() >= 4 &&
         chunk.data[0] == 'f' && chunk.data[1] == 'L' &&
         chunk.data[2] == 'a' && chunk.data[3] == 'C') {

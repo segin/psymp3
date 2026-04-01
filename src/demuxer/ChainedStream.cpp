@@ -38,9 +38,9 @@ namespace Demuxer {
  * @throws std::invalid_argument if the path list is empty.
  * @throws InvalidMediaException if any track is invalid or formats are inconsistent.
  */
-ChainedStream::ChainedStream(std::vector<TagLib::String> paths)
+ChainedStream::ChainedStream(const std::vector<TagLib::String>& paths)
     : Stream(), // Call base constructor
-      m_paths(std::move(paths)),
+      m_paths(paths),
       m_current_track_index(0),
       m_total_length_ms(0),
       m_total_samples(0),

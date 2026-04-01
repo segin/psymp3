@@ -53,6 +53,7 @@ bool SpeexHeaderParser::parseHeader(ogg_packet* packet) {
         
         if (m_info.rate == 0) return false;
         
+        storeHeaderPacket(packet);
         m_headers_count = 1;
         return true;
     }
@@ -61,6 +62,7 @@ bool SpeexHeaderParser::parseHeader(ogg_packet* packet) {
     // No specific signature? Usually Vorbis-style comments
     // Just accept it.
     if (m_headers_count == 1) {
+        storeHeaderPacket(packet);
         m_headers_count = 2;
         return true;
     }

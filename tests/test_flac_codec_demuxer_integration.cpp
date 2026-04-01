@@ -259,7 +259,7 @@ private:
     
     static bool isValidStreamInfo(const StreamInfo& info) {
         return info.codec_name == "flac" &&
-               info.sample_rate >= 1 && info.sample_rate <= 655350 &&
+               info.sample_rate >= 1 && info.sample_rate <= 1048575 &&
                info.channels >= 1 && info.channels <= 8 &&
                info.bits_per_sample >= 4 && info.bits_per_sample <= 32;
     }

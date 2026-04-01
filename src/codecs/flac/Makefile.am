@@ -1,5 +1,5 @@
 #
-# Makefile.am - automake input for Native FLAC codec
+# Makefile.am - automake input for native FLAC codec
 # This file is part of PsyMP3.
 # Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
 #
@@ -34,8 +34,7 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-if HAVE_NATIVE_FLAC
-# Native FLAC decoder (no libFLAC dependency)
+if HAVE_FLAC
 noinst_LIBRARIES = libpsymp3-codec-flac.a
 
 libpsymp3_codec_flac_a_SOURCES = \
@@ -52,15 +51,4 @@ libpsymp3_codec_flac_a_SOURCES = \
 	MetadataParser.cpp \
 	MD5Validator.cpp \
 	NativeFLACCodec.cpp
-else
-# libFLAC wrapper
-noinst_LIBRARIES = libpsymp3-codec-flac.a
-
-# Add FLAC flags for libFLAC wrapper
-AM_CPPFLAGS += $(FLAC_CFLAGS)
-
-libpsymp3_codec_flac_a_SOURCES = \
-	FLACCodec.cpp \
-	FLACRFCValidator.cpp \
-	LibFLACWrapper.cpp
 endif

@@ -253,6 +253,16 @@ private:
     bool parseHeader(const uint8_t* data, size_t size);
     
     /**
+     * @brief Parse body of the tag (extended header, frames)
+     *
+     * @param data Pointer to tag data
+     * @param size Available data size
+     * @param tag_size Total tag size
+     * @return true if parsing completed successfully
+     */
+    bool parseBody(const uint8_t* data, size_t size, size_t tag_size);
+
+    /**
      * @brief Parse all frames in the tag
      * 
      * @param data Pointer to frame data (after header and extended header)

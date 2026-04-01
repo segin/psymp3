@@ -698,9 +698,6 @@ bool ErrorRecoveryManager::attemptRecovery(
   int attempt = m_attempt_counts[category];
   auto delay = calculateDelay(category, attempt);
 
-  // In a real implementation, you might want to sleep here
-  // std::this_thread::sleep_for(delay);
-
   m_attempt_counts[category]++;
   m_last_attempt_times[category] = std::chrono::system_clock::now();
 

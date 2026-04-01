@@ -350,6 +350,25 @@ bool ISODemuxer::parseContainer() {
         
         // Validate and repair sample tables for all tracks
         for (auto& track : audioTracks) {
+            if (track.artist.empty()) {
+                auto it = m_metadata.find("artist");
+                if (it != m_metadata.end()) {
+                    track.artist = it->second;
+                }
+            }
+            if (track.title.empty()) {
+                auto it = m_metadata.find("title");
+                if (it != m_metadata.end()) {
+                    track.title = it->second;
+                }
+            }
+            if (track.album.empty()) {
+                auto it = m_metadata.find("album");
+                if (it != m_metadata.end()) {
+                    track.album = it->second;
+                }
+            }
+
             if (!ValidateAndRepairSampleTables(track)) {
                 reportError("SampleTableValidation", "Sample table validation failed for track " + 
                            std::to_string(track.trackId));
@@ -477,12 +496,7 @@ MediaChunk ISODemuxer::readChunk() {
 }
 
 MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
-    if (!streamManager) {
-        reportError("ReadChunk", "StreamManager not initialized");
-        return MediaChunk{};
-    }
-    
-    AudioTrackInfo* track = streamManager->GetTrack(stream_id);
+    AudioTrackInfo* track = findTrackById(stream_id);
     if (!track) {
         reportError("ReadChunk", "Track not found: " + std::to_string(stream_id));
         return MediaChunk{};
@@ -788,6 +802,22 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
     return success;
 }
 
+AudioTrackInfo* ISODemuxer::findTrackById(uint32_t trackId) {
+    auto it = std::find_if(audioTracks.begin(), audioTracks.end(),
+                           [trackId](const AudioTrackInfo& track) {
+                               return track.trackId == trackId;
+                           });
+    return it != audioTracks.end() ? &(*it) : nullptr;
+}
+
+const AudioTrackInfo* ISODemuxer::findTrackById(uint32_t trackId) const {
+    auto it = std::find_if(audioTracks.begin(), audioTracks.end(),
+                           [trackId](const AudioTrackInfo& track) {
+                               return track.trackId == trackId;
+                           });
+    return it != audioTracks.end() ? &(*it) : nullptr;
+}
+
 bool ISODemuxer::isEOF() const {
     return isEOFAtomic();
 }
@@ -865,7 +895,7 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size, uint32_
                 // Continue with building - may still be usable
             }
             
-            if (!sampleTables->BuildSampleTables(firstTrack.sampleTableInfo)) {
+            if (!sampleTables->BuildSampleTables(firstTrack.sampleTableInfo, firstTrack.timescale)) {
                 // Sample table validation failed
                 return false;
             }
@@ -879,7 +909,13 @@ MediaChunk ISODemuxer::ExtractSampleData(uint32_t stream_id, const AudioTrackInf
                                          const SampleTableManager::SampleInfo& sampleInfo) {
     MediaChunk chunk;
     chunk.stream_id = stream_id;
-    chunk.timestamp_samples = track.currentSampleIndex;
+    if (track.timescale > 0 && track.sampleRate > 0 &&
+        track.currentSampleIndex < track.sampleTableInfo.sampleTimes.size()) {
+        const uint64_t trackTime = track.sampleTableInfo.sampleTimes[track.currentSampleIndex];
+        chunk.timestamp_samples = (trackTime * track.sampleRate) / track.timescale;
+    } else {
+        chunk.timestamp_samples = track.currentSampleIndex;
+    }
     chunk.is_keyframe = sampleInfo.isKeyframe;
     chunk.file_offset = sampleInfo.offset;
     
@@ -1338,7 +1374,8 @@ bool ISODemuxer::HandleProgressiveDownload() {
     }
     
     // Build sample tables for selected track
-    if (!sampleTables->BuildSampleTables(audioTracks[selectedTrackIndex].sampleTableInfo)) {
+    if (!sampleTables->BuildSampleTables(audioTracks[selectedTrackIndex].sampleTableInfo,
+                                         audioTracks[selectedTrackIndex].timescale)) {
         Debug::log("iso", "ISODemuxer: Failed to build sample tables");
         return false;
     }

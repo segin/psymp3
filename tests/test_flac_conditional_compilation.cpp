@@ -30,8 +30,7 @@
  * works correctly both when FLAC is available and when it's not.
  */
 
-// Note: When HAVE_NATIVE_FLAC is defined, use PsyMP3::Codec::FLAC::FLACCodecSupport
-// When using libFLAC wrapper (HAVE_FLAC without HAVE_NATIVE_FLAC), use global FLACCodecSupport
+// Native FLAC support namespace
 #ifdef HAVE_NATIVE_FLAC
 namespace FLACCodecSupport = PsyMP3::Codec::FLAC::FLACCodecSupport;
 #endif

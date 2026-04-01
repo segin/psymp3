@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(FLAC_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -143,6 +143,27 @@ MINIMAL_TEST_LIBS = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a
 
+# Common library set for Ogg demuxer-focused tests
+OGG_DEMUXER_TEST_LIBS = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(OGG_LIBS) \
+	$(VORBIS_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
 # Common object files needed by tests (not in libraries)
 # These are standalone .o files from src/ that tests commonly need
 # Note: Memory management files (MemoryPoolManager, MemoryTracker, BufferPool, etc.)
@@ -174,24 +195,30 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a \
 	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a \
 	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(AAC_LIBS)
 
 # Legacy variable for backward compatibility (deprecated - use FULL_CODEC_LIBS)
 COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
@@ -200,8 +227,8 @@ COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
 MPRIS_TEST_LIBS = $(COMMON_TEST_LIBS)
 
 # Common library links for codec tests
-COMMON_CODEC_LIBS = -lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg
-AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS)
+COMMON_CODEC_LIBS = -lmpg123 -lvorbis -lopus -logg
+AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS) $(AAC_LIBS) $(G722_LIBS)
 
 # Common test utilities library
 noinst_LIBRARIES = libtest_utilities.a
@@ -212,11 +239,11 @@ endif
 
 # Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_ogg_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_ogg_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encode_unit test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_stream_marker_with_logging test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_vorbis_field_name_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_ogg_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_ogg_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encode_unit test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_stream_marker_with_logging test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_vorbis_field_name_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 endif
 
 # ============================================================================
@@ -264,7 +291,7 @@ opusout_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OPUS_LIBS) $(OGG_LIBS) \
 	-lvorbis -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
+	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS) $(AAC_LIBS)
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -377,24 +404,16 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_demuxer_performance \
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
+	test_widget_event_routing \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_bounded_buffer \
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
 	test_surface_from_bmp_error \
-	test_extensibility_utils
-
-test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
-test_extensibility_utils_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	-lcurl \
-	$(AM_LDFLAGS)
+	test_extensibility_utils \
+	test_lastfm_url_encode_unit \
+	test_track_utils
 
 if HAVE_AAC
 check_PROGRAMS += test_aac_integration
@@ -402,13 +421,20 @@ test_aac_integration_SOURCES = test_aac_integration.cpp
 test_aac_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
+test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
+test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
-	test_ogg_fuzzing test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
+	test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
 	test_compression_lz77 repro_ogg_duration_perf
+
+if HAVE_RAPIDCHECK
+check_PROGRAMS += test_ogg_fuzzing
+endif
 
 test_compression_lz77_SOURCES = test_compression_lz77.cpp
 test_compression_lz77_LDADD = \
@@ -500,10 +526,17 @@ check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
 	test_opus_integration test_opus_compatibility_performance
 endif
 
+if HAVE_G722
+check_PROGRAMS += test_g722_integration
+endif
+
+check_PROGRAMS += test_raw_audio_stream_integration
+
 # G711 codec tests (both A-law and μ-law)
 if HAVE_G711
   # A-law tests
-  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties test_wav_g711 test_wav_g711_improved
+check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties test_wav_g711 test_wav_g711_improved
+check_PROGRAMS += test_raw_audio_tag_safety
   # WaveStream test
   check_PROGRAMS += test_wav_stream
   # μ-law tests
@@ -545,7 +578,7 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 	test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic \
 	test_flac_quality_simple test_flac_thread_safety_validation test_flac_codec_unit_minimal \
 	test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_unit_comprehensive \
-	test_flac_codec_error_handling test_flac_codec_performance_comprehensive \
+	test_flac_codec_error_handling test_flac_rfc9639_error_handling test_flac_codec_performance_comprehensive \
 	test_flac_codec_multithreaded test_flac_codec_demuxer_integration \
 	test_flac_performance_benchmarking test_flac_conditional_compilation \
 	test_flac_binary_search_limitations test_flac_demuxer_threading \
@@ -554,8 +587,10 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 	test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation \
 	test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation \
 	test_flac_bit_depth_validation_simple test_flac_security_validation \
+	test_flac_rfc_block_size_sample_rate_validation \
 	test_flac_sample_format_rfc9639_compliance test_flac_audio_output test_flac_seeking_crash \
 	test_flac_audio_output_debug test_flac_codec_simple_debug \
+	test_flac_demuxer_rfc9639_regressions \
 	test_flac_parser_vulnerability
 endif
 
@@ -607,6 +642,8 @@ test_rect_pair_variants_LDADD = libtest_utilities.a $(top_builddir)/src/core/lib
 
 test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
 test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
+test_widget_event_routing_SOURCES = test_widget_event_routing.cpp
+test_widget_event_routing_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_widget_hierarchy_properties_SOURCES = test_widget_hierarchy_properties.cpp
 test_widget_hierarchy_properties_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(top_builddir)/src/widget/foundation/libpsymp3-widget-foundation.a $(AM_LDFLAGS)
 
@@ -807,6 +844,19 @@ test_surface_from_bmp_error_LDADD = \
 	$(SDL_LIBS) \
 	$(AM_LDFLAGS)
 
+test_extensibility_utils_SOURCES = test_extensibility_utils.cpp
+test_extensibility_utils_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
 test_ogg_page_extraction_SOURCES = test_ogg_page_extraction.cpp
@@ -896,7 +946,7 @@ test_ogg_aggressive_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_stream_manager test_ogg_fuzzing test_ogg_aggressive
+check_PROGRAMS += test_stream_manager test_ogg_aggressive
 test_stream_manager_SOURCES = test_stream_manager.cpp
 test_stream_manager_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
@@ -1210,24 +1260,7 @@ test_ogg_memory_safety_LDADD = \
 
 # OggDemuxer error handling test
 test_error_handling_SOURCES = test_error_handling.cpp
-test_error_handling_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
-	$(OPUS_LIBS) \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
+test_error_handling_LDADD = $(OGG_DEMUXER_TEST_LIBS)
 
 # OggDemuxer seeking integration test
 	libtest_utilities.a \
@@ -1265,6 +1298,7 @@ test_ogg_demuxer_integration_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
+	-lvorbisenc \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -1273,6 +1307,40 @@ endif
 # A-law codec table verification test
 test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
 test_alaw_table_verification_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS) $(COMMON_CODEC_LIBS)
+
+test_track_utils_SOURCES = test_track_utils.cpp
+test_track_utils_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(AM_LDFLAGS)
+
+test_raw_audio_tag_safety_SOURCES = test_raw_audio_tag_safety.cpp
+test_raw_audio_tag_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(AM_LDFLAGS)
+
+test_g722_integration_SOURCES = test_g722_integration.cpp
+test_g722_integration_LDADD = \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_raw_audio_stream_integration_SOURCES = test_raw_audio_stream_integration.cpp
+test_raw_audio_stream_integration_LDADD = \
+	$(COMMON_TEST_LIBS) \
+	$(AM_LDFLAGS)
 
 # A-law codec sample conversion test
 test_alaw_sample_conversion_SOURCES = test_alaw_sample_conversion.cpp
@@ -1345,7 +1413,7 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg \
+	-lmpg123 -lvorbis -lopus -logg \
 	$(AM_LDFLAGS)
 
 # Codec thread safety test
@@ -1686,8 +1754,33 @@ test_mulaw_alaw_error_state_consistency_LDADD = $(AM_LDFLAGS)
 # Last.fm URL encoding property-based tests (standalone, minimal dependencies)
 # **Feature: lastfm-performance-optimization, Property 2: URL Encoding Round-Trip**
 # **Validates: Requirements 2.2**
+test_lastfm_url_encode_unit_SOURCES = test_lastfm_url_encode_unit.cpp
+test_lastfm_url_encode_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(SYSTEM_LIBS) \
+	$(AM_LDFLAGS)
+
 test_lastfm_url_encoding_properties_SOURCES = test_lastfm_url_encoding_properties.cpp
-test_lastfm_url_encoding_properties_LDADD = -lcurl $(AM_LDFLAGS)
+test_lastfm_url_encoding_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(SYSTEM_LIBS) \
+	$(AM_LDFLAGS)
 
 # Last.fm exponential backoff property-based tests (standalone, minimal dependencies)
 # **Feature: lastfm-performance-optimization, Property 5: Exponential Backoff Progression**
@@ -1757,6 +1850,8 @@ test_flac_seektable_placeholder_properties_LDADD = $(AM_LDFLAGS)
 # **Feature: flac-demuxer, Property 16: Endianness Handling**
 # **Validates: Requirements 19.1, 19.4, 13.1**
 test_flac_vorbis_comment_endianness_properties_SOURCES = test_flac_vorbis_comment_endianness_properties.cpp
+test_flac_vorbis_field_name_properties_SOURCES = test_flac_vorbis_field_name_properties.cpp
+test_flac_vorbis_field_name_properties_LDADD = $(AM_LDFLAGS) $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a $(top_builddir)/src/demuxer/libpsymp3-demuxer.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/utility/libpsymp3-core-utility.a $(top_builddir)/src/core/libpsymp3-core.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/debug.o
 test_flac_vorbis_comment_endianness_properties_LDADD = $(AM_LDFLAGS)
 
 # FLAC CUESHEET track count validation property-based tests (standalone, minimal dependencies)
@@ -1857,6 +1952,20 @@ test_conditional_codec_compilation_LDADD = libtest_utilities.a \
 if HAVE_FLAC
 test_flac_demuxer_simple_SOURCES = test_flac_demuxer_simple.cpp
 test_flac_demuxer_simple_LDADD = \
+	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_flac_demuxer_rfc9639_regressions_SOURCES = test_flac_demuxer_rfc9639_regressions.cpp
+test_flac_demuxer_rfc9639_regressions_LDADD = \
 	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -2202,6 +2311,12 @@ test_flac_codec_unit_minimal_LDADD = \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
+test_flac_parse_coded_number_SOURCES = test_flac_parse_coded_number.cpp
+test_flac_parse_coded_number_LDADD = \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
 endif
 
 # IOHandler thread safety comprehensive test
@@ -2276,9 +2391,7 @@ test_frame_size_estimation_consistency_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
-# FLAC AudioFrame creation test (uses libFLAC wrapper FLACCodec, not native codec)
-# NOTE: This test is disabled when HAVE_NATIVE_FLAC is defined because it uses
-# the libFLAC++ wrapper (FLACCodec) which is incompatible with the native codec.
+# FLAC AudioFrame creation test
 # To enable this test, configure with --disable-native-flac
 #test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
 #test_flac_audioframe_creation_LDADD = \
@@ -2357,9 +2470,20 @@ test_flac_codec_unit_comprehensive_LDADD = \
 # FLAC codec error handling tests
 test_flac_codec_error_handling_SOURCES = test_flac_codec_error_handling.cpp
 test_flac_codec_error_handling_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(FLAC_LIBS) \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_flac_rfc9639_error_handling_SOURCES = test_flac_rfc9639_error_handling.cpp
+test_flac_rfc9639_error_handling_LDADD = \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_flac_rfc_block_size_sample_rate_validation_SOURCES = test_flac_rfc_block_size_sample_rate_validation.cpp
+test_flac_rfc_block_size_sample_rate_validation_LDADD = \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
 # FLAC codec performance comprehensive tests
@@ -2940,7 +3064,7 @@ if HAVE_NATIVE_FLAC
 check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit \
 	test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit \
 	test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases \
-	test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading \
+	test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading test_flac_parse_coded_number \
 	test_flac_rfc9639_compliance_validator
 
 # BitstreamReader unit tests
@@ -3025,7 +3149,7 @@ test_native_flac_edge_cases_LDADD = \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
-# Performance test: Benchmark against libFLAC
+# Performance test: benchmark native FLAC decoding
 test_native_flac_performance_benchmark_SOURCES = test_native_flac_performance_benchmark.cpp
 test_native_flac_performance_benchmark_LDADD = \
 	$(FULL_CODEC_LIBS) \
@@ -3175,7 +3299,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
+	$(AM_LDFLAGS) $(AAC_LIBS)
 endif
 
 # ============================================================================
@@ -3222,7 +3346,7 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(VORBIS_LIBS) \
 	-logg -lopus -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS) $(FLAC_LIBS)
+	$(AM_LDFLAGS) $(FLAC_LIBS) $(AAC_LIBS)
 endif
 
 # ============================================================================
@@ -3268,7 +3392,7 @@ mp3out_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(LIBMPG123_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
+	$(AM_LDFLAGS) $(AAC_LIBS)
 endif
 
 
@@ -3719,3 +3843,5 @@ test_issue_ogg_duration_LDADD = \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 endif
+test_flac_stream_marker_with_logging_SOURCES = test_flac_stream_marker_with_logging.cpp
+test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)

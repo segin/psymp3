@@ -86,6 +86,7 @@ private:
     MediaChunk readChunk_unlocked(uint32_t stream_id);
     bool seekTo_unlocked(uint64_t timestamp_ms);
     long getSampleRate() const;
+    bool resetForPlayback_unlocked();
     
     /**
      * @brief Create VorbisCommentTag from parsed header data

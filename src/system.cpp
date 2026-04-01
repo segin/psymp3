@@ -113,7 +113,7 @@ void System::InitializeIPC(Player *player) {
 
   if (!RegisterClassExW(&wcx)) {
     std::cerr << "Failed to register Winamp IPC window class. Error: "
-              << GetLastError() << std::endl;
+              << GetLastError() << '\n';
     return;
   }
 
@@ -135,7 +135,7 @@ void System::InitializeIPC(Player *player) {
 
   if (!m_ipc_hwnd) {
     std::cerr << "Failed to create Winamp IPC window. Error: " << GetLastError()
-              << std::endl;
+              << '\n';
   }
 }
 #endif
@@ -377,16 +377,16 @@ void System::InitializeTaskbar() {
 
   if (SUCCEEDED(hr)) {
     std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar
-              << std::endl;
+              << '\n';
     hr = m_taskbar->HrInit();
 
     if (FAILED(hr)) {
-      std::cerr << "Error initializing ITaskbarList3 COM object!" << std::endl;
+      std::cerr << "Error initializing ITaskbarList3 COM object!" << '\n';
       m_taskbar->Release();
       m_taskbar = nullptr;
     }
   } else
-    std::cerr << "Error initializing ITaskbarList3 COM object!" << std::endl;
+    std::cerr << "Error initializing ITaskbarList3 COM object!" << '\n';
 #endif
 }
 
@@ -546,19 +546,19 @@ void System::updateProgress(ULONGLONG now, ULONGLONG max) {
     m_taskbar->SetProgressValue(getHwnd(), now, max);
   else
     std::cerr << "System::updateProgress(): No ITaskbarList3 OLE interface!"
-              << std::endl;
+              << '\n';
 }
 /**
  * @brief Sets the Windows taskbar button progress indicator state (Windows only).
  * @param status One of the `TBPFLAG` values (e.g., `TBPF_NORMAL`, `TBPF_INDETERMINATE`).
  */
 void System::progressState(TBPFLAG status) {
-  std::cout << "System::updateProgress(): Called." << std::endl;
+  std::cout << "System::updateProgress(): Called." << '\n';
   if (m_taskbar)
     m_taskbar->SetProgressState(getHwnd(), status);
   else
     std::cerr << "System::updateProgress(): No ITaskbarList3 OLE interface!"
-              << std::endl;
+              << '\n';
 }
 
 #endif

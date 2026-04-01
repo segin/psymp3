@@ -648,7 +648,6 @@ bool FrameParser::validateFrame(const FrameHeader &header,
     Debug::log("flac_codec",
                "Frame CRC-16 mismatch: computed=0x%04X, expected=0x%04X",
                computed_crc, footer.crc16);
-    // Per RFC 9639, CRC-16 failure is a warning but decoder may continue
     return false;
   }
 

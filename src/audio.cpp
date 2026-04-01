@@ -81,6 +81,15 @@ Audio::~Audio() {
  */
 void Audio::setup() {
     SDL_AudioSpec desired, obtained;
+
+    if ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) == 0) {
+        Debug::log("audio", "Audio::setup: Initializing SDL audio subsystem on demand");
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+            Debug::log("audio", "Unable to init SDL audio subsystem: ", SDL_GetError());
+            return;
+        }
+    }
+
     // Use m_current_stream_raw_ptr to get rate and channels
     desired.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
     desired.format = AUDIO_S16; /* Always, I hope */

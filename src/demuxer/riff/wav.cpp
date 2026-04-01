@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "core/utility/G711.h"
 #include <limits>
 
 namespace PsyMP3 {

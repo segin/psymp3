@@ -51,7 +51,7 @@
  *   return (total_samples * 1000) / sample_rate;
  * 
  * @param total_samples Total number of samples in the stream (0 if unknown)
- * @param sample_rate Sample rate in Hz (1-655350 per RFC 9639)
+ * @param sample_rate Sample rate in Hz (1-1048575 per RFC 9639)
  * @return Duration in milliseconds, or 0 if unknown
  */
 uint64_t calculateDurationMs(uint64_t total_samples, uint32_t sample_rate) {
@@ -249,8 +249,8 @@ void test_property_duration_calculation() {
         std::random_device rd;
         std::mt19937_64 gen(rd());
         
-        // Valid sample rates per RFC 9639 (1-655350 Hz)
-        std::uniform_int_distribution<uint32_t> sr_dist(1, 655350);
+        // Valid sample rates per RFC 9639 (1-1048575 Hz)
+        std::uniform_int_distribution<uint32_t> sr_dist(1, 1048575);
         
         // Total samples (0 to max 36-bit value from STREAMINFO)
         std::uniform_int_distribution<uint64_t> ts_dist(1, 68719476735ULL);

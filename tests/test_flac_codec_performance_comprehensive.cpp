@@ -326,7 +326,7 @@ private:
     
     // Helper methods for compatibility testing
     static bool isValidSampleRate(uint32_t sample_rate) {
-        return sample_rate >= 1 && sample_rate <= 655350;
+        return sample_rate >= 1 && sample_rate <= 1048575;
     }
     
     static bool isValidBitDepth(uint16_t bits_per_sample) {

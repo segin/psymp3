@@ -148,6 +148,29 @@ private:
      * @return Picture structure or nullopt on parse failure
      */
     static std::optional<Picture> parsePictureField(const std::string& base64_data);
+
+    /**
+     * @brief Parse vendor string from VorbisComment
+     * @param data Pointer to data
+     * @param size Total size of data
+     * @param offset Current offset in data (will be updated)
+     * @param vendor Output vendor string
+     * @return True on success, false on failure
+     */
+    static bool parseVendorString(const uint8_t* data, size_t size, size_t& offset, std::string& vendor);
+
+    /**
+     * @brief Parse user comments (fields) from VorbisComment
+     * @param data Pointer to data
+     * @param size Total size of data
+     * @param offset Current offset in data (will be updated)
+     * @param fields Output fields map
+     * @param pictures Output pictures vector
+     * @return True on success, false on failure
+     */
+    static bool parseUserComments(const uint8_t* data, size_t size, size_t& offset,
+                                  std::map<std::string, std::vector<std::string>>& fields,
+                                  std::vector<Picture>& pictures);
     
     /**
      * @brief Get first value for a field (case-insensitive)

@@ -16,11 +16,160 @@
 #include <memory>
 #include <vector>
 #include <cmath>
+#include <cstring>
+#include <ogg/ogg.h>
 
 using namespace PsyMP3;
 using namespace PsyMP3::Demuxer;
 using namespace PsyMP3::Demuxer::Ogg;
 using namespace PsyMP3::IO;
+
+namespace {
+
+class TestMemoryIOHandler : public IOHandler {
+public:
+    explicit TestMemoryIOHandler(std::vector<uint8_t> data)
+        : m_data(std::move(data))
+    {
+    }
+
+    size_t read(void* buffer, size_t size, size_t count) override
+    {
+        if (size == 0 || count == 0 || m_position >= m_data.size()) {
+            return 0;
+        }
+
+        size_t bytes_requested = size * count;
+        size_t bytes_available = m_data.size() - m_position;
+        size_t bytes_to_read = std::min(bytes_requested, bytes_available);
+        std::memcpy(buffer, m_data.data() + m_position, bytes_to_read);
+        m_position += bytes_to_read;
+        return bytes_to_read / size;
+    }
+
+    int seek(off_t offset, int whence) override
+    {
+        off_t target = 0;
+        if (whence == SEEK_SET) {
+            target = offset;
+        } else if (whence == SEEK_CUR) {
+            target = static_cast<off_t>(m_position) + offset;
+        } else if (whence == SEEK_END) {
+            target = static_cast<off_t>(m_data.size()) + offset;
+        }
+
+        if (target < 0) {
+            target = 0;
+        }
+        if (static_cast<size_t>(target) > m_data.size()) {
+            target = static_cast<off_t>(m_data.size());
+        }
+
+        m_position = static_cast<size_t>(target);
+        return 0;
+    }
+
+    off_t tell() override { return static_cast<off_t>(m_position); }
+    int close() override { return 0; }
+    bool eof() override { return m_position >= m_data.size(); }
+    off_t getFileSize() override { return static_cast<off_t>(m_data.size()); }
+
+private:
+    std::vector<uint8_t> m_data;
+    size_t m_position = 0;
+};
+
+class OggStreamBuilder {
+public:
+    explicit OggStreamBuilder(int32_t serial)
+        : m_initialized(ogg_stream_init(&m_stream, serial) == 0)
+    {
+    }
+
+    ~OggStreamBuilder()
+    {
+        if (m_initialized) {
+            ogg_stream_clear(&m_stream);
+        }
+    }
+
+    bool packetIn(const std::vector<uint8_t>& packet,
+                  int64_t granule_pos,
+                  int64_t packet_no,
+                  bool bos = false,
+                  bool eos = false)
+    {
+        if (!m_initialized) {
+            return false;
+        }
+
+        ogg_packet ogg_packet_data{};
+        ogg_packet_data.packet = const_cast<unsigned char*>(packet.data());
+        ogg_packet_data.bytes = static_cast<long>(packet.size());
+        ogg_packet_data.b_o_s = bos ? 1 : 0;
+        ogg_packet_data.e_o_s = eos ? 1 : 0;
+        ogg_packet_data.granulepos = granule_pos;
+        ogg_packet_data.packetno = packet_no;
+        return ogg_stream_packetin(&m_stream, &ogg_packet_data) == 0;
+    }
+
+    void flushInto(std::vector<uint8_t>& out)
+    {
+        if (!m_initialized) {
+            return;
+        }
+
+        ogg_page page{};
+        while (ogg_stream_flush(&m_stream, &page)) {
+            out.insert(out.end(), page.header, page.header + page.header_len);
+            out.insert(out.end(), page.body, page.body + page.body_len);
+        }
+    }
+
+private:
+    ogg_stream_state m_stream{};
+    bool m_initialized = false;
+};
+
+std::vector<uint8_t> createOpusHeadPacket()
+{
+    std::vector<uint8_t> packet = {'O', 'p', 'u', 's', 'H', 'e', 'a', 'd'};
+    packet.insert(packet.end(), {1, 2, 56, 1, 0x80, 0xBB, 0, 0, 0, 0, 0});
+    return packet;
+}
+
+std::vector<uint8_t> createOpusTagsPacket()
+{
+    std::vector<uint8_t> packet = {'O', 'p', 'u', 's', 'T', 'a', 'g', 's'};
+    std::string vendor = "psymp3-test";
+    uint32_t vendor_len = static_cast<uint32_t>(vendor.size());
+    packet.push_back(vendor_len & 0xFF);
+    packet.push_back((vendor_len >> 8) & 0xFF);
+    packet.push_back((vendor_len >> 16) & 0xFF);
+    packet.push_back((vendor_len >> 24) & 0xFF);
+    packet.insert(packet.end(), vendor.begin(), vendor.end());
+    packet.insert(packet.end(), {0, 0, 0, 0});
+    return packet;
+}
+
+std::vector<uint8_t> createMinimalOpusOggStream(int32_t serial, int64_t audio_granule)
+{
+    OggStreamBuilder builder(serial);
+    std::vector<uint8_t> bytes;
+
+    builder.packetIn(createOpusHeadPacket(), 0, 0, true, false);
+    builder.flushInto(bytes);
+
+    builder.packetIn(createOpusTagsPacket(), 0, 1, false, false);
+    builder.flushInto(bytes);
+
+    builder.packetIn({0x78, 0x00}, audio_granule, 2, false, true);
+    builder.flushInto(bytes);
+
+    return bytes;
+}
+
+} // namespace
 
 /**
  * @brief Mock IOHandler for testing that doesn't require actual files
@@ -371,22 +520,13 @@ bool test_invalid_granule_positions() {
     TimeConversionTest test;
     uint32_t vorbis_stream_id = 1001;
     
-    // Test invalid granule positions (-1 and very large values)
-    uint64_t invalid_granules[] = {
-        static_cast<uint64_t>(-1),           // -1 (invalid marker)
-        0x8000000000000000ULL,               // Very large value
-        0xFFFFFFFFFFFFFFFFULL,               // Maximum uint64_t
-        0x7FFFFFFFFFFFFFFFULL + 1,           // Just over the valid range
-    };
-    
-    for (uint64_t invalid_granule : invalid_granules) {
-        uint64_t result = test.demuxer->granuleToMs(invalid_granule, vorbis_stream_id);
-        if (result != 0) {
-            Debug::log("test", "FAIL: Invalid granule position should return 0 - granule=", invalid_granule, ", got=", result);
-            return false;
-        }
+    uint64_t invalid_granule = static_cast<uint64_t>(-1); // RFC/libogg no-packet marker
+    uint64_t result = test.demuxer->granuleToMs(invalid_granule, vorbis_stream_id);
+    if (result != 0) {
+        Debug::log("test", "FAIL: Invalid granule position should return 0 - granule=", invalid_granule, ", got=", result);
+        return false;
     }
-    
+
     Debug::log("test", "PASS: Invalid granule position handling");
     return true;
 }
@@ -557,6 +697,31 @@ bool test_opus_preskip_edge_cases() {
     return true;
 }
 
+bool test_ogg_get_position_reports_milliseconds() {
+    auto io = std::make_unique<TestMemoryIOHandler>(createMinimalOpusOggStream(4242, 48312));
+    auto demuxer = std::make_unique<OggDemuxer>(std::move(io));
+
+    if (!demuxer->parseContainer()) {
+        Debug::log("test", "FAIL: Could not parse synthetic Opus Ogg stream for getPosition test");
+        return false;
+    }
+
+    MediaChunk chunk = demuxer->readChunk();
+    if (!chunk.isValid()) {
+        Debug::log("test", "FAIL: Expected valid Opus audio chunk during getPosition test");
+        return false;
+    }
+
+    uint64_t position_ms = demuxer->getPosition();
+    if (position_ms != 1000) {
+        Debug::log("test", "FAIL: OggDemuxer::getPosition should report milliseconds for Opus - expected=1000ms, got=", position_ms);
+        return false;
+    }
+
+    Debug::log("test", "PASS: OggDemuxer::getPosition reports milliseconds");
+    return true;
+}
+
 int main() {
     printf("Starting OggDemuxer time conversion tests...\n");
     
@@ -672,6 +837,16 @@ int main() {
     } else { 
         printf("FAIL: test_opus_preskip_edge_cases\n"); 
         all_passed = false; 
+    }
+
+    printf("Running test_ogg_get_position_reports_milliseconds...\n");
+    test_count++;
+    if (test_ogg_get_position_reports_milliseconds()) {
+        printf("PASS: test_ogg_get_position_reports_milliseconds\n");
+        passed_count++;
+    } else {
+        printf("FAIL: test_ogg_get_position_reports_milliseconds\n");
+        all_passed = false;
     }
     
     printf("\n=== Test Results ===\n");

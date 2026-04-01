@@ -34,6 +34,13 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: μ-law codec disabled at compile time");
 #endif
 
+#ifdef HAVE_G722
+    PsyMP3::Codec::PCM::registerG722Codec();
+    Debug::log("codec", "registerAllCodecs: Registered G.722 codec");
+#else
+    Debug::log("codec", "registerAllCodecs: G.722 codec disabled at compile time");
+#endif
+
     // MP3 remains in legacy Stream architecture - not registered with CodecRegistry
 #ifdef HAVE_MP3
     Debug::log("codec", "registerAllCodecs: MP3 codec uses legacy Stream architecture (not registered)");
@@ -95,13 +102,10 @@ void registerAllCodecs() {
 
     // FLAC codec registration
 #ifdef HAVE_FLAC
-    // Register native FLAC codec for native FLAC files
-#ifdef HAVE_NATIVE_FLAC
     AudioCodecFactory::registerCodec("flac", [](const StreamInfo& info) {
         return std::make_unique<PsyMP3::Codec::FLAC::FLACCodec>(info);
     });
-    Debug::log("codec", "registerAllCodecs: Registered native FLAC codec");
-#endif
+    Debug::log("codec", "registerAllCodecs: Registered FLAC codec");
     
     // Register Ogg FLAC passthrough codec if Ogg support is available
 #ifdef HAVE_OGGDEMUXER

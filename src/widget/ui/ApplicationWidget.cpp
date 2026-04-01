@@ -30,6 +30,15 @@ namespace UI {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+namespace {
+
+bool isAlwaysOnTopWindow(const Widget* window)
+{
+    return dynamic_cast<const ToastWidget*>(window) != nullptr;
+}
+
+}
+
 // Static instance for singleton
 std::unique_ptr<ApplicationWidget> ApplicationWidget::s_instance = nullptr;
 
@@ -94,13 +103,13 @@ bool ApplicationWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
 {
     // Handle mouse capture first
     if (s_mouse_captured_widget) {
-        // Find the captured widget and forward the event directly
+        // Ask each top-level window to route the captured event through its subtree.
         for (const auto& window : m_windows) {
-            if (window.get() == s_mouse_captured_widget) {
-                Rect window_pos = window->getPos();
-                int window_relative_x = relative_x - window_pos.x();
-                int window_relative_y = relative_y - window_pos.y();
-                return window->handleMouseMotion(event, window_relative_x, window_relative_y);
+            Rect window_pos = window->getPos();
+            int window_relative_x = relative_x - window_pos.x();
+            int window_relative_y = relative_y - window_pos.y();
+            if (window->handleMouseMotion(event, window_relative_x, window_relative_y)) {
+                return true;
             }
         }
         
@@ -136,13 +145,13 @@ bool ApplicationWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
 {
     // Handle mouse capture first
     if (s_mouse_captured_widget) {
-        // Find the captured widget and forward the event directly
+        // Ask each top-level window to route the captured event through its subtree.
         for (const auto& window : m_windows) {
-            if (window.get() == s_mouse_captured_widget) {
-                Rect window_pos = window->getPos();
-                int window_relative_x = relative_x - window_pos.x();
-                int window_relative_y = relative_y - window_pos.y();
-                return window->handleMouseUp(event, window_relative_x, window_relative_y);
+            Rect window_pos = window->getPos();
+            int window_relative_x = relative_x - window_pos.x();
+            int window_relative_y = relative_y - window_pos.y();
+            if (window->handleMouseUp(event, window_relative_x, window_relative_y)) {
+                return true;
             }
         }
         
@@ -223,10 +232,22 @@ void ApplicationWidget::bringWindowToFront(Widget* window)
                           [window](const std::unique_ptr<Widget>& w) { return w.get() == window; });
     
     if (it != m_windows.end()) {
-        // Move the window to the end of the vector (top of z-order)
         auto window_ptr = std::move(*it);
         m_windows.erase(it);
-        m_windows.push_back(std::move(window_ptr));
+
+        if (isAlwaysOnTopWindow(window_ptr.get())) {
+            // Toasts stay above every other window.
+            m_windows.push_back(std::move(window_ptr));
+        } else {
+            // Ordinary windows can come to the front, but never above toasts.
+            auto first_always_on_top = std::find_if(
+                m_windows.begin(), m_windows.end(),
+                [](const std::unique_ptr<Widget>& candidate) {
+                    return isAlwaysOnTopWindow(candidate.get());
+                });
+            m_windows.insert(first_always_on_top, std::move(window_ptr));
+        }
+
         rebuildSurface();
     }
 }

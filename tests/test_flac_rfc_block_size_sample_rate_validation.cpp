@@ -44,14 +44,15 @@ void test_rfc_block_size_sample_rate_validation() {
         {192000, 2, 32, true, "Ultra high resolution"},
         {8000, 1, 16, true, "Low quality mono"},
         {22050, 2, 8, true, "Low quality stereo"},
-        {655350, 8, 32, true, "Maximum RFC 9639 limits"},
+        {1048575, 8, 32, true, "Maximum RFC 9639 limits"},
+        {0, 2, 16, true, "Streamable subset placeholder sample rate"},
+        {44100, 0, 16, true, "Streamable subset placeholder channel count"},
+        {44100, 2, 0, true, "Streamable subset placeholder bit depth"},
         
         // Invalid configurations (should fail)
-        {0, 2, 16, false, "Zero sample rate"},
-        {655351, 2, 16, false, "Sample rate above RFC 9639 limit"},
-        {44100, 0, 16, false, "Zero channels"},
+        {1048576, 2, 16, false, "Sample rate above RFC 9639 limit"},
         {44100, 9, 16, false, "Too many channels"},
-        {44100, 2, 3, false, "Bit depth below RFC 9639 minimum"},
+        {44100, 2, 3, false, "Bit depth below RFC 9639 minimum (non-placeholder)"},
         {44100, 2, 33, false, "Bit depth above RFC 9639 maximum"}
     };
     
@@ -152,7 +153,7 @@ void test_rfc_block_size_sample_rate_validation() {
     // Test maximum valid configuration
     StreamInfo max_config;
     max_config.codec_name = "flac";
-    max_config.sample_rate = 655350;
+    max_config.sample_rate = 1048575;
     max_config.channels = 8;
     max_config.bits_per_sample = 32;
     

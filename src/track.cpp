@@ -25,6 +25,105 @@
 
 TagLib::String track::nullstr;
 
+namespace {
+
+std::optional<unsigned int> getSyntheticRawLengthSeconds(const TagLib::String& path)
+{
+    std::string utf8_path = path.to8Bit(true);
+    std::string::size_type dot = utf8_path.find_last_of('.');
+    if (dot == std::string::npos) {
+        return std::nullopt;
+    }
+
+    std::string extension = utf8_path.substr(dot);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
+    struct SyntheticRawConfig {
+        uint32_t sample_rate;
+        uint16_t bytes_per_frame;
+        uint16_t decoded_samples_per_frame;
+    };
+
+    static const std::unordered_map<std::string, SyntheticRawConfig> kSyntheticRawConfigs = {
+        {".ulaw", {8000, 1, 1}},
+        {".ul",   {8000, 1, 1}},
+        {".mulaw",{8000, 1, 1}},
+        {".alaw", {8000, 1, 1}},
+        {".al",   {8000, 1, 1}},
+        {".g722", {16000, 1, 2}},
+        {".722",  {16000, 1, 2}},
+        {".pcm",  {8000, 2, 1}},
+        {".s8",   {8000, 1, 1}},
+        {".u8",   {8000, 1, 1}},
+        {".s16le",{44100, 4, 1}},
+        {".s16be",{44100, 4, 1}},
+        {".s24le",{44100, 6, 1}},
+        {".s24be",{44100, 6, 1}},
+        {".s32le",{44100, 8, 1}},
+        {".s32be",{44100, 8, 1}},
+        {".f32le",{44100, 8, 1}},
+        {".f32be",{44100, 8, 1}},
+        {".f64le",{44100, 16, 1}},
+        {".f64be",{44100, 16, 1}},
+    };
+
+    auto config_it = kSyntheticRawConfigs.find(extension);
+    if (config_it == kSyntheticRawConfigs.end()) {
+        return std::nullopt;
+    }
+
+    try {
+        FileIOHandler handler(path);
+        PsyMP3::IO::filesize_t file_size = handler.getFileSize();
+        if (file_size <= 0) {
+            return 0u;
+        }
+
+        const SyntheticRawConfig& config = config_it->second;
+        if (config.sample_rate == 0 || config.bytes_per_frame == 0) {
+            return std::nullopt;
+        }
+
+        uint64_t total_samples =
+            (static_cast<uint64_t>(file_size) / config.bytes_per_frame) * config.decoded_samples_per_frame;
+        return static_cast<unsigned int>(total_samples / config.sample_rate);
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
+
+} // namespace
+
+bool track::isKnownRawAudioExtension(const TagLib::String& path)
+{
+    std::string utf8_path = path.to8Bit(true);
+    std::string::size_type dot = utf8_path.find_last_of('.');
+    if (dot == std::string::npos) {
+        return false;
+    }
+
+    std::string extension = utf8_path.substr(dot);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
+    static const std::unordered_set<std::string> kRawExtensions = {
+        ".ulaw", ".ul", ".mulaw", ".alaw", ".al", ".pcm", ".s8", ".u8",
+        ".g722", ".722",
+        ".s16le", ".s16be", ".s24le", ".s24be", ".s32le", ".s32be",
+        ".f32le", ".f32be", ".f64le", ".f64be"
+    };
+
+    return kRawExtensions.find(extension) != kRawExtensions.end();
+}
+
+bool track::shouldCreateTagLibRefForPath(const TagLib::String& path)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    return !isKnownRawAudioExtension(path);
+}
+
 /**
  * @brief Constructs a track from a file path and optional EXTINF metadata.
  *
@@ -62,6 +161,16 @@ void track::loadTags() {
     if (m_FilePath.isEmpty()) {
         return;
     }
+
+    if (!shouldCreateTagLibRefForPath(m_FilePath)) {
+        if (m_Len == 0) {
+            auto synthetic_length = getSyntheticRawLengthSeconds(m_FilePath);
+            if (synthetic_length.has_value()) {
+                m_Len = *synthetic_length;
+            }
+        }
+        return;
+    }
     
     if (!m_FileRef) {
         try {
@@ -80,6 +189,11 @@ void track::loadTags() {
             m_TagLibStream = nullptr;
         }
     }
+
+    if (!m_FileRef || m_FileRef->isNull() || !m_FileRef->tag() || !m_FileRef->audioProperties()) {
+        return;
+    }
+
     if (m_FileRef && m_FileRef->tag() && m_FileRef->audioProperties()) {
         // Only set if not already set by EXTINF data
         if (m_Artist.isEmpty()) m_Artist = m_FileRef->tag()->artist();

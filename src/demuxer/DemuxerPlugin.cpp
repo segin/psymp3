@@ -15,12 +15,16 @@ namespace Demuxer {
 #ifdef __linux__
 #include <dlfcn.h>
 #include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #elif defined(_WIN32)
 #include <windows.h>
 #include <io.h>
 #else
 #include <dlfcn.h>
 #include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 // Static member initialization
@@ -562,11 +566,49 @@ std::string DemuxerPluginManager::getPluginFileName(const std::string& plugin_na
 bool DemuxerPluginManager::isValidPluginFile(const std::string& file_path) const {
     // Check file extension
 #ifdef __linux__
-    return file_path.length() > 3 && file_path.substr(file_path.length() - 3) == ".so";
+    if (!(file_path.length() > 3 && file_path.substr(file_path.length() - 3) == ".so")) return false;
+
+    struct stat st;
+    if (stat(file_path.c_str(), &st) != 0) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Cannot access file: ", file_path);
+        return false;
+    }
+    if (!S_ISREG(st.st_mode)) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Not a regular file: ", file_path);
+        return false;
+    }
+    if (st.st_uid != 0 && st.st_uid != geteuid()) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Security warning: Plugin file not owned by root or current user: ", file_path);
+        return false;
+    }
+    if (st.st_mode & S_IWOTH) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Security warning: Plugin file is world-writable: ", file_path);
+        return false;
+    }
+    return true;
 #elif defined(_WIN32)
     return file_path.length() > 4 && file_path.substr(file_path.length() - 4) == ".dll";
 #else
-    return file_path.length() > 3 && file_path.substr(file_path.length() - 3) == ".so";
+    if (!(file_path.length() > 3 && file_path.substr(file_path.length() - 3) == ".so")) return false;
+
+    struct stat st;
+    if (stat(file_path.c_str(), &st) != 0) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Cannot access file: ", file_path);
+        return false;
+    }
+    if (!S_ISREG(st.st_mode)) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Not a regular file: ", file_path);
+        return false;
+    }
+    if (st.st_uid != 0 && st.st_uid != geteuid()) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Security warning: Plugin file not owned by root or current user: ", file_path);
+        return false;
+    }
+    if (st.st_mode & S_IWOTH) {
+        Debug::log("plugin", "DemuxerPluginManager::isValidPluginFile: Security warning: Plugin file is world-writable: ", file_path);
+        return false;
+    }
+    return true;
 #endif
 }
 

@@ -30,10 +30,19 @@ public:
     // Stream interface implementation
     virtual void open(TagLib::String name) override;
     virtual size_t getData(size_t len, void *buf) override;
+    virtual unsigned int getLength() override;
+    virtual unsigned long long getSLength() override;
+    virtual unsigned int getChannels() override;
+    virtual unsigned int getRate() override;
+    virtual unsigned int getBitrate() override;
     virtual unsigned int getPosition() override;
     virtual unsigned long long getSPosition() override;
     virtual void seekTo(unsigned long pos) override;
     virtual bool eof() override;
+    virtual TagLib::String getArtist() override;
+    virtual TagLib::String getTitle() override;
+    virtual TagLib::String getAlbum() override;
+    virtual const PsyMP3::Tag::Tag& getTag() const override;
 
 private:
     std::unique_ptr<DemuxedStream> m_demuxed_stream;

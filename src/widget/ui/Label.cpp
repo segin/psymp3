@@ -27,14 +27,21 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
-Label::Label(Font* font, const Rect& position, const TagLib::String& initial_text, SDL_Color color)
+Label::Label(Font* font, const Rect& position, const TagLib::String& initial_text, SDL_Color color, SDL_Color background_color)
     : Widget(Surface(), position), // Initialize base Widget with an empty surface and a position
       m_font(font),
       m_text(), // Will be set by setText
-      m_color(color)
+      m_color(color),
+      m_background_color(background_color)
 {
     // The initial render is done by calling setText.
     setText(initial_text);
+}
+
+void Label::setBackgroundColor(SDL_Color background_color)
+{
+    m_background_color = background_color;
+    invalidate();
 }
 
 void Label::setText(const TagLib::String& text)
@@ -99,7 +106,7 @@ void Label::blitWithBackgroundClear(Surface& target, const Rect& absolute_pos)
     target.box(absolute_pos.x(), absolute_pos.y(),
                absolute_pos.x() + clear_w - 1,
                absolute_pos.y() + clear_h - 1,
-               target.MapRGB(0, 0, 0));
+               target.MapRGB(m_background_color.r, m_background_color.g, m_background_color.b));
     target.Blit(*this, absolute_pos);
 
     m_last_drawn_width = m_text_surface ? m_text_surface->width() : 0;

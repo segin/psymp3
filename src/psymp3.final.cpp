@@ -112,6 +112,10 @@
 #include "codecs/pcm/MuLawCodec.cpp"
 #endif
 
+#ifdef HAVE_G722
+#include "codecs/pcm/G722Codec.cpp"
+#endif
+
 // ============================================================================
 // Optional Codec/Demuxer: Ogg container (Vorbis, Opus, FLAC)
 // ============================================================================
@@ -162,8 +166,7 @@
 #include "codecs/flac/FLACRFC9639.cpp"
 #include "codecs/flac/FLACRFCValidator.cpp"
 
-#ifdef HAVE_NATIVE_FLAC
-// Native FLAC decoder (no libFLAC dependency)
+// Native FLAC decoder
 #include "codecs/flac/BitstreamReader.cpp"
 #include "codecs/flac/CRCValidator.cpp"
 #include "codecs/flac/ChannelDecorrelator.cpp"
@@ -174,11 +177,6 @@
 #include "codecs/flac/ResidualDecoder.cpp"
 #include "codecs/flac/SampleReconstructor.cpp"
 #include "codecs/flac/SubframeDecoder.cpp"
-#else
-// libFLAC wrapper
-#include "codecs/flac/FLACCodec.cpp"
-#include "codecs/flac/LibFLACWrapper.cpp"
-#endif // HAVE_NATIVE_FLAC
 #endif // HAVE_FLAC
 
 // ============================================================================
@@ -209,12 +207,14 @@
 // ============================================================================
 #include "widget/ui/ApplicationWidget.cpp"
 #include "widget/ui/ButtonWidget.cpp"
+#include "widget/ui/CheckboxWidget.cpp"
 #include "widget/ui/Label.cpp"
 #include "widget/ui/LyricsWidget.cpp"
 #include "widget/ui/MainUIWidget.cpp"
 #include "widget/ui/PlayerProgressBarWidget.cpp"
 #include "widget/ui/ProgressBarBracketWidget.cpp"
 #include "widget/ui/ProgressBarFrameWidget.cpp"
+#include "widget/ui/ScrollbarWidget.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
 #include "widget/ui/ToastWidget.cpp"
 

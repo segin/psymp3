@@ -271,9 +271,9 @@ bool FLACCodec::initialize_unlocked() {
     
     // Validate stream parameters against RFC 9639 requirements (Requirement 14)
     // Allow 0 values for streamable subset - will be filled from frame headers
-    if (m_stream_info.sample_rate > 655350) {
+    if (m_stream_info.sample_rate > 1048575) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Invalid sample rate: ",
-                  m_stream_info.sample_rate, " (RFC 9639 max: 655350 Hz)");
+                  m_stream_info.sample_rate, " (RFC 9639 max: 1048575 Hz)");
         m_state = DecoderState::DECODER_ERROR;
         return false;
     }
@@ -285,9 +285,11 @@ bool FLACCodec::initialize_unlocked() {
         return false;
     }
     
-    if (m_stream_info.bits_per_sample > 32) {
+    if (m_stream_info.bits_per_sample != 0 &&
+        (m_stream_info.bits_per_sample < 4 || m_stream_info.bits_per_sample > 32)) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Invalid bit depth: ",
-                  m_stream_info.bits_per_sample, " (RFC 9639 max: 32 bits)");
+                  m_stream_info.bits_per_sample,
+                  " (RFC 9639 valid range: 4-32 bits, or 0 placeholder)");
         m_state = DecoderState::DECODER_ERROR;
         return false;
     }
@@ -551,16 +553,15 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
             Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoding subframe ", ch,
                       " (side_channel=", is_side_channel, ")");
             
-            if (!m_subframe_decoder->decodeSubframe(m_decode_buffer[ch].data(), 
+            if (!m_subframe_decoder->decodeSubframe(m_decode_buffer[ch].data(),
                                                     header.block_size,
                                                     header.bit_depth,
                                                     is_side_channel)) {
-                Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Subframe ", ch, " decoding failed, outputting silence");
-                
-                // Recover by outputting silence for this channel
-                recoverFromSubframeError(m_decode_buffer[ch].data(), header.block_size);
-                
-                // Continue with other channels rather than failing completely
+                Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Subframe ", ch,
+                          " decoding failed, discarding frame");
+                recoverFromSubframeError();
+                transitionState(DecoderState::INITIALIZED);
+                return AudioFrame();
             }
         }
         
@@ -580,21 +581,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
             return AudioFrame();
         }
         
-        // Step 6: Update MD5 checksum with decoded samples (before bit depth conversion)
-        // Requirements: 25.1, 25.2, 25.3, 25.4
-        if (m_md5_validation_enabled && m_has_streaminfo && 
-            !MD5Validator::isZeroMD5(m_streaminfo.md5_sum)) {
-            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Updating MD5 checksum");
-            
-            if (!m_md5_validator->update(const_cast<const int32_t* const*>(channel_ptrs),
-                                        header.block_size,
-                                        header.channels,
-                                        header.bit_depth)) {
-                Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] MD5 update failed (warning)");
-            }
-        }
-        
-        // Step 7: Reconstruct samples with bit depth conversion
+        // Step 6: Reconstruct samples with bit depth conversion
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Reconstructing samples");
         
         // Resize output buffer for interleaved samples
@@ -607,17 +594,29 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
                                                   header.channels,
                                                   header.bit_depth);
         
-        // Step 8: Validate frame footer CRC with error recovery (Requirement 11.4)
+        // Step 7: Validate frame footer CRC with error recovery (Requirement 11.4)
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Parsing frame footer");
         FrameFooter footer;
-        if (!m_frame_parser->parseFrameFooter(footer)) {
-            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Frame footer parsing failed");
-            transitionState(DecoderState::DECODER_ERROR);
-            return AudioFrame();
+        bool frame_crc_valid = false;
+        if (chunk.data.size() >= 2 && m_crc_validator) {
+            footer.crc16 = (static_cast<uint16_t>(chunk.data[chunk.data.size() - 2]) << 8) |
+                           static_cast<uint16_t>(chunk.data[chunk.data.size() - 1]);
+            uint16_t computed_crc = m_crc_validator->computeCRC16(
+                chunk.data.data(), chunk.data.size() - 2);
+            frame_crc_valid = (computed_crc == footer.crc16);
+
+            if (!frame_crc_valid) {
+                Debug::log("flac_codec",
+                          "[NativeFLACCodec::decode_unlocked] Frame CRC validation failed: computed=0x",
+                          std::hex, std::setw(4), std::setfill('0'), computed_crc,
+                          " expected=0x", std::setw(4), footer.crc16, std::dec);
+            }
+        } else {
+            Debug::log("flac_codec",
+                      "[NativeFLACCodec::decode_unlocked] Cannot validate frame CRC: chunk too small or CRC validator unavailable");
         }
-        
-        if (!m_frame_parser->validateFrame(header, footer)) {
-            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Frame CRC validation failed");
+
+        if (!frame_crc_valid) {
             
             // Attempt CRC error recovery
             if (!recoverFromCRCError(FLACError::CRC_MISMATCH)) {
@@ -625,10 +624,21 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
                 transitionState(DecoderState::INITIALIZED);
                 return AudioFrame();
             }
-            
-            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Using frame data despite CRC error (RFC allows)");
         }
-        
+
+        // Step 8: Update MD5 checksum only for accepted frames
+        if (m_md5_validation_enabled && m_has_streaminfo &&
+            !MD5Validator::isZeroMD5(m_streaminfo.md5_sum)) {
+            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Updating MD5 checksum");
+
+            if (!m_md5_validator->update(const_cast<const int32_t* const*>(channel_ptrs),
+                                        header.block_size,
+                                        header.channels,
+                                        header.bit_depth)) {
+                Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] MD5 update failed (warning)");
+            }
+        }
+
         // Step 9: Return AudioFrame with decoded samples
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Creating AudioFrame with ",
                   header.block_size, " sample frames");
@@ -714,7 +724,18 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
 
 AudioFrame FLACCodec::flush_unlocked() {
     Debug::log("flac_codec", "[NativeFLACCodec::flush_unlocked] Flushing remaining samples");
-    
+
+    if (m_md5_validation_enabled && m_has_streaminfo &&
+        !MD5Validator::isZeroMD5(m_streaminfo.md5_sum) && m_md5_validator) {
+        if (!checkMD5Validation_unlocked()) {
+            Debug::log("flac_codec", "[NativeFLACCodec::flush_unlocked] MD5 validation failed at end of stream");
+            m_last_error = FLACError::CORRUPTED_DATA;
+            m_stats.error_count++;
+            transitionState(DecoderState::DECODER_ERROR);
+            return AudioFrame();
+        }
+    }
+
     // FLAC frames are self-contained and complete, so there are no partial
     // samples to flush. Return empty frame.
     // If we had buffered partial frame data, we would process it here.
@@ -792,7 +813,7 @@ bool FLACCodec::canDecode_unlocked(const StreamInfo& stream_info) const {
     // This enables mid-stream synchronization without prior metadata
     
     // Validate parameters against RFC 9639 (allow 0 for streamable subset)
-    if (stream_info.sample_rate > 655350) {
+    if (stream_info.sample_rate > 1048575) {
         Debug::log("flac_codec", "[NativeFLACCodec::canDecode_unlocked] Sample rate out of range: ", stream_info.sample_rate);
         return false;
     }
@@ -802,8 +823,10 @@ bool FLACCodec::canDecode_unlocked(const StreamInfo& stream_info) const {
         return false;
     }
     
-    if (stream_info.bits_per_sample > 32) {
-        Debug::log("flac_codec", "[NativeFLACCodec::canDecode_unlocked] Bit depth out of range: ", stream_info.bits_per_sample);
+    if (stream_info.bits_per_sample != 0 &&
+        (stream_info.bits_per_sample < 4 || stream_info.bits_per_sample > 32)) {
+        Debug::log("flac_codec", "[NativeFLACCodec::canDecode_unlocked] Bit depth out of range: ",
+                  stream_info.bits_per_sample);
         return false;
     }
     
@@ -1232,7 +1255,7 @@ std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info) {
 }
 
 std::string getCodecInfo() {
-    return "Native FLAC Codec v1.0 - RFC 9639 compliant, pure C++ implementation without libFLAC dependency";
+    return "Native FLAC Codec v1.0 - RFC 9639 compliant, pure C++ implementation";
 }
 
 } // namespace FLACCodecSupport
@@ -1305,20 +1328,12 @@ bool FLACCodec::recoverFromInvalidHeader() {
     return false;
 }
 
-void FLACCodec::recoverFromSubframeError(int32_t* channel_buffer, uint32_t sample_count) {
-    Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSubframeError] Outputting silence for ",
-              sample_count, " samples");
-    
-    m_stats.error_count++;
+void FLACCodec::recoverFromSubframeError() {
+    Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSubframeError] Rejecting frame due to subframe decode failure");
 
-    // Fill channel buffer with silence (zeros) (Requirement 11.3)
-    std::memset(channel_buffer, 0, sample_count * sizeof(int32_t));
-    
+    m_stats.error_count++;
     m_last_error = FLACError::INVALID_SUBFRAME;
     m_consecutive_errors++;
-    
-    // Log warning but allow decoding to continue with other channels
-    Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSubframeError] Subframe error handled, continuing with silence");
 }
 
 bool FLACCodec::recoverFromCRCError(FLACError error_type) {
@@ -1328,29 +1343,9 @@ bool FLACCodec::recoverFromCRCError(FLACError error_type) {
     m_stats.crc_errors++;
     m_stats.error_count++;
 
-    // RFC 9639 allows using data even with CRC mismatch (Requirement 11.4)
-    // Log error but attempt to use decoded data
-    
     m_last_error = error_type;
     m_consecutive_errors++;
-    
-    // For header CRC failures, we should skip the frame
-    // For frame CRC failures, we can try to use the data
-    if (error_type == FLACError::CRC_MISMATCH) {
-        Debug::log("flac_codec", "[NativeFLACCodec::recoverFromCRCError] Frame CRC mismatch - attempting to use data anyway (RFC allows)");
-        
-        // Check if we've had too many consecutive CRC errors
-        if (m_consecutive_errors >= MAX_CONSECUTIVE_ERRORS / 2) {
-            Debug::log("flac_codec", "[NativeFLACCodec::recoverFromCRCError] Too many consecutive CRC errors (",
-                      m_consecutive_errors, "), discarding frame");
-            return false;
-        }
-        
-        // Use the data despite CRC error
-        return true;
-    }
-    
-    // For other CRC-related errors, discard the frame
+
     Debug::log("flac_codec", "[NativeFLACCodec::recoverFromCRCError] Discarding frame due to CRC error");
     return false;
 }

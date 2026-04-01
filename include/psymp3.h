@@ -278,13 +278,6 @@ typedef struct bio_st BIO;
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #endif
-#ifdef HAVE_FLAC
-#ifndef HAVE_NATIVE_FLAC
-#ifndef HAVE_NATIVE_FLAC
-#include <FLAC++/decoder.h>
-#endif
-#endif
-#endif
 #ifdef HAVE_MP3
 #include <mpg123.h>
 #endif
@@ -325,6 +318,7 @@ typedef struct bio_st BIO;
 // Local project headers (in dependency order where possible)
 #include "debug.h"
 #include "core/exceptions.h"
+#include "core/utility/G711.h"
 #include "core/rect.h"
 using PsyMP3::Core::BadFormatException;
 using PsyMP3::Core::InvalidMediaException;
@@ -355,6 +349,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 
 // Widget system - UI
 #include "widget/ui/ButtonWidget.h"
+#include "widget/ui/CheckboxWidget.h"
 #include "widget/ui/SpectrumAnalyzerWidget.h"
 #include "widget/ui/PlayerProgressBarWidget.h"
 #include "widget/ui/ProgressBarFrameWidget.h"
@@ -363,6 +358,8 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 #include "widget/ui/ApplicationWidget.h"
 #include "widget/ui/ToastWidget.h"
 #include "widget/ui/LyricsWidget.h"
+#include "widget/ui/TextInputWidget.h"
+#include "widget/ui/ScrollbarWidget.h"
 
 using PsyMP3::Widget::Foundation::Widget;
 using PsyMP3::Widget::Foundation::DrawableWidget;
@@ -375,7 +372,10 @@ using PsyMP3::Widget::Windowing::WindowEvent;
 using PsyMP3::Widget::Windowing::WindowEventData;
 using PsyMP3::Widget::Windowing::TransparentWindowWidget;
 using PsyMP3::Widget::UI::ButtonWidget;
+using PsyMP3::Widget::UI::CheckboxWidget;
 using PsyMP3::Widget::UI::ButtonSymbol;
+using PsyMP3::Widget::UI::ScrollbarOrientation;
+using PsyMP3::Widget::UI::ScrollbarWidget;
 using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;
 using PsyMP3::Widget::UI::PlayerProgressBarWidget;
 using PsyMP3::Widget::UI::ProgressBarFrameWidget;
@@ -385,6 +385,7 @@ using PsyMP3::Widget::UI::MainUIWidget;
 using PsyMP3::Widget::UI::ApplicationWidget;
 using PsyMP3::Widget::UI::ToastWidget;
 using PsyMP3::Widget::UI::LyricsWidget;
+using PsyMP3::Widget::UI::TextInputWidget;
 
 #include "widget/ui/Label.h"
 
@@ -476,6 +477,10 @@ using PsyMP3::Codec::PCM::MuLawCodec;
 #include "codecs/pcm/ALawCodec.h"
 using PsyMP3::Codec::PCM::ALawCodec;
 #endif
+#ifdef HAVE_G722
+#include "codecs/pcm/G722Codec.h"
+using PsyMP3::Codec::PCM::G722Codec;
+#endif
 #include "demuxer/DemuxedStream.h"
 
 // Demuxer subsystem - Raw Audio
@@ -541,8 +546,6 @@ using PsyMP3::Codec::Opus::OpusComments;
 #include "demuxer/flac/FLACDemuxer.h"
 using PsyMP3::Demuxer::FLAC::FLACDemuxer;
 using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
-#ifdef HAVE_NATIVE_FLAC
-// Native FLAC codec
 #include "codecs/flac/FLACError.h"
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/CRCValidator.h"
@@ -560,12 +563,6 @@ using PsyMP3::Codec::FLAC::FLACCodec;
 using PsyMP3::Codec::FLAC::FLACError;
 using PsyMP3::Codec::FLAC::FLACException;
 #include "codecs/flac/FLACPerformanceBenchmark.h"
-#else
-// libFLAC wrapper codec
-#include "codecs/flac.h"
-#include "codecs/FLACCodec.h"
-#include "codecs/flac/FLACPerformanceBenchmark.h"
-#endif
 #endif
 #include "demuxer/ChainedStream.h"
 

@@ -8,6 +8,7 @@ AC_PROG_CPP
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_RANLIB
+AC_SYS_LARGEFILE
 AC_HEADER_STDBOOL
 AC_FUNC_MALLOC
 AX_CXX_COMPILE_STDCXX_17
@@ -79,6 +80,10 @@ AC_ARG_ENABLE([aac],
   [AS_HELP_STRING([--enable-aac], [Enable AAC support via faad2 @<:@default=yes@:>@])],
   [enable_aac=$enableval], [enable_aac=yes])
 
+AC_ARG_ENABLE([g722],
+  [AS_HELP_STRING([--enable-g722], [Enable G.722 support via spandsp @<:@default=yes@:>@])],
+  [enable_g722=$enableval], [enable_g722=yes])
+
 # Check for optional codec libraries
 have_flac=no
 have_native_flac=no
@@ -86,6 +91,7 @@ have_mp3=no
 have_vorbis=no
 have_opus=no
 have_aac=no
+have_g722=no
 
 # Native FLAC decoder - no external library dependency
 if test "x$enable_flac" = "xyes"; then
@@ -143,6 +149,17 @@ if test "x$enable_aac" = "xyes"; then
   fi
 else
   have_aac=no
+fi
+
+if test "x$enable_g722" = "xyes"; then
+  PKG_CHECK_MODULES([G722], [spandsp], [have_g722=yes], [have_g722=no])
+  if test "x$have_g722" = "xyes"; then
+    AC_DEFINE([HAVE_G722], [1], [Define to 1 if G.722 support is enabled])
+  else
+    AC_MSG_WARN([G.722 support disabled: spandsp not found])
+  fi
+else
+  have_g722=no
 fi
 
 # Check for Speex (Ogg container required)
@@ -224,11 +241,11 @@ fi
 
 AM_CONDITIONAL([HAVE_G711], [test "x$have_g711" = "xyes"])
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
-AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
+AM_CONDITIONAL([HAVE_G722], [test "x$have_g722" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
 AM_CONDITIONAL([HAVE_SPEEX], [test "x$have_speex" = "xyes"])
@@ -465,14 +482,13 @@ echo ""
 echo "Audio Codec Support:"
 echo "  MP3 (libmpg123):   $have_mp3"
 echo "  FLAC:              $have_flac"
-if test "x$have_native_flac" = "xyes"; then
-  echo "    Implementation:  Native (no libFLAC)"
-else
-  echo "    Implementation:  libFLAC wrapper"
+if test "x$have_flac" = "xyes"; then
+  echo "    Implementation:  Native"
 fi
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
 echo "  AAC (faad2):       $have_aac"
+echo "  G.722 (spandsp):   $have_g722"
 echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"
@@ -499,3 +515,4 @@ echo "=========================================="
 echo ""
 
 AC_OUTPUT
+AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])

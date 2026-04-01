@@ -32,6 +32,84 @@ namespace Foundation {
 // Static mouse capture widget
 Widget* Widget::s_mouse_captured_widget = nullptr;
 
+namespace {
+
+class ClipRectGuard {
+public:
+    ClipRectGuard(Surface& target, const Rect& clip_rect)
+        : m_surface(target.getHandle()), m_active(m_surface != nullptr)
+    {
+        if (!m_active) {
+            return;
+        }
+
+        SDL_GetClipRect(m_surface, &m_previous_clip);
+
+        Rect previous_rect(m_previous_clip.x, m_previous_clip.y,
+                           static_cast<uint16_t>(m_previous_clip.w),
+                           static_cast<uint16_t>(m_previous_clip.h));
+        Rect next_rect = previous_rect.intersection(clip_rect);
+
+        SDL_Rect sdl_clip = {
+            next_rect.x(),
+            next_rect.y(),
+            next_rect.width(),
+            next_rect.height()
+        };
+        SDL_SetClipRect(m_surface, &sdl_clip);
+    }
+
+    ~ClipRectGuard()
+    {
+        if (m_active) {
+            SDL_SetClipRect(m_surface, &m_previous_clip);
+        }
+    }
+
+private:
+    SDL_Surface* m_surface;
+    SDL_Rect m_previous_clip{};
+    bool m_active;
+};
+
+Rect localViewport(const Widget& widget)
+{
+    const Rect& pos = widget.getPos();
+    return Rect(0, 0, pos.width(), pos.height());
+}
+
+Rect visibleChildRect(const Widget& parent, const Widget& child)
+{
+    return child.getPos().intersection(localViewport(parent));
+}
+
+bool translateToDescendant(const Widget& ancestor, const Widget& descendant,
+                           int ancestor_x, int ancestor_y,
+                           int& descendant_x, int& descendant_y)
+{
+    descendant_x = ancestor_x;
+    descendant_y = ancestor_y;
+
+    const Widget* current = &descendant;
+    while (current && current != &ancestor) {
+        const Rect& pos = current->getPos();
+        descendant_x -= pos.x();
+        descendant_y -= pos.y();
+        current = current->getParent();
+    }
+
+    return current == &ancestor;
+}
+
+bool pointHitsRect(const Rect& rect, int x, int y)
+{
+    return rect.isValid() &&
+           x >= rect.x() && x < rect.x() + rect.width() &&
+           y >= rect.y() && y < rect.y() + rect.height();
+}
+
+} // namespace
+
 // Helper function to get a clean widget type name for debugging
 static std::string getWidgetTypeName(const Widget* widget) {
     const char* mangled_name = typeid(*widget).name();
@@ -110,6 +188,7 @@ void Widget::BlitTo(Surface& target)
     }
 
     // Then, recursively blit all children, passing this widget's position as the parent offset.
+    ClipRectGuard child_clip(target, m_pos);
     for (const auto& child : m_children) {
         std::string child_type = getWidgetTypeName(child.get());
         Debug::log("widget", "  Recursively blitting child [", child_type, "]");
@@ -135,6 +214,7 @@ void Widget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
     }
 
     // Recursively blit this child's children.
+    ClipRectGuard child_clip(target, absolute_pos);
     for (const auto& child : m_children) {
         child->recursiveBlitTo(target, absolute_pos);
     }
@@ -184,11 +264,11 @@ bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, 
             continue;
         }
         
-        Rect child_pos = child->getPos();
+        Rect child_visible_pos = visibleChildRect(*this, *child);
+        const Rect& child_pos = child->getPos();
         
         // Check if mouse is within child bounds
-        if (relative_x >= child_pos.x() && relative_x < child_pos.x() + child_pos.width() &&
-            relative_y >= child_pos.y() && relative_y < child_pos.y() + child_pos.height()) {
+        if (pointHitsRect(child_visible_pos, relative_x, relative_y)) {
             
             // Calculate relative coordinates for child
             int child_relative_x = relative_x - child_pos.x();
@@ -215,15 +295,13 @@ bool Widget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x
             return true; // Will be handled by the specific widget's override
         }
         
-        // Check if captured widget is one of our children
-        for (const auto& child : m_children) {
-            if (child.get() == s_mouse_captured_widget) {
-                // Calculate relative coordinates for captured child
-                Rect child_pos = child->getPos();
-                int child_relative_x = relative_x - child_pos.x();
-                int child_relative_y = relative_y - child_pos.y();
-                return child->handleMouseMotion(event, child_relative_x, child_relative_y);
-            }
+        int captured_relative_x = 0;
+        int captured_relative_y = 0;
+        if (translateToDescendant(*this, *s_mouse_captured_widget,
+                                  relative_x, relative_y,
+                                  captured_relative_x, captured_relative_y)) {
+            return s_mouse_captured_widget->handleMouseMotion(
+                event, captured_relative_x, captured_relative_y);
         }
         
         // Not our captured widget, don't handle
@@ -239,11 +317,11 @@ bool Widget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x
             continue;
         }
         
-        Rect child_pos = child->getPos();
+        Rect child_visible_pos = visibleChildRect(*this, *child);
+        const Rect& child_pos = child->getPos();
         
         // Check if mouse is within child bounds
-        if (relative_x >= child_pos.x() && relative_x < child_pos.x() + child_pos.width() &&
-            relative_y >= child_pos.y() && relative_y < child_pos.y() + child_pos.height()) {
+        if (pointHitsRect(child_visible_pos, relative_x, relative_y)) {
             
             // Calculate relative coordinates for child
             int child_relative_x = relative_x - child_pos.x();
@@ -270,15 +348,13 @@ bool Widget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, in
             return true; // Will be handled by the specific widget's override
         }
         
-        // Check if captured widget is one of our children
-        for (const auto& child : m_children) {
-            if (child.get() == s_mouse_captured_widget) {
-                // Calculate relative coordinates for captured child
-                Rect child_pos = child->getPos();
-                int child_relative_x = relative_x - child_pos.x();
-                int child_relative_y = relative_y - child_pos.y();
-                return child->handleMouseUp(event, child_relative_x, child_relative_y);
-            }
+        int captured_relative_x = 0;
+        int captured_relative_y = 0;
+        if (translateToDescendant(*this, *s_mouse_captured_widget,
+                                  relative_x, relative_y,
+                                  captured_relative_x, captured_relative_y)) {
+            return s_mouse_captured_widget->handleMouseUp(
+                event, captured_relative_x, captured_relative_y);
         }
         
         // Not our captured widget, don't handle
@@ -294,11 +370,11 @@ bool Widget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, in
             continue;
         }
         
-        Rect child_pos = child->getPos();
+        Rect child_visible_pos = visibleChildRect(*this, *child);
+        const Rect& child_pos = child->getPos();
         
         // Check if mouse is within child bounds
-        if (relative_x >= child_pos.x() && relative_x < child_pos.x() + child_pos.width() &&
-            relative_y >= child_pos.y() && relative_y < child_pos.y() + child_pos.height()) {
+        if (pointHitsRect(child_visible_pos, relative_x, relative_y)) {
             
             // Calculate relative coordinates for child
             int child_relative_x = relative_x - child_pos.x();

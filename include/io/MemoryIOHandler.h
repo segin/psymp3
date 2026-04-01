@@ -59,11 +59,11 @@ public:
 
     // IOHandler interface
     size_t read(void* buffer, size_t size, size_t count) override;
-    int seek(off_t offset, int whence) override;
-    off_t tell() override;
+    int seek(filesize_t offset, int whence) override;
+    filesize_t tell() override;
     int close() override;
     bool eof() override;
-    off_t getFileSize() override;
+    filesize_t getFileSize() override;
 
     // Extended interface for dynamic feeding
 

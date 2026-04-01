@@ -1,5 +1,5 @@
 /*
- * NativeFLACCodec.h - Native FLAC decoder without libFLAC dependency
+ * NativeFLACCodec.h - Native FLAC decoder
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -49,12 +49,11 @@ struct FLAC__Frame {
 };
 
 /**
- * @brief Native FLAC decoder implementation without libFLAC dependency
+ * @brief Native FLAC decoder implementation
  * 
  * This codec implements a complete FLAC decoder following RFC 9639 specification
- * without requiring the external libFLAC library. It provides the same FLACCodec
- * interface as the libFLAC wrapper, allowing build-time selection between
- * implementations via configure flags.
+ * without requiring an external FLAC decoder library. It provides the FLACCodec
+ * interface used by the rest of PsyMP3.
  * 
  * ARCHITECTURE OVERVIEW:
  * =====================
@@ -78,7 +77,7 @@ struct FLAC__Frame {
  * - CRC polynomials per specification
  * - Channel assignments per Section 9.1
  * - Bit depth range 4-32 bits
- * - Sample rate range 1-655350 Hz
+ * - Sample rate range 1-1048575 Hz
  * - Channel count 1-8
  * 
  * PERFORMANCE CHARACTERISTICS:
@@ -345,24 +344,21 @@ private:
     bool recoverFromInvalidHeader();
     
     /**
-     * @brief Handle subframe decoding error by outputting silence
+     * @brief Handle subframe decoding error by rejecting the frame
      * 
-     * Fills affected channel buffer with silence (zeros) when subframe
-     * decoding fails. Allows decoding to continue with other channels.
-     * 
-     * @param channel_buffer Buffer to fill with silence
-     * @param sample_count Number of samples to fill
+     * Records the error state for a subframe decode failure. The current
+     * frame is discarded instead of fabricating replacement PCM, preserving
+     * lossless decoder semantics.
      * @thread_safety Assumes locks already held by caller
      * 
      * Requirements: 11.3
      */
-    void recoverFromSubframeError(int32_t* channel_buffer, uint32_t sample_count);
+    void recoverFromSubframeError();
     
     /**
      * @brief Handle CRC validation failure
      * 
-     * Logs error and decides whether to use decoded data or discard frame.
-     * RFC 9639 allows using data even with CRC mismatch.
+     * Logs the error and rejects the affected frame.
      * 
      * @param error_type Type of CRC error (header or frame)
      * @return true to use decoded data, false to discard frame

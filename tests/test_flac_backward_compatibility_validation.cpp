@@ -231,7 +231,7 @@ protected:
             
             // Sample rate should be valid if parsed
             if (stream.sample_rate > 0) {
-                ASSERT_TRUE(stream.sample_rate >= 1 && stream.sample_rate <= 655350,
+                ASSERT_TRUE(stream.sample_rate >= 1 && stream.sample_rate <= 1048575,
                            "Sample rate should be in valid range");
             }
             

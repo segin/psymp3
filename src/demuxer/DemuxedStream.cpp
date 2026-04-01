@@ -286,21 +286,23 @@ AudioFrame DemuxedStream::getNextFrame() {
         
         AudioFrame frame = m_codec->decode(chunk);
         if (!frame.samples.empty()) {
-            // Correct timestamp calculation for Ogg
-            // For Ogg Vorbis, granule position is only valid on the last packet of each page
-            // Most packets have granule -1, so we need to track samples incrementally
-            if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
-                // Valid granule position - this is the sample count at END of this packet
-                // So timestamp at start of packet = granule - samples_in_this_frame
-                frame.timestamp_samples = chunk.granule_position - frame.getSampleFrameCount();
-                // Update our tracking to match the authoritative granule position
-                m_samples_consumed = chunk.granule_position;
+            if (m_codec->getCodecName() == "opus") {
+                if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
+                    m_samples_consumed = frame.timestamp_samples + frame.getSampleFrameCount();
+                } else {
+                    frame.timestamp_samples = m_samples_consumed;
+                    m_samples_consumed += frame.getSampleFrameCount();
+                }
             } else {
-                // No valid granule - use incremental tracking
-                // timestamp_samples is where this frame STARTS
-                frame.timestamp_samples = m_samples_consumed;
-                // Update consumed count by adding samples from this frame
-                m_samples_consumed += frame.getSampleFrameCount();
+                // Correct timestamp calculation for non-Opus Ogg codecs.
+                // For Ogg Vorbis, granule position is only valid on the last packet of each page.
+                if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
+                    frame.timestamp_samples = chunk.granule_position - frame.getSampleFrameCount();
+                    m_samples_consumed = chunk.granule_position;
+                } else {
+                    frame.timestamp_samples = m_samples_consumed;
+                    m_samples_consumed += frame.getSampleFrameCount();
+                }
             }
             frame.timestamp_ms = (frame.timestamp_samples * 1000) / m_rate;
             
@@ -357,7 +359,7 @@ void DemuxedStream::fillChunkBuffer() {
         
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
         
-        if (chunk.data.empty()) {
+        if (!chunk.isValid()) {
             Debug::log("demux", "DemuxedStream: Got empty chunk, stopping chunk buffering");
             break; // No more data
         }
@@ -454,10 +456,42 @@ bool DemuxedStream::eof() {
 }
 
 unsigned int DemuxedStream::getLength() {
+    if (m_length) {
+        return m_length;
+    }
     if (m_demuxer) {
-        return static_cast<unsigned int>(m_demuxer->getDuration());
+        m_length = static_cast<unsigned int>(m_demuxer->getDuration());
+        return m_length;
     }
     return 0;
+}
+
+unsigned long long DemuxedStream::getSLength() {
+    if (m_slength) {
+        return m_slength;
+    }
+
+    if (m_rate == 0) {
+        getRate();
+    }
+
+    if (m_length != 0 && m_rate != 0) {
+        m_slength = (static_cast<unsigned long long>(m_length) * m_rate) / 1000ULL;
+    }
+
+    return m_slength;
+}
+
+unsigned int DemuxedStream::getChannels() {
+    return m_channels;
+}
+
+unsigned int DemuxedStream::getRate() {
+    return m_rate;
+}
+
+unsigned int DemuxedStream::getBitrate() {
+    return m_bitrate;
 }
 
 std::vector<StreamInfo> DemuxedStream::getAvailableStreams() const {
@@ -592,9 +626,8 @@ TagLib::String DemuxedStream::getArtist() {
     if (!stream_info.artist.empty()) {
         return TagLib::String(stream_info.artist, TagLib::String::UTF8);
     }
-    
-    // Fall back to base class implementation (TagLib)
-    return Stream::getArtist();
+
+    return TagLib::String();
 }
 
 TagLib::String DemuxedStream::getTitle() {
@@ -616,9 +649,8 @@ TagLib::String DemuxedStream::getTitle() {
     if (!stream_info.title.empty()) {
         return TagLib::String(stream_info.title, TagLib::String::UTF8);
     }
-    
-    // Fall back to base class implementation (TagLib)
-    return Stream::getTitle();
+
+    return TagLib::String();
 }
 
 TagLib::String DemuxedStream::getAlbum() {
@@ -640,9 +672,8 @@ TagLib::String DemuxedStream::getAlbum() {
     if (!stream_info.album.empty()) {
         return TagLib::String(stream_info.album, TagLib::String::UTF8);
     }
-    
-    // Fall back to base class implementation (TagLib)
-    return Stream::getAlbum();
+
+    return TagLib::String();
 }
 
 } // namespace Demuxer

@@ -34,6 +34,7 @@
  * - PCM codec (8-bit, 16-bit, 24-bit, 32-bit integer and float)
  * - A-law codec (ITU-T G.711)
  * - μ-law codec (ITU-T G.711)
+ * - G.722 codec (wideband ADPCM, when spandsp is available)
  * 
  * Conditionally registered (based on #ifdef):
  * - Vorbis codec and passthrough (HAVE_VORBIS)
@@ -43,7 +44,6 @@
  * 
  * Legacy Stream architecture (not registered with CodecRegistry):
  * - MP3 codec (HAVE_MP3) - uses Libmpg123 class
- * - FLAC codec (HAVE_FLAC) - uses Flac class
  * 
  * This function should be called once at application startup before
  * any codec creation is attempted.
@@ -61,12 +61,10 @@ void registerAllCodecs();
  * - AIFF demuxer (for AIFF containers) - uses ChunkDemuxer  
  * - MP4/ISO demuxer (for MP4, M4A, MOV containers) - uses ISODemuxer
  * - Raw audio demuxer (for PCM, A-law, μ-law files) - uses RawAudioDemuxer
+ * - Raw audio demuxer also recognizes G.722 raw bitstreams
  * 
  * Conditionally registered (based on #ifdef):
  * - Ogg demuxer (HAVE_VORBIS || HAVE_OPUS || (HAVE_FLAC && HAVE_OGG)) - uses OggDemuxer
- * 
- * Legacy Stream architecture (no demuxer registration needed):
- * - FLAC (HAVE_FLAC) - uses Flac class directly
  * 
  * The Ogg demuxer is only registered if at least one Ogg-compatible
  * codec is available. This ensures proper FLAC codec and demuxer coupling
@@ -100,6 +98,10 @@ void registerMuLawCodec();
  * - "g711_alaw" - ITU-T G.711 A-law identifier
  */
 void registerALawCodec();
+#endif
+
+#ifdef HAVE_G722
+void registerG722Codec();
 #endif
 
 #endif // CODECREGISTRATION_H

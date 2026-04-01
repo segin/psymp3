@@ -690,6 +690,18 @@ private:
      */
     bool parseFramesToSample_unlocked(uint64_t target_sample);
     
+    /**
+     * @brief Validate a Vorbis comment field name per RFC 9639 Section 8.6
+     *
+     * Exposed as a public static method for testing purposes.
+     *
+     * @param name The field name to validate
+     * @return true if the field name is valid, false otherwise
+     */
+public:
+    static bool isValidVorbisFieldName(const std::string& name);
+private:
+
     // ========================================================================
     // CRC-16 Validation (RFC 9639 Section 9.3)
     // ========================================================================

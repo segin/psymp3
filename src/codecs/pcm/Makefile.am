@@ -29,6 +29,10 @@ if HAVE_OGG
 AM_CPPFLAGS += $(OGG_CFLAGS)
 endif
 
+if HAVE_G722
+AM_CPPFLAGS += $(G722_CFLAGS)
+endif
+
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
@@ -39,3 +43,7 @@ libpsymp3_codec_pcm_a_SOURCES = \
 	PCMCodecs.cpp \
 	ALawCodec.cpp \
 	MuLawCodec.cpp
+
+if HAVE_G722
+libpsymp3_codec_pcm_a_SOURCES += G722Codec.cpp
+endif

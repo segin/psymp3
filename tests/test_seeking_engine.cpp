@@ -65,9 +65,40 @@ void test_binary_search_time_to_sample() {
     ASSERT_EQUALS(4ULL, indexLast, "10.0s should map to last sample");
 }
 
+void test_seek_to_timestamp_uses_track_timescale_for_aac() {
+    SeekingEngine engine;
+    SampleTableInfo tables;
+    tables.chunkOffsets = {44};
+    tables.sampleToChunkEntries.push_back({0, 45, 1});
+    tables.sampleSizes.assign(45, 128);
+
+    uint64_t currentTime = 0;
+    for (int i = 0; i < 45; ++i) {
+        tables.sampleTimes.push_back(currentTime);
+        currentTime += 1024;
+    }
+
+    SampleTableManager manager;
+    ASSERT_TRUE(manager.BuildSampleTables(tables, 44100),
+                "AAC sample tables should build with the track timescale");
+
+    AudioTrackInfo track = {};
+    track.trackId = 1;
+    track.codecType = "aac";
+    track.sampleRate = 44100;
+    track.timescale = 44100;
+    track.currentSampleIndex = 0;
+
+    ASSERT_TRUE(engine.SeekToTimestamp(1.0, track, manager),
+                "Seeking to 1.0 seconds in AAC tables should succeed");
+    ASSERT_EQUALS(43ULL, track.currentSampleIndex,
+                  "AAC seek should land on the access unit covering 1.0 seconds");
+}
+
 int main() {
     TestSuite suite("SeekingEngine Tests");
     suite.addTest("BinarySearchTimeToSample", test_binary_search_time_to_sample);
+    suite.addTest("AACTrackTimescaleSeek", test_seek_to_timestamp_uses_track_timescale_for_aac);
     auto results = suite.runAll();
     suite.printResults(results);
     return (suite.getFailureCount(results) == 0) ? 0 : 1;

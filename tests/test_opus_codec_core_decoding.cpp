@@ -148,6 +148,103 @@ std::vector<uint8_t> createOpusAudioPacket(uint8_t channels = 2, bool is_silence
     return packet;
 }
 
+bool initializeOpusCodecForAudio(OpusCodec& codec,
+                                 uint8_t channels = 2,
+                                 uint16_t pre_skip = 312,
+                                 int16_t output_gain = 0)
+{
+    if (!codec.initialize()) {
+        return false;
+    }
+
+    MediaChunk head_chunk;
+    head_chunk.data = createOpusHeadPacket(channels, pre_skip, output_gain, 0);
+    MediaChunk tags_chunk;
+    tags_chunk.data = createOpusTagsPacket();
+
+    AudioFrame head_frame = codec.decode(head_chunk);
+    AudioFrame tags_frame = codec.decode(tags_chunk);
+    return head_frame.samples.empty() && tags_frame.samples.empty();
+}
+
+AudioFrame decodeFirstNonEmptyFrame(OpusCodec& codec,
+                                    const MediaChunk& chunk,
+                                    size_t max_attempts = 4)
+{
+    for (size_t attempt = 0; attempt < max_attempts; ++attempt) {
+        AudioFrame frame = codec.decode(chunk);
+        if (!frame.samples.empty()) {
+            return frame;
+        }
+    }
+
+    return AudioFrame{};
+}
+
+int32_t peakAbsoluteSample(const AudioFrame& frame)
+{
+    int32_t peak = 0;
+    for (int16_t sample : frame.samples) {
+        int32_t magnitude = std::abs(static_cast<int32_t>(sample));
+        if (magnitude > peak) {
+            peak = magnitude;
+        }
+    }
+    return peak;
+}
+
+int64_t meanAbsoluteSample(const AudioFrame& frame)
+{
+    if (frame.samples.empty()) {
+        return 0;
+    }
+
+    int64_t total = 0;
+    for (int16_t sample : frame.samples) {
+        total += std::abs(static_cast<int32_t>(sample));
+    }
+
+    return total / static_cast<int64_t>(frame.samples.size());
+}
+
+std::vector<uint8_t> createLargeEncodedOpusPacket(size_t minimum_size = 1276)
+{
+    int opus_error = OPUS_OK;
+    OpusEncoder* encoder = opus_encoder_create(48000, 2, OPUS_APPLICATION_AUDIO, &opus_error);
+    if (!encoder || opus_error != OPUS_OK) {
+        if (encoder) {
+            opus_encoder_destroy(encoder);
+        }
+        return {};
+    }
+
+    opus_encoder_ctl(encoder, OPUS_SET_BITRATE(OPUS_BITRATE_MAX));
+    opus_encoder_ctl(encoder, OPUS_SET_COMPLEXITY(10));
+    opus_encoder_ctl(encoder, OPUS_SET_VBR(0));
+
+    const int frame_size = 5760; // 120 ms at 48 kHz
+    std::vector<opus_int16> pcm(static_cast<size_t>(frame_size) * 2);
+    for (size_t i = 0; i < pcm.size(); ++i) {
+        pcm[i] = static_cast<opus_int16>(((i * 1103u) + 97u) % 65536u - 32768);
+    }
+
+    std::vector<uint8_t> packet(8192);
+    int encoded = opus_encode(encoder, pcm.data(), frame_size, packet.data(),
+                              static_cast<opus_int32>(packet.size()));
+    opus_encoder_destroy(encoder);
+
+    if (encoded <= 0) {
+        return {};
+    }
+
+    packet.resize(static_cast<size_t>(encoded));
+    if (packet.size() < minimum_size) {
+        return {};
+    }
+
+    return packet;
+}
+
 // ========== Test Cases ==========
 
 /**
@@ -413,15 +510,8 @@ protected:
         
         // First few frames might be affected by pre-skip
         AudioFrame first_frame = codec.decode(audio_chunk);
-        
-        if (!first_frame.samples.empty()) {
-            ASSERT_EQUALS(2u, first_frame.channels, "First frame should have correct channels");
-            ASSERT_EQUALS(48000u, first_frame.sample_rate, "First frame should have correct sample rate");
-            
-            // Pre-skip should reduce the number of samples in early frames
-            // The exact behavior depends on the implementation, but we should get some samples
-            ASSERT_TRUE(first_frame.samples.size() > 0, "First frame should have some samples after pre-skip");
-        }
+        ASSERT_TRUE(first_frame.samples.empty(),
+                    "First frame should be fully consumed when pre-skip exceeds one 20ms packet");
         
         // Subsequent frames should have normal sample counts
         AudioFrame second_frame = codec.decode(audio_chunk);
@@ -429,7 +519,74 @@ protected:
         if (!second_frame.samples.empty()) {
             ASSERT_EQUALS(2u, second_frame.channels, "Second frame should have correct channels");
             ASSERT_EQUALS(48000u, second_frame.sample_rate, "Second frame should have correct sample rate");
+            ASSERT_TRUE(second_frame.samples.size() < 960u * 2u,
+                        "Second frame should still be shortened by the remaining pre-skip");
         }
+
+        AudioFrame third_frame = codec.decode(audio_chunk);
+        if (!third_frame.samples.empty()) {
+            ASSERT_EQUALS(2u, third_frame.channels, "Third frame should have correct channels");
+            ASSERT_EQUALS(48000u, third_frame.sample_rate, "Third frame should have correct sample rate");
+            ASSERT_TRUE(third_frame.samples.size() >= second_frame.samples.size(),
+                        "Third frame should not be shorter than the partially skipped second frame");
+        }
+    }
+};
+
+class TestOpusGranuleTimestampProcessing : public TestCase {
+public:
+    TestOpusGranuleTimestampProcessing() : TestCase("Opus Granule Timestamp Processing") {}
+
+protected:
+    void runTest() override {
+        StreamInfo info = createOpusStreamInfo(2);
+        OpusCodec codec(info);
+        OpusCodec baseline_codec(info);
+
+        ASSERT_TRUE(initializeOpusCodecForAudio(baseline_codec, 2, 0, 0),
+                    "Baseline codec should initialize with zero pre-skip");
+
+        MediaChunk baseline_chunk;
+        baseline_chunk.data = createOpusAudioPacket(2, true);
+        baseline_chunk.granule_position = 480;
+
+        AudioFrame baseline_frame = decodeFirstNonEmptyFrame(baseline_codec, baseline_chunk);
+        ASSERT_FALSE(baseline_frame.samples.empty(), "Baseline frame should decode");
+
+        const uint64_t packet_sample_frames = baseline_frame.getSampleFrameCount();
+        ASSERT_TRUE(packet_sample_frames > 312u,
+                    "Test packet must be longer than the configured Opus pre-skip");
+
+        ASSERT_TRUE(initializeOpusCodecForAudio(codec, 2, 312, 0),
+                    "Codec should initialize and accept Opus headers");
+
+        MediaChunk first_audio_chunk;
+        first_audio_chunk.data = createOpusAudioPacket(2, true);
+        first_audio_chunk.granule_position = packet_sample_frames;
+        first_audio_chunk.timestamp_samples = 0;
+
+        AudioFrame first_frame = decodeFirstNonEmptyFrame(codec, first_audio_chunk);
+        ASSERT_FALSE(first_frame.samples.empty(), "First timed frame should decode");
+        ASSERT_EQUALS(packet_sample_frames - 312u, first_frame.getSampleFrameCount(),
+                      "First frame should emit one packet minus the configured pre-skip");
+        ASSERT_EQUALS(0u, first_frame.timestamp_samples,
+                      "First audible Opus frame should start at sample 0 after pre-skip");
+        ASSERT_EQUALS(0u, first_frame.timestamp_ms,
+                      "First audible Opus frame should start at 0ms after pre-skip");
+
+        MediaChunk second_audio_chunk;
+        second_audio_chunk.data = createOpusAudioPacket(2, true);
+        second_audio_chunk.granule_position = 2 * packet_sample_frames;
+        second_audio_chunk.timestamp_samples = first_frame.getSampleFrameCount();
+
+        AudioFrame second_frame = decodeFirstNonEmptyFrame(codec, second_audio_chunk);
+        ASSERT_FALSE(second_frame.samples.empty(), "Second timed frame should decode");
+        ASSERT_EQUALS(packet_sample_frames, second_frame.getSampleFrameCount(),
+                      "Second frame should no longer be shortened once pre-skip is exhausted");
+        ASSERT_EQUALS(first_frame.getSampleFrameCount(), second_frame.timestamp_samples,
+                      "Second Opus frame should preserve the caller-provided sample timestamp");
+        ASSERT_EQUALS((first_frame.getSampleFrameCount() * 1000u) / 48000u, second_frame.timestamp_ms,
+                      "Second Opus frame should report the audible offset, not decoded sample count");
     }
 };
 
@@ -443,99 +600,141 @@ public:
 protected:
     void runTest() override {
         StreamInfo info = createOpusStreamInfo(2);
-        
-        // Test with zero gain (no processing)
-        {
-            OpusCodec zero_gain_codec(info);
-            ASSERT_TRUE(zero_gain_codec.initialize(), "Zero gain codec initialization should succeed");
-            
-            auto head_packet = createOpusHeadPacket(2, 312, 0, 0); // Zero gain
-            auto tags_packet = createOpusTagsPacket();
-            
-            MediaChunk head_chunk;
-            head_chunk.data = head_packet;
-            MediaChunk tags_chunk;
-            tags_chunk.data = tags_packet;
-            
-            AudioFrame head_frame = zero_gain_codec.decode(head_chunk);
-            AudioFrame tags_frame = zero_gain_codec.decode(tags_chunk);
-            
-            auto audio_packet = createOpusAudioPacket(2, true);
-            MediaChunk audio_chunk;
-            audio_chunk.data = audio_packet;
-            
-            AudioFrame audio_frame = zero_gain_codec.decode(audio_chunk);
-            
-            if (!audio_frame.samples.empty()) {
-                ASSERT_EQUALS(2u, audio_frame.channels, "Zero gain frame should have correct channels");
-                ASSERT_EQUALS(48000u, audio_frame.sample_rate, "Zero gain frame should have correct sample rate");
-            }
-        }
-        
-        // Test with positive gain
-        {
-            OpusCodec pos_gain_codec(info);
-            ASSERT_TRUE(pos_gain_codec.initialize(), "Positive gain codec initialization should succeed");
-            
-            int16_t positive_gain = 256; // +1dB in Q7.8 format
-            auto head_packet = createOpusHeadPacket(2, 312, positive_gain, 0);
-            auto tags_packet = createOpusTagsPacket();
-            
-            MediaChunk head_chunk;
-            head_chunk.data = head_packet;
-            MediaChunk tags_chunk;
-            tags_chunk.data = tags_packet;
-            
-            AudioFrame head_frame = pos_gain_codec.decode(head_chunk);
-            AudioFrame tags_frame = pos_gain_codec.decode(tags_chunk);
-            
-            auto audio_packet = createOpusAudioPacket(2, false); // Non-silence for gain testing
-            MediaChunk audio_chunk;
-            audio_chunk.data = audio_packet;
-            
-            AudioFrame audio_frame = pos_gain_codec.decode(audio_chunk);
-            
-            if (!audio_frame.samples.empty()) {
-                ASSERT_EQUALS(2u, audio_frame.channels, "Positive gain frame should have correct channels");
-                ASSERT_EQUALS(48000u, audio_frame.sample_rate, "Positive gain frame should have correct sample rate");
-                
-                // With positive gain, samples should be amplified (but we can't easily test exact values)
-                // Just verify the frame is valid
-                ASSERT_TRUE(audio_frame.samples.size() > 0, "Positive gain frame should have samples");
-            }
-        }
-        
-        // Test with negative gain (attenuation)
-        {
-            OpusCodec neg_gain_codec(info);
-            ASSERT_TRUE(neg_gain_codec.initialize(), "Negative gain codec initialization should succeed");
-            
-            int16_t negative_gain = -256; // -1dB in Q7.8 format
-            auto head_packet = createOpusHeadPacket(2, 312, negative_gain, 0);
-            auto tags_packet = createOpusTagsPacket();
-            
-            MediaChunk head_chunk;
-            head_chunk.data = head_packet;
-            MediaChunk tags_chunk;
-            tags_chunk.data = tags_packet;
-            
-            AudioFrame head_frame = neg_gain_codec.decode(head_chunk);
-            AudioFrame tags_frame = neg_gain_codec.decode(tags_chunk);
-            
-            auto audio_packet = createOpusAudioPacket(2, false); // Non-silence for gain testing
-            MediaChunk audio_chunk;
-            audio_chunk.data = audio_packet;
-            
-            AudioFrame audio_frame = neg_gain_codec.decode(audio_chunk);
-            
-            if (!audio_frame.samples.empty()) {
-                ASSERT_EQUALS(2u, audio_frame.channels, "Negative gain frame should have correct channels");
-                ASSERT_EQUALS(48000u, audio_frame.sample_rate, "Negative gain frame should have correct sample rate");
-                
-                // With negative gain, samples should be attenuated
-                ASSERT_TRUE(audio_frame.samples.size() > 0, "Negative gain frame should have samples");
-            }
-        }
+
+        MediaChunk audio_chunk;
+        audio_chunk.data = createOpusAudioPacket(2, false);
+        audio_chunk.granule_position = 312 + 480;
+
+        OpusCodec zero_gain_codec(info);
+        ASSERT_TRUE(initializeOpusCodecForAudio(zero_gain_codec, 2, 312, 0),
+                    "Zero gain codec initialization should succeed");
+        AudioFrame zero_gain_frame = decodeFirstNonEmptyFrame(zero_gain_codec, audio_chunk);
+        ASSERT_FALSE(zero_gain_frame.samples.empty(), "Zero gain audio frame should decode");
+        ASSERT_EQUALS(2u, zero_gain_frame.channels, "Zero gain frame should have correct channels");
+        ASSERT_EQUALS(48000u, zero_gain_frame.sample_rate, "Zero gain frame should have correct sample rate");
+
+        int64_t baseline_mean = meanAbsoluteSample(zero_gain_frame);
+        ASSERT_TRUE(baseline_mean > 0, "Baseline Opus packet must decode to non-zero samples for gain testing");
+
+        OpusCodec pos_gain_codec(info);
+        ASSERT_TRUE(initializeOpusCodecForAudio(pos_gain_codec, 2, 312, 1536),
+                    "Positive gain codec initialization should succeed");
+        AudioFrame pos_gain_frame = decodeFirstNonEmptyFrame(pos_gain_codec, audio_chunk);
+        ASSERT_FALSE(pos_gain_frame.samples.empty(), "Positive gain frame should decode");
+        int64_t positive_mean = meanAbsoluteSample(pos_gain_frame);
+        ASSERT_TRUE(positive_mean > (baseline_mean * 17) / 10 &&
+                    positive_mean < (baseline_mean * 23) / 10,
+                    "Positive 6dB Opus header gain should scale output close to 2x");
+
+        OpusCodec neg_gain_codec(info);
+        ASSERT_TRUE(initializeOpusCodecForAudio(neg_gain_codec, 2, 312, -1536),
+                    "Negative gain codec initialization should succeed");
+        AudioFrame neg_gain_frame = decodeFirstNonEmptyFrame(neg_gain_codec, audio_chunk);
+        ASSERT_FALSE(neg_gain_frame.samples.empty(), "Negative gain frame should decode");
+        int64_t negative_mean = meanAbsoluteSample(neg_gain_frame);
+        ASSERT_TRUE(negative_mean > (baseline_mean * 4) / 10 &&
+                    negative_mean < (baseline_mean * 6) / 10,
+                    "Negative 6dB Opus header gain should attenuate output to about half scale");
+    }
+};
+
+class TestOpusPacketLossConcealment : public TestCase {
+public:
+    TestOpusPacketLossConcealment() : TestCase("Opus Packet Loss Concealment") {}
+
+protected:
+    void runTest() override {
+        StreamInfo info = createOpusStreamInfo(2);
+        OpusCodec codec(info);
+
+        ASSERT_TRUE(initializeOpusCodecForAudio(codec, 2, 0, 0),
+                    "Codec should initialize and accept Opus headers");
+
+        MediaChunk audio_chunk;
+        audio_chunk.data = createOpusAudioPacket(2, false);
+
+        AudioFrame decoded_frame = decodeFirstNonEmptyFrame(codec, audio_chunk);
+        ASSERT_FALSE(decoded_frame.samples.empty(), "Reference Opus packet should decode before PLC");
+
+        MediaChunk lost_chunk;
+        lost_chunk.stream_id = 1;
+        lost_chunk.packet_lost = true;
+        lost_chunk.granule_position = 312 + (2 * decoded_frame.getSampleFrameCount());
+
+        AudioFrame concealed_frame = codec.decode(lost_chunk);
+        ASSERT_FALSE(concealed_frame.samples.empty(),
+                     "Packet loss after a decoded Opus frame should produce PLC output");
+        ASSERT_EQUALS(decoded_frame.channels, concealed_frame.channels,
+                      "PLC output should preserve channel count");
+        ASSERT_EQUALS(decoded_frame.sample_rate, concealed_frame.sample_rate,
+                      "PLC output should preserve sample rate");
+        ASSERT_EQUALS(decoded_frame.getSampleFrameCount(), concealed_frame.getSampleFrameCount(),
+                      "PLC output should preserve the inferred frame duration");
+    }
+};
+
+class TestOpusNonTerminalGranuleDoesNotTrim : public TestCase {
+public:
+    TestOpusNonTerminalGranuleDoesNotTrim()
+        : TestCase("Opus Non-Terminal Granule Does Not Trim") {}
+
+protected:
+    void runTest() override {
+        StreamInfo info = createOpusStreamInfo(2);
+        OpusCodec codec(info);
+
+        ASSERT_TRUE(initializeOpusCodecForAudio(codec, 2, 0, 0),
+                    "Codec should initialize through the Opus headers");
+
+        MediaChunk first_chunk;
+        first_chunk.data = createOpusAudioPacket(2, true);
+        first_chunk.timestamp_samples = 0;
+        first_chunk.granule_position = 960;
+
+        AudioFrame first_frame = decodeFirstNonEmptyFrame(codec, first_chunk);
+        ASSERT_FALSE(first_frame.samples.empty(),
+                     "First Opus audio packet should decode to PCM");
+
+        MediaChunk second_chunk;
+        second_chunk.data = createOpusAudioPacket(2, true);
+        second_chunk.timestamp_samples = first_frame.getSampleFrameCount();
+        second_chunk.granule_position = 960;
+        second_chunk.end_of_stream = false;
+
+        AudioFrame second_frame = decodeFirstNonEmptyFrame(codec, second_chunk);
+        ASSERT_FALSE(second_frame.samples.empty(),
+                     "A non-terminal Opus packet must not be trimmed away by a stale granule");
+        ASSERT_EQUALS(first_frame.getSampleFrameCount(),
+                      second_frame.getSampleFrameCount(),
+                      "Non-terminal granule-bearing packets should preserve the decoded frame size");
+    }
+};
+
+class TestOpusLargePacketPassesValidation : public TestCase {
+public:
+    TestOpusLargePacketPassesValidation()
+        : TestCase("Opus Large Packet Passes Validation") {}
+
+protected:
+    void runTest() override {
+        StreamInfo info = createOpusStreamInfo(2);
+        OpusCodec codec(info);
+
+        ASSERT_TRUE(initializeOpusCodecForAudio(codec, 2, 0, 0),
+                    "Codec should initialize for audio decoding");
+
+        std::vector<uint8_t> packet = createLargeEncodedOpusPacket();
+        ASSERT_TRUE(!packet.empty(), "Test must generate a valid oversized Opus packet");
+        ASSERT_TRUE(packet.size() > 1275u, "Regression packet must exceed the old packet-size limit");
+
+        MediaChunk chunk;
+        chunk.data = packet;
+
+        AudioFrame frame = decodeFirstNonEmptyFrame(codec, chunk, 2);
+        ASSERT_FALSE(frame.samples.empty(),
+                     "Valid oversized Opus packets should decode instead of being rejected");
+        ASSERT_EQUALS(48000u, frame.sample_rate, "Decoded frame should keep the Opus output rate");
+        ASSERT_EQUALS(2u, frame.channels, "Decoded frame should preserve channel count");
     }
 };
 
@@ -622,7 +821,11 @@ int main()
     suite.addTest(std::make_unique<TestOpusCommentHeader>());
     suite.addTest(std::make_unique<TestOpusAudioDecoding>());
     suite.addTest(std::make_unique<TestOpusPreSkipProcessing>());
+    suite.addTest(std::make_unique<TestOpusGranuleTimestampProcessing>());
     suite.addTest(std::make_unique<TestOpusOutputGainProcessing>());
+    suite.addTest(std::make_unique<TestOpusPacketLossConcealment>());
+    suite.addTest(std::make_unique<TestOpusNonTerminalGranuleDoesNotTrim>());
+    suite.addTest(std::make_unique<TestOpusLargePacketPassesValidation>());
     suite.addTest(std::make_unique<TestOpusMultiChannelConfigurations>());
     
     // Run all tests
