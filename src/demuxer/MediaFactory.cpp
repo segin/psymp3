@@ -198,6 +198,7 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
         if (!content_result.mime_type.empty() && best_match.mime_type.empty()) {
             best_match.mime_type = content_result.mime_type;
         }
+        // Use map::insert for single tree traversal optimization
         best_match.metadata.insert(content_result.metadata.begin(), content_result.metadata.end());
     }
     
