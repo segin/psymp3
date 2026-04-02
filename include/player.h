@@ -24,6 +24,8 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
+#include <random>
+
 // No direct includes - all includes should be in psymp3.h
 
 #ifdef HAVE_DBUS
@@ -277,6 +279,9 @@ class Player
         SDL_TimerID m_automated_test_timer_id = 0;
         SDL_TimerID m_automated_quit_timer_id = 0;
         SDL_TimerID m_app_loop_timer_id = 0;
+
+        // Random number generator
+        std::mt19937 m_rng;
 
         // Test windows
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
