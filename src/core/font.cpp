@@ -75,6 +75,11 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     int width = 0;
     int font_height = (m_face->size->metrics.height) >> 6;
     int baseline = (m_face->size->metrics.ascender) >> 6;
+    int descender = (m_face->size->metrics.descender) >> 6;
+    
+    if (baseline - descender > font_height) {
+        font_height = baseline - descender;
+    }
 
     std::string text_utf8 = text.to8Bit(true);
     for (const char* p = text_utf8.c_str(); *p; p++) {
