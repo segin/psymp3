@@ -89,6 +89,8 @@ void Debug::shutdown() {
  * @return `true` if the channel is enabled.
  */
 bool Debug::isChannelEnabled(const std::string& channel) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
     // A global "all" channel can enable all logging.
     if (m_enabled_channels.count("all") > 0) {
         return true;
