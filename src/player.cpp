@@ -1071,8 +1071,9 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
         }
 
         // Update spectrum data in the widget - it will render itself via the widget tree
-        float *spectrum = fft->getFFT();
-        if (m_spectrum_widget) {
+        if (m_spectrum_widget && audio) {
+            std::lock_guard<std::mutex> fft_lock(audio->getFFTMutex());
+            float *spectrum = fft->getFFT();
             // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
             // Pass live scalefactor and decayfactor values so keypress changes propagate
             m_spectrum_widget->updateSpectrum(spectrum, PsyMP3::Core::SpectrumConfig::NumBands, scalefactor, decayfactor);

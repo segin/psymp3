@@ -54,6 +54,8 @@ public:
     void setVolume(float volume);
     float getVolume() const;
 
+    std::mutex& getFFTMutex() const { return m_fft_mutex; }
+
 private:
     void setup();
     static void callback(void *userdata, Uint8 *buf, int len);
@@ -84,7 +86,8 @@ private:
     std::shared_ptr<Stream> m_owned_stream; // Shared so the decoder thread can keep the current stream alive safely
     std::atomic<Stream*> m_current_stream_raw_ptr; // Raw pointer for atomic access by audio callback
     FastFourier *m_fft;
-    std::mutex *m_player_mutex; // The mutex from the player for FFT data
+    mutable std::mutex m_fft_mutex;
+    std::mutex *m_player_mutex; // The mutex from the player for general state
     
     int m_rate;
     int m_channels;

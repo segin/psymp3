@@ -123,6 +123,9 @@ void Audio::setup() {
         return;
     }
 
+    // Lock memory to prevent swapping-induced latency spikes
+    System::lockMemory();
+
     // Use m_current_stream_raw_ptr to get rate and channels
     desired.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
     desired.format = AUDIO_S16; /* Always, I hope */
@@ -290,6 +293,7 @@ uint64_t Audio::getBufferLatencyMs() const {
  */
 void Audio::decoderThreadLoop() {
     System::setThisThreadName("audio-decoder");
+    System::setThreadPriority(System::ThreadPriority::High);
     std::vector<int16_t> decode_chunk(4096); // Decode in 8KB chunks
     // The high water mark prevents the decoder from reading too far ahead,
     // which is important for responsive seeking and track changes. It defines
@@ -424,6 +428,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     thread_local bool thread_name_set = false;
     if (!thread_name_set) {
         System::setThisThreadName("sdl-audio");
+        System::setThreadPriority(System::ThreadPriority::TimeCritical);
         thread_name_set = true;
     }
 
@@ -473,7 +478,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
 
     // Perform FFT on the data we are sending to the sound card
     if (bytes_copied > 0) { // FIXED: Always compute FFT, regardless of GUI state
-        std::lock_guard<std::mutex> lock(*self->m_player_mutex);
+        std::lock_guard<std::mutex> lock(self->m_fft_mutex);
         toFloat(self->m_channels, reinterpret_cast<int16_t*>(buf), self->m_fft->getTimeDom());
         self->m_fft->doFFT();
     }
