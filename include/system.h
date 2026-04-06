@@ -222,7 +222,16 @@ class System
         static TagLib::String getHome();
         static TagLib::String getStoragePath();
         static bool createStoragePath(); // directory name is implicit.
+        enum class ThreadPriority {
+            Low,
+            Normal,
+            High,
+            TimeCritical
+        };
+
         static void setThisThreadName(const std::string& name);
+        static void setThreadPriority(ThreadPriority priority);
+        static bool lockMemory();
         #if defined(_WIN32) // This block is for static methods
         static HWND getHwnd();
         void updateProgress(ULONGLONG now, ULONGLONG max);
