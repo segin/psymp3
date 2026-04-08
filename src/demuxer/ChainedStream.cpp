@@ -121,7 +121,7 @@ bool ChainedStream::openNextTrack()
         m_current_track_index++;
         return m_current_stream != nullptr;
     } catch (const std::exception& e) {
-        std::cerr << "ChainedStream: Failed to open track " << m_paths[m_current_track_index] << ": " << e.what() << std::endl;
+        Debug::log("demuxer", "ChainedStream: Failed to open track ", m_paths[m_current_track_index], ": ", e.what());
         m_current_stream.reset();
         return false;
     }
@@ -278,7 +278,7 @@ void ChainedStream::seekTo(unsigned long pos)
     try {
         m_current_stream = MediaFile::open(m_paths[target_track_index]);
     } catch (const std::exception& e) {
-        std::cerr << "ChainedStream::seekTo: Failed to open track " << m_paths[target_track_index] << ": " << e.what() << std::endl;
+        Debug::log("demuxer", "ChainedStream::seekTo: Failed to open track ", m_paths[target_track_index], ": ", e.what());
         m_current_stream.reset();
         m_eof = true; // Can't play anymore.
         return;
