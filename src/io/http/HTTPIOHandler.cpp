@@ -1174,7 +1174,7 @@ bool HTTPIOHandler::validateNetworkOperation(const std::string& operation_name) 
     m_error = 0;
     
     // Check if handler is initialized
-    if (!m_initialized) {
+    if (!m_initialized && operation_name != "initialize") {
         m_error = EINVAL;  // Invalid argument
         Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " failed: handler not initialized");
         return false;

@@ -407,6 +407,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_widget_event_routing \
 	test_http_client_parse_url \
 	test_http_client_fallback \
+	test_http_io_handler \
 	test_bounded_buffer \
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
@@ -3845,3 +3846,12 @@ test_issue_ogg_duration_LDADD = \
 endif
 test_flac_stream_marker_with_logging_SOURCES = test_flac_stream_marker_with_logging.cpp
 test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)
+
+test_http_io_handler_SOURCES = test_http_io_handler.cpp $(top_srcdir)/src/io/http/HTTPIOHandler.cpp
+test_http_io_handler_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
