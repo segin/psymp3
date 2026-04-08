@@ -23,6 +23,7 @@
 
 #include "psymp3.h"
 #include <utility>
+#include <random>
 #include "core/SpectrumConfig.h"
 
 
@@ -135,7 +136,7 @@ static std::string convertInt(long number, int width = 0) {
  * application window and audio subsystem are not created until
  * `Initialize()` is called.
  */
-Player::Player() {
+Player::Player() : m_rng(std::random_device{}()) {
     Debug::log("player", "PsyMP3 version ", PSYMP3_VERSION, ".");
 
     m_loader_active = true;
@@ -2226,13 +2227,19 @@ void Player::toggleTestWindowB()
  */
 void Player::createRandomWindows()
 {
+    // Create distributions for random window properties
+    std::uniform_int_distribution<int> width_dist(100, 299);
+    std::uniform_int_distribution<int> height_dist(80, 229);
+    std::uniform_int_distribution<int> x_dist(0, 399);
+    std::uniform_int_distribution<int> y_dist(0, 299);
+
     // Create 5 random windows each time J is pressed
     for (int i = 0; i < 5; i++) {
         // Generate random window properties for client area
-        int client_width = 100 + (rand() % 200);   // 100-300px wide client area
-        int client_height = 80 + (rand() % 150);   // 80-230px tall client area
-        int x = rand() % 400;                      // Random X position
-        int y = rand() % 300;                      // Random Y position
+        int client_width = width_dist(m_rng);     // 100-299px wide client area
+        int client_height = height_dist(m_rng);   // 80-229px tall client area
+        int x = x_dist(m_rng);                    // Random X position (0-399)
+        int y = y_dist(m_rng);                    // Random Y position (0-299)
         
         // Create WindowFrameWidget directly like H and B windows
         std::string title = "Random Window " + std::to_string(++m_random_window_counter);

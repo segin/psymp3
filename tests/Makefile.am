@@ -413,7 +413,8 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_surface_from_bmp_error \
 	test_extensibility_utils \
 	test_lastfm_url_encode_unit \
-	test_track_utils
+	test_track_utils \
+	test_verify_random
 
 if HAVE_AAC
 check_PROGRAMS += test_aac_integration
@@ -1318,6 +1319,9 @@ test_track_utils_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(AM_LDFLAGS)
+
+test_verify_random_SOURCES = verify_random.cpp
+test_verify_random_LDADD =
 
 test_raw_audio_tag_safety_SOURCES = test_raw_audio_tag_safety.cpp
 test_raw_audio_tag_safety_LDADD = \
