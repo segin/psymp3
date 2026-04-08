@@ -22,6 +22,11 @@
  */
 
 #include "psymp3.h"
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+#include <sys/mman.h>
+#include <cstring>
+#include <cerrno>
+#endif
 
 #ifdef _WIN32
 // For setting thread name in the Visual Studio debugger
@@ -34,6 +39,10 @@ typedef struct tagTHREADNAME_INFO {
   DWORD dwFlags;    // Reserved for future use, must be zero.
 } THREADNAME_INFO;
 #pragma pack(pop)
+#endif
+
+#ifdef _WIN32
+SDL_Window* System::s_main_window = nullptr;
 #endif
 
 /**
@@ -95,6 +104,8 @@ System::~System() {
 }
 
 #ifdef _WIN32
+void System::setMainWindow(SDL_Window* window) { s_main_window = window; }
+
 /**
  * @brief Initialises the Winamp-compatible IPC window for inter-process communication (Windows only).
  *
@@ -527,13 +538,17 @@ bool System::createStoragePath() {
  * @return The window handle, or 0 if it cannot be retrieved.
  */
 HWND System::getHwnd() {
-  SDL_SysWMinfo wmi;
+  if (!s_main_window) {
+    return 0;
+  }
+
+  SDL_SysWMinfo wmi{};
   SDL_VERSION(&wmi.version);
 
-  if (!SDL_GetWMInfo(&wmi))
+  if (!SDL_GetWindowWMInfo(s_main_window, &wmi))
     return 0;
 
-  return wmi.window;
+  return wmi.info.win.window;
 }
 
 /**
@@ -617,6 +632,63 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
   }
 #else
   // No-op for other platforms.
+#endif
+}
+
+/**
+ * @brief Sets the priority of the calling thread.
+ *
+ * This is a cross-platform wrapper around SDL_SetThreadPriority.
+ *
+ * @param priority The desired thread priority.
+ */
+void System::setThreadPriority(ThreadPriority priority) {
+  SDL_ThreadPriority sdl_priority = SDL_THREAD_PRIORITY_NORMAL;
+
+  switch (priority) {
+  case ThreadPriority::Low:
+    sdl_priority = SDL_THREAD_PRIORITY_LOW;
+    break;
+  case ThreadPriority::Normal:
+    sdl_priority = SDL_THREAD_PRIORITY_NORMAL;
+    break;
+  case ThreadPriority::High:
+    sdl_priority = SDL_THREAD_PRIORITY_HIGH;
+    break;
+  case ThreadPriority::TimeCritical:
+    sdl_priority = SDL_THREAD_PRIORITY_TIME_CRITICAL;
+    break;
+  }
+
+  if (SDL_SetThreadPriority(sdl_priority) < 0) {
+    Debug::log("system", "Warning: Failed to set thread priority: ", SDL_GetError());
+  } else {
+    Debug::log("system", "Thread priority set successfully");
+  }
+}
+
+/**
+ * @brief Locks the process's virtual address space into RAM.
+ *
+ * On POSIX systems, this uses `mlockall(MCL_CURRENT | MCL_FUTURE)` to prevent
+ * the OS from swapping the process memory to disk, which helps avoid latency
+ * spikes in real-time audio code.
+ *
+ * @return `true` if successful or not supported, `false` if it failed (e.g., due to permissions).
+ */
+bool System::lockMemory() {
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+  if (mlockall(MCL_CURRENT | MCL_FUTURE) == 0) {
+    Debug::log("system", "Memory locked successfully");
+    return true;
+  } else {
+    Debug::log("system", "Warning: Failed to lock memory: ", strerror(errno));
+    // Often fails due to lack of CAP_IPC_LOCK or rlimit restrictions.
+    return false;
+  }
+#else
+  // Not implemented for other platforms
+  return true;
 #endif
 }
 

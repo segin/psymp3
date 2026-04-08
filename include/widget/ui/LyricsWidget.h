@@ -27,14 +27,15 @@
 // No direct includes - all includes should be in psymp3.h
 
 namespace PsyMP3 {
+namespace Core {
+class Font;
+class Surface;
+}
 namespace Widget {
 namespace UI {
 
 // Bring Windowing widgets into this namespace for inheritance
 using PsyMP3::Widget::Windowing::TransparentWindowWidget;
-
-// Forward declarations to avoid circular includes
-class Surface;
 
 /**
  * @brief A widget that displays synchronized lyrics at the top of the screen.
@@ -53,7 +54,7 @@ public:
      * @param font Pointer to the font to use for rendering
      * @param width Width of the widget area
      */
-    LyricsWidget(::Font* font, int width);
+    LyricsWidget(Core::Font* font, int width);
     
     /**
      * @brief Sets the lyrics to display.
@@ -82,10 +83,10 @@ public:
      * @brief Custom blit method that handles transparency and positioning.
      * @param target Surface to blit onto
      */
-    void BlitTo(Surface& target) override;
+    void BlitTo(Core::Surface& target) override;
 
 private:
-    ::Font* m_font;                             ///< Non-owning pointer to font
+    Core::Font* m_font;                         ///< Non-owning pointer to font
     std::shared_ptr<::LyricsFile> m_lyrics;     ///< Current lyrics file
     unsigned int m_last_update_time;            ///< Last update time to avoid unnecessary redraws
     int m_widget_width;                         ///< Width of the widget area
@@ -120,13 +121,13 @@ private:
      * @brief Clears the previous lyric region before redrawing translucent content.
      * @param target Surface to clear on
      */
-    void clearLastDrawnArea(Surface& target);
+    void clearLastDrawnArea(Core::Surface& target);
     
     /**
      * @brief Creates a surface with the current and upcoming lyrics.
      * @return Unique pointer to the created surface
      */
-    std::unique_ptr<Surface> createLyricsSurface();
+    std::unique_ptr<Core::Surface> createLyricsSurface();
     
     /**
      * @brief Calculates the height needed for the current lyrics display.

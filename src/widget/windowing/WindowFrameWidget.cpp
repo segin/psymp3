@@ -39,6 +39,7 @@ SDL_Cursor* WindowFrameWidget::s_cursor_nesw = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_ew = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
 SDL_Cursor* WindowFrameWidget::s_default_cursor = nullptr;
+WindowFrameWidget* WindowFrameWidget::s_active_window = nullptr;
 
 namespace {
 // 16x16 standard cursor definitions
@@ -155,6 +156,7 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     
     // Force a complete refresh to ensure consistent initialization
     refresh();
+    setActiveWindow(this);
 
     // Manage cursor resources
     s_instance_count++;
@@ -171,6 +173,9 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
 
 WindowFrameWidget::~WindowFrameWidget()
 {
+    if (s_active_window == this) {
+        s_active_window = nullptr;
+    }
     s_instance_count--;
     if (s_instance_count == 0) {
         restoreDefaultCursor();
@@ -197,6 +202,8 @@ WindowFrameWidget::~WindowFrameWidget()
 bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     if (event.button == SDL_BUTTON_LEFT) {
+        setActiveWindow(this);
+
         // Check if click is in titlebar
         if (isInTitlebar(relative_x, relative_y)) {
             // Check for control menu click
@@ -291,6 +298,19 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
         
         // Otherwise, bring window to front and let the widget tree route to the client area
         bringToFront();
+
+        if (m_client_area) {
+            const Rect& client_pos = m_client_area->getPos();
+            if (relative_x >= client_pos.x() &&
+                relative_x < client_pos.x() + client_pos.width() &&
+                relative_y >= client_pos.y() &&
+                relative_y < client_pos.y() + client_pos.height()) {
+                return m_client_area->handleMouseDown(
+                    event,
+                    relative_x - client_pos.x(),
+                    relative_y - client_pos.y());
+            }
+        }
 
         if (Widget::handleMouseDown(event, relative_x, relative_y)) {
             return true;
@@ -485,6 +505,12 @@ void WindowFrameWidget::setClientArea(std::unique_ptr<Widget> client_widget)
 void WindowFrameWidget::bringToFront()
 {
     m_z_order = s_next_z_order++;
+    setActiveWindow(this);
+}
+
+bool WindowFrameWidget::isActive() const
+{
+    return s_active_window == this;
 }
 
 std::unique_ptr<Widget> WindowFrameWidget::createDefaultClientArea()
@@ -580,10 +606,15 @@ void WindowFrameWidget::rebuildSurface()
     }
     
     // Draw titlebar and client area
-    // Blue titlebar area (18px high)
+    const bool active = isActive();
+    const uint8_t title_r = active ? 0 : 128;
+    const uint8_t title_g = active ? 0 : 128;
+    const uint8_t title_b = active ? 128 : 128;
+
+    // Titlebar area (blue when active, grey when inactive)
     frame_surface->box(content_x, content_y, 
                       content_x + content_width - 1, content_y + TITLEBAR_HEIGHT - 1, 
-                      0, 0, 128, 255); // Classic Windows 3.1 blue
+                      title_r, title_g, title_b, 255);
     
     // 1px black border between titlebar and client area
     int client_y = content_y + TITLEBAR_HEIGHT;
@@ -724,6 +755,23 @@ void WindowFrameWidget::updateLayout()
                        m_client_width,   // Width: client area width
                        m_client_height); // Height: client area height
         m_client_area->setPos(client_pos);
+    }
+}
+
+void WindowFrameWidget::setActiveWindow(WindowFrameWidget* window)
+{
+    if (s_active_window == window) {
+        return;
+    }
+
+    WindowFrameWidget* previous = s_active_window;
+    s_active_window = window;
+
+    if (previous) {
+        previous->rebuildSurface();
+    }
+    if (s_active_window) {
+        s_active_window->rebuildSurface();
     }
 }
 

@@ -1090,9 +1090,13 @@ bool FileIOHandler::fillBuffer(filesize_t file_position, size_t min_bytes) {
         Debug::log("io", "FileIOHandler::fillBuffer() - Seek failed: ", strerror(errno));
         return false;
     }
+
+    std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
     
     // Get buffer from pool if current buffer is too small
     if (m_read_buffer.empty() || m_read_buffer.size() < buffer_size_to_use) {
+        invalidateBuffer();
+
         // Check memory limits before allocating new buffer
         size_t additional_memory = buffer_size_to_use - (m_read_buffer.empty() ? 0 : m_read_buffer.size());
         
@@ -1191,17 +1195,28 @@ size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_reques
         Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Buffer is empty or invalid");
         return 0;
     }
+
+    if (m_read_buffer.empty() || m_read_buffer.data() == nullptr) {
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Buffer metadata is stale: storage is empty");
+        return 0;
+    }
+
+    size_t readable_bytes = std::min(m_buffer_valid_bytes, m_read_buffer.size());
+    if (readable_bytes == 0) {
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - No readable bytes remain after storage bounds check");
+        return 0;
+    }
     
     // Calculate logical position relative to buffer
     off_t buffer_offset = logical_position - m_buffer_file_position;
     
-    if (buffer_offset < 0 || static_cast<size_t>(buffer_offset) >= m_buffer_valid_bytes) {
-        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Position ", logical_position, " not in buffer (buffer covers ", m_buffer_file_position, " to ", m_buffer_file_position + m_buffer_valid_bytes - 1, ")");
+    if (buffer_offset < 0 || static_cast<size_t>(buffer_offset) >= readable_bytes) {
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Position ", logical_position, " not in buffer (buffer covers ", m_buffer_file_position, " to ", m_buffer_file_position + readable_bytes - 1, ")");
         return 0;
     }
     
     // Calculate how many bytes we can read
-    size_t available_bytes = m_buffer_valid_bytes - static_cast<size_t>(buffer_offset);
+    size_t available_bytes = readable_bytes - static_cast<size_t>(buffer_offset);
     size_t bytes_to_copy = std::min(bytes_requested, available_bytes);
     
     // Copy data from buffer
@@ -1213,11 +1228,16 @@ size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_reques
 }
 
 bool FileIOHandler::isPositionBuffered(filesize_t file_position) const {
-    if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0) {
+    if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0 || m_read_buffer.empty()) {
         return false;
     }
     
-    off_t buffer_end = m_buffer_file_position + static_cast<off_t>(m_buffer_valid_bytes);
+    size_t readable_bytes = std::min(m_buffer_valid_bytes, m_read_buffer.size());
+    if (readable_bytes == 0) {
+        return false;
+    }
+
+    off_t buffer_end = m_buffer_file_position + static_cast<off_t>(readable_bytes);
     return (file_position >= m_buffer_file_position && file_position < buffer_end);
 }
 
@@ -1350,21 +1370,25 @@ void FileIOHandler::optimizeBufferPoolUsage() {
         Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Adjusting buffer size from ", m_buffer_size, 
                   " to ", optimal_buffer_size, " based on memory optimizer recommendations");
         
-        // Release current buffer back to pool
-        if (!m_read_buffer.empty()) {
-            m_read_buffer = IOBufferPool::Buffer(); // Release buffer
-            updateMemoryUsage(0);
+        {
+            std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+            invalidateBuffer();
+            if (!m_read_buffer.empty()) {
+                m_read_buffer = IOBufferPool::Buffer(); // Release buffer
+            }
         }
+        updateMemoryUsage(0);
         
         m_buffer_size = optimal_buffer_size;
         
         // Acquire new buffer with optimal size if memory allows
         if (checkMemoryLimits(m_buffer_size)) {
-            m_read_buffer = IOBufferPool::getInstance().acquire(m_buffer_size);
-            if (!m_read_buffer.empty()) {
-                updateMemoryUsage(m_read_buffer.size());
-                // Invalidate buffer since we have a new one
+            IOBufferPool::Buffer replacement = IOBufferPool::getInstance().acquire(m_buffer_size);
+            if (!replacement.empty()) {
+                std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+                m_read_buffer = std::move(replacement);
                 invalidateBuffer();
+                updateMemoryUsage(m_read_buffer.size());
             }
         }
     }

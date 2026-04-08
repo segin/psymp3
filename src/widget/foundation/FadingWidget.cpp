@@ -118,7 +118,7 @@ void FadingWidget::BlitTo(Surface& target)
 
     // Apply calculated alpha and blit
     // Target the internal Surface object for alpha modification.
-    getSurface().SetAlpha(SDL_SRCALPHA, static_cast<Uint8>(alpha_f)); // This will now work
+    getSurface().SetAlpha(static_cast<Uint8>(alpha_f));
     clearLastDrawnArea(target);
     Widget::BlitTo(target); // Call base class blit
 

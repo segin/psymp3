@@ -516,6 +516,8 @@ retry_frame_read:
         search_start = m_streaminfo.min_frame_size;
     }
     
+    const uint64_t expected_next_sample = frame.sample_offset + frame.block_size;
+
     while (bytes_read > search_start) {
         // Search for next sync code (0xFF followed by 0xF8 or 0xF9)
         // Ensure we have enough bytes to check data[i+2]
@@ -528,110 +530,30 @@ retry_frame_read:
                     continue;
                 }
                 
-                // Decode UTF-8 coded number length (byte 4) to find header size
-                // RFC 9639 Section 8.1.1: UTF-8 coding
-                size_t coded_num_len = 0;
-                uint8_t v = data[i + 4];
-                
-                if ((v & 0x80) == 0) coded_num_len = 1;
-                else if ((v & 0xE0) == 0xC0) coded_num_len = 2;
-                else if ((v & 0xF0) == 0xE0) coded_num_len = 3;
-                else if ((v & 0xF8) == 0xF0) coded_num_len = 4;
-                else if ((v & 0xFC) == 0xF8) coded_num_len = 5;
-                else if ((v & 0xFE) == 0xFC) coded_num_len = 6;
-                else if ((v & 0xFF) == 0xFE) coded_num_len = 7;
-                else continue; // Invalid UTF-8 start byte
-                
-                // Calculate total header length excluding CRC-8
-                // Sync(2) + Header(2) + Coded Number(L)
-                size_t header_len_no_crc = 4 + coded_num_len;
-                
-                // Ensure we have enough data for the full header + CRC byte
-                if (i + header_len_no_crc + 1 > bytes_read) {
+                FLACFrame candidate_frame;
+                candidate_frame.file_offset = frame.file_offset + i;
+                candidate_frame.variable_block_size = (data[i + 1] == 0xF9);
+
+                if (!parseFrameHeader_unlocked(candidate_frame, data.data() + i, bytes_read - i)) {
+                    continue;
+                }
+
+                if (frame.block_size < 16) {
+                    actual_frame_size = static_cast<uint32_t>(i);
+                    found_next_sync = true;
+                    FLAC_DEBUG("[readChunk] Found subsequent valid frame at offset ", i,
+                               " while validating a non-final short block");
+                    break;
+                }
+
+                if (candidate_frame.sample_offset != expected_next_sample) {
+                    FLAC_DEBUG("[readChunk] Rejected candidate sync at offset ", i,
+                               " because next-frame sample offset ", candidate_frame.sample_offset,
+                               " does not match expected ", expected_next_sample);
                     continue;
                 }
                 
-                // Validate CRC-8
-                uint8_t expected_crc = data[i + header_len_no_crc];
-                uint8_t calculated_crc = calculateCRC8(data.data() + i, header_len_no_crc);
-                
-                if (calculated_crc != expected_crc) {
-                    // CRC mismatch - false positive sync code
-                    continue;
-                }
-                
-                // For fixed-block streams, validate that block size matches STREAMINFO
-                // This provides additional protection against CRC-8 collisions (1/256 chance)
-                if (m_streaminfo.isValid() && 
-                    m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
-                    // Extract block size bits (high nibble of byte 2)
-                    uint8_t block_size_bits = (data[i + 2] >> 4) & 0x0F;
-                    
-                    // Lookup expected block size from bits (RFC 9639 Table)
-                    // 0000 = reserved, 0001 = 192, 0010 = 576, 0011 = 1152
-                    // 0100 = 2304, 0101 = 4608, 0110 = 256, etc.
-                    uint32_t expected_block_size = 0;
-                    switch (block_size_bits) {
-                        case 0x01: expected_block_size = 192; break;
-                        case 0x02: expected_block_size = 576; break;
-                        case 0x03: expected_block_size = 1152; break;
-                        case 0x04: expected_block_size = 2304; break;
-                        case 0x05: expected_block_size = 4608; break;
-                        case 0x06: case 0x07: 
-                            // These require reading extra bytes - skip validation
-                            expected_block_size = m_streaminfo.min_block_size;
-                            break;
-                        case 0x08: expected_block_size = 256; break;
-                        case 0x09: expected_block_size = 512; break;
-                        case 0x0A: expected_block_size = 1024; break;
-                        case 0x0B: expected_block_size = 2048; break;
-                        case 0x0C: expected_block_size = 4096; break;
-                        case 0x0D: expected_block_size = 8192; break;
-                        case 0x0E: expected_block_size = 16384; break;
-                        case 0x0F: expected_block_size = 32768; break;
-                        default: expected_block_size = 0; break;
-                    }
-                    
-                    if (expected_block_size != 0 && 
-                        expected_block_size != m_streaminfo.min_block_size) {
-                        // Block size mismatch - false positive
-                        continue;
-                    }
-                    
-                    // Also validate sample rate if STREAMINFO has a known rate
-                    if (m_streaminfo.sample_rate > 0) {
-                        uint8_t sample_rate_bits = data[i + 2] & 0x0F;
-                        uint32_t expected_sample_rate = 0;
-                        
-                        switch (sample_rate_bits) {
-                            case 0x01: expected_sample_rate = 88200; break;
-                            case 0x02: expected_sample_rate = 176400; break;
-                            case 0x03: expected_sample_rate = 192000; break;
-                            case 0x04: expected_sample_rate = 8000; break;
-                            case 0x05: expected_sample_rate = 16000; break;
-                            case 0x06: expected_sample_rate = 22050; break;
-                            case 0x07: expected_sample_rate = 24000; break;
-                            case 0x08: expected_sample_rate = 32000; break;
-                            case 0x09: expected_sample_rate = 44100; break;
-                            case 0x0A: expected_sample_rate = 48000; break;
-                            case 0x0B: expected_sample_rate = 96000; break;
-                            case 0x0C: case 0x0D: case 0x0E:
-                                // These require reading extra bytes - skip validation
-                                expected_sample_rate = m_streaminfo.sample_rate;
-                                break;
-                            case 0x0F: expected_sample_rate = 0; break; // Invalid
-                            default: expected_sample_rate = 0; break; // Reserved
-                        }
-                        
-                        if (expected_sample_rate != 0 && 
-                            expected_sample_rate != m_streaminfo.sample_rate) {
-                            // Sample rate mismatch - false positive
-                            continue;
-                        }
-                    }
-                }
-                
-                // Found potential next frame sync code with valid CRC
+                // Found the real next frame boundary.
                 actual_frame_size = static_cast<uint32_t>(i);
                 found_next_sync = true;
                 FLAC_DEBUG("[readChunk] Found next sync code at offset ", i, 
@@ -2527,30 +2449,55 @@ bool FLACDemuxer::parsePictureBlock_unlocked(const FLACMetadataBlock& block)
     if (picture_data_len > 0) {
         // Sanity check: limit picture data to reasonable size (16 MB)
         static constexpr uint32_t MAX_PICTURE_SIZE = 16 * 1024 * 1024;
+        static constexpr size_t PICTURE_READ_CHUNK_SIZE = 64 * 1024;
         
         if (picture_data_len > MAX_PICTURE_SIZE) {
             FLAC_DEBUG("[parsePicture] Picture data too large: ", picture_data_len, 
                        " bytes (max ", MAX_PICTURE_SIZE, ") - skipping data");
             // Skip the oversized picture data
-            if (m_handler->seek(static_cast<off_t>(picture_data_len), SEEK_CUR) != 0) {
+            if (m_handler->seek(static_cast<PsyMP3::IO::filesize_t>(picture_data_len), SEEK_CUR) != 0) {
                 return false;
             }
             bytes_remaining -= picture_data_len;
         } else {
-            picture.data.resize(picture_data_len);
-            if (m_handler->read(picture.data.data(), 1, picture_data_len) != picture_data_len) {
-                FLAC_DEBUG("[parsePicture] Failed to read picture data");
-                return false;
+            bool skipped_picture_data = false;
+            try {
+                picture.data.resize(picture_data_len);
+            } catch (const std::bad_alloc&) {
+                FLAC_DEBUG("[parsePicture] Unable to allocate ", picture_data_len,
+                           " bytes for picture data - skipping embedded artwork");
+                if (m_handler->seek(static_cast<PsyMP3::IO::filesize_t>(picture_data_len), SEEK_CUR) != 0) {
+                    return false;
+                }
+                bytes_remaining -= picture_data_len;
+                picture.data.clear();
+                skipped_picture_data = true;
             }
-            bytes_remaining -= picture_data_len;
-            
-            FLAC_DEBUG("[parsePicture] Read ", picture.data.size(), " bytes of picture data");
-            
-            // If this is a URI, log it
-            if (picture.is_uri) {
-                std::string uri(picture.data.begin(), picture.data.end());
-                FLAC_DEBUG("[parsePicture] URI: '", 
-                           (uri.length() > 100 ? uri.substr(0, 100) + "..." : uri), "'");
+
+            if (!skipped_picture_data) {
+                size_t total_read = 0;
+                while (total_read < picture_data_len) {
+                    const size_t to_read = std::min<size_t>(PICTURE_READ_CHUNK_SIZE,
+                                                            static_cast<size_t>(picture_data_len) - total_read);
+                    const size_t bytes_read =
+                        m_handler->read(picture.data.data() + total_read, 1, to_read);
+                    if (bytes_read != to_read) {
+                        FLAC_DEBUG("[parsePicture] Failed to read picture data chunk at offset ", total_read,
+                                   " (wanted ", to_read, " bytes, got ", bytes_read, ")");
+                        return false;
+                    }
+                    total_read += bytes_read;
+                }
+                bytes_remaining -= picture_data_len;
+                
+                FLAC_DEBUG("[parsePicture] Read ", picture.data.size(), " bytes of picture data");
+                
+                // If this is a URI, log it
+                if (picture.is_uri) {
+                    std::string uri(picture.data.begin(), picture.data.end());
+                    FLAC_DEBUG("[parsePicture] URI: '", 
+                               (uri.length() > 100 ? uri.substr(0, 100) + "..." : uri), "'");
+                }
             }
         }
     } else {
