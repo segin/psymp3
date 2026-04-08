@@ -169,22 +169,6 @@ bool Audio::isFinished() const
 }
 
 /**
- * @brief Locks the audio device using the SDL_LockAudio function.
- * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
- */
-void Audio::lock(void) {
-    SDL_LockAudio();
-}
-
-/**
- * @brief Unlocks the audio device using the SDL_UnlockAudio function.
- * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
- */
-void Audio::unlock(void) {
-    SDL_UnlockAudio();
-}
-
-/**
  * @brief Clears the decoded audio buffer and resets the samples-played counter.
  *
  * Thread-safe; acquires `m_buffer_mutex` internally.
