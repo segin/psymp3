@@ -134,7 +134,7 @@ bool ChainedStream::openNextTrack()
  * support being "re-opened" with a single file path. This method does nothing.
  * @param name This parameter is ignored.
  */
-void ChainedStream::open(TagLib::String name)
+void ChainedStream::open([[maybe_unused]] TagLib::String name)
 {
     // This is a no-op for ChainedStream as it's initialized with a list of paths.
     // The name parameter is ignored.
