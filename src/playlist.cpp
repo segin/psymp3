@@ -58,7 +58,6 @@ bool Playlist::addFile(TagLib::String path)
         return true;
     } catch (const std::exception& e) {
         Debug::log("playlist", "Playlist::addFile(): Failed to create track for ", path.to8Bit(true), ": ", e.what());
-        std::cerr << "Playlist::addFile(): Could not create track for " << path << ": " << e.what() << std::endl;
         return false;
     }
 }
