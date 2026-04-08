@@ -26,7 +26,7 @@
 
 #ifdef FINAL_BUILD
 #include "io/IOHandler.h"
-#include <vector>
+#include <deque>
 #endif
 
 // No direct includes - all includes should be in psymp3.h
@@ -93,7 +93,7 @@ public:
     void clear();
 
 private:
-    std::vector<uint8_t> m_buffer;
+    std::deque<uint8_t> m_buffer;
     const uint8_t* m_external_data = nullptr;
     size_t m_external_size = 0;
     bool m_own_buffer = true;
