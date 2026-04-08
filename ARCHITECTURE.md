@@ -60,6 +60,7 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - `src/core/display.cpp` and `src/core/surface.cpp`: Present the software-rendered UI through SDL surfaces.
 - `src/core/font.cpp`: Render all UI text through the FreeType-based font layer into PsyMP3-owned surfaces.
 - `src/player.cpp`: Coordinate playback state, loading, preloading, GUI updates, and integration points.
+  The startup playlist populator runs on a background thread and expands command-line `.m3u` / `.m3u8` files inline so mixed file-and-playlist argument lists preserve user order.
 
 ## Key Runtime Rules
 
@@ -69,6 +70,7 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - `Audio` keeps decoded stream format separate from SDL's obtained device format so playback timing, seeks, and reuse decisions stay tied to source PCM instead of backend conversion details.
 - Loader-thread prebuffering primes PCM before track handoff so both reused and recreated audio paths do not start from an empty queue.
 - The decoder thread discards stale decode results after a stream swap.
+- Playlist population stays asynchronous, and inline playlist arguments are flattened in place before later command-line media paths are appended.
 - Widget input is hierarchical, clip-aware, and capture-aware.
 
 ## SDL2 Status
@@ -91,4 +93,4 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - Project: PsyMP3
 - Repository: `https://github.com/segin/psymp3`
 - Maintainer: Kirn Gill II `<segin2005@gmail.com>`
-- Last updated: 2026-03-31
+- Last updated: 2026-04-06

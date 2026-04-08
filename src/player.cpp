@@ -427,34 +427,26 @@ void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
 
     if (args.empty()) return; // Nothing to do
 
-    // Check if the first argument is a playlist file (M3U/M3U8)
-    TagLib::String first_arg(args[0], TagLib::String::UTF8);
-    std::string first_arg_str = first_arg.to8Bit(true);
-    size_t dot_pos = first_arg_str.find_last_of('.');
-    if (dot_pos != std::string::npos) {
-        std::string ext = first_arg_str.substr(dot_pos + 1);
-        if (ext == "m3u" || ext == "m3u8") {
-            // Load the playlist file
-            auto loaded_playlist = Playlist::loadPlaylist(first_arg);
-            if (loaded_playlist && loaded_playlist->entries() > 0) {
-                // Replace the current playlist with the loaded one
-                playlist = std::move(loaded_playlist); // Transfer ownership
-                // Start playing the first track from the loaded playlist
-                synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
-                return; // We've handled the playlist, so exit
-            } else {
-                Debug::log("playlist", "Failed to load or empty playlist: ", first_arg.to8Bit(true));
-            }
-        }
-    }
+    bool started_first_track = false;
 
-    // If not a playlist or loading failed, treat arguments as individual files
-    for (size_t i = 0; i < args.size(); ++i) {
-        try {
-            playlist->addFile(TagLib::String(args[i], TagLib::String::UTF8));
-            if (i == 0) synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr); // Start first track
-        } catch (const std::exception& e) {
-            Debug::log("playlist", "Player::playlistPopulatorLoop(): Failed to add file ", args[i], ": ", e.what());
+    for (const std::string& arg : args) {
+        const TagLib::String source(arg, TagLib::String::UTF8);
+        std::vector<Playlist::Entry> resolved_entries = Playlist::resolveInlineSources({source});
+
+        if (resolved_entries.empty()) {
+            Debug::log("playlist", "Player::playlistPopulatorLoop(): No playable entries resolved from ", source.to8Bit(true));
+            continue;
+        }
+
+        for (const auto& entry : resolved_entries) {
+            try {
+                if (playlist->addEntry(entry) && !started_first_track) {
+                    synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
+                    started_first_track = true;
+                }
+            } catch (const std::exception& e) {
+                Debug::log("playlist", "Player::playlistPopulatorLoop(): Failed to add resolved entry ", entry.path.to8Bit(true), ": ", e.what());
+            }
         }
     }
 }

@@ -24,7 +24,84 @@
 
 #include "psymp3.h"
 
+static bool isAbsolutePath(const TagLib::String& path);
+static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String& relative);
+
 Playlist::Playlist() { }
+
+namespace {
+
+bool isPlaylistPath(const TagLib::String& path)
+{
+    std::string path_str = path.to8Bit(true);
+    size_t dot_pos = path_str.find_last_of('.');
+    if (dot_pos == std::string::npos) {
+        return false;
+    }
+
+    std::string extension = path_str.substr(dot_pos + 1);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    return extension == "m3u" || extension == "m3u8";
+}
+
+std::string buildPlaylistResolutionKey(const TagLib::String& path)
+{
+    std::string normalized = path.to8Bit(true);
+    std::replace(normalized.begin(), normalized.end(), '\\', '/');
+
+    if (normalized.empty()) {
+        return normalized;
+    }
+
+    if (!isAbsolutePath(path)) {
+        char cwd_buffer[4096];
+        if (getcwd(cwd_buffer, sizeof(cwd_buffer)) != nullptr) {
+            std::string cwd(cwd_buffer);
+            std::replace(cwd.begin(), cwd.end(), '\\', '/');
+            if (!cwd.empty() && cwd.back() != '/') {
+                cwd.push_back('/');
+            }
+            normalized = cwd + normalized;
+        }
+    }
+
+#ifdef _WIN32
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::tolower);
+#endif
+
+    return normalized;
+}
+
+void resolveInlineSourceRecursive(const Playlist::Entry& source,
+                                  std::vector<Playlist::Entry>& resolved_entries,
+                                  std::unordered_set<std::string>& active_playlists)
+{
+    if (!isPlaylistPath(source.path)) {
+        resolved_entries.push_back(source);
+        return;
+    }
+
+    const std::string recursion_key = buildPlaylistResolutionKey(source.path);
+    if (!recursion_key.empty() && active_playlists.find(recursion_key) != active_playlists.end()) {
+        Debug::log("playlist", "Playlist::resolveInlineSources(): Skipping recursive playlist reference: ", source.path.to8Bit(true));
+        return;
+    }
+
+    if (!recursion_key.empty()) {
+        active_playlists.insert(recursion_key);
+    }
+
+    std::vector<Playlist::Entry> nested_entries = Playlist::loadPlaylistEntries(source.path);
+    for (const auto& nested_entry : nested_entries) {
+        resolveInlineSourceRecursive(nested_entry, resolved_entries, active_playlists);
+    }
+
+    if (!recursion_key.empty()) {
+        active_playlists.erase(recursion_key);
+    }
+}
+
+} // namespace
 
 /**
  * @brief Destroys the Playlist object.
@@ -84,6 +161,11 @@ bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::Strin
         m_shuffled_indices.push_back(tracks.size() - 1);
     }
     return true;
+}
+
+bool Playlist::addEntry(const Entry& entry)
+{
+    return addFile(entry.path, entry.artist, entry.title, entry.duration);
 }
 
 
@@ -345,10 +427,21 @@ static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String
 std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
 {
     auto playlist = std::make_unique<Playlist>();
+    std::vector<Entry> entries = loadPlaylistEntries(path);
+    for (const auto& entry : entries) {
+        playlist->addEntry(entry);
+    }
+
+    return playlist;
+}
+
+std::vector<Playlist::Entry> Playlist::loadPlaylistEntries(TagLib::String path)
+{
+    std::vector<Entry> entries;
     std::ifstream file(path.toCString(true));
     if (!file.is_open()) {
         std::cerr << "Playlist::loadPlaylist(): Could not open playlist file: " << path << std::endl;
-        return playlist; // Return empty playlist on failure
+        return entries;
     }
 
     TagLib::String playlist_dir;
@@ -407,7 +500,12 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
             } else {
                 final_track_path = joinPaths(playlist_dir, track_path);
             }
-            playlist->addFile(final_track_path, next_track_artist, next_track_title, next_track_duration);
+            entries.push_back(Entry{
+                final_track_path,
+                next_track_artist,
+                next_track_title,
+                next_track_duration
+            });
             // Reset EXTINF data for the next track
             next_track_artist = TagLib::String();
             next_track_title = TagLib::String();
@@ -416,7 +514,21 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
     }
 
     file.close();
-    return playlist;
+    return entries;
+}
+
+std::vector<Playlist::Entry> Playlist::resolveInlineSources(const std::vector<TagLib::String>& sources)
+{
+    std::vector<Entry> resolved_entries;
+    std::unordered_set<std::string> active_playlists;
+
+    for (const auto& source : sources) {
+        resolveInlineSourceRecursive(Entry{source, TagLib::String(), TagLib::String(), 0},
+                                     resolved_entries,
+                                     active_playlists);
+    }
+
+    return resolved_entries;
 }
 
 /**
