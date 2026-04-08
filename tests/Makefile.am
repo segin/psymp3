@@ -876,12 +876,8 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
 
 test_ogg_multiplexed_seeking_SOURCES = test_ogg_multiplexed_seeking.cpp
 test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
@@ -893,8 +889,11 @@ test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
 	../src/io/libpsymp3-io.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
@@ -1112,6 +1111,7 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 check_PROGRAMS += test_ogg_error_handling
 test_ogg_error_handling_SOURCES = test_ogg_error_handling.cpp
 test_ogg_error_handling_LDADD = libtest_utilities.a \
+	$(FULL_CODEC_LIBS) \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
 	../src/tag/libpsymp3-tag.a \
