@@ -102,6 +102,21 @@ public:
             ASSERT_EQUALS(0u, buffer.size(), "Size should be 0 after clear");
             ASSERT_EQUALS(4u, buffer.capacity(), "Capacity should remain after clear");
             ASSERT_TRUE(buffer.empty(), "Buffer should be empty after clear");
+
+            // Test shrink_to_fit when empty
+            buffer.shrink_to_fit();
+            ASSERT_EQUALS(0u, buffer.capacity(), "Capacity should be 0 after shrink_to_fit when empty");
+            ASSERT_EQUALS(0u, buffer.size(), "Size should still be 0");
+
+            // Test shrink_to_fit when full
+            buffer.reserve(128);
+            buffer.set("test_data", 9); // Size is 9, capacity 128
+            buffer.shrink_to_fit();     // Size 9, capacity 9
+            ASSERT_EQUALS(9u, buffer.capacity(), "Capacity should be 9 after shrink_to_fit");
+            ASSERT_EQUALS(9u, buffer.size(), "Size should be 9");
+            buffer.shrink_to_fit();     // Already full
+            ASSERT_EQUALS(9u, buffer.capacity(), "Capacity should still be 9 after shrink_to_fit on full buffer");
+            ASSERT_EQUALS(9u, buffer.size(), "Size should still be 9");
         }
 
         // 7. Stats
