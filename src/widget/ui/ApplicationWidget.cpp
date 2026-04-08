@@ -1,3 +1,4 @@
+#include <algorithm>
 /*
  * ApplicationWidget.cpp - Implementation for root application widget
  * This file is part of PsyMP3.
@@ -292,30 +293,29 @@ void ApplicationWidget::updateWindows()
     m_windows_to_remove.clear();
     
     // Check for toasts that need to be dismissed
-    auto it = m_windows.begin();
-    while (it != m_windows.end()) {
-        if (auto* toast = dynamic_cast<ToastWidget*>(it->get())) {
-            if (toast->shouldDismiss()) {
-                toast->dismiss(); // Call dismiss callback
-                it = m_windows.erase(it); // Remove from window list
-                continue;
+    m_windows.erase(
+        std::remove_if(m_windows.begin(), m_windows.end(), [](const std::unique_ptr<Widget>& w) {
+            if (auto* toast = dynamic_cast<ToastWidget*>(w.get())) {
+                if (toast->shouldDismiss()) {
+                    toast->dismiss(); // Call dismiss callback
+                    return true;
+                }
             }
-        }
-        ++it;
-    }
+            return false;
+        }),
+        m_windows.end()
+    );
 }
 
 void ApplicationWidget::removeAllToasts()
 {
     // Remove all existing toasts immediately
-    auto it = m_windows.begin();
-    while (it != m_windows.end()) {
-        if (dynamic_cast<ToastWidget*>(it->get())) {
-            it = m_windows.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    m_windows.erase(
+        std::remove_if(m_windows.begin(), m_windows.end(), [](const std::unique_ptr<Widget>& w) {
+            return dynamic_cast<ToastWidget*>(w.get()) != nullptr;
+        }),
+        m_windows.end()
+    );
 }
 
 void ApplicationWidget::scheduleWindowRemoval(Widget* window)
