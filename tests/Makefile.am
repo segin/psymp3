@@ -3849,3 +3849,8 @@ test_issue_ogg_duration_LDADD = \
 endif
 test_flac_stream_marker_with_logging_SOURCES = test_flac_stream_marker_with_logging.cpp
 test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)
+
+check_PROGRAMS += test_storage_permissions
+TESTS += test_storage_permissions
+test_storage_permissions_SOURCES = test_storage_permissions.cpp
+test_storage_permissions_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
