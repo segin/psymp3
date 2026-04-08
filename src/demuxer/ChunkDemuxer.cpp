@@ -626,8 +626,7 @@ double ChunkDemuxer::ieee80ToDouble(const uint8_t ieee80[10]) const {
     }
     
     // Convert to double
-    double result = static_cast<double>(mantissa) / (1ULL << 63);
-    result *= std::pow(2.0, static_cast<int>(exponent) - 16383);
+    double result = std::ldexp(static_cast<double>(mantissa), exponent - 16383 - 63);
     
     return sign ? -result : result;
 }
