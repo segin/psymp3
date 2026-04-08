@@ -199,14 +199,18 @@ bool ErrorRecovery::RepairSampleToChunkTable(SampleTableInfo& tables) {
     }
     
     // Check for invalid entries in sample-to-chunk table
-    for (auto it = tables.sampleToChunkEntries.begin(); it != tables.sampleToChunkEntries.end(); ) {
-        if (it->samplesPerChunk == 0 || it->sampleDescIndex == 0) {
-            // Invalid entry, remove it
-            it = tables.sampleToChunkEntries.erase(it);
-            LogError("ChunkTableRepair", "Removed invalid sample-to-chunk entry");
-        } else {
-            ++it;
-        }
+    size_t originalSize = tables.sampleToChunkEntries.size();
+    tables.sampleToChunkEntries.erase(
+        std::remove_if(tables.sampleToChunkEntries.begin(), tables.sampleToChunkEntries.end(),
+            [](const auto& entry) {
+                return entry.samplesPerChunk == 0 || entry.sampleDescIndex == 0;
+            }),
+        tables.sampleToChunkEntries.end()
+    );
+
+    size_t removedCount = originalSize - tables.sampleToChunkEntries.size();
+    for (size_t i = 0; i < removedCount; ++i) {
+        LogError("ChunkTableRepair", "Removed invalid sample-to-chunk entry");
     }
     
     // If all entries were invalid, create a default entry
