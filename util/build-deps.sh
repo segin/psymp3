@@ -171,7 +171,16 @@ distfiles_fetch () {
 
 	# If the file exists but didn't pass check, or doesn't exist, we download it using -c (continue)
 	notice "Fetching for ${package}-${DISTVERS[$package]}"
-	wget -c -O ${distfile} ${DISTS[$package]}
+	if command -v curl >/dev/null 2>&1; then
+		curl -f -L -C - -o ${distfile} ${DISTS[$package]}
+	elif command -v wget >/dev/null 2>&1; then
+		wget -c -O ${distfile} ${DISTS[$package]}
+	elif command -v fetch >/dev/null 2>&1; then
+		fetch -o ${distfile} ${DISTS[$package]}
+	else
+		notice "No suitable download tool (curl, wget, or fetch) found! Bailing!"
+		exit 1
+	fi
 
 	if distfiles_sum MD5 ${package} && distfiles_sum SHA256 ${package}; then
 		return 0
