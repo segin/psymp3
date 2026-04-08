@@ -30,8 +30,6 @@ public:
     ~Audio();
 
     void play(bool go);
-    void lock(void);
-    void unlock(void);
     bool isFinished() const;
     std::unique_ptr<Stream> setStream(std::unique_ptr<Stream> new_stream);
 
