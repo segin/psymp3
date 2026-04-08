@@ -2226,13 +2226,20 @@ void Player::toggleTestWindowB()
  */
 void Player::createRandomWindows()
 {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> width_dist(100, 299);
+    std::uniform_int_distribution<> height_dist(80, 229);
+    std::uniform_int_distribution<> x_dist(0, 399);
+    std::uniform_int_distribution<> y_dist(0, 299);
+
     // Create 5 random windows each time J is pressed
     for (int i = 0; i < 5; i++) {
         // Generate random window properties for client area
-        int client_width = 100 + (rand() % 200);   // 100-300px wide client area
-        int client_height = 80 + (rand() % 150);   // 80-230px tall client area
-        int x = rand() % 400;                      // Random X position
-        int y = rand() % 300;                      // Random Y position
+        int client_width = width_dist(gen);   // 100-300px wide client area
+        int client_height = height_dist(gen); // 80-230px tall client area
+        int x = x_dist(gen);                  // Random X position
+        int y = y_dist(gen);                  // Random Y position
         
         // Create WindowFrameWidget directly like H and B windows
         std::string title = "Random Window " + std::to_string(++m_random_window_counter);
