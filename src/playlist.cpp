@@ -58,7 +58,6 @@ bool Playlist::addFile(TagLib::String path)
         return true;
     } catch (const std::exception& e) {
         Debug::log("playlist", "Playlist::addFile(): Failed to create track for ", path.to8Bit(true), ": ", e.what());
-        std::cerr << "Playlist::addFile(): Could not create track for " << path << ": " << e.what() << std::endl;
         return false;
     }
 }
@@ -347,7 +346,7 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
     auto playlist = std::make_unique<Playlist>();
     std::ifstream file(path.toCString(true));
     if (!file.is_open()) {
-        std::cerr << "Playlist::loadPlaylist(): Could not open playlist file: " << path << std::endl;
+        Debug::log("playlist", "Playlist::loadPlaylist(): Could not open playlist file: ", path.to8Bit(true));
         return playlist; // Return empty playlist on failure
     }
 
@@ -382,7 +381,7 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
                 try {
                     next_track_duration = std::stol(duration_str);
                 } catch (const std::exception& e) {
-                    std::cerr << "Playlist::loadPlaylist(): Invalid duration in EXTINF: " << duration_str << std::endl;
+                    Debug::log("playlist", "Playlist::loadPlaylist(): Invalid duration in EXTINF: ", duration_str);
                     next_track_duration = 0;
                 }
 
@@ -430,7 +429,7 @@ void Playlist::savePlaylist(TagLib::String path)
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     std::ofstream file(path.toCString(true));
     if (!file.is_open()) {
-        std::cerr << "Playlist::savePlaylist(): Unable to open " << path.to8Bit(true) << " for writing!" << std::endl;
+        Debug::log("playlist", "Playlist::savePlaylist(): Unable to open ", path.to8Bit(true), " for writing!");
         return;
     }
 
