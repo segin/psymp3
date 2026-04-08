@@ -558,6 +558,9 @@ check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_con
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
 
+# MemoryOptimizer tests
+check_PROGRAMS += test_memory_optimizer
+
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
 
@@ -2342,6 +2345,15 @@ test_iohandler_memory_deadlock_prevention_LDADD = \
 	$(AM_LDFLAGS)
 
 # MemoryPoolManager integration test
+test_memory_optimizer_SOURCES = test_memory_optimizer.cpp
+test_memory_optimizer_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
 test_memory_pool_manager_integration_SOURCES = test_memory_pool_manager_integration.cpp
 test_memory_pool_manager_integration_LDADD = \
 	libtest_utilities.a \
