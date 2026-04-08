@@ -112,8 +112,7 @@ void System::InitializeIPC(Player *player) {
   wcx.lpszClassName = L"Winamp v1.x";
 
   if (!RegisterClassExW(&wcx)) {
-    std::cerr << "Failed to register Winamp IPC window class. Error: "
-              << GetLastError() << '\n';
+    Debug::log("system", "Failed to register Winamp IPC window class. Error: ", GetLastError());
     return;
   }
 
@@ -134,8 +133,7 @@ void System::InitializeIPC(Player *player) {
       );
 
   if (!m_ipc_hwnd) {
-    std::cerr << "Failed to create Winamp IPC window. Error: " << GetLastError()
-              << '\n';
+    Debug::log("system", "Failed to create Winamp IPC window. Error: ", GetLastError());
   }
 }
 #endif
@@ -376,17 +374,16 @@ void System::InitializeTaskbar() {
 
 
   if (SUCCEEDED(hr)) {
-    std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar
-              << '\n';
+    Debug::log("system", "ITaskbarList3 COM object: ", std::hex, m_taskbar);
     hr = m_taskbar->HrInit();
 
     if (FAILED(hr)) {
-      std::cerr << "Error initializing ITaskbarList3 COM object!" << '\n';
+      Debug::log("system", "Error initializing ITaskbarList3 COM object!");
       m_taskbar->Release();
       m_taskbar = nullptr;
     }
   } else
-    std::cerr << "Error initializing ITaskbarList3 COM object!" << '\n';
+    Debug::log("system", "Error initializing ITaskbarList3 COM object!");
 #endif
 }
 
@@ -545,20 +542,18 @@ void System::updateProgress(ULONGLONG now, ULONGLONG max) {
   if (m_taskbar)
     m_taskbar->SetProgressValue(getHwnd(), now, max);
   else
-    std::cerr << "System::updateProgress(): No ITaskbarList3 OLE interface!"
-              << '\n';
+    Debug::log("system", "System::updateProgress(): No ITaskbarList3 OLE interface!");
 }
 /**
  * @brief Sets the Windows taskbar button progress indicator state (Windows only).
  * @param status One of the `TBPFLAG` values (e.g., `TBPF_NORMAL`, `TBPF_INDETERMINATE`).
  */
 void System::progressState(TBPFLAG status) {
-  std::cout << "System::updateProgress(): Called." << '\n';
+  Debug::log("system", "System::updateProgress(): Called.");
   if (m_taskbar)
     m_taskbar->SetProgressState(getHwnd(), status);
   else
-    std::cerr << "System::updateProgress(): No ITaskbarList3 OLE interface!"
-              << '\n';
+    Debug::log("system", "System::updateProgress(): No ITaskbarList3 OLE interface!");
 }
 
 #endif
