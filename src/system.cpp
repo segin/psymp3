@@ -46,9 +46,7 @@ typedef struct tagTHREADNAME_INFO {
  * @param input The wide string to encode.
  * @return The percent-encoded wide string.
  */
-static std::wstring percentEncodeW(const std::wstring &input)
-    __attribute__((unused));
-static std::wstring percentEncodeW(const std::wstring &input) {
+[[maybe_unused]] static std::wstring percentEncodeW(const std::wstring &input) {
   std::wstringstream encoded;
   for (wchar_t wc : input) {
     if (iswalnum(wc) || wc == L'-' || wc == L'.' || wc == L'_' || wc == L'~') {
