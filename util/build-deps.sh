@@ -114,6 +114,22 @@ clean_workdir() {
 
 # dist-related functions
 
+
+fetch_url() {
+	local url="$1"
+	local out="$2"
+	if command -v curl >/dev/null 2>&1; then
+		curl -f -L -C - -o "$out" "$url"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -c -O "$out" "$url"
+	elif command -v fetch >/dev/null 2>&1; then
+		fetch -o "$out" "$url"
+	else
+		notice "No download tool found. Please install curl, wget, or fetch."
+		return 1
+	fi
+}
+
 distfiles_check() { # does the distfile exist and is it valid?
 	package=$1
 	package_check ${package}
@@ -171,7 +187,10 @@ distfiles_fetch () {
 
 	# If the file exists but didn't pass check, or doesn't exist, we download it using -c (continue)
 	notice "Fetching for ${package}-${DISTVERS[$package]}"
-	wget -c -O ${distfile} ${DISTS[$package]}
+	if ! fetch_url "${DISTS[$package]}" "${distfile}"; then
+		notice "Failed to download ${package}-${DISTVERS[$package]}! Bailing!"
+		exit 1
+	fi
 
 	if distfiles_sum MD5 ${package} && distfiles_sum SHA256 ${package}; then
 		return 0
