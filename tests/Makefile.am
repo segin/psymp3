@@ -3800,6 +3800,14 @@ check_PROGRAMS += test_base64_unit
 
 # Base64 unit tests
 test_base64_unit_SOURCES = test_base64_unit.cpp
+check_PROGRAMS += test_fft_unit
+test_fft_unit_SOURCES = test_fft_unit.cpp
+test_fft_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 test_base64_unit_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
