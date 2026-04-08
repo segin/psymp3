@@ -34,7 +34,7 @@ class Playlist
         // Playlist& operator=(Playlist&&) = default; // Removed: Cannot be defaulted due to non-movable member
         Playlist();
         bool addFile(TagLib::String path, TagLib::String artist, TagLib::String title, long duration);
-        ~Playlist();
+        ~Playlist() = default;
         bool addFile(TagLib::String path);
         long getPosition() const;
         long entries() const;
