@@ -85,11 +85,8 @@ void testBoundedQueue() {
     }
     
     // Get stats
-    auto stats = queue.getStats();
-    std::cout << "Queue stats: " << stats.current_items << " items, "
-              << stats.current_memory_bytes << " bytes, "
-              << stats.total_items_pushed << " pushed, "
-              << stats.total_items_dropped << " dropped" << std::endl;
+    std::cout << "Queue size: " << queue.size() << " items, "
+              << queue.memoryUsage() << " bytes" << std::endl;
     
     // Pop items
     int value;
@@ -98,9 +95,8 @@ void testBoundedQueue() {
     }
     
     // Get stats after pop
-    stats = queue.getStats();
-    std::cout << "Queue stats after pop: " << stats.current_items << " items, "
-              << stats.current_memory_bytes << " bytes" << std::endl;
+    std::cout << "Queue size after pop: " << queue.size() << " items, "
+              << queue.memoryUsage() << " bytes" << std::endl;
     
     std::cout << "BoundedQueue test completed." << std::endl;
 }
@@ -124,7 +120,7 @@ void testMemoryTracker() {
     std::cout << "  Total physical memory: " << (stats.total_physical_memory / (1024 * 1024)) << " MB" << std::endl;
     std::cout << "  Available physical memory: " << (stats.available_physical_memory / (1024 * 1024)) << " MB" << std::endl;
     std::cout << "  Process memory usage: " << (stats.process_memory_usage / (1024 * 1024)) << " MB" << std::endl;
-    std::cout << "  Memory pressure level: " << stats.memory_pressure_level << "%" << std::endl;
+    std::cout << "  Memory pressure level: " << tracker.getMemoryPressureLevel() << "%" << std::endl;
     
     // Allocate some memory to change pressure
     std::vector<std::vector<uint8_t>> memory_blocks;
@@ -145,6 +141,65 @@ void testMemoryTracker() {
     std::cout << "MemoryTracker test completed." << std::endl;
 }
 
+// Test the MemoryOptimizer Core functionality
+void testMemoryOptimizerCore() {
+    std::cout << "Testing MemoryOptimizer Core functionality..." << std::endl;
+
+    MemoryOptimizer& optimizer = MemoryOptimizer::getInstance();
+    IOBufferPool& pool = IOBufferPool::getInstance();
+
+    // Initial state
+    pool.clear();
+    std::cout << "Initial pool size: " << pool.getStats().at("current_pool_size") << " bytes" << std::endl;
+
+    // Set memory limits for MemoryOptimizer
+    optimizer.setMemoryLimits(1024 * 1024, 512 * 1024); // 1MB total, 512KB buffer
+
+    // Register some allocations to simulate usage
+    optimizer.registerAllocation(500 * 1024, "test_component1");
+    optimizer.registerAllocation(200 * 1024, "test_component2");
+
+    auto mem_stats = optimizer.getMemoryStats();
+    std::cout << "MemoryOptimizer total usage: " << mem_stats["total_memory_usage"] << " bytes" << std::endl;
+
+    // Populate the IOBufferPool
+    std::vector<IOBufferPool::Buffer> buffers;
+    for (int i = 0; i < 50; i++) {
+        buffers.push_back(pool.acquire(8192)); // 8KB buffers
+    }
+
+    // Release them back to populate the pool
+    for (auto& buffer : buffers) {
+        buffer.release();
+    }
+    buffers.clear();
+
+    std::cout << "Pool size before optimization: " << pool.getStats().at("current_pool_size") << " bytes" << std::endl;
+
+    // Set a critical memory pressure level
+    // Memory usage is 716800 bytes, total limit is 1MB. (716KB / 1024KB = 70%)
+    // Let's force optimization manually or change memory limits to trigger pressure
+    optimizer.setMemoryLimits(700 * 1024, 512 * 1024);
+
+    // Call optimizeMemoryUsage
+    optimizer.optimizeMemoryUsage();
+
+    std::cout << "Pool size after optimization: " << pool.getStats().at("current_pool_size") << " bytes" << std::endl;
+
+    // Assert cache trimming
+    if (pool.getStats().at("current_pool_size") >= 65536) {
+        std::cerr << "Assertion failed: Pool size was not trimmed during optimization!" << std::endl;
+        std::exit(1);
+    }
+
+    // Clean up
+    pool.clear();
+    optimizer.registerDeallocation(500 * 1024, "test_component1");
+    optimizer.registerDeallocation(200 * 1024, "test_component2");
+
+    std::cout << "MemoryOptimizer Core test completed." << std::endl;
+}
+
 // Main test function
 int main() {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
@@ -161,6 +216,9 @@ int main() {
     testMemoryTracker();
     std::cout << std::endl;
     
+    testMemoryOptimizerCore();
+    std::cout << std::endl;
+
     std::cout << "All tests completed." << std::endl;
     
     return 0;
