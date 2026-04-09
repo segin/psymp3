@@ -111,10 +111,12 @@ bool MPRISMetadata::isEmpty() const {
 }
 
 // RAII deleters implementation
+#include "mpris/DBusConnectionManager.h"
+
 void DBusConnectionDeleter::operator()([[maybe_unused]] DBusConnection *conn) {
 #ifdef HAVE_DBUS
   if (conn) {
-    dbus_connection_unref(conn);
+    DBusConnectionManager::unrefConnection(conn);
   }
 #endif
 }
