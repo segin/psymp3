@@ -668,7 +668,7 @@ void WindowFrameWidget::rebuildSurface()
     
     // Render title text
     if (m_font && !m_title.empty()) {
-        auto text_surface = m_font->Render(TagLib::String(m_title), 255, 255, 255);
+        auto text_surface = m_font->Render(TagLib::String(m_title, TagLib::String::UTF8), 255, 255, 255);
         if (text_surface) {
             // Center horizontally in the titlebar area
             int text_x = content_x + (content_width - text_surface->width()) / 2;

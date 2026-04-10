@@ -472,7 +472,8 @@ TagLib::String System::getHome() {
   // 4. Final fallback for very old systems or unusual configurations.
   return TagLib::String("C:\\My Documents", TagLib::String::Latin1);
 #else
-  return getenv("HOME");
+  const char *home = getenv("HOME");
+  return home ? TagLib::String(home, TagLib::String::UTF8) : TagLib::String();
 #endif
 }
 
@@ -501,7 +502,7 @@ TagLib::String System::getStoragePath() {
   // Use XDG config directory for unified storage
   const char *xdg_config = getenv("XDG_CONFIG_HOME");
   if (xdg_config && strlen(xdg_config) > 0) {
-    return TagLib::String(xdg_config) + "/psymp3";
+    return TagLib::String(xdg_config, TagLib::String::UTF8) + "/psymp3";
   } else {
     return getHome() + "/.config/psymp3";
   }

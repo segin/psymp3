@@ -19,6 +19,9 @@ using namespace PsyMP3::Widget::Windowing;
 
 namespace {
 
+constexpr int kWidgetGlyphLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
+                                      FT_LOAD_MONOCHROME | FT_LOAD_FORCE_AUTOHINT;
+
 void ensureSDLVideo()
 {
     static bool initialized = false;
@@ -246,6 +249,44 @@ protected:
     }
 };
 
+class UnicodeGlyphWidthTest : public WidgetRenderingTest {
+public:
+    UnicodeGlyphWidthTest()
+        : WidgetRenderingTest("Font renderer measures UTF-8 input by Unicode codepoint width")
+    {
+    }
+
+protected:
+    void runTest() override
+    {
+        ensureVideoAndFont();
+
+        FT_Face face = nullptr;
+        if (FT_New_Face(TrueType::getLibrary(), "./res/vera.ttf", 0, &face) != 0) {
+            throw std::runtime_error("FT_New_Face failed for widget Unicode width test");
+        }
+
+        FT_Set_Pixel_Sizes(face, 0, 12);
+
+        const std::string utf8 = "é";
+        int expected_width = 0;
+        for (uint32_t codepoint : UTF8Util::toCodepoints(utf8)) {
+            if (FT_Load_Char(face, codepoint, kWidgetGlyphLoadFlags) == 0) {
+                expected_width += face->glyph->advance.x >> 6;
+            }
+        }
+
+        FT_Done_Face(face);
+
+        ASSERT_TRUE(expected_width > 0, "Expected Unicode glyph width should be measurable");
+
+        auto rendered = m_font->Render(TagLib::String(utf8, TagLib::String::UTF8), 255, 255, 255);
+        ASSERT_NOT_NULL(rendered.get(), "Rendering a UTF-8 label should succeed");
+        ASSERT_EQUALS(expected_width, rendered->getHandle()->w,
+                      "Rendered surface width should match codepoint-based FreeType width");
+    }
+};
+
 class ToastFadeRenderingTest : public WidgetRenderingTest {
 public:
     ToastFadeRenderingTest()
@@ -285,6 +326,7 @@ int main()
     TestSuite suite("Widget Rendering Regression Tests");
     suite.addTest(std::make_unique<LabelRenderingTest>());
     suite.addTest(std::make_unique<OverflowLabelRenderingTest>());
+    suite.addTest(std::make_unique<UnicodeGlyphWidthTest>());
     suite.addTest(std::make_unique<ToastFadeRenderingTest>());
     suite.addTest(std::make_unique<WindowFrameRenderingTest>());
 

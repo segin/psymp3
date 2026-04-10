@@ -52,6 +52,54 @@ bool canReuseAudioForStream(const Audio* audio, Stream* stream)
            static_cast<unsigned int>(audio->getChannels()) == stream->getChannels();
 }
 
+TagLib::String toUtf8TagString(const std::string& text)
+{
+    return TagLib::String(text, TagLib::String::UTF8);
+}
+
+constexpr unsigned long kSeekResetToStartThresholdMs = 250;
+constexpr unsigned long kSeekNaturalEndToleranceMs = 2000;
+
+void logSeekErrorEvent(Stream* stream,
+                       const char* event_name,
+                       unsigned long requested_pos_ms,
+                       unsigned long actual_pos_ms,
+                       unsigned long previous_pos_ms,
+                       unsigned long total_len_ms,
+                       bool stream_eof,
+                       bool audio_finished)
+{
+    const std::string path = stream ? stream->getFilePath().to8Bit(true) : "<unknown>";
+    Debug::log("seek_error",
+               event_name,
+               ": path=",
+               path,
+               ", requested_ms=",
+               requested_pos_ms,
+               ", actual_ms=",
+               actual_pos_ms,
+               ", previous_ms=",
+               previous_pos_ms,
+               ", length_ms=",
+               total_len_ms,
+               ", stream_eof=",
+               stream_eof,
+               ", audio_finished=",
+               audio_finished);
+}
+
+bool seekUnexpectedlyJumpedToStart(unsigned long requested_pos_ms, unsigned long actual_pos_ms)
+{
+    return requested_pos_ms > kSeekResetToStartThresholdMs &&
+           actual_pos_ms <= kSeekResetToStartThresholdMs;
+}
+
+bool seekWouldNaturallyEndTrack(unsigned long requested_pos_ms, unsigned long total_len_ms)
+{
+    return total_len_ms > 0 &&
+           requested_pos_ms + kSeekNaturalEndToleranceMs >= total_len_ms;
+}
+
 size_t getPrimeSampleCount(Stream* stream)
 {
     if (!stream) {
@@ -455,24 +503,38 @@ void Player::handleTrackSeamlessSwapEvent() {
     // This event is triggered when a track ends and a preloaded track is ready.
     const bool recreate_audio = !canReuseAudioForStream(audio.get(), m_next_stream.get());
 
-    if (recreate_audio) {
-        // Different audio format, need to recreate Audio object
-        Debug::log("audio", "Audio format changed, recreating Audio object for seamless transition.");
-        audio.reset();
-        auto owned_stream = std::move(m_next_stream);
-        audio = std::make_unique<Audio>(std::move(owned_stream),
-                                        fft.get(),
-                                        mutex.get(),
-                                        std::move(m_next_stream_primed_samples),
-                                        m_next_stream_primed_eof);
-        audio->setVolume(m_volume);
-    } else {
-        // Same audio format, can seamlessly switch streams
-        Debug::log("audio", "Performing seamless stream transition.");
-        auto owned_stream = std::move(m_next_stream);
-        audio->setStream(std::move(owned_stream),
-                         std::move(m_next_stream_primed_samples),
-                         m_next_stream_primed_eof);
+    try {
+        if (recreate_audio) {
+            // Different audio format, need to recreate Audio object
+            Debug::log("audio", "Audio format changed, recreating Audio object for seamless transition.");
+            audio.reset();
+            auto owned_stream = std::move(m_next_stream);
+            audio = std::make_unique<Audio>(std::move(owned_stream),
+                                            fft.get(),
+                                            mutex.get(),
+                                            std::move(m_next_stream_primed_samples),
+                                            m_next_stream_primed_eof);
+            audio->setVolume(m_volume);
+        } else {
+            // Same audio format, can seamlessly switch streams
+            Debug::log("audio", "Performing seamless stream transition.");
+            auto owned_stream = std::move(m_next_stream);
+            audio->setStream(std::move(owned_stream),
+                             std::move(m_next_stream_primed_samples),
+                             m_next_stream_primed_eof);
+        }
+    } catch (const std::exception& e) {
+        const std::string error_message = std::string("Seamless audio transition failed: ") + e.what();
+        Debug::log("audio", "Player::handleTrackSeamlessSwapEvent(): ", error_message);
+        m_next_stream.reset();
+        m_next_stream_primed_samples.clear();
+        m_next_stream_primed_eof = false;
+        showNotification(error_message, NotificationType::Error);
+        if (!handleUnplayableTrack()) {
+            stop();
+            updateInfo(false, toUtf8TagString(error_message));
+        }
+        return;
     }
 
     m_next_stream_primed_samples.clear();
@@ -837,13 +899,50 @@ bool Player::playPause(void) {
  */
 void Player::seekTo(unsigned long pos)
 {
+    seekToInternal(pos, true);
+}
+
+void Player::seekToInternal(unsigned long pos, bool monitor_seek_errors)
+{
     std::lock_guard<std::mutex> lock(*mutex);
     if (stream) {
+        const unsigned long previous_pos_ms = stream->getPosition();
+        const unsigned long total_len_ms = stream->getLength();
+
         if (audio) {
             audio->resetBuffer();
             audio->setSamplesPlayed((pos * audio->getRate()) / 1000);
         }
         stream->seekTo(pos);
+
+        if (monitor_seek_errors) {
+            const unsigned long actual_pos_ms = stream->getPosition();
+            const bool stream_eof = stream->eof();
+            const bool audio_finished = audio ? audio->isFinished() : false;
+
+            if (seekUnexpectedlyJumpedToStart(pos, actual_pos_ms)) {
+                logSeekErrorEvent(stream,
+                                  "seek_reset_to_start",
+                                  pos,
+                                  actual_pos_ms,
+                                  previous_pos_ms,
+                                  total_len_ms,
+                                  stream_eof,
+                                  audio_finished);
+            }
+
+            if (!seekWouldNaturallyEndTrack(pos, total_len_ms) &&
+                (stream_eof || audio_finished)) {
+                logSeekErrorEvent(stream,
+                                  "seek_premature_end",
+                                  pos,
+                                  actual_pos_ms,
+                                  previous_pos_ms,
+                                  total_len_ms,
+                                  stream_eof,
+                                  audio_finished);
+            }
+        }
         
 #ifdef HAVE_DBUS
         // Notify MPRIS about the seek operation (convert ms to microseconds)
@@ -2535,18 +2634,31 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
     const bool recreate_audio = !canReuseAudioForStream(audio.get(), owned_new_stream.get());
 
-    if (recreate_audio) {
-        Debug::log("audio", "Track load changed audio format, recreating Audio object.");
-        audio.reset();
-        audio = std::make_unique<Audio>(std::move(owned_new_stream),
-                                        fft.get(),
-                                        mutex.get(),
-                                        std::move(primed_samples),
-                                        primed_eof);
-        audio->setVolume(m_volume);
-    } else {
-        Debug::log("audio", "Track load reusing existing Audio device.");
-        audio->setStream(std::move(owned_new_stream), std::move(primed_samples), primed_eof);
+    try {
+        if (recreate_audio) {
+            Debug::log("audio", "Track load changed audio format, recreating Audio object.");
+            audio.reset();
+            audio = std::make_unique<Audio>(std::move(owned_new_stream),
+                                            fft.get(),
+                                            mutex.get(),
+                                            std::move(primed_samples),
+                                            primed_eof);
+            audio->setVolume(m_volume);
+        } else {
+            Debug::log("audio", "Track load reusing existing Audio device.");
+            audio->setStream(std::move(owned_new_stream), std::move(primed_samples), primed_eof);
+        }
+    } catch (const std::exception& e) {
+        const std::string error_message = std::string("Audio initialization failed: ") + e.what();
+        Debug::log("audio", "Player::handleTrackLoadSuccessEvent(): ", error_message);
+        stream = nullptr;
+        m_num_tracks_in_current_stream = 0;
+        showNotification(error_message, NotificationType::Error);
+        if (!handleUnplayableTrack()) {
+            stop();
+            updateInfo(false, toUtf8TagString(error_message));
+        }
+        return;
     }
 
     // Update the player's current stream pointer to reflect the one now owned by Audio
@@ -2630,7 +2742,7 @@ void Player::handleRunGuiIterationEvent() {
         // Track has ended.
         if (m_loop_mode == LoopMode::One) {
             // Loop current track by seeking to the beginning.
-            seekTo(0);
+            seekToInternal(0, false);
         } else if (m_next_stream) {
             // A track was preloaded, perform seamless swap.
             synthesizeUserEvent(TRACK_SEAMLESS_SWAP, nullptr, nullptr);

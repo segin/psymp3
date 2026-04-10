@@ -506,7 +506,7 @@ void MediaFactory::initializeDefaultFormats() {
     registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
         Debug::log("loader", "MediaFactory: Creating Libmpg123 stream for MP3 file: ", uri);
         Debug::log("mp3", "MediaFactory: Creating Libmpg123 stream for MP3 file: ", uri);
-        return std::make_unique<PsyMP3::Codec::MP3::Libmpg123>(TagLib::String(uri.c_str()));
+        return std::make_unique<PsyMP3::Codec::MP3::Libmpg123>(TagLib::String(uri, TagLib::String::UTF8));
     });
 #endif
     
@@ -534,7 +534,7 @@ void MediaFactory::initializeDefaultFormats() {
             
             // Route FLAC files through enhanced FLACDemuxer for RFC 9639 compliant container parsing
             // This ensures proper frame boundary detection, CRC validation, and error recovery
-            return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
 #endif
@@ -562,7 +562,7 @@ void MediaFactory::initializeDefaultFormats() {
             Debug::log("demuxer", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
             Debug::log("ogg", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
             // Route all Ogg files through OggDemuxer for proper container parsing
-            return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
         
         // Register enhanced content detector for Ogg files
@@ -619,7 +619,7 @@ void MediaFactory::initializeDefaultFormats() {
         wave_format.description = "RIFF WAVE audio";
         
         registerFormatInternal(wave_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -639,7 +639,7 @@ void MediaFactory::initializeDefaultFormats() {
         aiff_format.description = "Apple AIFF audio";
         
         registerFormatInternal(aiff_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -659,7 +659,7 @@ void MediaFactory::initializeDefaultFormats() {
         mp4_format.description = "ISO Base Media (MP4/M4A)";
         
         registerFormatInternal(mp4_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -676,7 +676,7 @@ void MediaFactory::initializeDefaultFormats() {
         raw_format.description = "Raw PCM/A-law/μ-law/G.722 audio";
         
         registerFormatInternal(raw_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -692,7 +692,7 @@ void MediaFactory::initializeDefaultFormats() {
     playlist_format.description = "M3U/M3U8 playlists";
     
     registerFormatInternal(playlist_format, [](const std::string& uri, const ContentInfo& info) {
-        return std::make_unique<NullStream>(TagLib::String(uri.c_str()));
+        return std::make_unique<NullStream>(TagLib::String(uri, TagLib::String::UTF8));
     });
     
     rebuildLookupTables();
@@ -1136,7 +1136,7 @@ std::unique_ptr<IOHandler> MediaFactory::createIOHandler(const std::string& uri)
     if (isHttpUri(uri)) {
         return std::make_unique<HTTPIOHandler>(uri);
     } else {
-        return std::make_unique<FileIOHandler>(uri);
+        return std::make_unique<FileIOHandler>(TagLib::String(uri, TagLib::String::UTF8));
     }
 }
 

@@ -57,13 +57,18 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
 
     
     // Normalize the path for consistent cross-platform handling
-    std::string normalized_path = normalizePath(path.to8Bit(false));
+    const std::string utf8_path = path.to8Bit(true);
+    std::string normalized_path = normalizePath(utf8_path);
     Debug::log("io", "FileIOHandler::FileIOHandler() - Normalized path: ", normalized_path);
     
     // Security check: Validate file path for directory traversal attacks using robust C++17 filesystem API.
     // This resolves all ".." components and symbolic links to prevent bypasses.
     try {
-        std::filesystem::path p(path.to8Bit(false));
+#ifdef _WIN32
+        std::filesystem::path p(path.toWString());
+#else
+        std::filesystem::path p = std::filesystem::u8path(utf8_path);
+#endif
 
         // Resolve the path to its absolute and canonical (no ".." or symlinks) form.
         // weakly_canonical is used because the file might not exist yet in some scenarios.
@@ -180,7 +185,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         }
         
         // Create descriptive error message with both errno and Windows error details
-        std::string errorMsg = "Could not open file: " + path.to8Bit(false) + " (";
+        std::string errorMsg = "Could not open file: " + utf8_path + " (";
         errorMsg += strerror(errno);
         if (!win_error_msg.empty()) {
             errorMsg += ", Windows: " + win_error_msg;
@@ -195,8 +200,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         throw InvalidMediaException(errorMsg);
     }
 #else
-    // Unix/Linux: Use raw C string without UTF-8 conversion to preserve original filesystem encoding
-    bool file_opened = m_file_handle.open(path.toCString(false), "rb");
+    bool file_opened = m_file_handle.open(utf8_path.c_str(), "rb");
 
     // Handle file open failure
     if (!file_opened) {
@@ -220,7 +224,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
 #endif
     
     // Log successful file opening
-    Debug::log("io", "FileIOHandler::FileIOHandler() - Successfully opened file: ", path.to8Bit(false));
+    Debug::log("io", "FileIOHandler::FileIOHandler() - Successfully opened file: ", utf8_path);
     
     // Get and log file size for debugging and optimization (without locks during construction)
     filesize_t fileSize = getFileSizeInternal();
@@ -714,7 +718,7 @@ int FileIOHandler::close_unlocked() {
         return 0;  // Already closed, not an error
     }
     
-    Debug::log("io", "FileIOHandler::close_unlocked() - Closing file: ", m_file_path.to8Bit(false));
+    Debug::log("io", "FileIOHandler::close_unlocked() - Closing file: ", m_file_path.to8Bit(true));
     
     // Close the file using RAII
     int result = m_file_handle.close();
@@ -998,7 +1002,8 @@ bool FileIOHandler::attemptErrorRecovery() {
                 Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Windows reopen failed, error: ", win_error);
             }
 #else
-            m_file_handle.open(m_file_path.toCString(false), "rb");
+            const std::string utf8_path = m_file_path.to8Bit(true);
+            m_file_handle.open(utf8_path.c_str(), "rb");
 #endif
             
             if (m_file_handle) {
@@ -1582,7 +1587,7 @@ bool FileIOHandler::handleTimeout(const std::string& operation_name, int timeout
         Debug::log("io", "FileIOHandler::handleTimeout() - ", error_msg);
         
         // Detect if this might be a network file system causing the timeout
-        std::string path_str = m_file_path.to8Bit(false);
+        std::string path_str = m_file_path.to8Bit(true);
         bool likely_network_fs = false;
         
         // Check for common network file system indicators
@@ -1644,7 +1649,7 @@ std::string FileIOHandler::getFileOperationErrorMessage(int error_code, const st
         message += " (" + additional_context + ")";
     }
     
-    message += " on file: " + m_file_path.to8Bit(false);
+    message += " on file: " + m_file_path.to8Bit(true);
     
     // Add specific error details based on error code
     switch (error_code) {
@@ -1885,7 +1890,8 @@ bool FileIOHandler::handleFileResourceExhaustion(const std::string& resource_typ
 #ifdef _WIN32
                 m_file_handle.open(m_file_path.toCWString(), L"rb");
 #else
-                m_file_handle.open(m_file_path.toCString(false), "rb");
+                const std::string utf8_path = m_file_path.to8Bit(true);
+                m_file_handle.open(utf8_path.c_str(), "rb");
 #endif
                 if (m_file_handle) {
                     m_closed = false;

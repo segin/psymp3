@@ -30,6 +30,11 @@ namespace {
 constexpr int kGlyphLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
                                 FT_LOAD_MONOCHROME | FT_LOAD_FORCE_AUTOHINT;
 
+std::vector<uint32_t> toRenderableCodepoints(const TagLib::String& text)
+{
+    return UTF8Util::toCodepoints(text.to8Bit(true));
+}
+
 unsigned char getGlyphCoverage(const FT_Bitmap& bitmap, unsigned int row, unsigned int col)
 {
     if (bitmap.pixel_mode == FT_PIXEL_MODE_MONO) {
@@ -81,10 +86,10 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
         font_height = baseline - descender;
     }
 
-    std::string text_utf8 = text.to8Bit(true);
-    for (const char* p = text_utf8.c_str(); *p; p++) {
-        if (FT_Load_Char(m_face, static_cast<unsigned char>(*p), kGlyphLoadFlags)) {
-            Debug::log("font", "FT_Load_Char failed for character: ", *p);
+    const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
+    for (uint32_t codepoint : codepoints) {
+        if (FT_Load_Char(m_face, codepoint, kGlyphLoadFlags)) {
+            Debug::log("font", "FT_Load_Char failed for codepoint: ", codepoint);
             continue;
         }
         width += m_face->glyph->advance.x >> 6;
@@ -104,8 +109,8 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     sfc->FillRect(sfc->MapRGBA(0, 0, 0, 0));
 
     int pen_x = 0;
-    for (const char* p = text_utf8.c_str(); *p; p++) {
-        if (FT_Load_Char(m_face, static_cast<unsigned char>(*p), kGlyphLoadFlags)) {
+    for (uint32_t codepoint : codepoints) {
+        if (FT_Load_Char(m_face, codepoint, kGlyphLoadFlags)) {
             continue;
         }
 

@@ -226,7 +226,7 @@ bool DemuxerPluginManager::registerCustomDemuxer(const std::string& format_id,
             if (MediaFactory::isHttpUri(uri)) {
                 handler = std::make_unique<HTTPIOHandler>(uri);
             } else {
-                handler = std::make_unique<FileIOHandler>(uri);
+                handler = std::make_unique<FileIOHandler>(TagLib::String(uri, TagLib::String::UTF8));
             }
             
             if (!handler) {
@@ -240,7 +240,7 @@ bool DemuxerPluginManager::registerCustomDemuxer(const std::string& format_id,
             }
             
             // Wrap in DemuxedStream
-            return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
         
         // Register with DemuxerFactory

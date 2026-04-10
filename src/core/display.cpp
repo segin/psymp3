@@ -67,7 +67,7 @@ void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
     (void)icon_title;
     if (m_window) {
-        SDL_SetWindowTitle(m_window, title.toCString(false));
+        SDL_SetWindowTitle(m_window, title.toCString(true));
     }
 }
 

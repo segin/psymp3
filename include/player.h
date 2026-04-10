@@ -189,6 +189,7 @@ class Player
         void handleDoSetLoopModeEvent(LoopMode mode);
         void handleKeyUp(const SDL_keysym& keysym);
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
+        void seekToInternal(unsigned long pos, bool monitor_seek_errors);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
         
         // Initialization and cleanup

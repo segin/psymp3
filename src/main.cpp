@@ -23,6 +23,24 @@
 
 #include "psymp3.h"
 
+namespace {
+
+std::string normalizeCommandLineText(const char* raw_text)
+{
+    if (!raw_text) {
+        return "";
+    }
+
+    std::string text(raw_text);
+    if (UTF8Util::isValid(text)) {
+        return text;
+    }
+
+    return UTF8Util::fromLatin1(text);
+}
+
+} // namespace
+
 #ifdef HAVE_MP3
 // RAII wrapper for libmpg123 initialization and cleanup.
 // A single static instance of this class ensures that mpg123_init() is called
@@ -152,7 +170,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
             } else if (option_name == "logfile") {
-                logfile = optarg;
+                logfile = normalizeCommandLineText(optarg);
             } else if (option_name == "unattended-quit") {
                 options.unattended_quit = true;
             } else if (option_name == "no-mpris-errors") {
@@ -179,7 +197,7 @@ int main(int argc, char *argv[]) {
     // Collect non-option arguments as file paths.
     if (optind < argc) {
         for (int i = optind; i < argc; ++i) {
-            options.files.push_back(argv[i]);
+            options.files.push_back(normalizeCommandLineText(argv[i]));
         }
     }
 
