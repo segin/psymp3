@@ -152,9 +152,19 @@ int main(int argc, char *argv[]) {
                 else if (strcmp(optarg, "neomat-in") == 0) options.fft_mode = FFTMode::NeomatIn;
                 else if (strcmp(optarg, "neomat-out") == 0) options.fft_mode = FFTMode::NeomatOut;
             } else if (option_name == "scale") {
-                options.scalefactor = atoi(optarg);
+                try {
+                    options.scalefactor = std::stoi(optarg);
+                } catch (const std::exception&) {
+                    std::cerr << "Invalid scale value: " << optarg << "\n";
+                    return 1;
+                }
             } else if (option_name == "decay") {
-                options.decayfactor = atof(optarg);
+                try {
+                    options.decayfactor = std::stod(optarg);
+                } catch (const std::exception&) {
+                    std::cerr << "Invalid decay value: " << optarg << "\n";
+                    return 1;
+                }
             } else if (option_name == "test") {
                 options.automated_test_mode = true;
             } else if (option_name == "debug") {

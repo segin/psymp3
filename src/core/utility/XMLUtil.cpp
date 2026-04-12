@@ -155,6 +155,16 @@ std::string XMLUtil::unescapeXML(const std::string& text) {
 }
 
 XMLUtil::Element XMLUtil::parseElement(const std::string& xml, size_t& pos) {
+    return parseElement(xml, pos, 0);
+}
+
+XMLUtil::Element XMLUtil::parseElement(const std::string& xml, size_t& pos, size_t depth) {
+    // Guard against stack overflow from deeply nested/malicious XML
+    static constexpr size_t MAX_XML_DEPTH = 256;
+    if (depth > MAX_XML_DEPTH) {
+        throw std::runtime_error("XML nesting depth exceeds maximum of " + std::to_string(MAX_XML_DEPTH));
+    }
+
     skipWhitespace(xml, pos);
     
     if (pos >= xml.length() || xml[pos] != '<') {
@@ -216,7 +226,7 @@ XMLUtil::Element XMLUtil::parseElement(const std::string& xml, size_t& pos) {
             }
 
             // Child element
-            element.children.push_back(parseElement(xml, pos));
+            element.children.push_back(parseElement(xml, pos, depth + 1));
         } else {
             // Text content
             size_t textEnd = xml.find('<', pos);
