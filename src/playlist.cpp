@@ -403,11 +403,26 @@ static bool isAbsolutePath(const TagLib::String& path) {
  * @brief Joins a base directory path and a relative path.
  * @param base The base directory path.
  * @param relative The relative path to append.
- * @return The combined path.
+ * @return The combined path. Returns empty if relative path attempts directory traversal.
  */
 static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String& relative) {
     if (base.isEmpty()) return relative;
     if (relative.isEmpty()) return base;
+
+    // Reject path traversal attempts: block ".." components in relative path
+    std::string rel_str = relative.to8Bit(true);
+    // Check for ".." as a path component (standalone or between separators)
+    size_t pos = 0;
+    while (pos < rel_str.size()) {
+        size_t sep = rel_str.find_first_of("/\\", pos);
+        std::string component = (sep == std::string::npos)
+            ? rel_str.substr(pos) : rel_str.substr(pos, sep - pos);
+        if (component == "..") {
+            return TagLib::String(); // Reject traversal
+        }
+        if (sep == std::string::npos) break;
+        pos = sep + 1;
+    }
 
     std::string base_str = base.to8Bit(true);
     if (base_str.back() != '/' && base_str.back() != '\\') {
