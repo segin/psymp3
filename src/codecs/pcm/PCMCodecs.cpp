@@ -85,6 +85,14 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
     const uint8_t* input_ptr = input_data.data();
     size_t input_size = input_data.size();
     size_t bytes_per_sample = getBytesPerInputSample();
+    
+    // Truncate to aligned boundary to prevent over-reads on trailing bytes
+    input_size -= input_size % bytes_per_sample;
+    if (input_size == 0) {
+        output_samples.clear();
+        return 0;
+    }
+    
     size_t num_samples = input_size / bytes_per_sample;
     
     output_samples.resize(num_samples);
