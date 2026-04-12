@@ -205,7 +205,6 @@ have_mulaw=no
 
 if test "x$enable_alaw" = "xyes"; then
   have_alaw=yes
-  AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
 fi
 
 # G711 codec option (enables both μ-law and A-law)
@@ -224,7 +223,13 @@ else
   # Enable both codecs by default
   have_alaw=yes
   have_mulaw=yes
+fi
+
+# Define codec macros based on final have_alaw/have_mulaw values
+if test "x$have_alaw" = "xyes"; then
   AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
+fi
+if test "x$have_mulaw" = "xyes"; then
   AC_DEFINE([ENABLE_MULAW_CODEC], [1], [Define to 1 if μ-law codec support is enabled])
 fi
 
