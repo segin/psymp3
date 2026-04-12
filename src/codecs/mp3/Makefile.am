@@ -36,4 +36,5 @@ endif
 noinst_LIBRARIES = libpsymp3-codec-mp3.a
 
 libpsymp3_codec_mp3_a_SOURCES = \
-	MP3Codec.cpp
+	MP3Codec.cpp \
+	MiniMP3Codec.cpp

@@ -9,7 +9,7 @@
 
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
-SUBDIRS = pcm
+SUBDIRS = pcm mp3
 
 noinst_LIBRARIES = libpsymp3-codecs.a
 
@@ -31,10 +31,6 @@ endif
 
 if HAVE_VORBIS
 SUBDIRS += vorbis
-endif
-
-if HAVE_MP3
-SUBDIRS += mp3
 endif
 
 if HAVE_AAC
