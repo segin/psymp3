@@ -749,6 +749,9 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                         }, depth);
                 }
                 break;
+            case CODEC_MP3:
+                track.codecType = "mp3";
+                break;
             case CODEC_ALAC:
                 track.codecType = "alac";
                 // Look for alac box for ALAC magic cookie
@@ -1100,6 +1103,15 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
                 return false;
             }
 
+            // Read objectTypeIndication to distinguish AAC from MP3
+            uint8_t objectTypeIndication = esds[cursor];
+            if (objectTypeIndication == 0x6B || objectTypeIndication == 0x69) {
+                // 0x6B = MPEG-1 Audio (MP3), 0x69 = MPEG-2 Audio
+                track.codecType = "mp3";
+                Debug::log("iso", "ISODemuxerBoxParser: esds objectTypeIndication 0x",
+                           std::hex, static_cast<int>(objectTypeIndication), std::dec,
+                           " indicates MP3, not AAC");
+            }
             cursor += 13; // objectTypeIndication + streamType + bufferSizeDB + max/avg bitrate
             continue;
         }
