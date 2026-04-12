@@ -30,6 +30,9 @@ endif
 CODEC_LIBS =
 DEMUXER_LIBS =
 
+# MP3 codec and demuxer are always available (bundled minimp3)
+CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
+DEMUXER_LIBS += $(top_builddir)/src/demuxer/mp3/libpsymp3-demuxer-mp3.a
 
 if HAVE_FLAC
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a
@@ -38,10 +41,6 @@ CODEC_LIBS += $(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a
 else
 CODEC_LIBS += $(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a
 endif
-endif
-
-if HAVE_MP3
-CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
 endif
 
 if HAVE_VORBIS
@@ -107,6 +106,7 @@ COMMON_TEST_LIBS = \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -286,6 +286,7 @@ opusout_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
@@ -3372,6 +3373,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -3420,6 +3422,7 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -3467,6 +3470,7 @@ mp3out_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \

@@ -142,6 +142,7 @@ psymp3_LDADD = \
 	$(CODEC_LIBS) \
 	demuxer/libpsymp3-demuxer.a \
 	$(DEMUXER_LIBS) \
+	codecs/libpsymp3-codecs.a \
 	demuxer/iso/libpsymp3-demuxer-iso.a \
 	demuxer/riff/libpsymp3-demuxer-riff.a \
 	demuxer/raw/libpsymp3-demuxer-raw.a \
