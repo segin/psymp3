@@ -41,32 +41,7 @@ std::string normalizeCommandLineText(const char* raw_text)
 
 } // namespace
 
-#ifdef HAVE_MP3
-// RAII wrapper for libmpg123 initialization and cleanup.
-// A single static instance of this class ensures that mpg123_init() is called
-// once at program startup and mpg123_exit() is called once at program termination.
-/**
- * @brief RAII wrapper that manages the lifetime of the libmpg123 library.
- *
- * The constructor calls `mpg123_init()` and the destructor calls `mpg123_exit()`,
- * ensuring the library is initialised exactly once before any MP3 decoding
- * takes place and cleaned up when the process exits.
- */
-class Mpg123LifecycleManager {
-public:
-    /** @brief Initialises libmpg123. Throws `std::runtime_error` on failure. */
-    Mpg123LifecycleManager() {
-        if (mpg123_init() != MPG123_OK) {
-            // Throwing an exception is a clear way to signal a fatal startup error.
-            throw std::runtime_error("Failed to initialize libmpg123.");
-        }
-    }
-    /** @brief Shuts down libmpg123 by calling `mpg123_exit()`. */
-    ~Mpg123LifecycleManager() {
-        mpg123_exit();
-    }
-};
-#endif
+
 
 // RAII wrapper for Windows Winsock initialization and cleanup
 #ifdef _WIN32
@@ -91,11 +66,6 @@ public:
 static WinsockLifecycleManager winsock_manager;
 #endif
 
-#ifdef HAVE_MP3
-// The global static instance that manages the library's lifetime.
-// Its constructor is called before main(), and its destructor is called after main() exits.
-static Mpg123LifecycleManager mpg123_manager;
-#endif
 
 /**
  * @brief Application entry point.

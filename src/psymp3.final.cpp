@@ -133,6 +133,12 @@
 #endif
 
 // ============================================================================
+// MP3 Codec/Demuxer (always available via bundled minimp3)
+// ============================================================================
+#include "demuxer/mp3/MP3NullDemuxer.cpp"
+#include "codecs/mp3/MiniMP3Codec.cpp"
+
+// ============================================================================
 // Optional Codec: Vorbis
 // ============================================================================
 #ifdef HAVE_VORBIS
@@ -178,13 +184,6 @@
 #include "codecs/flac/SampleReconstructor.cpp"
 #include "codecs/flac/SubframeDecoder.cpp"
 #endif // HAVE_FLAC
-
-// ============================================================================
-// Optional Codec: MP3
-// ============================================================================
-#ifdef HAVE_MP3
-#include "codecs/mp3/MP3Codec.cpp"
-#endif
 
 // ============================================================================
 // Widget System - Foundation

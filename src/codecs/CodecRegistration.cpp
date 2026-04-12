@@ -41,13 +41,6 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: G.722 codec disabled at compile time");
 #endif
 
-    // MP3 remains in legacy Stream architecture - not registered with CodecRegistry
-#ifdef HAVE_MP3
-    Debug::log("codec", "registerAllCodecs: MP3 codec uses legacy Stream architecture (not registered)");
-#else
-    Debug::log("codec", "registerAllCodecs: MP3 codec disabled at compile time");
-#endif
-
     // minimp3-based MP3 codec (always available, no external dependency)
     PsyMP3::Codec::MP3::MiniMP3CodecSupport::registerCodec();
     Debug::log("codec", "registerAllCodecs: Registered MiniMP3Codec with AudioCodecFactory");
