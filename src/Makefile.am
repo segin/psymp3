@@ -76,13 +76,13 @@ endif
 CODEC_LIBS =
 DEMUXER_LIBS =
 
+# MP3 codec is always built (minimp3 has no external dependency)
+CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
+DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
+
 if HAVE_FLAC
 DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
 CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
-endif
-
-if HAVE_MP3
-CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
 endif
 
 if HAVE_VORBIS
