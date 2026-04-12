@@ -97,10 +97,14 @@ void HTTPIOHandler::initialize() {
         if (content_length_it != response.headers.end()) {
             try {
                 long parsed_length = std::stol(content_length_it->second);
-                if (m_content_length == -1) {
-                    m_content_length = parsed_length;
+                if (parsed_length >= 0 && parsed_length <= static_cast<long>(INT64_MAX)) {
+                    if (m_content_length == -1) {
+                        m_content_length = parsed_length;
+                    }
+                    Debug::log("HTTPIOHandler", "Content-Length: ", m_content_length, " bytes");
+                } else {
+                    Debug::log("HTTPIOHandler", "Content-Length out of bounds: ", parsed_length);
                 }
-                Debug::log("HTTPIOHandler", "Content-Length: ", m_content_length, " bytes");
             } catch (const std::exception& e) {
                 Debug::log("HTTPIOHandler", "Failed to parse Content-Length: ", e.what());
             }
