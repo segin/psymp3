@@ -26,7 +26,7 @@
 #include "core/surface.cpp"
 #include "core/truetype.cpp"
 #include "debug.cpp"
-#include "exceptions.cpp"
+#include "core/exceptions.cpp"
 #include "core/lyrics.cpp"
 #include "main.cpp"
 #include "mediafile.cpp"
@@ -39,6 +39,7 @@
 // ============================================================================
 // Utility
 // ============================================================================
+#include "core/utility/Base64.cpp"
 #include "core/utility/UTF8Util.cpp"
 #include "core/utility/XMLUtil.cpp"
 #include "core/utility/utility.cpp"
@@ -136,6 +137,8 @@
 // MP3 Codec/Demuxer (always available via bundled minimp3)
 // ============================================================================
 #include "demuxer/mp3/MP3NullDemuxer.cpp"
+#define MINIMP3_IMPLEMENTATION
+#include "../third_party/minimp3/minimp3.h"
 #include "codecs/mp3/MiniMP3Codec.cpp"
 
 // ============================================================================
@@ -215,11 +218,13 @@
 #include "widget/ui/ProgressBarFrameWidget.cpp"
 #include "widget/ui/ScrollbarWidget.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
+#include "widget/ui/TextInputWidget.cpp"
 #include "widget/ui/ToastWidget.cpp"
 
 // ============================================================================
 // Tag Subsystem
 // ============================================================================
+#include "tag/ImageUtils.cpp"
 #include "tag/Tag.cpp"
 #include "tag/NullTag.cpp"
 #include "tag/VorbisCommentTag.cpp"
