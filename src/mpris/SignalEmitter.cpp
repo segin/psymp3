@@ -314,7 +314,7 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
   }
 
   for (const auto &[key, variant] : changed_properties) {
-    DBusMessageIter entry_iter, variant_iter;
+    DBusMessageIter entry_iter;
 
     // Open dict entry
     if (!dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
