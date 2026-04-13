@@ -241,7 +241,7 @@ bool OggDemuxer::parseContainer() {
             // and this one is, prefer this one.
             // (Currently all our supported Ogg codecs are audio, so this is mostly defensive)
             auto current_info = m_parsers[m_primary_serial]->getCodecInfo();
-            auto new_info = parser->getCodecInfo();
+            auto new_info = m_parsers[serial]->getCodecInfo();
             if (current_info.codec_name == "Unknown" && new_info.codec_name != "Unknown") {
                m_primary_serial = serial;
                Debug::log("ogg", "OggDemuxer::parseContainer() switched primary_serial to ", serial, " (better codec)");
