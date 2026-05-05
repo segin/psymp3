@@ -292,15 +292,11 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     // Create the final surface with alpha support
     auto final_surface = std::make_unique<Surface>(surface_width, surface_height, true);
 
-    // Follow ToastWidget's exact basic shell construction:
-    // draw the shell fully opaque, then apply relative opacity afterward so
-    // transparent pixels stay transparent instead of turning into an opaque slab.
     final_surface->FillRect(final_surface->MapRGBA(0, 0, 0, 0));
     drawToastStyleRoundedRect(*final_surface, 0, 0, surface_width, surface_height, 8, 100, 100, 100, 255);
     if (surface_width > 4 && surface_height > 4) {
         drawToastStyleRoundedRect(*final_surface, 1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, 255);
     }
-    applyRelativeOpacity(*final_surface, getOpacity());
 
     int y_offset = PADDING;
 
@@ -314,7 +310,11 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
             y_offset += LINE_SPACING;
         }
     }
-    
+
+    // Apply opacity after blitting text, mirroring ToastWidget::draw() so that
+    // background and text are dimmed together rather than text landing at full alpha.
+    applyRelativeOpacity(*final_surface, getOpacity());
+
     return final_surface;
 }
 
