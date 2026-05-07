@@ -54,6 +54,7 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 
 - `src/codecs/`: Decode AAC, FLAC, MP3, Opus, Vorbis, PCM-family, G.711, and G.722 streams into PCM.
 - `src/demuxer/`: Parse Ogg, ISO BMFF, RIFF/WAV, FLAC, and raw streams into codec-ready chunks and metadata.
+- MP3 is handled by bundled `minimp3` via `MiniMP3Codec` and `MP3NullDemuxer`; no external MP3 runtime dependency remains.
 - `src/io/`: Provide the file/HTTP abstraction and the large-file-safe offset contract used across the pipeline.
 - `src/audio.cpp`: Own the SDL audio device, decode thread, PCM queue, and FFT feed.
 - `src/widget/`: Render the software UI, manage event routing, z-order, floating windows, and overlays.

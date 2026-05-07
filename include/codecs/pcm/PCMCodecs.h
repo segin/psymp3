@@ -26,18 +26,6 @@
 
 // No direct includes - all includes should be in psymp3.h
 
-// Forward declarations for namespaced codec types
-namespace PsyMP3 {
-namespace Codec {
-namespace MP3 {
-    class Libmpg123;
-}
-}
-namespace IO {
-    class MemoryIOHandler;
-}
-}
-
 namespace PsyMP3 {
 namespace Codec {
 namespace PCM {
@@ -70,35 +58,6 @@ private:
     } m_pcm_format;
     
     void detectPCMFormat();
-};
-
-
-
-
-
-/**
- * @brief Passthrough codec for existing MP3 decoder
- * 
- * This forwards MP3 data to the existing libmpg123-based decoder.
- * Used when MP3 streams are found inside containers like RIFF WAVE.
- */
-class MP3PassthroughCodec : public AudioCodec {
-public:
-    explicit MP3PassthroughCodec(const StreamInfo& stream_info);
-    ~MP3PassthroughCodec() override;
-    
-    bool initialize() override;
-    AudioFrame decode(const MediaChunk& chunk) override;
-    AudioFrame flush() override;
-    void reset() override;
-    std::string getCodecName() const override { return "mp3_passthrough"; }
-    bool canDecode(const StreamInfo& stream_info) const override;
-    
-private:
-    PsyMP3::Codec::MP3::Libmpg123* m_mp3_stream = nullptr;  // Fully qualified
-    PsyMP3::IO::MemoryIOHandler* m_io_handler = nullptr;    // Raw pointer to handler (owned by m_mp3_stream)
-    std::vector<uint8_t> m_buffer;            // Accumulated data buffer (initial only)
-    bool m_header_written = false;
 };
 
 } // namespace PCM

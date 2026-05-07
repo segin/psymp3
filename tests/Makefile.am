@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -70,7 +70,6 @@ SYSTEM_LIBS = \
 	$(OPENSSL_LIBS) \
 	$(CURL_LIBS) \
 	$(FLAC_LIBS) \
-	$(LIBMPG123_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OGG_LIBS) \
 	$(AAC_LIBS) \
@@ -233,7 +232,7 @@ COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
 MPRIS_TEST_LIBS = $(COMMON_TEST_LIBS)
 
 # Common library links for codec tests
-COMMON_CODEC_LIBS = -lmpg123 -lvorbis -lopus -logg
+COMMON_CODEC_LIBS = -lvorbis -lopus -logg
 AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS) $(AAC_LIBS) $(G722_LIBS)
 
 # Common test utilities library
@@ -298,7 +297,7 @@ opusout_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OPUS_LIBS) $(OGG_LIBS) \
-	-lvorbis -lmpg123 -lcurl -lssl -lcrypto \
+	-lvorbis -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS) $(AAC_LIBS)
 endif
 
@@ -518,8 +517,7 @@ test_opus_codec_property_LDADD = \
 	$(TAGLIB_LIBS) \
 	$(VORBIS_LIBS) \
 	$(FLAC_LIBS) \
-	$(FLAC_LIBS) \
-	-lmpg123 \
+	$(FLAC_LIBS) \ \
 	$(AM_LDFLAGS)
 
 test_fixed_predictor_properties_SOURCES = test_fixed_predictor_properties.cpp
@@ -1458,8 +1456,7 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lmpg123 -lvorbis -lopus -logg \
+	$(top_builddir)/src/core/libpsymp3-core.a \ -lvorbis -lopus -logg \
 	$(AM_LDFLAGS)
 
 # Codec thread safety test
@@ -2502,7 +2499,6 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(FREETYPE_LIBS) \
 #	$(OPENSSL_LIBS) \
 #	$(CURL_LIBS) \
-#	$(LIBMPG123_LIBS) \
 #	$(VORBIS_LIBS) \
 #	$(OPUS_LIBS) \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -2848,8 +2844,7 @@ test_opus_codec_core_decoding_LDADD = \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
-	$(CODEC_LIBS) \
-	-lmpg123 \
+	$(CODEC_LIBS) \ \
 	$(AM_LDFLAGS)
 
 test_opus_codec_error_handling_SOURCES = test_opus_codec_error_handling.cpp
@@ -2880,8 +2875,7 @@ test_opus_codec_error_handling_LDADD = \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
-	$(CODEC_LIBS) \
-	-lmpg123 \
+	$(CODEC_LIBS) \ \
 	$(AM_LDFLAGS)
 
 test_opus_integration_SOURCES = test_opus_integration.cpp
@@ -2914,8 +2908,7 @@ test_opus_integration_LDADD = \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	-lmpg123 \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \ \
 	$(AM_LDFLAGS)
 
 test_opus_compatibility_performance_SOURCES = test_opus_compatibility_performance.cpp
@@ -2948,8 +2941,7 @@ test_opus_compatibility_performance_LDADD = \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	-lmpg123 \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \ \
 	$(AM_LDFLAGS)
 
 # MPRIS Mock Framework Tests
@@ -3076,7 +3068,7 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 	$(FULL_CODEC_LIBS) \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS) \
-	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto -ltag
+	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto -ltag
 endif
 endif
 
@@ -3384,7 +3376,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(AAC_LIBS)
 endif
 
@@ -3433,7 +3425,7 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(VORBIS_LIBS) \
-	-logg -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(AAC_LIBS)
 endif
 
@@ -3452,7 +3444,6 @@ endif
 #
 # ============================================================================
 
-if HAVE_MP3
 noinst_PROGRAMS += mp3out
 
 mp3out_SOURCES = mp3out.cpp
@@ -3480,10 +3471,9 @@ mp3out_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(LIBMPG123_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(AAC_LIBS)
-endif
+
 
 
 # ============================================================================
@@ -3607,7 +3597,7 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	-lvorbis -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 else
 test_stream_tag_integration_LDADD = \
@@ -3633,7 +3623,7 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	-lvorbis -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 endif
 
@@ -3903,11 +3893,6 @@ test_base64_unit_LDADD = \
 
 # Run all check programs
 TESTS = $(check_PROGRAMS)
-
-check_PROGRAMS += test_mp3_codec_wrapper
-test_mp3_codec_wrapper_SOURCES = test_mp3_codec.cpp
-test_mp3_codec_wrapper_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir)/tests
-test_mp3_codec_wrapper_LDADD = # No external libs
 
 if HAVE_DBUS
 check_PROGRAMS += test_loop_status

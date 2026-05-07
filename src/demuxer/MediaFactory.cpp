@@ -486,29 +486,25 @@ void MediaFactory::initializeDefaultFormats() {
     
     // Register formats based on what's available in the registries
     // This replaces hardcoded conditional compilation with registry lookups
-    
-#ifdef HAVE_MP3
-    // MPEG Audio formats - MP3 uses legacy Stream architecture
-    MediaFormat mp3_format;
-    mp3_format.format_id = "mpeg_audio";
-    mp3_format.display_name = "MPEG Audio";
-    // Enhanced extension mappings per requirements - add MP2, .bit, .mpga extensions
-    mp3_format.extensions = {"MP3", "MP2", "MPA", "MPGA", "BIT", "M2A", "MP2A"};
-    // Comprehensive MIME type support for MPEG audio
-    mp3_format.mime_types = {"audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3", "audio/x-mpeg", "audio/x-mpeg-3"};
-    mp3_format.magic_signatures = {"ID3", "\xFF\xFB", "\xFF\xFA"};
-    mp3_format.priority = 10;
-    mp3_format.supports_streaming = true;
-    mp3_format.supports_seeking = true;
-    mp3_format.description = "MPEG-1/2 Audio Layer II/III";
-    
-    // MP3 uses legacy Stream architecture via Libmpg123 codec
-    registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
-        Debug::log("loader", "MediaFactory: Creating Libmpg123 stream for MP3 file: ", uri);
-        Debug::log("mp3", "MediaFactory: Creating Libmpg123 stream for MP3 file: ", uri);
-        return std::make_unique<PsyMP3::Codec::MP3::Libmpg123>(TagLib::String(uri, TagLib::String::UTF8));
-    });
-#endif
+
+    if (DemuxerRegistry::getInstance().isFormatSupported("mp3")) {
+        MediaFormat mp3_format;
+        mp3_format.format_id = "mp3";
+        mp3_format.display_name = "MPEG Audio";
+        mp3_format.extensions = {"MP3", "MP2", "MPA", "MPGA", "BIT", "M2A", "MP2A"};
+        mp3_format.mime_types = {"audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3", "audio/x-mpeg", "audio/x-mpeg-3"};
+        mp3_format.magic_signatures = {"ID3", "\xFF\xFB", "\xFF\xFA"};
+        mp3_format.priority = 10;
+        mp3_format.supports_streaming = true;
+        mp3_format.supports_seeking = true;
+        mp3_format.description = "MPEG-1/2 Audio Layer II/III";
+
+        registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
+            Debug::log("loader", "MediaFactory: Creating DemuxedStream for MP3 file: ", uri);
+            Debug::log("mp3", "MediaFactory: Creating DemuxedStream for MP3 file: ", uri);
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
+        });
+    }
     
 #ifdef HAVE_FLAC
     // FLAC format - uses legacy Stream architecture

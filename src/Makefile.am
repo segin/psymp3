@@ -40,9 +40,6 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 if HAVE_FLAC
 endif
 
-if HAVE_MP3
-AM_CPPFLAGS += $(LIBMPG123_CFLAGS)
-endif
 
 if HAVE_VORBIS
 AM_CPPFLAGS += $(VORBIS_CFLAGS)
@@ -165,9 +162,6 @@ psymp3_LDADD += \
 	$(WINSOCK_LIBS)
 
 # Optional codec system libraries (must come after our libraries)
-if HAVE_MP3
-psymp3_LDADD += $(LIBMPG123_LIBS)
-endif
 
 if HAVE_VORBIS
 psymp3_LDADD += $(VORBIS_LIBS)

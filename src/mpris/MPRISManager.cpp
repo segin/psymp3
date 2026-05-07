@@ -22,9 +22,6 @@ using Result = PsyMP3::MPRIS::Result<T>;
 
 #ifdef HAVE_DBUS
 
-// Static instance pointer for singleton access (if needed by other components)
-static MPRISManager* s_instance = nullptr;
-
 MPRISManager::MPRISManager(Player* player)
     : m_player(player)
     , m_connection(nullptr)

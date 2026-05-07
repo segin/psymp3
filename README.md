@@ -34,7 +34,7 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 - libcurl 7.20.0 or later
 
 **Optional codec dependencies** (can be disabled at build time):
-- libmpg123 1.8 or later (for MP3 support)
+- MP3 support is provided by bundled minimp3 (no external dependency)
 - libvorbis (for Ogg Vorbis support)
 - libopus (for Opus support)
 - libogg (required for Vorbis, Opus, and Ogg FLAC)
@@ -68,7 +68,6 @@ make -j$(nproc)
 
 **Build Options:**
 - `--enable-flac` - Enable FLAC support (default: yes)
-- `--enable-mp3` - Enable MP3 support (default: yes)  
 - `--enable-vorbis` - Enable Vorbis support (default: yes)
 - `--enable-opus` - Enable Opus support (default: yes)
 - `--enable-dbus` - Enable MPRIS integration (default: yes)

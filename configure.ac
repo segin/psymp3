@@ -53,10 +53,6 @@ AC_ARG_ENABLE([flac],
   [AS_HELP_STRING([--enable-flac], [Enable FLAC support (native implementation, no libFLAC dependency) @<:@default=yes@:>@])],
   [enable_flac=$enableval], [enable_flac=yes])
 
-AC_ARG_ENABLE([mp3],
-  [AS_HELP_STRING([--enable-mp3], [Enable MP3 support @<:@default=yes@:>@])],
-  [enable_mp3=$enableval], [enable_mp3=yes])
-
 AC_ARG_ENABLE([vorbis],
   [AS_HELP_STRING([--enable-vorbis], [Enable Vorbis support @<:@default=yes@:>@])],
   [enable_vorbis=$enableval], [enable_vorbis=yes])
@@ -76,7 +72,6 @@ AC_ARG_ENABLE([g722],
 # Check for optional codec libraries
 have_flac=no
 have_native_flac=no
-have_mp3=no
 have_vorbis=no
 have_opus=no
 have_aac=no
@@ -91,12 +86,7 @@ if test "x$enable_flac" = "xyes"; then
   AC_MSG_NOTICE([Using native FLAC decoder (RFC 9639 compliant, no external dependencies)])
 fi
 
-if test "x$enable_mp3" = "xyes"; then
-  PKG_CHECK_MODULES([LIBMPG123], [libmpg123 >= 1.8], [have_mp3=yes], [have_mp3=no])
-  if test "x$have_mp3" = "xyes"; then
-    AC_DEFINE([HAVE_MP3], [1], [Define to 1 if MP3 support is enabled])
-  fi
-fi
+
 
 # Check for libogg first - required for Vorbis, Opus, and optionally FLAC
 PKG_CHECK_MODULES([OGG], [ogg], [have_ogg=yes], [have_ogg=no])
@@ -235,7 +225,6 @@ fi
 
 AM_CONDITIONAL([HAVE_G711], [test "x$have_g711" = "xyes"])
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
-AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
@@ -474,7 +463,6 @@ echo "  OpenSSL:       yes"
 echo "  libcurl:       yes"
 echo ""
 echo "Audio Codec Support:"
-echo "  MP3 (libmpg123):   $have_mp3"
 echo "  MP3 (minimp3):     yes (bundled, no external dependency)"
 echo "  FLAC:              $have_flac"
 if test "x$have_flac" = "xyes"; then
