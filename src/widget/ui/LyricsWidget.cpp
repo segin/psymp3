@@ -210,7 +210,6 @@ void LyricsWidget::BlitTo(Surface& target)
         return; // Don't draw anything if no lyrics
     }
 
-    clearLastDrawnArea(target);
     Widget::BlitTo(target);
 
     Rect pos = getPos();
@@ -291,6 +290,14 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     
     // Create the final surface with alpha support
     auto final_surface = std::make_unique<Surface>(surface_width, surface_height, true);
+
+    // Enable per-pixel alpha blending on blit so transparent pixels stay
+    // transparent instead of being copied as solid black RGB. Without this,
+    // SDL_BLENDMODE_NONE (the default for SDL_CreateRGBSurface) ignores alpha
+    // entirely. ToastWidget::draw() does the same for the same reason.
+    if (final_surface->getHandle()) {
+        SDL_SetSurfaceBlendMode(final_surface->getHandle(), SDL_BLENDMODE_BLEND);
+    }
 
     final_surface->FillRect(final_surface->MapRGBA(0, 0, 0, 0));
     drawToastStyleRoundedRect(*final_surface, 0, 0, surface_width, surface_height, 8, 100, 100, 100, 255);
