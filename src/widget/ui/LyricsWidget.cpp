@@ -334,9 +334,18 @@ std::unique_ptr<Surface> LyricsWidget::renderLineFitted(const std::string& text,
                                                        SDL_Color color,
                                                        int max_inner_width)
 {
+    // Use ClearType (LCD subpixel) rendering pre-blended against the inner
+    // panel colour. The per-channel coverage lives in RGB; the trailing
+    // applyRelativeOpacity only scales alpha, so the subpixel detail
+    // survives the panel's translucency.
+    constexpr uint8_t kInnerBgR = 50;
+    constexpr uint8_t kInnerBgG = 50;
+    constexpr uint8_t kInnerBgB = 50;
+
     auto render = [&](const std::string& s) {
-        return m_font->Render(TagLib::String(s, TagLib::String::UTF8),
-                              color.r, color.g, color.b);
+        return m_font->RenderLCD(TagLib::String(s, TagLib::String::UTF8),
+                                 color.r, color.g, color.b,
+                                 kInnerBgR, kInnerBgG, kInnerBgB);
     };
 
     auto surface = render(text);
