@@ -70,6 +70,7 @@ class Surface
         uint32_t MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void Blit(Surface& src, const Rect& rect); // Changed to const Rect&
         void FillRect(uint32_t color);
+        void applyRelativeOpacity(float opacity);
         virtual void Flip();
         void pixel(int16_t x, int16_t y, uint32_t color);
         void pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
