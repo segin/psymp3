@@ -1427,6 +1427,16 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
         }
         
+        case SDLK_g:
+        {
+            if (screen) {
+                const int next = (screen->getLogicalScale() == 1) ? 2 : 1;
+                screen->setLogicalScale(next);
+                showToast(next == 1 ? "Scale: 1x" : "Scale: 2x (pixel-doubled)");
+            }
+            break;
+        }
+
         case SDLK_h:
         {
             toggleTestWindowH();
@@ -1835,6 +1845,29 @@ void Player::EventLoop() {
         // message processing loop
         SDL_Event event;
         while (SDL_WaitEvent(&event)) {
+            // Map mouse positions from window coords into logical coords so
+            // hit-testing matches the unscaled widget tree. Relative deltas
+            // (xrel/yrel) are left in window units to avoid truncating
+            // 1-pixel motions to zero.
+            if (screen) {
+                const int s = screen->getLogicalScale();
+                if (s > 1) {
+                    switch (event.type) {
+                        case SDL_MOUSEBUTTONDOWN:
+                        case SDL_MOUSEBUTTONUP:
+                            event.button.x /= s;
+                            event.button.y /= s;
+                            break;
+                        case SDL_MOUSEMOTION:
+                            event.motion.x /= s;
+                            event.motion.y /= s;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
             switch (event.type) {
             case SDL_WINDOWEVENT:
                 if (handleWindowEvent(event.window)) {
