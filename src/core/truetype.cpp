@@ -20,6 +20,15 @@ void PsyMP3::Core::TrueType::Init() {
                error);
     throw std::runtime_error("Failed to initialize FreeType2");
   }
+
+  // Enable the default 3-tap LCD filter so subpixel-rendered glyphs come out
+  // without rainbow fringing. Required for Font::RenderLCD to produce
+  // ClearType-quality output.
+  if (FT_Library_SetLcdFilter(m_library, FT_LCD_FILTER_DEFAULT)) {
+    Debug::log("font", "TrueType::Init() warning: LCD filter unavailable; "
+                       "subpixel text may show color fringing");
+  }
+
   Debug::log("font", "TrueType::Init() successful.");
 }
 
