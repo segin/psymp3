@@ -12,21 +12,18 @@
 namespace PsyMP3 {
 namespace Demuxer {
 
-DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id) 
-    : Stream(), m_current_stream_id(preferred_stream_id) {
-    m_path = path;
-    loadLyrics();
-    
+DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id)
+    // Chain through Stream(path) so the base class opens its own TagLib
+    // FileRef and loads lyrics; otherwise tag accessors return empty for every
+    // demuxer-routed format (including MP3 since the minimp3 migration).
+    : Stream(path), m_current_stream_id(preferred_stream_id) {
     if (!initialize()) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
     }
 }
 
-DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id) 
-    : Stream(), m_current_stream_id(preferred_stream_id) {
-    m_path = path;
-    loadLyrics();
-    
+DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id)
+    : Stream(path), m_current_stream_id(preferred_stream_id) {
     if (!initializeWithHandler(std::move(handler))) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
     }
