@@ -10,7 +10,7 @@
  * any purpose with or without fee is hereby granted, provided that
  * the above copyright notice and this permission notice appear in all
  * copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
@@ -27,10 +27,15 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
-using Foundation::Widget;
 using Foundation::DrawableWidget;
 
 namespace {
+
+constexpr int LINE_SPACING = 6;
+constexpr int PADDING = 12;
+constexpr int OUTER_MARGIN = 20;
+constexpr int CORNER_RADIUS = 8;
+constexpr int TOP_OFFSET = 50;
 
 void drawRoundedCorner(::Surface& surface, int cx, int cy, int radius,
                        uint8_t r, uint8_t g, uint8_t b, uint8_t a, int corner)
@@ -41,34 +46,27 @@ void drawRoundedCorner(::Surface& surface, int cx, int cy, int radius,
                 continue;
             }
 
-            int px = cx;
-            int py = cy;
             bool draw = false;
-
             switch (corner) {
-                case 0:
-                    if (dx <= 0 && dy <= 0) { px = cx + dx; py = cy + dy; draw = true; }
-                    break;
-                case 1:
-                    if (dx >= 0 && dy <= 0) { px = cx + dx; py = cy + dy; draw = true; }
-                    break;
-                case 2:
-                    if (dx <= 0 && dy >= 0) { px = cx + dx; py = cy + dy; draw = true; }
-                    break;
-                case 3:
-                    if (dx >= 0 && dy >= 0) { px = cx + dx; py = cy + dy; draw = true; }
-                    break;
+                case 0: draw = (dx <= 0 && dy <= 0); break;
+                case 1: draw = (dx >= 0 && dy <= 0); break;
+                case 2: draw = (dx <= 0 && dy >= 0); break;
+                case 3: draw = (dx >= 0 && dy >= 0); break;
             }
 
-            if (draw && px >= 0 && px < surface.width() && py >= 0 && py < surface.height()) {
-                surface.pixel(px, py, r, g, b, a);
+            if (draw) {
+                int px = cx + dx;
+                int py = cy + dy;
+                if (px >= 0 && px < surface.width() && py >= 0 && py < surface.height()) {
+                    surface.pixel(px, py, r, g, b, a);
+                }
             }
         }
     }
 }
 
-void drawToastStyleRoundedRect(::Surface& surface, int x, int y, int width, int height, int radius,
-                               uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+void paintRoundedRectRGBA(::Surface& surface, int x, int y, int width, int height, int radius,
+                     uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     const int max_radius = std::min(width / 2, height / 2);
     radius = std::min(radius, max_radius);
@@ -90,68 +88,31 @@ void drawToastStyleRoundedRect(::Surface& surface, int x, int y, int width, int 
     drawRoundedCorner(surface, x + width - radius - 1, y + height - radius - 1, radius, r, g, b, a, 3);
 }
 
-void applyRelativeOpacity(::Surface& surface, float opacity)
-{
-    SDL_Surface* sdl_surface = surface.getHandle();
-    if (!sdl_surface || !sdl_surface->pixels) {
-        return;
-    }
-
-    const bool must_lock = SDL_MUSTLOCK(sdl_surface);
-    if (must_lock && SDL_LockSurface(sdl_surface) != 0) {
-        return;
-    }
-
-    for (int y = 0; y < surface.height(); y++) {
-        auto* row = reinterpret_cast<uint32_t*>(
-            static_cast<uint8_t*>(sdl_surface->pixels) + y * sdl_surface->pitch);
-        for (int x = 0; x < surface.width(); x++) {
-            uint32_t& pixel = row[x];
-            uint8_t r, g, b, a;
-            SDL_GetRGBA(pixel, sdl_surface->format, &r, &g, &b, &a);
-            if (a > 0) {
-                a = static_cast<uint8_t>(a * opacity);
-            }
-            pixel = SDL_MapRGBA(sdl_surface->format, r, g, b, a);
-        }
-    }
-
-    if (must_lock) {
-        SDL_UnlockSurface(sdl_surface);
-    }
-}
-
 } // namespace
 
-LyricsWidget::LyricsWidget(Font* font, int width)
-    : TransparentWindowWidget(width, 100, 0.85f, true)  // Match toast opacity, mouse-transparent
+LyricsWidget::LyricsWidget(Font* font, int max_width)
+    : TransparentWindowWidget(max_width, 1, 0.85f, true)
     , m_font(font)
     , m_lyrics(nullptr)
     , m_last_update_time(0)
-    , m_widget_width(width)
-    , m_needs_redraw(false)
+    , m_max_width(max_width)
 {
-    // Set Z-order to UI level (just above desktop elements)
     setZOrder(ZOrder::UI);
-    
-    // Start with an empty widget
     clearLyrics();
 }
 
 void LyricsWidget::setLyrics(std::shared_ptr<LyricsFile> lyrics)
 {
-    m_lyrics = lyrics;
-    m_last_update_time = 0; // Force update on next position update
-    m_needs_redraw = true;
-    
-    if (!hasLyrics()) {
+    if (!lyrics || !lyrics->hasLyrics()) {
         clearLyrics();
         return;
     }
 
+    m_lyrics = lyrics;
+    m_last_update_time = 0;
     updateDisplayedText(0);
-    rebuildSurface();
-    m_needs_redraw = false;
+    rebuildLineCache();
+    updateGeometry();
 }
 
 void LyricsWidget::updatePosition(unsigned int current_time_ms)
@@ -159,21 +120,21 @@ void LyricsWidget::updatePosition(unsigned int current_time_ms)
     if (!hasLyrics()) {
         return;
     }
-    
-    // Avoid unnecessary updates (update every 100ms at most)
-    if (current_time_ms - m_last_update_time < 100) {
+
+    // Throttle to ~10Hz. Cast through int64_t so a backward seek (which would
+    // otherwise wrap unsigned subtraction to a huge value) still triggers an
+    // update on the next call rather than waiting out the throttle window.
+    const int64_t delta = static_cast<int64_t>(current_time_ms)
+                        - static_cast<int64_t>(m_last_update_time);
+    if (delta >= 0 && delta < 100) {
         return;
     }
-    
+
     m_last_update_time = current_time_ms;
 
     if (updateDisplayedText(current_time_ms)) {
-        m_needs_redraw = true;
-    }
-    
-    if (m_needs_redraw) {
-        rebuildSurface();
-        m_needs_redraw = false;
+        rebuildLineCache();
+        updateGeometry();
     }
 }
 
@@ -184,20 +145,13 @@ bool LyricsWidget::hasLyrics() const
 
 void LyricsWidget::clearLyrics()
 {
-    Rect pos = getPos();
-    m_last_drawn_width = pos.width();
-    m_last_drawn_height = pos.height();
-    m_has_last_drawn_area = (m_last_drawn_width > 0 && m_last_drawn_height > 0);
-
     m_lyrics.reset();
     m_current_line_text.clear();
     m_preview_lines.clear();
-    m_needs_redraw = false;
-    
-    // Create a minimal empty surface
-    setSurface(std::make_unique<Surface>(1, 1, true));
-    
-    // Set position to indicate no lyrics
+    m_line_surfaces.clear();
+    m_last_update_time = 0;
+
+    Rect pos = getPos();
     pos.width(0);
     pos.height(0);
     setPos(pos);
@@ -205,140 +159,55 @@ void LyricsWidget::clearLyrics()
 
 void LyricsWidget::BlitTo(Surface& target)
 {
-    if (!hasLyrics() || !hasDisplayText()) {
+    if (!hasLyrics() || !hasDisplayText() || m_line_surfaces.empty()) {
         clearLastDrawnArea(target);
-        return; // Don't draw anything if no lyrics
-    }
-
-    Widget::BlitTo(target);
-
-    Rect pos = getPos();
-    m_last_drawn_width = pos.width();
-    m_last_drawn_height = pos.height();
-    m_has_last_drawn_area = true;
-}
-
-void LyricsWidget::rebuildSurface()
-{
-    if (!hasLyrics()) {
-        clearLyrics();
         return;
     }
-    
-    auto lyrics_surface = createLyricsSurface();
-    if (lyrics_surface) {
-        setSurface(std::move(lyrics_surface));
-        
-        // Update widget position
-        Rect pos = getPos();
-        pos.width(getSurface().width());
-        pos.height(getSurface().height());
-        pos.x((m_widget_width - pos.width()) / 2); // Center horizontally
-        pos.y(50); // Position 50px from top of screen
-        setPos(pos);
-    }
+
+    DrawableWidget::BlitTo(target);
+
+    Rect pos = getPos();
+    m_last_drawn_x = pos.x();
+    m_last_drawn_y = pos.y();
+    m_last_drawn_width = pos.width();
+    m_last_drawn_height = pos.height();
+    m_has_last_drawn_area = (m_last_drawn_width > 0 && m_last_drawn_height > 0);
 }
 
-std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
+void LyricsWidget::draw(Surface& surface)
 {
-    if (!m_font || !hasLyrics() || !hasDisplayText()) {
-        return std::make_unique<::Surface>(1, 1, true);
-    }
-    
-    const int LINE_SPACING = 6;
-    const int PADDING = 12;
-
-    std::vector<std::unique_ptr<Surface>> line_surfaces;
-
-    auto render_line = [&](const std::string& text, SDL_Color color) {
-        if (text.empty()) {
-            return;
-        }
-
-        auto surface = m_font->Render(TagLib::String(text, TagLib::String::UTF8),
-                                      color.r, color.g, color.b);
-        if (surface && surface->isValid()) {
-            line_surfaces.push_back(std::move(surface));
-        }
-    };
-
-    render_line(m_current_line_text, SDL_Color{0, 192, 192, 255});
-    for (const auto& line : m_preview_lines) {
-        render_line(line, SDL_Color{255, 215, 0, 255});
+    if (m_line_surfaces.empty()) {
+        return;
     }
 
-    if (line_surfaces.empty()) {
-        return std::make_unique<Surface>(1, 1, true);
+    const int sw = surface.width();
+    const int sh = surface.height();
+
+    // SDL_CreateRGBSurface defaults to BLENDMODE_NONE on the source, which
+    // would copy transparent pixels as solid black during the parent blit.
+    if (surface.getHandle()) {
+        SDL_SetSurfaceBlendMode(surface.getHandle(), SDL_BLENDMODE_BLEND);
     }
 
-    int max_width = 0;
-    int total_height = 0;
-    for (size_t i = 0; i < line_surfaces.size(); ++i) {
-        max_width = std::max(max_width, static_cast<int>(line_surfaces[i]->width()));
-        total_height += static_cast<int>(line_surfaces[i]->height());
-        if (i + 1 < line_surfaces.size()) {
-            total_height += LINE_SPACING;
-        }
-    }
-    
-    // Add padding
-    int surface_width = max_width + (PADDING * 2);
-    int surface_height = total_height + (PADDING * 2);
-    
-    // Limit width to available space
-    surface_width = std::min(surface_width, m_widget_width - 40);
-    
-    // Create the final surface with alpha support
-    auto final_surface = std::make_unique<Surface>(surface_width, surface_height, true);
-
-    // Enable per-pixel alpha blending on blit so transparent pixels stay
-    // transparent instead of being copied as solid black RGB. Without this,
-    // SDL_BLENDMODE_NONE (the default for SDL_CreateRGBSurface) ignores alpha
-    // entirely. ToastWidget::draw() does the same for the same reason.
-    if (final_surface->getHandle()) {
-        SDL_SetSurfaceBlendMode(final_surface->getHandle(), SDL_BLENDMODE_BLEND);
+    surface.FillRect(surface.MapRGBA(0, 0, 0, 0));
+    paintRoundedRectRGBA(surface, 0, 0, sw, sh, CORNER_RADIUS, 100, 100, 100, 255);
+    if (sw > 4 && sh > 4) {
+        paintRoundedRectRGBA(surface, 1, 1, sw - 2, sh - 2, CORNER_RADIUS - 1, 50, 50, 50, 255);
     }
 
-    final_surface->FillRect(final_surface->MapRGBA(0, 0, 0, 0));
-    drawToastStyleRoundedRect(*final_surface, 0, 0, surface_width, surface_height, 8, 100, 100, 100, 255);
-    if (surface_width > 4 && surface_height > 4) {
-        drawToastStyleRoundedRect(*final_surface, 1, 1, surface_width - 2, surface_height - 2, 7, 50, 50, 50, 255);
-    }
-
-    int y_offset = PADDING;
-
-    for (size_t i = 0; i < line_surfaces.size(); ++i) {
-        auto& surface = line_surfaces[i];
-        int x_offset = (surface_width - surface->width()) / 2;
-        Rect rect(x_offset, y_offset, 0, 0);
-        final_surface->Blit(*surface, rect);
-        y_offset += surface->height();
-        if (i + 1 < line_surfaces.size()) {
-            y_offset += LINE_SPACING;
+    int y = PADDING;
+    for (size_t i = 0; i < m_line_surfaces.size(); ++i) {
+        auto& line = m_line_surfaces[i];
+        const int x = (sw - static_cast<int>(line->width())) / 2;
+        Rect rect(x, y, 0, 0);
+        surface.Blit(*line, rect);
+        y += static_cast<int>(line->height());
+        if (i + 1 < m_line_surfaces.size()) {
+            y += LINE_SPACING;
         }
     }
 
-    // Apply opacity after blitting text, mirroring ToastWidget::draw() so that
-    // background and text are dimmed together rather than text landing at full alpha.
-    applyRelativeOpacity(*final_surface, getOpacity());
-
-    return final_surface;
-}
-
-int LyricsWidget::calculateRequiredHeight()
-{
-    if (!m_font || !hasDisplayText()) {
-        return 0;
-    }
-    
-    const int LINE_SPACING = 6;
-    const int PADDING = 12;
-    
-    // Estimate height based on font size and number of lines
-    int font_height = 16; // Approximate font height
-    int lines_to_show = 1 + std::min(static_cast<int>(m_preview_lines.size()), 2);
-    
-    return (font_height * lines_to_show) + (LINE_SPACING * (lines_to_show - 1)) + (PADDING * 2);
+    surface.applyRelativeOpacity(getOpacity());
 }
 
 bool LyricsWidget::updateDisplayedText(unsigned int current_time_ms)
@@ -357,8 +226,8 @@ bool LyricsWidget::updateDisplayedText(unsigned int current_time_ms)
             }
         }
     } else {
-        // Before the first synced timestamp, show the first few non-empty lines as preview
-        // so the widget becomes visible instead of waiting for the first active lyric line.
+        // Before the first synced timestamp, surface a few preview lines so
+        // the widget appears immediately instead of waiting for the first hit.
         for (const auto& line : m_lyrics->getLines()) {
             if (!line.text.empty()) {
                 new_preview_lines.push_back(line.text);
@@ -383,31 +252,117 @@ bool LyricsWidget::hasDisplayText() const
     if (!m_current_line_text.empty()) {
         return true;
     }
-
     return std::any_of(m_preview_lines.begin(), m_preview_lines.end(),
                        [](const std::string& line) { return !line.empty(); });
 }
 
-void LyricsWidget::clearLastDrawnArea(Surface& target)
+void LyricsWidget::rebuildLineCache()
 {
-    if (!m_has_last_drawn_area || m_last_drawn_width <= 0 || m_last_drawn_height <= 0) {
+    m_line_surfaces.clear();
+    if (!m_font) {
         return;
     }
 
-    Rect pos = getPos();
-    int clear_x = pos.x();
-    int clear_y = pos.y();
+    const int max_inner_width = std::max(1, m_max_width - OUTER_MARGIN * 2 - PADDING * 2);
 
-    if (pos.width() == 0 || pos.height() == 0) {
-        clear_x = (m_widget_width - m_last_drawn_width) / 2;
-        clear_y = 50;
+    auto add = [&](const std::string& text, SDL_Color color) {
+        if (text.empty()) {
+            return;
+        }
+        auto surface = renderLineFitted(text, color, max_inner_width);
+        if (surface && surface->isValid()) {
+            m_line_surfaces.push_back(std::move(surface));
+        }
+    };
+
+    add(m_current_line_text, SDL_Color{0, 192, 192, 255});
+    for (const auto& line : m_preview_lines) {
+        add(line, SDL_Color{255, 215, 0, 255});
+    }
+}
+
+void LyricsWidget::updateGeometry()
+{
+    if (m_line_surfaces.empty()) {
+        Rect pos = getPos();
+        pos.width(0);
+        pos.height(0);
+        setPos(pos);
+        return;
     }
 
-    target.box(clear_x, clear_y,
-               clear_x + m_last_drawn_width - 1,
-               clear_y + m_last_drawn_height - 1,
+    int max_width = 0;
+    int total_height = 0;
+    for (size_t i = 0; i < m_line_surfaces.size(); ++i) {
+        max_width = std::max(max_width, static_cast<int>(m_line_surfaces[i]->width()));
+        total_height += static_cast<int>(m_line_surfaces[i]->height());
+        if (i + 1 < m_line_surfaces.size()) {
+            total_height += LINE_SPACING;
+        }
+    }
+
+    int surface_width = std::min(max_width + PADDING * 2, m_max_width - OUTER_MARGIN * 2);
+    surface_width = std::max(surface_width, PADDING * 2 + 1);
+    const int surface_height = total_height + PADDING * 2;
+
+    Rect pos = getPos();
+    pos.x((m_max_width - surface_width) / 2);
+    pos.y(TOP_OFFSET);
+    pos.width(surface_width);
+    pos.height(surface_height);
+    setPos(pos);
+
+    // Tells DrawableWidget that pos changed and the surface is stale.
+    onResize(surface_width, surface_height);
+}
+
+void LyricsWidget::clearLastDrawnArea(Surface& target)
+{
+    if (!m_has_last_drawn_area) {
+        return;
+    }
+
+    target.box(static_cast<int16_t>(m_last_drawn_x),
+               static_cast<int16_t>(m_last_drawn_y),
+               static_cast<int16_t>(m_last_drawn_x + m_last_drawn_width - 1),
+               static_cast<int16_t>(m_last_drawn_y + m_last_drawn_height - 1),
                target.MapRGB(0, 0, 0));
     m_has_last_drawn_area = false;
+}
+
+std::unique_ptr<Surface> LyricsWidget::renderLineFitted(const std::string& text,
+                                                       SDL_Color color,
+                                                       int max_inner_width)
+{
+    auto render = [&](const std::string& s) {
+        return m_font->Render(TagLib::String(s, TagLib::String::UTF8),
+                              color.r, color.g, color.b);
+    };
+
+    auto surface = render(text);
+    if (!surface || !surface->isValid()
+        || static_cast<int>(surface->width()) <= max_inner_width) {
+        return surface;
+    }
+
+    // Truncate trailing UTF-8 codepoints until "<prefix>…" fits, so a wide
+    // line gets a visible ellipsis instead of being silently cropped.
+    static constexpr char ellipsis[] = "\xE2\x80\xA6"; // U+2026
+    std::string truncated = text;
+    while (!truncated.empty()) {
+        size_t i = truncated.size();
+        do { --i; } while (i > 0 && (static_cast<unsigned char>(truncated[i]) & 0xC0) == 0x80);
+        truncated.erase(i);
+        if (truncated.empty()) {
+            break;
+        }
+        auto candidate = render(truncated + ellipsis);
+        if (candidate && candidate->isValid()
+            && static_cast<int>(candidate->width()) <= max_inner_width) {
+            return candidate;
+        }
+    }
+    return surface;
 }
 
 } // namespace UI

@@ -1,7 +1,7 @@
 /*
  * LyricsWidget.h - Widget for displaying synchronized lyrics
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -10,7 +10,7 @@
  * any purpose with or without fee is hereby granted, provided that
  * the above copyright notice and this permission notice appear in all
  * copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
@@ -34,106 +34,60 @@ class Surface;
 namespace Widget {
 namespace UI {
 
-// Bring Windowing widgets into this namespace for inheritance
 using PsyMP3::Widget::Windowing::TransparentWindowWidget;
 
 /**
- * @brief A widget that displays synchronized lyrics at the top of the screen.
- * 
- * The widget shows the current lyric line prominently, with upcoming lines
- * displayed with reduced opacity for context. It automatically updates based
- * on playback position and hides when no lyrics are available.
- * 
- * Inherits from TransparentWindowWidget for proper Z-order support (ZOrder::UI).
+ * @brief Displays synchronized lyrics at the top of the player window.
+ *
+ * The current line is shown in cyan, with up to two upcoming lines below in
+ * gold. The widget hides itself when no lyrics are available.
+ *
+ * Composition follows the standard DrawableWidget contract: setLyrics()/
+ * updatePosition() prepare per-line text surfaces and invalidate; the framework
+ * then calls draw() to paint into a freshly-sized surface.
  */
 class LyricsWidget : public TransparentWindowWidget
 {
 public:
-    /**
-     * @brief Constructs a LyricsWidget.
-     * @param font Pointer to the font to use for rendering
-     * @param width Width of the widget area
-     */
-    LyricsWidget(Core::Font* font, int width);
-    
-    /**
-     * @brief Sets the lyrics to display.
-     * @param lyrics Shared pointer to the lyrics file
-     */
+    LyricsWidget(Core::Font* font, int max_width);
+
     void setLyrics(std::shared_ptr<::LyricsFile> lyrics);
-    
-    /**
-     * @brief Updates the widget for the current playback position.
-     * @param current_time_ms Current playback time in milliseconds
-     */
     void updatePosition(unsigned int current_time_ms);
-    
-    /**
-     * @brief Checks if the widget has lyrics to display.
-     * @return true if lyrics are available and should be shown
-     */
     bool hasLyrics() const;
-    
-    /**
-     * @brief Clears current lyrics and hides the widget.
-     */
     void clearLyrics();
-    
-    /**
-     * @brief Custom blit method that handles transparency and positioning.
-     * @param target Surface to blit onto
-     */
+
     void BlitTo(Core::Surface& target) override;
 
+protected:
+    void draw(Core::Surface& surface) override;
+
 private:
-    Core::Font* m_font;                         ///< Non-owning pointer to font
-    std::shared_ptr<::LyricsFile> m_lyrics;     ///< Current lyrics file
-    unsigned int m_last_update_time;            ///< Last update time to avoid unnecessary redraws
-    int m_widget_width;                         ///< Width of the widget area
-    
-    // Display state
-    std::string m_current_line_text;            ///< Currently displayed line text
-    std::vector<std::string> m_preview_lines;  ///< Upcoming lines for context
-    bool m_needs_redraw;                        ///< Whether the surface needs to be redrawn
-    int m_last_drawn_width = 0;                 ///< Width of last visible lyric surface
-    int m_last_drawn_height = 0;                ///< Height of last visible lyric surface
-    bool m_has_last_drawn_area = false;         ///< Whether a previous lyric region needs clearing
-    
-    /**
-     * @brief Rebuilds the widget surface with current lyrics.
-     */
-    void rebuildSurface();
+    Core::Font* m_font;
+    std::shared_ptr<::LyricsFile> m_lyrics;
+    unsigned int m_last_update_time;
+    int m_max_width;
 
-    /**
-     * @brief Refreshes the current and preview lyric text for a playback position.
-     * @param current_time_ms Current playback time in milliseconds
-     * @return true if the visible lyric content changed
-     */
+    std::string m_current_line_text;
+    std::vector<std::string> m_preview_lines;
+    std::vector<std::unique_ptr<Core::Surface>> m_line_surfaces;
+
+    // Region painted on the target by the most recent visible blit. Used to
+    // wipe leftover pixels when the widget hides, since the player's overlay
+    // surface is not cleared between frames (see Player::updateState).
+    int m_last_drawn_x = 0;
+    int m_last_drawn_y = 0;
+    int m_last_drawn_width = 0;
+    int m_last_drawn_height = 0;
+    bool m_has_last_drawn_area = false;
+
     bool updateDisplayedText(unsigned int current_time_ms);
-
-    /**
-     * @brief Checks whether there is any text available to render.
-     * @return true if either the current line or preview lines contain text
-     */
     bool hasDisplayText() const;
-
-    /**
-     * @brief Clears the previous lyric region before redrawing translucent content.
-     * @param target Surface to clear on
-     */
+    void rebuildLineCache();
+    void updateGeometry();
     void clearLastDrawnArea(Core::Surface& target);
-    
-    /**
-     * @brief Creates a surface with the current and upcoming lyrics.
-     * @return Unique pointer to the created surface
-     */
-    std::unique_ptr<Core::Surface> createLyricsSurface();
-    
-    /**
-     * @brief Calculates the height needed for the current lyrics display.
-     * @return Required height in pixels
-     */
-    int calculateRequiredHeight();
+    std::unique_ptr<Core::Surface> renderLineFitted(const std::string& text,
+                                                    SDL_Color color,
+                                                    int max_inner_width);
 };
 
 } // namespace UI
