@@ -878,7 +878,7 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
                 // Check for MPEG audio sync after ID3 tag (confirms it's actually MP3)
                 if ((post_id3_buffer[0] == 0xFF) && ((post_id3_buffer[1] & 0xE0) == 0xE0)) {
                     Debug::log("loader", "MediaFactory::detectByMagicBytes found MPEG sync after ID3 tag");
-                    info.detected_format = "mpeg_audio";
+                    info.detected_format = "mp3";
                     info.confidence = 0.98f;
                     info.metadata["has_id3"] = "true";
                     info.metadata["magic_signature"] = "ID3+sync";
@@ -1047,7 +1047,7 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
                 // Validate MPEG header fields
                 if (version != 0x01 && layer != 0x00 && bitrate != 0x00 && 
                     bitrate != 0x0F && samplerate != 0x03) {
-                    info.detected_format = "mpeg_audio";
+                    info.detected_format = "mp3";
                     info.confidence = 0.75f;
                     info.metadata["sync_pattern_found"] = "true";
                     info.metadata["mpeg_validation"] = "passed";
