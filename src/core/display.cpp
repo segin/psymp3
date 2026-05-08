@@ -11,7 +11,7 @@
  * any purpose with or without fee is hereby granted, provided that
  * the above copyright notice and this permission notice appear in all
  * copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
@@ -26,28 +26,22 @@
 
 namespace PsyMP3::Core {
 
-/**
- * @brief Constructs the main Display object.
- * 
- * This constructor initializes the SDL video mode with a fixed size of 640x400
- * and 16-bit color depth, using a hardware surface with double buffering.
- * It then sets the initial window caption. The resulting SDL_Surface for the
- * screen is passed to the base `Surface` class constructor.
- */
 Display::Display() : Surface()
 {
     m_window = SDL_CreateWindow("PsyMP3 " PSYMP3_VERSION,
                                 SDL_WINDOWPOS_CENTERED,
                                 SDL_WINDOWPOS_CENTERED,
-                                640,
-                                400,
+                                LOGICAL_WIDTH,
+                                LOGICAL_HEIGHT,
                                 SDL_WINDOW_SHOWN);
     if (!m_window) {
         throw SDLException("Could not create SDL window");
     }
 
     refreshWindowSurface();
-    Debug::log("display", "Display::Display() got 0x", std::hex, getHandle());
+    allocateLogicalSurface();
+    Debug::log("display", "Display::Display() logical=", LOGICAL_WIDTH, "x", LOGICAL_HEIGHT,
+               " handle=0x", std::hex, getHandle());
 }
 
 Display::~Display()
@@ -58,11 +52,6 @@ Display::~Display()
     }
 }
 
-/**
- * @brief Sets the main window's title bar text.
- * @param title The main text to display in the window's title bar.
- * @param icon_title The text to use for the window when it is iconified (minimized).
- */
 void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
     (void)icon_title;
@@ -73,16 +62,37 @@ void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 
 void Display::Flip()
 {
-    if (!m_window) {
+    if (!m_window || !m_handle || !m_window_surface) {
         return;
+    }
+
+    if (m_logical_scale == 1) {
+        SDL_BlitSurface(m_handle.get(), nullptr, m_window_surface, nullptr);
+    } else {
+        // SDL_SoftStretch is documented as nearest-neighbor — exactly what we
+        // want for an integer pixel-double. SDL_BlitScaled may pick a linear
+        // path on some software fast paths, so we use SoftStretch explicitly.
+        SDL_Rect dst{0, 0, LOGICAL_WIDTH * m_logical_scale, LOGICAL_HEIGHT * m_logical_scale};
+        SDL_SoftStretch(m_handle.get(), nullptr, m_window_surface, &dst);
     }
 
     SDL_UpdateWindowSurface(m_window);
 }
 
-void Display::attachWindowSurface(SDL_Surface* window_surface)
+void Display::setLogicalScale(int scale)
 {
-    wrapNonOwnedSurface(window_surface);
+    if (scale < 1) {
+        scale = 1;
+    }
+    if (scale == m_logical_scale) {
+        return;
+    }
+
+    m_logical_scale = scale;
+    if (m_window) {
+        SDL_SetWindowSize(m_window, LOGICAL_WIDTH * scale, LOGICAL_HEIGHT * scale);
+        refreshWindowSurface();
+    }
 }
 
 void Display::refreshWindowSurface()
@@ -96,7 +106,25 @@ void Display::refreshWindowSurface()
         throw SDLException("Could not get SDL window surface");
     }
 
-    attachWindowSurface(window_surface);
+    m_window_surface = window_surface;
+}
+
+void Display::allocateLogicalSurface()
+{
+    SDL_Surface* surf = nullptr;
+    if (m_window_surface) {
+        // Match the window's pixel format so the SoftStretch is zero-conversion.
+        surf = SDL_CreateRGBSurfaceWithFormat(0, LOGICAL_WIDTH, LOGICAL_HEIGHT,
+                                              m_window_surface->format->BitsPerPixel,
+                                              m_window_surface->format->format);
+    }
+    if (!surf) {
+        surf = SDL_CreateRGBSurface(0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 32, 0, 0, 0, 0);
+    }
+    if (!surf) {
+        throw SDLException("Could not create logical display surface");
+    }
+    m_handle.reset(surf);
 }
 
 SDL_Window* Display::getWindowHandle() const
