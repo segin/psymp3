@@ -116,14 +116,15 @@ void FadingWidget::BlitTo(Surface& target)
         alpha_f = MAX_ALPHA;
     }
 
-    // Apply calculated alpha and blit
-    // Target the internal Surface object for alpha modification.
     getSurface().SetAlpha(static_cast<Uint8>(alpha_f));
     clearLastDrawnArea(target);
-    Widget::BlitTo(target); // Call base class blit
+    Widget::BlitTo(target);
 
-    m_last_drawn_width = getPos().width();
-    m_last_drawn_height = getPos().height();
+    Rect pos = getPos();
+    m_last_drawn_x = pos.x();
+    m_last_drawn_y = pos.y();
+    m_last_drawn_width = pos.width();
+    m_last_drawn_height = pos.height();
     m_has_last_drawn_area = true;
 }
 
@@ -133,10 +134,10 @@ void FadingWidget::clearLastDrawnArea(Surface& target)
         return;
     }
 
-    Rect pos = getPos();
-    target.box(pos.x(), pos.y(),
-               pos.x() + m_last_drawn_width - 1,
-               pos.y() + m_last_drawn_height - 1,
+    target.box(static_cast<int16_t>(m_last_drawn_x),
+               static_cast<int16_t>(m_last_drawn_y),
+               static_cast<int16_t>(m_last_drawn_x + m_last_drawn_width - 1),
+               static_cast<int16_t>(m_last_drawn_y + m_last_drawn_height - 1),
                target.MapRGB(0, 0, 0));
     m_has_last_drawn_area = false;
 }

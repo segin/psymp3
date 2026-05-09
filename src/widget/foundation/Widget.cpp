@@ -22,8 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <typeinfo>
-#include <cstring>
 
 namespace PsyMP3 {
 namespace Widget {
@@ -110,29 +108,6 @@ bool pointHitsRect(const Rect& rect, int x, int y)
 
 } // namespace
 
-// Helper function to get a clean widget type name for debugging
-static std::string getWidgetTypeName(const Widget* widget) {
-    const char* mangled_name = typeid(*widget).name();
-    
-    // On most compilers, the mangled name starts with a digit followed by the class name
-    // Try to extract a readable class name
-    const char* class_name = mangled_name;
-    
-    // Skip leading digits and length prefixes (common in GCC mangling)
-    while (*class_name && std::isdigit(*class_name)) {
-        class_name++;
-    }
-    
-    // For most widget classes, extract just the class name part
-    std::string result(class_name);
-    
-    // If it's still mangled or empty, fall back to the full mangled name
-    if (result.empty()) {
-        result = mangled_name;
-    }
-    
-    return result;
-}
 
 Widget::Widget()
     : m_parent(nullptr), m_z_order(0), m_visible(true), m_enabled(true), m_mouse_transparent(false)
@@ -177,43 +152,32 @@ Widget::Widget(Surface&& other, const Rect& position) :
 
 void Widget::BlitTo(Surface& target)
 {
+    if (!m_visible) return;
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::string type_name = getWidgetTypeName(this);
-    Debug::log("widget", "Widget::BlitTo [", type_name, "] - pos(", m_pos.x(), ",", m_pos.y(), ") size(", m_pos.width(), "x", m_pos.height(), ") valid=", this->isValid());
-    
-    // Blit this widget's own surface content first (if it has any)
+
     if (this->isValid()) {
-        Debug::log("widget", "  Blitting widget surface to target");
         target.Blit(*this, m_pos);
     }
 
-    // Then, recursively blit all children, passing this widget's position as the parent offset.
     ClipRectGuard child_clip(target, m_pos);
     for (const auto& child : m_children) {
-        std::string child_type = getWidgetTypeName(child.get());
-        Debug::log("widget", "  Recursively blitting child [", child_type, "]");
         child->recursiveBlitTo(target, m_pos);
     }
 }
 
 void Widget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
 {
+    if (!m_visible) return;
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::string type_name = getWidgetTypeName(this);
-    
-    // Calculate the child's absolute on-screen position by adding its relative position to the parent's absolute position.
+
     Rect absolute_pos(parent_absolute_pos.x() + m_pos.x(),
                       parent_absolute_pos.y() + m_pos.y(),
                       m_pos.width(), m_pos.height());
 
-    Debug::log("widget", "  recursiveBlitTo [", type_name, "] - abs_pos(", absolute_pos.x(), ",", absolute_pos.y(), ") size(", absolute_pos.width(), "x", absolute_pos.height(), ") valid=", this->isValid());
-
-    // Blit the child's own surface content.
     if (this->isValid()) {
         target.Blit(*this, absolute_pos);
     }
 
-    // Recursively blit this child's children.
     ClipRectGuard child_clip(target, absolute_pos);
     for (const auto& child : m_children) {
         child->recursiveBlitTo(target, absolute_pos);
@@ -248,13 +212,11 @@ Surface& Widget::getSurface() {
 
 bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    
     // If a widget has mouse capture, forward directly to it
     if (s_mouse_captured_widget && s_mouse_captured_widget != this) {
         return false; // Let the captured widget handle it
     }
-    
+
     // Forward to children in reverse order (front to back for event handling)
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         const auto& child = *it;
@@ -438,8 +400,16 @@ void Widget::invalidateArea(const Rect& area)
 
 bool Widget::handleEvent(const SDL_Event& event, int relative_x, int relative_y)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return handleEvent_unlocked(event, relative_x, relative_y);
+    switch (event.type) {
+        case SDL_MOUSEBUTTONDOWN:
+            return handleMouseDown(event.button, relative_x, relative_y);
+        case SDL_MOUSEBUTTONUP:
+            return handleMouseUp(event.button, relative_x, relative_y);
+        case SDL_MOUSEMOTION:
+            return handleMouseMotion(event.motion, relative_x, relative_y);
+        default:
+            return false;
+    }
 }
 
 bool Widget::hitTest(int x, int y) const
@@ -456,15 +426,6 @@ std::pair<int, int> Widget::transformCoordinates(int parent_x, int parent_y) con
 
 
 // Private unlocked methods - assume lock is already held
-
-void Widget::render_unlocked()
-{
-    // Render this widget's content
-    if (m_visible && isValid()) {
-        // The actual rendering is done by BlitTo which is called by parent
-        // This method is for internal rendering logic
-    }
-}
 
 void Widget::invalidate_unlocked()
 {
@@ -486,32 +447,6 @@ void Widget::invalidateArea_unlocked(const Rect& area)
         m_parent->invalidateArea_unlocked(parent_area);
     }
     // For root widgets, this would trigger a repaint of the specified area
-}
-
-void Widget::renderChildren_unlocked()
-{
-    // Render children in order (first added = bottom, last added = top)
-    for (const auto& child : m_children) {
-        if (child->isVisible()) {
-            child->render_unlocked();
-        }
-    }
-}
-
-bool Widget::handleEvent_unlocked(const SDL_Event& event, int relative_x, int relative_y)
-{
-    // Delegate to specific event handlers based on event type
-    switch (event.type) {
-        case SDL_MOUSEBUTTONDOWN:
-            return handleMouseDown(event.button, relative_x, relative_y);
-        case SDL_MOUSEBUTTONUP:
-            return handleMouseUp(event.button, relative_x, relative_y);
-        case SDL_MOUSEMOTION:
-            return handleMouseMotion(event.motion, relative_x, relative_y);
-        default:
-            // Event not handled by this widget
-            return false;
-    }
 }
 
 bool Widget::hitTest_unlocked(int x, int y) const
@@ -536,6 +471,12 @@ void Widget::addChild_unlocked(std::unique_ptr<Widget> child)
     }
 }
 
+void Widget::removeChild(Widget* child)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    removeChild_unlocked(child);
+}
+
 void Widget::removeChild_unlocked(Widget* child)
 {
     if (child) {
@@ -547,20 +488,24 @@ void Widget::removeChild_unlocked(Widget* child)
     }
 }
 
+void Widget::destroy()
+{
+    // If owned by a parent, ask it to remove us. removeChild erases the
+    // unique_ptr, which triggers our destructor; execution ends here.
+    if (m_parent) {
+        m_parent->removeChild(this);
+        return;
+    }
+    // Root widget with no parent — just clear children.
+    std::lock_guard<std::mutex> lock(m_mutex);
+    destroy_unlocked();
+}
+
 void Widget::destroy_unlocked()
 {
-    // Remove from parent first
-    if (m_parent) {
-        // Note: this part is tricky, if we are in the middle of destructor it might be dangerous.
-        // But for safe deletion, removeChild should be enough.
-    }
-    
-    // Destroy all children
     for (auto& child : m_children) {
         child->destroy_unlocked();
     }
-    
-    // Clear children list
     m_children.clear();
 }
 

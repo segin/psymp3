@@ -170,9 +170,9 @@ void Surface::Blit(Surface& src, const Rect& rect) // Changed to const Rect&
  * @brief Checks whether the underlying SDL surface handle is non-null.
  * @return `true` if the surface is valid, `false` if the handle is null.
  */
-bool Surface::isValid()
+bool Surface::isValid() const
 {
-    if (m_handle) return true; else return false;
+    return m_handle != nullptr;
 }
 
 /**
@@ -184,7 +184,7 @@ bool Surface::isValid()
  */
 uint32_t Surface::MapRGB(uint8_t r, uint8_t g, uint8_t b)
 {
-    if (!m_handle) return -1;
+    if (!m_handle) return 0;
     return SDL_MapRGB(m_handle->format, r, g, b);
 }
 
@@ -198,7 +198,7 @@ uint32_t Surface::MapRGB(uint8_t r, uint8_t g, uint8_t b)
  */
 uint32_t Surface::MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
-    if (!m_handle) return -1;
+    if (!m_handle) return 0;
     return SDL_MapRGBA(m_handle->format, r, g, b, a);
 }
 

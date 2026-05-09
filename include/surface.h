@@ -63,7 +63,7 @@ class Surface
 
         static std::unique_ptr<Surface> FromBMP(const char *a_file);
         static std::unique_ptr<Surface> FromBMP(std::string a_file);
-        bool isValid();
+        bool isValid() const;
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
         void SetAlpha(uint8_t alpha);
         void SetAlpha(uint32_t flags, uint8_t alpha); // SDL_SRCALPHA, SDL_ALPHA_OPAQUE, etc.

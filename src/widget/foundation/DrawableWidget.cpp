@@ -53,12 +53,8 @@ void DrawableWidget::redraw()
 
 void DrawableWidget::onResize(int new_width, int new_height)
 {
-    // Update widget position
     Rect current_pos = getPos();
     setPos(Rect(current_pos.x(), current_pos.y(), new_width, new_height));
-    
-    // Mark for redraw since size changed
-    invalidate();
     updateSurface();
 }
 
