@@ -55,6 +55,8 @@ void DrawableWidget::onResize(int new_width, int new_height)
 {
     Rect current_pos = getPos();
     setPos(Rect(current_pos.x(), current_pos.y(), new_width, new_height));
+    // updateSurface() is gated on m_needs_redraw; mark dirty before calling.
+    invalidate();
     updateSurface();
 }
 
