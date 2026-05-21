@@ -29,6 +29,7 @@ protected:
         testLoadPlaylistWithComments();
         testResolveInlineSourcesPreservesOrder();
         testResolveInlineSourcesRecursesNestedPlaylists();
+        testLoadPlaylistWithInvalidDuration();
     }
 
 private:
@@ -174,6 +175,23 @@ private:
 
         std::remove(inner_playlist.c_str());
         std::remove(outer_playlist.c_str());
+    }
+
+    void testLoadPlaylistWithInvalidDuration() {
+        std::string content = "#EXTM3U\n#EXTINF:invalid_duration,Artist Name - Song Title\n/path/to/song.mp3\n";
+        std::string filename = createTempM3U(content, "temp_invalid_duration.m3u");
+
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
+        ASSERT_EQUALS(1, playlist->entries(), "Playlist should have 1 entry");
+
+        const track* t = playlist->getTrackInfo(0);
+        ASSERT_NOT_NULL(t, "Track info should not be null");
+
+        ASSERT_EQUALS(0u, t->GetLen(), "Duration should be 0 for invalid EXTINF duration");
+
+        std::remove(filename.c_str());
     }
 };
 
