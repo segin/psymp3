@@ -39,15 +39,14 @@ void extractDimensions(Picture& picture) {
     if (mime == "image/jpeg" || mime == "image/jpg") {
         // JPEG: Look for SOF0 (0xFFC0) marker
         // Simple scan for markers
-        for (size_t i = 0; i + 8 < picture.data.size(); i++) {
+        const size_t data_size = picture.data.size();
+        for (size_t i = 0; i + 8 < data_size; i++) {
             if (data[i] == 0xFF && data[i + 1] == 0xC0) {
                 // SOF0 marker found
-                if (i + 8 < picture.data.size()) {
-                    picture.height = (static_cast<uint32_t>(data[i + 5]) << 8) | data[i + 6];
-                    picture.width = (static_cast<uint32_t>(data[i + 7]) << 8) | data[i + 8];
-                    picture.color_depth = data[i + 4] * 8; // Components * 8 bits
-                    return;
-                }
+                picture.height = (static_cast<uint32_t>(data[i + 5]) << 8) | data[i + 6];
+                picture.width = (static_cast<uint32_t>(data[i + 7]) << 8) | data[i + 8];
+                picture.color_depth = data[i + 4] * 8; // Components * 8 bits
+                return;
             }
         }
     } else if (mime == "image/png") {
