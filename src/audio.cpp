@@ -317,8 +317,12 @@ void Audio::decoderThreadLoop() {
         // Wait until there is a valid stream to process, and get a safe local copy.
         {
             std::unique_lock<std::mutex> lock(m_stream_mutex);
+            // Also block while the installed stream is already at EOF: otherwise
+            // the loop re-enters, getData() returns 0 immediately, and the thread
+            // busy-spins at 100% CPU until Player installs a new stream.
+            // setStream_unlocked() clears m_stream_eof and notifies this cv.
             m_stream_cv.wait(lock, [this] {
-                return m_owned_stream != nullptr || !m_active;
+                return (m_owned_stream != nullptr && !m_stream_eof) || !m_active;
             });
             if (!m_active) break;
             local_stream = m_owned_stream;
