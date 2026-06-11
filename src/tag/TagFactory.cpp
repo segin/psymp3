@@ -132,6 +132,15 @@ std::unique_ptr<Tag> TagFactory::parseMP3Tags(const std::string& filepath) {
     if (id3v2_size > 0) {
         std::ifstream file(filepath, std::ios::binary);
         if (file) {
+            // The declared ID3v2 size (synchsafe, up to 256 MB) comes from a
+            // 10-byte header. Clamp the allocation to the actual file size so a
+            // crafted header can't force a huge allocation for a tiny file.
+            file.seekg(0, std::ios::end);
+            std::streamoff file_size = file.tellg();
+            file.seekg(0, std::ios::beg);
+            if (file_size >= 0 && static_cast<std::streamoff>(id3v2_size) > file_size) {
+                id3v2_size = static_cast<size_t>(file_size);
+            }
             std::vector<uint8_t> id3v2_data(id3v2_size);
             file.read(reinterpret_cast<char*>(id3v2_data.data()), id3v2_size);
             if (file) {
