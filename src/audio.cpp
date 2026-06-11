@@ -252,6 +252,10 @@ void Audio::unlock(void) {
 void Audio::resetBuffer() {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     resetBuffer_unlocked();
+    // Wake the decoder so it refills after a seek. Required now that the decode
+    // loop blocks on the high water mark even while paused: clearing the buffer
+    // alone would otherwise leave the decoder asleep until the next drain.
+    m_buffer_cv.notify_all();
 }
 
 /**
@@ -326,7 +330,13 @@ void Audio::decoderThreadLoop() {
             {
                 std::unique_lock<std::mutex> lock(m_buffer_mutex);
                 m_buffer_cv.wait(lock, [this] {
-                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active || !m_playing;
+                    // Backpressure: only decode when the buffer is below the high
+                    // water mark (or on shutdown). Do NOT also wake on !m_playing:
+                    // while paused nothing drains the buffer, so a !m_playing term
+                    // lets the decoder run past the mark and grow it without bound.
+                    // resetBuffer() (seek) and the SDL callback (drain) both notify
+                    // this cv, so the decoder still wakes promptly when space frees.
+                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active;
                 });
             }
 
