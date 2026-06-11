@@ -522,6 +522,17 @@ void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
 
 void Player::handleTrackSeamlessSwapEvent() {
     // This event is triggered when a track ends and a preloaded track is ready.
+    // A queued event (e.g. an 'N' keypress -> requestTrackLoad) can reset
+    // m_next_stream after this swap was posted, or a duplicate swap event can
+    // arrive after the std::move below already consumed it. If it's gone, a
+    // load is already in flight; do nothing rather than destroying the live
+    // Audio and throwing in the Audio constructor on a null stream (which would
+    // also desync the playlist via handleUnplayableTrack).
+    if (!m_next_stream) {
+        Debug::log("audio", "Player::handleTrackSeamlessSwapEvent(): m_next_stream is null, skipping swap");
+        return;
+    }
+
     const bool recreate_audio = !canReuseAudioForStream(audio.get(), m_next_stream.get());
 
     try {
@@ -565,7 +576,12 @@ void Player::handleTrackSeamlessSwapEvent() {
     for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
         playlist->next();
     }
-    m_num_tracks_in_current_stream = 0;
+    // The swapped-in stream may itself be a ChainedStream representing N
+    // playlist entries; carry its track count forward so its eventual end
+    // advances the playlist by N, not 1. (Previously reset to 0, replaying the
+    // chained tracks.)
+    m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
+    m_num_tracks_in_next_stream = 0;
 
     // Update stream pointer and start scrobbling for new track
     stream = audio->getCurrentStream();
@@ -2786,9 +2802,24 @@ void Player::handleTrackLoadFailureEvent(TrackLoadResult* result) {
 }
 
 void Player::handleTrackPreloadSuccessEvent(TrackLoadResult* result) {
+    // A newer request can supersede this preload while it was in flight: a
+    // PlayNow (requestTrackLoad) sets m_loading_track and clears
+    // m_preloading_track. In that case this stream is for the wrong track;
+    // discard it instead of repopulating m_next_stream and later seamless-
+    // swapping to a stale track (which also desyncs the playlist).
+    if (!m_preloading_track || m_loading_track) {
+        Debug::log("loader", "Discarding stale preload result (superseded by a newer request).");
+        delete result->stream;
+        delete result;
+        return;
+    }
+
     // Store the preloaded stream for seamless transition
     m_preloading_track = false;
     m_next_stream.reset(result->stream); // Take ownership of the preloaded stream
+    // Carry the chained-stream track count forward (the swap handler moves it
+    // into m_num_tracks_in_current_stream) so playlist advancement matches.
+    m_num_tracks_in_next_stream = result->num_chained_tracks;
     m_next_stream_primed_samples = std::move(result->primed_samples);
     m_next_stream_primed_eof = result->primed_eof;
     Debug::log("loader", "Track preloaded successfully for seamless transition.");
