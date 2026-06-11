@@ -143,6 +143,9 @@ void DemuxedStream::updateStreamProperties() {
 }
 
 size_t DemuxedStream::getData(size_t len, void *buf) {
+    // Serialize the entire decode path against seekTo so a concurrent seek
+    // cannot clear m_current_frame / the chunk buffers mid-decode.
+    std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
     if (m_eof_reached || !m_codec) {
         return 0;
     }
@@ -407,7 +410,10 @@ void DemuxedStream::seekTo(unsigned long pos) {
     if (!m_demuxer) {
         return;
     }
-    
+
+    // Exclude the decoder thread (getData) for the whole seek; see m_decode_mutex.
+    std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
+
     // Thread-safe clearing of chunk buffer and current frame
     {
         std::lock_guard<std::mutex> lock(m_buffer_mutex);
