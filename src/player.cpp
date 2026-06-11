@@ -1108,9 +1108,10 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
         if (m_seek_direction != 0) {
             current_pos_ms = m_seek_position_ms;
         } else {
-            if (audio) {
+            if (audio && audio->getRate() > 0) {
                 current_pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
             } else {
+                // getRate() is 0 when audio setup failed (e.g. no audio backend).
                 current_pos_ms = 0;
             }
             Debug::log("player", "Player: User visible position=", current_pos_ms, "ms, total_len=", current_stream->getLength(), "ms");

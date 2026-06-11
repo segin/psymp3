@@ -89,8 +89,8 @@ private:
     mutable std::mutex m_fft_mutex;
     std::mutex *m_player_mutex; // The mutex from the player for general state
     
-    int m_rate;
-    int m_channels;
+    int m_rate = 0;     // 0 until setup() succeeds; getRate()/divisors must tolerate it
+    int m_channels = 0; // 0 until setup() succeeds
     int m_device_rate = 0;
     int m_device_channels = 0;
     SDL_AudioDeviceID m_device_id = 0;
