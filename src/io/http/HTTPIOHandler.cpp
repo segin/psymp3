@@ -71,7 +71,7 @@ void HTTPIOHandler::initialize() {
     try {
         // Validate network operation
         if (!validateNetworkOperation("initialize")) {
-            return;
+            throw InvalidMediaException("HTTP stream initialization not permitted for: " + m_url);
         }
         
         // Perform HEAD request to get metadata with retry logic
@@ -86,8 +86,10 @@ void HTTPIOHandler::initialize() {
             std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "HEAD request");
             Debug::log("HTTPIOHandler", errorMsg);
             m_error = response.statusCode > 0 ? response.statusCode : -1;
-            cleanupOnError("HEAD request failed during initialization");
-            return;
+            // Throw rather than return: returning leaves the constructor to hand
+            // back a half-built handler whose every read yields 0 (a silent
+            // "empty stream") instead of surfacing the network failure.
+            throw InvalidMediaException(errorMsg);
         }
         
         Debug::log("HTTPIOHandler", "HEAD request successful (status: ", response.statusCode, ")");
@@ -152,6 +154,10 @@ void HTTPIOHandler::initialize() {
         updateErrorState(-1, "Exception during initialization");
         m_initialized.store(false);
         cleanupOnError("Exception during initialization");
+        // Propagate so the caller (e.g. MediaFactory::createIOHandler) sees the
+        // failure instead of receiving a zombie handler. Matches FileIOHandler,
+        // which throws InvalidMediaException when a file cannot be opened.
+        throw;
     }
 }
 
