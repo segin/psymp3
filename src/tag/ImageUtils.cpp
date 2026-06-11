@@ -31,9 +31,11 @@ void extractDimensions(Picture& picture) {
     
     const uint8_t* data = picture.data.data();
     
-    // Normalize MIME type for checking
+    // Normalize MIME type for checking. Cast to unsigned char: ::tolower on a
+    // char with a value >= 0x80 (untrusted MIME bytes) is otherwise UB.
     std::string mime = picture.mime_type;
-    std::transform(mime.begin(), mime.end(), mime.begin(), ::tolower);
+    std::transform(mime.begin(), mime.end(), mime.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     
     // Try to extract dimensions based on MIME type
     if (mime == "image/jpeg" || mime == "image/jpg") {
@@ -41,18 +43,23 @@ void extractDimensions(Picture& picture) {
         // Simple scan for markers
         for (size_t i = 0; i + 8 < picture.data.size(); i++) {
             if (data[i] == 0xFF && data[i + 1] == 0xC0) {
-                // SOF0 marker found
-                if (i + 8 < picture.data.size()) {
+                // SOF0 layout after marker: length(2), precision(1), height(2),
+                // width(2), num_components(1). Need data[i+9] for the component
+                // count, so bounds-check it explicitly.
+                if (i + 9 < picture.data.size()) {
                     picture.height = (static_cast<uint32_t>(data[i + 5]) << 8) | data[i + 6];
                     picture.width = (static_cast<uint32_t>(data[i + 7]) << 8) | data[i + 8];
-                    picture.color_depth = data[i + 4] * 8; // Components * 8 bits
+                    // Color depth is bits-per-sample (precision) * components,
+                    // not the precision byte * 8.
+                    picture.color_depth = static_cast<uint32_t>(data[i + 4]) * data[i + 9];
                     return;
                 }
             }
         }
     } else if (mime == "image/png") {
-        // PNG: Check IHDR chunk (should be at offset 8)
-        if (picture.data.size() >= 24 && 
+        // PNG: Check IHDR chunk (should be at offset 8). Need >= 25 bytes: the
+        // bit-depth byte read below is at offset 24 (indices 0..24).
+        if (picture.data.size() >= 25 &&
             data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) {
             // PNG signature verified, read IHDR
             picture.width = (static_cast<uint32_t>(data[16]) << 24) |
