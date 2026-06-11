@@ -864,7 +864,10 @@ bool Player::stop(void) {
  */
 bool Player::pause(void) {
     if (state != PlayerState::Stopped) {
-        audio->play(false);
+        // Guard like play(): state can be Playing with audio == nullptr during a
+        // failed track-swap recreate, where pressing Space would otherwise
+        // dereference a null audio.
+        if (audio) audio->play(false);
         state = PlayerState::Paused;
 #ifdef HAVE_DBUS
         if (m_mpris_manager) {
