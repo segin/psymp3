@@ -95,6 +95,14 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
         width += m_face->glyph->advance.x >> 6;
     }
 
+    // Clamp the surface width: text comes from untrusted tags and could
+    // otherwise drive a multi-gigabyte allocation. The visible/scrolled area is
+    // far smaller, and glyphs past the clamp are clipped by Surface::pixel.
+    static constexpr int MAX_TEXT_SURFACE_WIDTH = 8192;
+    if (width > MAX_TEXT_SURFACE_WIDTH) {
+        width = MAX_TEXT_SURFACE_WIDTH;
+    }
+
     if (width <= 0 || font_height <= 0) {
         return std::make_unique<Surface>(1, 1);
     }
@@ -159,6 +167,14 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
             continue;
         }
         width += m_face->glyph->advance.x >> 6;
+    }
+
+    // Clamp the surface width: text comes from untrusted tags and could
+    // otherwise drive a multi-gigabyte allocation. The visible/scrolled area is
+    // far smaller, and glyphs past the clamp are clipped by Surface::pixel.
+    static constexpr int MAX_TEXT_SURFACE_WIDTH = 8192;
+    if (width > MAX_TEXT_SURFACE_WIDTH) {
+        width = MAX_TEXT_SURFACE_WIDTH;
     }
 
     if (width <= 0 || font_height <= 0) {
