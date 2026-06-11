@@ -2778,6 +2778,14 @@ void Player::handleTrackPreloadFailureEvent(TrackLoadResult* result) {
 }
 
 void Player::handleRunGuiIterationEvent() {
+#ifdef HAVE_DBUS
+    // Pump incoming MPRIS D-Bus method calls / property requests on the main
+    // thread (~30 Hz via the app-loop timer). Handlers call non-thread-safe
+    // Player methods, so this must run here rather than on a worker thread.
+    if (m_mpris_manager) {
+        m_mpris_manager->processEvents();
+    }
+#endif
     if (updateGUI()) {
         // Track has ended.
         if (m_loop_mode == LoopMode::One) {
