@@ -666,18 +666,17 @@ void Audio::toFloat(int channels, int16_t *in, float *out) {
             __m128i int32_lo = _mm_unpacklo_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
             __m128i int32_hi = _mm_unpackhi_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
             
-            // Convert to float
+            // Convert to float: float_lo = [L0,R0,L1,R1], float_hi = [L2,R2,L3,R3]
             __m128 float_lo = _mm_cvtepi32_ps(int32_lo);
             __m128 float_hi = _mm_cvtepi32_ps(int32_hi);
-            
-            // Manually add pairs: (L+R, L+R, L+R, L+R) since _mm_hadd_ps requires SSE3
-            // Shuffle to get L and R values adjacent for addition
-            __m128 lo_shuffled = _mm_shuffle_ps(float_lo, float_lo, _MM_SHUFFLE(3, 1, 2, 0)); // L0, R0, L1, R1
-            __m128 hi_shuffled = _mm_shuffle_ps(float_hi, float_hi, _MM_SHUFFLE(3, 1, 2, 0)); // L2, R2, L3, R3
-            __m128 sum_lo = _mm_add_ps(lo_shuffled, _mm_shuffle_ps(lo_shuffled, lo_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
-            __m128 sum_hi = _mm_add_ps(hi_shuffled, _mm_shuffle_ps(hi_shuffled, hi_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
-            __m128 sum = _mm_shuffle_ps(sum_lo, sum_hi, _MM_SHUFFLE(2, 0, 2, 0));
-            
+
+            // Gather the left and right channels separately, then add, so each
+            // output is L_i + R_i. (The previous shuffle summed same-channel
+            // neighbours, producing L0+L1 / R0+R1 instead of L0+R0 / L1+R1.)
+            __m128 lefts  = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(2, 0, 2, 0)); // L0,L1,L2,L3
+            __m128 rights = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(3, 1, 3, 1)); // R0,R1,R2,R3
+            __m128 sum = _mm_add_ps(lefts, rights);                                       // L0+R0, L1+R1, L2+R2, L3+R3
+
             // Scale and store
             __m128 result = _mm_mul_ps(sum, scale_vec);
             _mm_storeu_ps(&out[x], result);
