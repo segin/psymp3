@@ -135,10 +135,21 @@ bool ID3v2Tag::parseBody(const uint8_t* data, size_t /*size*/, size_t tag_size) 
         frame_data_offset += ext_header_size;
     }
 
-    // Parse frames
+    // Parse frames. All of these subtractions are on size_t, so guard against
+    // underflow from a malformed tag (e.g. a tiny declared size with the footer
+    // flag set, or an extended header that overruns the tag) — an underflow
+    // would yield a huge length and overread the buffer in parseFrames.
+    if (frame_data_offset > tag_size) {
+        Debug::log("tag", "ID3v2Tag::parse: Frame data offset exceeds tag size");
+        return false;
+    }
     size_t frame_data_size = tag_size - frame_data_offset;
     if (hasFooter()) {
-        frame_data_size -= 10; // Footer is 10 bytes
+        if (frame_data_size < 10) { // Footer is 10 bytes
+            Debug::log("tag", "ID3v2Tag::parse: Tag too small to contain declared footer");
+            return false;
+        }
+        frame_data_size -= 10;
     }
 
     if (frame_data_size > 0) {
