@@ -415,7 +415,10 @@ TagLib::String System::getUser() {
   GetUserNameW(user, &bufsize);
   return user;
 #else
-  return getenv("USER");
+  // getenv may return nullptr (e.g. USER unset under cron/daemons);
+  // constructing a TagLib::String from nullptr would crash.
+  const char *user = getenv("USER");
+  return user ? TagLib::String(user, TagLib::String::UTF8) : TagLib::String();
 #endif
 }
 
