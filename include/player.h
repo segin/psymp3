@@ -85,7 +85,9 @@ class Player
         static Uint32 AutomatedTestTimer(Uint32 interval, void* param);
         static Uint32 AutomatedQuitTimer(Uint32 interval, void* param);
         /* SDL event synthesis */
-        static void synthesizeUserEvent(int uevent, void *data1, void *data2);
+        // Returns true if the event was queued; false if SDL dropped it (e.g.
+        // queue full). Callers that pass a heap-owned payload must check this.
+        static bool synthesizeUserEvent(int uevent, void *data1, void *data2);
         static void synthesizeKeyEvent(SDLKey kpress);
         /* state management */
 

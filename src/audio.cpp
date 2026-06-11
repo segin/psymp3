@@ -317,8 +317,12 @@ void Audio::decoderThreadLoop() {
         // Wait until there is a valid stream to process, and get a safe local copy.
         {
             std::unique_lock<std::mutex> lock(m_stream_mutex);
+            // Also block while the installed stream is already at EOF: otherwise
+            // the loop re-enters, getData() returns 0 immediately, and the thread
+            // busy-spins at 100% CPU until Player installs a new stream.
+            // setStream_unlocked() clears m_stream_eof and notifies this cv.
             m_stream_cv.wait(lock, [this] {
-                return m_owned_stream != nullptr || !m_active;
+                return (m_owned_stream != nullptr && !m_stream_eof) || !m_active;
             });
             if (!m_active) break;
             local_stream = m_owned_stream;
@@ -351,17 +355,16 @@ void Audio::decoderThreadLoop() {
                 // Lock the player mutex ONLY for stream validation (not during decoding)
                 std::lock_guard<std::mutex> lock(*m_player_mutex);
                 
-                // CRITICAL: Before using local_stream, verify it's still the active stream.
+                // Verify local_stream is still the active stream using the
+                // atomic raw pointer (kept in sync with m_owned_stream by the
+                // ctor and setStream_unlocked). Do NOT read the non-atomic
+                // m_owned_stream here: setStream mutates it under m_stream_mutex,
+                // not the player mutex, so that read would be a data race. The
+                // authoritative re-check under m_stream_mutex below discards any
+                // stale decode before it is committed.
                 Stream* current_stream = m_current_stream_raw_ptr.load();
                 if (local_stream.get() == current_stream && current_stream != nullptr) {
-                    // Double-check the stream is still valid by verifying it matches our owned stream
-                    if (m_owned_stream.get() == current_stream) {
-                        validated_stream = local_stream; // Stream is valid for use
-                    } else {
-                        // Stream ownership has changed, break to re-evaluate
-                        Debug::log("audio", "Audio decoder thread: Stream ownership changed, breaking");
-                        break;
-                    }
+                    validated_stream = local_stream; // Stream is valid for use
                 } else {
                     // Stream has changed. Break to re-evaluate in the outer loop.
                     Debug::log("audio", "Audio decoder thread: Stream changed, breaking to re-evaluate");
