@@ -131,6 +131,13 @@ void Audio::setup() {
     desired.format = AUDIO_S16; /* Always, I hope */
     desired.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
     Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: AUDIO_S16");
+
+    // A stream reporting zero rate or channels is malformed; opening the device
+    // would let the audio callback divide by zero (SIGFPE).
+    if (m_rate == 0 || m_channels == 0) {
+        Debug::log("audio", "Audio::setup: Refusing to open device with invalid rate=", m_rate, " channels=", static_cast<int>(m_channels));
+        return;
+    }
     desired.samples = 512; /* 512 sample frames for FFT / low-latency callback pacing */
     desired.callback = callback;
     desired.userdata = this;
