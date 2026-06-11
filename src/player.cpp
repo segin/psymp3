@@ -2042,6 +2042,20 @@ void Player::Cleanup() {
 #endif
     if (audio) audio->play(false);
 
+    // Stop and join the background threads BEFORE SDL_Quit(): a loader thread
+    // finishing a slow load would otherwise call synthesizeUserEvent ->
+    // SDL_PushEvent against a torn-down event subsystem (use-after-free inside
+    // SDL). ~Player also joins them, but its joinable() guards make that a
+    // no-op once we have joined here.
+    m_loader_active = false;
+    m_loader_queue_cv.notify_one();
+    if (m_loader_thread.joinable()) {
+        m_loader_thread.join();
+    }
+    if (m_playlist_populator_thread.joinable()) {
+        m_playlist_populator_thread.join();
+    }
+
     // all is well ;)
     Debug::log("player", "Exited cleanly");
     SDL_Quit();
