@@ -235,9 +235,9 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
         // Check if we have data in main buffer
         if (isPositionBuffered(read_position)) {
             // Read from main buffer
-            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, read_position, remaining_bytes);
             total_bytes_read += buffer_bytes_read;
-            
+
             if (buffer_bytes_read == 0) {
                 break; // Buffer exhausted
             }
@@ -258,9 +258,9 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
             }
             
             // Read from newly filled buffer
-            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, read_position, remaining_bytes);
             total_bytes_read += buffer_bytes_read;
-            
+
             if (buffer_bytes_read == 0) {
                 updateEofState(true);
                 break;
@@ -530,14 +530,18 @@ bool HTTPIOHandler::fillBuffer(filesize_t position, size_t min_size) {
     return true;
 }
 
-size_t HTTPIOHandler::readFromBuffer(void* buffer, size_t bytes_to_read) {
+size_t HTTPIOHandler::readFromBuffer(void* buffer, filesize_t position, size_t bytes_to_read) {
     if (m_buffer.empty()) {
         Debug::log("HTTPIOHandler", "Buffer is empty");
         return 0;
     }
-    
-    // Calculate offset within buffer for current position
-    off_t buffer_relative_pos = m_current_position - m_buffer_start_position;
+
+    // Calculate offset within buffer for the requested position. Must use the
+    // caller's position, not m_current_position: during a read spanning more
+    // than one buffer fill, m_current_position is still the read's start, so
+    // after a refill at an advanced position this would go negative and the
+    // read would falsely report EOF.
+    off_t buffer_relative_pos = position - m_buffer_start_position;
     
     if (buffer_relative_pos < 0 || 
         static_cast<size_t>(buffer_relative_pos) >= m_buffer.size()) {
