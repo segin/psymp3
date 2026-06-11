@@ -162,10 +162,11 @@ IOBufferPool::Buffer IOBufferPool::acquire(size_t size) {
         }
     }
     
-    // Need to allocate new buffer
+    // Need to allocate new buffer. Own it via unique_ptr until it is handed to
+    // Buffer, so a throw from make_shared<PoolEntry> below doesn't leak it.
     try {
-        uint8_t* data = new uint8_t[pool_size];
-        
+        std::unique_ptr<uint8_t[]> data(new uint8_t[pool_size]);
+
         if (!entry) {
             // Entry did not exist. Create it.
             // Needs exclusive lock on map
@@ -183,7 +184,7 @@ IOBufferPool::Buffer IOBufferPool::acquire(size_t size) {
             t_cached_entry = entry;
             t_cached_size = pool_size;
         }
-        
+
         // Update stats
         {
             std::lock_guard<std::mutex> entry_lock(entry->mutex);
@@ -194,8 +195,8 @@ IOBufferPool::Buffer IOBufferPool::acquire(size_t size) {
         Debug::log("memory", "BufferPool::acquire() - Allocated new buffer of size ", pool_size,
                   " (total allocated: ", entry->total_allocated, ", pool misses: ", entry->pool_misses, ")");
 
-        return Buffer(data, pool_size, entry);
-        
+        return Buffer(data.release(), pool_size, entry);
+
     } catch (const std::bad_alloc& e) {
         Debug::log("memory", "BufferPool::acquire() - Allocation failed for size ", pool_size, ": ", e.what());
         
