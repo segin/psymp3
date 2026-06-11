@@ -451,8 +451,12 @@ void Widget::invalidateArea_unlocked(const Rect& area)
 
 bool Widget::hitTest_unlocked(int x, int y) const
 {
-    // Check if the point is within this widget's bounds
-    return m_pos.contains(x, y);
+    // x,y are in this widget's LOCAL coordinate space (callers pass
+    // relative_x/relative_y), so test against local bounds with origin (0,0) —
+    // not m_pos, whose origin is the widget's position in the PARENT's space.
+    // Testing against m_pos made any widget not at (0,0) unclickable (e.g.
+    // CheckboxWidget, ScrollbarWidget). Matches ButtonWidget's inline check.
+    return x >= 0 && y >= 0 && x < m_pos.width() && y < m_pos.height();
 }
 
 std::pair<int, int> Widget::transformCoordinates_unlocked(int parent_x, int parent_y) const
