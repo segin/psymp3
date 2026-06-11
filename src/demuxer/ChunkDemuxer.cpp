@@ -599,7 +599,14 @@ bool ChunkDemuxer::parseAiffSoundData(const Chunk& chunk) {
     // Read SSND chunk header (offset and blockSize)
     stream_data.ssnd_offset = readBE<uint32_t>();
     stream_data.ssnd_block_size = readBE<uint32_t>();
-    
+
+    // ssnd_offset comes from the file. Guard the size subtraction (done in
+    // 32-bit below) against underflow when the chunk is too small to contain
+    // the declared offset, which would wrap data_size to ~4 GB.
+    if (static_cast<uint64_t>(chunk.size) < 8ULL + stream_data.ssnd_offset) {
+        return false;
+    }
+
     // Audio data starts after the offset/blockSize fields
     stream_data.data_offset = chunk.data_offset + 8 + stream_data.ssnd_offset;
     stream_data.data_size = chunk.size - 8 - stream_data.ssnd_offset;
