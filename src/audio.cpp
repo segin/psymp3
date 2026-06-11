@@ -355,17 +355,16 @@ void Audio::decoderThreadLoop() {
                 // Lock the player mutex ONLY for stream validation (not during decoding)
                 std::lock_guard<std::mutex> lock(*m_player_mutex);
                 
-                // CRITICAL: Before using local_stream, verify it's still the active stream.
+                // Verify local_stream is still the active stream using the
+                // atomic raw pointer (kept in sync with m_owned_stream by the
+                // ctor and setStream_unlocked). Do NOT read the non-atomic
+                // m_owned_stream here: setStream mutates it under m_stream_mutex,
+                // not the player mutex, so that read would be a data race. The
+                // authoritative re-check under m_stream_mutex below discards any
+                // stale decode before it is committed.
                 Stream* current_stream = m_current_stream_raw_ptr.load();
                 if (local_stream.get() == current_stream && current_stream != nullptr) {
-                    // Double-check the stream is still valid by verifying it matches our owned stream
-                    if (m_owned_stream.get() == current_stream) {
-                        validated_stream = local_stream; // Stream is valid for use
-                    } else {
-                        // Stream ownership has changed, break to re-evaluate
-                        Debug::log("audio", "Audio decoder thread: Stream ownership changed, breaking");
-                        break;
-                    }
+                    validated_stream = local_stream; // Stream is valid for use
                 } else {
                     // Stream has changed. Break to re-evaluate in the outer loop.
                     Debug::log("audio", "Audio decoder thread: Stream changed, breaking to re-evaluate");
