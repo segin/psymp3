@@ -387,12 +387,14 @@ bool ID3v2Tag::parseFrames(const uint8_t* data, size_t size) {
         if (!frame.isEmpty()) {
             // Normalize frame ID
             frame.id = normalizeFrameId(frame.id, m_major_version);
-            
+
+            // Log before the move below; reading frame.id/frame.size() after
+            // std::move(frame) would touch a moved-from object.
+            Debug::log("tag", "ID3v2Tag::parseFrames: Parsed frame ", frame.id, " (", frame.size(), " bytes)");
+
             // Store frame
             m_frames[frame.id].push_back(std::move(frame));
             frame_count++;
-            
-            Debug::log("tag", "ID3v2Tag::parseFrames: Parsed frame ", frame.id, " (", frame.size(), " bytes)");
         }
         
         offset += bytes_consumed;
@@ -632,7 +634,9 @@ uint32_t ID3v2Tag::parseYear(const std::string& text) {
     // Extract first 4 digits
     std::string year_str;
     for (char c : text) {
-        if (std::isdigit(c)) {
+        // Cast to unsigned char: std::isdigit on a negative char (UTF-8 byte
+        // >= 0x80) is undefined behaviour.
+        if (std::isdigit(static_cast<unsigned char>(c))) {
             year_str += c;
             if (year_str.length() == 4) {
                 break;
