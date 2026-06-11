@@ -67,7 +67,10 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
 #ifdef _WIN32
         std::filesystem::path p(path.toWString());
 #else
-        std::filesystem::path p = std::filesystem::u8path(utf8_path);
+        // On POSIX the native path encoding is the byte string itself (UTF-8
+        // here), so constructing directly from the std::string is equivalent to
+        // the deprecated std::filesystem::u8path().
+        std::filesystem::path p(utf8_path);
 #endif
 
         // Resolve the path to its absolute and canonical (no ".." or symlinks) form.
