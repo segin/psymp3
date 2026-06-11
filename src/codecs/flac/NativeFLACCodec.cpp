@@ -1418,8 +1418,13 @@ bool FLACCodec::transitionState(DecoderState new_state) {
     Debug::log("flac_codec", "[NativeFLACCodec::transitionState] State transition: ",
               getStateName(old_state), " -> ", getStateName(new_state));
     
-    // Reset error counter on successful transition to non-error state
-    if (new_state != DecoderState::DECODER_ERROR) {
+    // Reset the error counter only on genuine forward progress between
+    // non-error states, NOT on an ERROR -> INITIALIZED recovery transition
+    // (which happens after every failed frame and would otherwise reset the
+    // counter each time, defeating MAX_CONSECUTIVE_ERRORS escalation on a
+    // persistently corrupt stream). Real successes reset it explicitly elsewhere.
+    if (new_state != DecoderState::DECODER_ERROR &&
+        old_state != DecoderState::DECODER_ERROR) {
         m_consecutive_errors = 0;
         m_last_error = FLACError::NONE;
     }
