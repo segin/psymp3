@@ -906,8 +906,13 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     
     std::vector<DetectionCandidate> candidates;
     
-    // Check against all registered formats and collect candidates
+    // Check against all registered formats and collect candidates.
+    // Hold s_factory_mutex while iterating: register/unregisterFormat can mutate
+    // s_formats from another thread, so iterating it unlocked is a data race /
+    // iterator-invalidation hazard. probeOggCodec below is lock-free.
     // Skip ID3 signature matching if we already handled ID3 above
+    {
+    std::lock_guard<std::mutex> formats_lock(s_factory_mutex);
     for (const auto& [format_id, registration] : s_formats) {
         for (const auto& signature : registration.format.magic_signatures) {
             // Skip ID3 signature - we handle it specially above
@@ -957,7 +962,8 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
             }
         }
     }
-    
+    } // s_factory_mutex scope
+
     // Select best candidate using enhanced priority-based resolution
     if (!candidates.empty()) {
         // Sort by priority first (lower number = higher priority), then by confidence
