@@ -494,7 +494,11 @@ bool HTTPIOHandler::fillBuffer(filesize_t position, size_t min_size) {
     
     std::memcpy(m_buffer.data(), response.body.data(), response.body.size());
     m_buffer_offset = 0;
-    m_buffer_start_position = position;
+    // A 206 body starts at the requested position; a 200 body is the entire
+    // resource from byte 0 even when a range was requested (server ignored the
+    // Range header). Labelling a 200 body as starting at `position` would make
+    // every subsequent in-buffer offset wrong and corrupt the stream.
+    m_buffer_start_position = (response.statusCode == 200) ? 0 : position;
     
     // Update memory usage tracking
     updateMemoryUsage(m_buffer.size());
