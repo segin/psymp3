@@ -725,7 +725,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
 AudioFrame FLACCodec::flush_unlocked() {
     Debug::log("flac_codec", "[NativeFLACCodec::flush_unlocked] Flushing remaining samples");
 
-    if (m_md5_validation_enabled && m_has_streaminfo &&
+    if (m_md5_validation_enabled && !m_md5_invalidated_by_seek && m_has_streaminfo &&
         !MD5Validator::isZeroMD5(m_streaminfo.md5_sum) && m_md5_validator) {
         if (!checkMD5Validation_unlocked()) {
             Debug::log("flac_codec", "[NativeFLACCodec::flush_unlocked] MD5 validation failed at end of stream");
@@ -779,12 +779,19 @@ void FLACCodec::reset_unlocked() {
     }
     
     // Reset MD5 validator if enabled (Requirement 25)
-    if (m_md5_validation_enabled && m_has_streaminfo && 
+    if (m_md5_validation_enabled && m_has_streaminfo &&
         !MD5Validator::isZeroMD5(m_streaminfo.md5_sum) && m_md5_validator) {
         Debug::log("flac_codec", "[NativeFLACCodec::reset_unlocked] Resetting MD5 validator");
         if (!m_md5_validator->reset()) {
             Debug::log("flac_codec", "[NativeFLACCodec::reset_unlocked] MD5 validator reset failed (warning)");
         }
+    }
+
+    // A reset while already initialized is a seek/reposition: the MD5 validator
+    // now sees only post-seek samples, so end-of-stream validation can no longer
+    // match the whole-stream STREAMINFO MD5. Suppress it to avoid a false error.
+    if (m_initialized) {
+        m_md5_invalidated_by_seek = true;
     }
     
     // Transition state (Requirement 64.8)
@@ -1054,6 +1061,8 @@ void FLACCodec::setStreamInfo_unlocked(const StreamInfoMetadata& streaminfo) {
     
     m_streaminfo = streaminfo;
     m_has_streaminfo = true;
+    // New stream: MD5 validation is meaningful again from its start.
+    m_md5_invalidated_by_seek = false;
     
     // Log MD5 checksum for debugging
     Debug::log("flac_codec", "[NativeFLACCodec::setStreamInfo_unlocked] STREAMINFO: ",
