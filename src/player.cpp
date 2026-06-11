@@ -309,7 +309,7 @@ void Player::synthesizeKeyEvent(SDLKey kpress) {
  * @param data1 A pointer to the first data payload.
  * @param data2 A pointer to the second data payload.
  */
-void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
+bool Player::synthesizeUserEvent(int code, void *data1, void* data2) {
     SDL_Event event{};
 
     event.type = SDL_USEREVENT;
@@ -317,7 +317,8 @@ void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
     event.user.data1 = data1;
     event.user.data2 = data2;
 
-    SDL_PushEvent(&event);
+    // SDL_PushEvent returns 1 when queued, 0 if filtered, negative on error.
+    return SDL_PushEvent(&event) == 1;
 }
 
 /**
@@ -426,26 +427,33 @@ void Player::loaderThreadLoop() {
         bool primed_eof = false;
 
         try {
+            // Own the stream via unique_ptr until priming succeeds, so a throw
+            // from primeLoadedStream() frees it (and its open file handle)
+            // instead of leaking the sole raw pointer.
+            std::unique_ptr<Stream> stream_holder;
             switch (request.type) {
                 case LoadRequestType::PlayNow:
                 case LoadRequestType::Preload:
-                    new_stream = MediaFile::open(request.path).release();
+                    stream_holder = MediaFile::open(request.path);
                     num_chained = 1;
                     break;
                 case LoadRequestType::PreloadChained:
-                    new_stream = new ChainedStream(request.paths);
+                    stream_holder = std::make_unique<ChainedStream>(request.paths);
                     num_chained = request.paths.size();
                     break;
             }
 
-            if (new_stream) {
-                auto primed = primeLoadedStream(new_stream);
+            if (stream_holder) {
+                auto primed = primeLoadedStream(stream_holder.get());
                 primed_samples = std::move(primed.first);
                 primed_eof = primed.second;
             }
+            // Priming succeeded; hand ownership to the raw pointer the result
+            // carries to the main thread.
+            new_stream = stream_holder.release();
         } catch (const std::exception& e) {
             error_msg = e.what();
-            new_stream = nullptr; // Ensure null if exception
+            new_stream = nullptr; // stream_holder freed by RAII during unwind
         }
 
         // Synthesize event back to main thread
@@ -460,7 +468,19 @@ void Player::loaderThreadLoop() {
         int success_event = (request.type == LoadRequestType::PlayNow) ? TRACK_LOAD_SUCCESS : TRACK_PRELOAD_SUCCESS;
         int failure_event = (request.type == LoadRequestType::PlayNow) ? TRACK_LOAD_FAILURE : TRACK_PRELOAD_FAILURE;
 
-        synthesizeUserEvent(new_stream ? success_event : failure_event, result, nullptr);
+        if (!synthesizeUserEvent(new_stream ? success_event : failure_event, result, nullptr)) {
+            // The event was dropped (e.g. queue full). The main thread will
+            // never see it, so free what we own here and release the loading
+            // latch — otherwise the stream/result leak and requestTrackLoad
+            // would reject every future request for the rest of the session.
+            delete result->stream;
+            delete result;
+            if (request.type == LoadRequestType::PlayNow) {
+                m_loading_track = false;
+            } else {
+                m_preloading_track = false;
+            }
+        }
     }
 }
 
@@ -1181,6 +1201,13 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
  */
 bool Player::updateGUI()
 {
+    // Coalesce GUI iterations: AppLoopTimer (the 33ms SDL timer) skips queuing a
+    // new RUN_GUI_ITERATION while one is already being rendered, preventing the
+    // event queue from backlogging when a frame takes longer than the period.
+    // RAII so the flag is always cleared, even on an early return/exception.
+    Player::guiRunning = true;
+    struct GuiRunningResetter { ~GuiRunningResetter() { Player::guiRunning = false; } } gui_running_resetter;
+
     Stream* current_stream = nullptr;
     unsigned long current_pos_ms = 0;
     unsigned long total_len_ms = 0;
@@ -1273,8 +1300,7 @@ bool Player::updateGUI()
 
     // finally, update the screen :)
     screen->Flip();
-    
-    Player::guiRunning = false;
+
     // and if end of stream...
     // Do not signal end-of-track if we are in the middle of loading a new one.
     if (m_loading_track || m_preloading_track) {
