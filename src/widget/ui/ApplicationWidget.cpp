@@ -96,10 +96,18 @@ bool ApplicationWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             Widget* clicked_window = window.get();
             bool handled = clicked_window->handleMouseDown(event, window_relative_x, window_relative_y);
 
-            // Reordering the backing vector invalidates the iterator/reference, so
-            // do it only after the target window has finished handling the click.
-            bringWindowToFront(clicked_window);
-            return handled;
+            // Only consume the click if the window actually handled it. A
+            // mouse-transparent overlay (ToastWidget, LyricsWidget) returns
+            // false to let events pass through; returning unconditionally here
+            // swallowed clicks meant for lower windows / desktop widgets (and
+            // broke press/release pairing vs handleMouseUp/Motion, which
+            // continue on false).
+            if (handled) {
+                // Reordering the backing vector invalidates the iterator/reference,
+                // so do it only after the target window finished handling the click.
+                bringWindowToFront(clicked_window);
+                return true;
+            }
         }
     }
     
