@@ -162,15 +162,18 @@ int edge_case_tests() {
         // b2 = ((100 & 0xF) << 4) | (0). = 0x40.
 
         std::vector<uint8_t> input = {0x02, 0x41, 0x06, 0x40};
-        auto output = decompressor.decompress(input.data(), input.size());
 
-        // Expected: 'A'. Then Ref 100 clamped to 1 (size).
-        // Start = 1 - 1 = 0. Length 3.
-        // Copy 'A', 'A', 'A'.
-        // Total: 'A', 'A', 'A', 'A'. Size 4.
-
-        ASSERT_EQ(output.size(), 4);
-        for(auto b : output) ASSERT_EQ(b, 0x41);
+        // Distance 100 > output size 1 points before the start of the output,
+        // which is corrupt input. The decompressor must throw rather than clamp
+        // the distance (which previously fabricated 'A','A','A' and hid the
+        // corruption — a security issue).
+        bool threw = false;
+        try {
+            decompressor.decompress(input.data(), input.size());
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        ASSERT_EQ(threw, true);
     }
 
     // 6. Input ending mid-block (e.g. 8 items flags, but only 2 items provided)
@@ -185,25 +188,23 @@ int edge_case_tests() {
     }
 
 
-    // 7. Exact Boundary Distance (Distance == Output Size + 1)
+    // 7. Out-of-bounds Distance (Distance > Output Size)
     {
         // Block 1: 8 Literals ('A'...'H') -> Output "ABCDEFGH" (size 8)
-        // Block 2: Ref (Dist 9, Len 3)
-        // Flags: 0 (all literals)
-        // Data: 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'
-        // Flags: 1 (Ref at bit 0)
-        // Data: Dist 9, Len 3. Dist 9 -> 0x009.
-        // b1 = (9 >> 4) = 0.
-        // b2 = ((9 & 0xF) << 4) | 0 = 0x90.
+        // Block 2: Ref (Dist 9, Len 3); Dist 9 -> b1=0x00, b2=0x90.
+        // Distance 9 > output size 8 -> corrupt input; the decompressor must
+        // throw rather than clamp (previously produced "ABCDEFGHABC").
         std::vector<uint8_t> input = {
             0x00, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', // Block 1
             0x01, 0x00, 0x90                               // Block 2
         };
-        auto output = decompressor.decompress(input.data(), input.size());
-
-        ASSERT_EQ(output.size(), 11);
-        std::string s(output.begin(), output.end());
-        ASSERT_EQ(s, "ABCDEFGHABC");
+        bool threw = false;
+        try {
+            decompressor.decompress(input.data(), input.size());
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        ASSERT_EQ(threw, true);
     }
 
     std::cout << "[EDGE] Passed.\n";

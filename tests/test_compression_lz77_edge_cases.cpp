@@ -119,28 +119,27 @@ int main() {
     }
 
 
-    // Test 7: Exact Boundary Backreference (Distance == Output Size + 1)
-    // We need some initial data to be valid and a full block to reset flags.
+    // Test 7: Out-of-bounds Backreference (Distance > Output Size)
     // Block 1: 8 Literals [0x00, 'A'...'H'] -> Output "ABCDEFGH" (size 8)
-    // Block 2: Flags [0x01] (1st item Ref)
-    //          Ref bytes [0x00, 0x90] -> Dist 9, Len 3.
+    // Block 2: Flags [0x01] (1st item Ref), Ref bytes [0x00, 0x90] -> Dist 9, Len 3.
     //
-    // Distance 9 == Output Size 8 + 1.
-    // Implementation clamps distance to output.size() = 8.
-    // Start = 8 - 8 = 0.
-    // Copies output[0]...output[2] -> "ABC".
-    // Result: "ABCDEFGHABC".
+    // Distance 9 > output size 8 points before the start of the output, which is
+    // corrupt input. The decompressor must throw rather than silently fabricate
+    // data: it previously clamped the distance to the output size, which hid the
+    // corruption (a security issue). See LZ77Decompressor::decompress.
     {
-        std::cout << "  Test 7: Exact Boundary Backreference... ";
+        std::cout << "  Test 7: Out-of-bounds Backreference... ";
         std::vector<uint8_t> input = {
             0x00, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', // Block 1
             0x01, 0x00, 0x90                               // Block 2
         };
-        auto output = decompressor.decompress(input.data(), input.size());
-
-        ASSERT_EQ(output.size(), 11);
-        std::string s(output.begin(), output.end());
-        ASSERT_EQ(s, "ABCDEFGHABC");
+        bool threw = false;
+        try {
+            decompressor.decompress(input.data(), input.size());
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        ASSERT_TRUE(threw);
         std::cout << "Passed.\n";
     }
 
