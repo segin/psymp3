@@ -42,7 +42,8 @@ BoundedBuffer::~BoundedBuffer() {
 }
 
 bool BoundedBuffer::resize(size_t new_size) {
-    if (new_size > m_max_size) {
+    // m_max_size == 0 means unlimited (see header); only enforce a positive cap.
+    if (m_max_size != 0 && new_size > m_max_size) {
         Debug::log("memory", "BoundedBuffer::resize() - Requested size ", new_size, " exceeds max_size ", m_max_size);
         return false;
     }
@@ -62,7 +63,7 @@ bool BoundedBuffer::resize(size_t new_size) {
 }
 
 bool BoundedBuffer::reserve(size_t capacity) {
-    if (capacity > m_max_size) {
+    if (m_max_size != 0 && capacity > m_max_size) {
         Debug::log("memory", "BoundedBuffer::reserve() - Requested capacity ", capacity, " exceeds max_size ", m_max_size);
         return false;
     }
@@ -86,16 +87,18 @@ bool BoundedBuffer::append(const void* data, size_t size) {
     }
     
     size_t new_size = m_size + size;
-    if (new_size > m_max_size) {
+    if (m_max_size != 0 && new_size > m_max_size) {
         Debug::log("memory", "BoundedBuffer::append() - Appending ", size, " bytes would exceed max_size");
         return false;
     }
-    
+
     // Ensure we have enough capacity
     if (new_size > m_capacity) {
         // Grow capacity by 50% or to new_size, whichever is larger
         size_t new_capacity = std::max(new_size, m_capacity + m_capacity / 2);
-        new_capacity = std::min(new_capacity, m_max_size);
+        if (m_max_size != 0) {
+            new_capacity = std::min(new_capacity, m_max_size);
+        }
         
         if (!reallocate(new_capacity)) {
             return false;
@@ -111,7 +114,7 @@ bool BoundedBuffer::append(const void* data, size_t size) {
 }
 
 bool BoundedBuffer::set(const void* data, size_t size) {
-    if (size > m_max_size) {
+    if (m_max_size != 0 && size > m_max_size) {
         Debug::log("memory", "BoundedBuffer::set() - Requested size ", size, " exceeds max_size ", m_max_size);
         return false;
     }

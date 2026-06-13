@@ -289,10 +289,10 @@ bool FrameParser::parseFrameHeader(FrameHeader &header) {
     }
   } else if (sample_rate_bits == 0b1110) {
     if (!parseUncommonSampleRate(header, 16)) {
-      // Sample rate in Hz/10
-      header.sample_rate *= 10;
-      return true;
+      return false;
     }
+    // Field is the sample rate in units of 10 Hz.
+    header.sample_rate *= 10;
   } else {
     // Standard sample rate lookup
     static const uint32_t sample_rate_table[] = {

@@ -116,6 +116,12 @@ private:
     
     // Thread synchronization for buffer access
     mutable std::mutex m_buffer_mutex;
+
+    // Serializes the whole decode path (getData/getNextFrame/fillChunkBuffer,
+    // which run on the audio decoder thread) against seekTo (UI thread). Both
+    // touch m_current_frame and the chunk buffers; without this they race.
+    // Lock ordering: acquire m_decode_mutex before m_buffer_mutex.
+    mutable std::mutex m_decode_mutex;
     
     // Buffer limits to prevent memory exhaustion
     static constexpr size_t MAX_CHUNK_BUFFER_SIZE = 8;      // Max chunks in buffer
