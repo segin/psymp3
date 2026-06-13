@@ -40,12 +40,9 @@ ALawCodec::ALawCodec(const StreamInfo& stream_info)
     : SimplePCMCodec(stream_info) {
     Debug::log("codec", "ALawCodec: Constructor called for codec: ", stream_info.codec_name);
     
-    // Ensure lookup table is initialized
-    if (!s_table_initialized) {
-        Debug::log("codec", "ALawCodec: Initializing lookup table");
-        initializeALawTable();
-    }
-    
+    // Ensure lookup table is initialized (thread-safe; no-op after first call).
+    initializeALawTable();
+
     Debug::log("codec", "ALawCodec: Constructor completed successfully");
 }
 
@@ -139,14 +136,12 @@ bool ALawCodec::initialize() {
             return false;
         }
         
-        // Ensure lookup table is properly initialized
+        // Ensure lookup table is properly initialized (thread-safe; no-op after
+        // the first successful call).
+        initializeALawTable();
         if (!s_table_initialized) {
-            Debug::log("codec", "ALawCodec: Lookup table not initialized, initializing now");
-            initializeALawTable();
-            if (!s_table_initialized) {
-                Debug::log("codec", "ALawCodec: Initialization failed - lookup table initialization failed");
-                return false;
-            }
+            Debug::log("codec", "ALawCodec: Initialization failed - lookup table initialization failed");
+            return false;
         }
         
         // Set default parameters for raw streams
@@ -329,13 +324,13 @@ size_t ALawCodec::getBytesPerInputSample() const {
 }
 
 void ALawCodec::initializeALawTable() {
-    if (s_table_initialized) {
-        Debug::log("codec", "ALawCodec: Lookup table already initialized");
-        return; // Already initialized
-    }
-    
+    // Thread-safe one-time init: two codecs constructed concurrently would
+    // otherwise both write ALAW_TO_PCM (a data race) and read a half-filled
+    // table. call_once serializes and runs the computation exactly once.
+    static std::once_flag s_table_once;
+    std::call_once(s_table_once, []() {
     auto start_time = std::chrono::high_resolution_clock::now();
-    
+
     try {
         Debug::log("codec", "ALawCodec: Computing ITU-T G.711 A-law lookup table at runtime");
         
@@ -383,6 +378,7 @@ void ALawCodec::initializeALawTable() {
         Debug::log("codec", "ALawCodec: Unknown exception during table computation");
         // Don't set s_table_initialized to true on error
     }
+    });
 }
 
 void registerALawCodec() {

@@ -293,6 +293,7 @@ using SDLKey = SDL_Keycode;
 // FreeType headers
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_LCD_FILTER_H
 
 // Additional system headers needed by source files
 #include <getopt.h>

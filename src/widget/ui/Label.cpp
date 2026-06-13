@@ -40,7 +40,33 @@ Label::Label(Font* font, const Rect& position, const TagLib::String& initial_tex
 
 void Label::setBackgroundColor(SDL_Color background_color)
 {
+    if (background_color.r == m_background_color.r
+        && background_color.g == m_background_color.g
+        && background_color.b == m_background_color.b
+        && background_color.a == m_background_color.a) {
+        return;
+    }
     m_background_color = background_color;
+
+    // The LCD render path bakes the bg colour into each glyph's edge pixels,
+    // so a bg change requires re-rendering the text — invalidate alone leaves
+    // glyphs blended against the previous bg and shows colour fringing.
+    if (!m_text.isEmpty()) {
+        m_text_surface = m_font->RenderLCD(m_text,
+                                           m_color.r, m_color.g, m_color.b,
+                                           m_background_color.r,
+                                           m_background_color.g,
+                                           m_background_color.b);
+        if (m_text_surface) {
+            auto widget_surface = std::make_unique<Surface>(m_text_surface->width(),
+                                                            m_text_surface->height(),
+                                                            true);
+            widget_surface->FillRect(widget_surface->MapRGBA(0, 0, 0, 0));
+            widget_surface->Blit(*m_text_surface,
+                                 Rect(0, 0, m_text_surface->width(), m_text_surface->height()));
+            setSurface(std::move(widget_surface));
+        }
+    }
     invalidate();
 }
 
@@ -63,7 +89,14 @@ void Label::setText(const TagLib::String& text)
 
     m_text = text;
 
-    m_text_surface = m_font->Render(m_text, m_color.r, m_color.g, m_color.b);
+    // Use the ClearType (LCD subpixel) path so the rendered glyphs are
+    // pre-blended against this label's background colour, avoiding the
+    // single-alpha quality loss of compositing the text surface afterwards.
+    m_text_surface = m_font->RenderLCD(m_text,
+                                       m_color.r, m_color.g, m_color.b,
+                                       m_background_color.r,
+                                       m_background_color.g,
+                                       m_background_color.b);
     if (!m_text_surface) {
         std::cerr << "Failed to render text surface for label." << std::endl;
         return;

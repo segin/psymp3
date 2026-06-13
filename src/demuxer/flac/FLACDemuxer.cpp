@@ -520,8 +520,12 @@ retry_frame_read:
 
     while (bytes_read > search_start) {
         // Search for next sync code (0xFF followed by 0xF8 or 0xF9)
-        // Ensure we have enough bytes to check data[i+2]
-        for (size_t i = search_start; i < bytes_read - 16; ++i) { // Ensure enough buffer for header max size
+        // Ensure we have enough bytes to check data[i+2] and parse a header.
+        // Use "i + 16 < bytes_read" rather than "i < bytes_read - 16": the
+        // latter underflows to a huge size_t when bytes_read <= 16 (e.g. a
+        // truncated final frame leaving 10-15 trailing bytes), driving an
+        // out-of-bounds read past data.size().
+        for (size_t i = search_start; i + 16 < bytes_read; ++i) {
             if (data[i] == 0xFF && (data[i + 1] == 0xF8 || data[i + 1] == 0xF9)) {
                 // Validate third byte to avoid simple false positives
                 // data[i+2] contains Block Size (high nibble) and Sample Rate (low nibble)

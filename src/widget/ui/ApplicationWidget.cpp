@@ -20,6 +20,7 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+#include <algorithm>
 
 #include "psymp3.h"
 
@@ -96,10 +97,18 @@ bool ApplicationWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             Widget* clicked_window = window.get();
             bool handled = clicked_window->handleMouseDown(event, window_relative_x, window_relative_y);
 
-            // Reordering the backing vector invalidates the iterator/reference, so
-            // do it only after the target window has finished handling the click.
-            bringWindowToFront(clicked_window);
-            return handled;
+            // Only consume the click if the window actually handled it. A
+            // mouse-transparent overlay (ToastWidget, LyricsWidget) returns
+            // false to let events pass through; returning unconditionally here
+            // swallowed clicks meant for lower windows / desktop widgets (and
+            // broke press/release pairing vs handleMouseUp/Motion, which
+            // continue on false).
+            if (handled) {
+                // Reordering the backing vector invalidates the iterator/reference,
+                // so do it only after the target window finished handling the click.
+                bringWindowToFront(clicked_window);
+                return true;
+            }
         }
     }
     
@@ -301,37 +310,38 @@ void ApplicationWidget::updateWindows()
     }
     m_windows_to_remove.clear();
     
-    // Check for toasts that need to be dismissed
-    auto it = m_windows.begin();
-    while (it != m_windows.end()) {
-        if (auto* toast = dynamic_cast<ToastWidget*>(it->get())) {
-            if (toast->shouldDismiss()) {
-                toast->beginDismiss();
+    // Check for toasts that need to be dismissed (preserving the crossfade-out
+    // animation: start the fade on shouldDismiss(), erase once isFinished()).
+    // remove_if applies the predicate exactly once per element in order, so the
+    // beginDismiss() side effects match the previous loop.
+    m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
+        [](const std::unique_ptr<Widget>& window) {
+            if (auto* toast = dynamic_cast<ToastWidget*>(window.get())) {
+                if (toast->shouldDismiss()) {
+                    toast->beginDismiss();
+                }
+                if (toast->isFinished()) {
+                    toast->dismiss(); // Call dismiss callback
+                    return true;      // remove from window list
+                }
             }
-            if (toast->isFinished()) {
-                toast->dismiss(); // Call dismiss callback
-                it = m_windows.erase(it); // Remove from window list
-                continue;
-            }
-        }
-        ++it;
-    }
+            return false;
+        }), m_windows.end());
 }
 
 void ApplicationWidget::removeAllToasts(int fade_out_ms)
 {
     // Remove all existing toasts immediately, or let them crossfade out.
-    auto it = m_windows.begin();
-    while (it != m_windows.end()) {
-        if (auto* toast = dynamic_cast<ToastWidget*>(it->get())) {
-            if (fade_out_ms <= 0) {
-                it = m_windows.erase(it);
-                continue;
+    m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
+        [fade_out_ms](const std::unique_ptr<Widget>& window) {
+            if (auto* toast = dynamic_cast<ToastWidget*>(window.get())) {
+                if (fade_out_ms <= 0) {
+                    return true; // erase immediately
+                }
+                toast->beginDismiss(fade_out_ms); // start crossfade, keep
             }
-            toast->beginDismiss(fade_out_ms);
-        }
-        ++it;
-    }
+            return false;
+        }), m_windows.end());
 }
 
 void ApplicationWidget::scheduleWindowRemoval(Widget* window)

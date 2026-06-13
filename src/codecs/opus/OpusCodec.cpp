@@ -520,9 +520,12 @@ bool OpusCodec::setupInternalBuffers_unlocked()
         m_decoder_initialized = false;
         m_flushed = false;  // Reset flush state
         
-        // Reset atomic counters
+        // Reset atomic counters. Seed the skip counter with m_pre_skip (set
+        // above from the OpusHead in StreamInfo codec_data, or 0 if none): the
+        // normal Ogg path initializes the decoder from codec_data and would
+        // otherwise never skip the encoder pre-skip/delay samples.
         m_samples_decoded.store(0);
-        m_samples_to_skip.store(0);
+        m_samples_to_skip.store(m_pre_skip);
         m_error_state.store(false);
         m_last_error.clear();
         
@@ -697,16 +700,25 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
         Debug::log("opus", "Packet loss detected - generating PLC audio");
         std::vector<uint8_t> empty_data;
         AudioFrame frame = decodeAudioPacket_unlocked(empty_data);
-        if (!frame.samples.empty()) {
+
+        // PLC audio must go through the same post-processing as normal frames:
+        // pre-skip, output gain, and decoded-sample accounting. Skipping these
+        // played concealment frames at unattenuated volume (gain step) and
+        // undercounted m_samples_decoded, skewing the end-of-stream trim.
+        applyPreSkip_unlocked(frame);
+        applyOutputGain_unlocked(frame);
+
+        uint64_t emitted_sample_frames = frame.getSampleFrameCount();
+        if (emitted_sample_frames > 0) {
             uint64_t expected_output_samples =
                 (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
-            uint64_t emitted_sample_frames = frame.getSampleFrameCount();
             frame.timestamp_samples =
                 (expected_output_samples >= emitted_sample_frames)
                     ? (expected_output_samples - emitted_sample_frames)
                     : 0;
             frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / 48000ULL;
         }
+        m_samples_decoded.store(m_samples_decoded.load() + emitted_sample_frames);
         return frame;
     }
     
@@ -922,22 +934,24 @@ bool OpusCodec::processCommentHeader_unlocked(const std::vector<uint8_t>& packet
     
     Debug::log("opus", "OpusTags vendor string length: ", vendor_length, " bytes");
     
-    // Validate vendor string fits in packet
-    if (packet_data.size() < 12 + vendor_length) {
-        Debug::log("opus", "OpusTags packet too small for vendor string: need ", 
-                  12 + vendor_length, " bytes, have ", packet_data.size());
+    // Validate vendor string fits in packet. Use 64-bit arithmetic:
+    // 12 + vendor_length in 32-bit wraps when vendor_length is near UINT32_MAX,
+    // letting a malformed header pass the bounds check.
+    if (packet_data.size() < 12 + static_cast<size_t>(vendor_length)) {
+        Debug::log("opus", "OpusTags packet too small for vendor string: need ",
+                  12 + static_cast<size_t>(vendor_length), " bytes, have ", packet_data.size());
         return false;
     }
-    
+
     // Check for user comment list length field
-    if (packet_data.size() < 16 + vendor_length) {
-        Debug::log("opus", "OpusTags packet too small for comment list length: need ", 
-                  16 + vendor_length, " bytes, have ", packet_data.size());
+    if (packet_data.size() < 16 + static_cast<size_t>(vendor_length)) {
+        Debug::log("opus", "OpusTags packet too small for comment list length: need ",
+                  16 + static_cast<size_t>(vendor_length), " bytes, have ", packet_data.size());
         return false;
     }
-    
+
     // Extract user comment list length (little endian)
-    size_t comment_list_offset = 12 + vendor_length;
+    size_t comment_list_offset = 12 + static_cast<size_t>(vendor_length);
     uint32_t comment_count = packet_data[comment_list_offset] | 
                             (packet_data[comment_list_offset + 1] << 8) |
                             (packet_data[comment_list_offset + 2] << 16) | 

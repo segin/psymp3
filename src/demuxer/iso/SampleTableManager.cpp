@@ -252,12 +252,24 @@ bool SampleTableManager::BuildOptimizedChunkTable(const SampleTableInfo& rawTabl
         uint32_t lastChunk;
         
         if (i + 1 < rawTables.sampleToChunkEntries.size()) {
-            lastChunk = rawTables.sampleToChunkEntries[i + 1].firstChunk - 1;
+            uint32_t nextFirst = rawTables.sampleToChunkEntries[i + 1].firstChunk;
+            // firstChunk values must be strictly increasing. A zero or
+            // non-increasing next value would underflow (nextFirst - 1 wraps to
+            // ~4 billion), producing a huge chunkCount below.
+            if (nextFirst <= firstChunk) {
+                continue; // Invalid (non-increasing) entry
+            }
+            lastChunk = nextFirst - 1;
         } else {
+            if (rawTables.chunkOffsets.empty()) {
+                continue;
+            }
             lastChunk = static_cast<uint32_t>(rawTables.chunkOffsets.size() - 1);
         }
-        
-        if (lastChunk < firstChunk || firstChunk >= rawTables.chunkOffsets.size()) {
+
+        if (lastChunk < firstChunk ||
+            firstChunk >= rawTables.chunkOffsets.size() ||
+            lastChunk >= rawTables.chunkOffsets.size()) {
             continue; // Invalid entry
         }
         

@@ -214,9 +214,13 @@ bool OggDemuxer::parseContainer() {
       auto stream = std::make_unique<OggStreamManager>(serial);
       stream->submitPage(&page);
 
-      // Extract the first packet for codec identification
+      // Extract the first packet for codec identification.
+      // getPacket() returns 1 on success, 0 for need-more-data, and -1 for a
+      // data gap (packet left untouched). Only 1 means *packet is valid; a
+      // bool coercion would treat -1 as success and parse an uninitialized
+      // packet.
       ogg_packet packet;
-      bool got_packet = stream->getPacket(&packet);
+      bool got_packet = (stream->getPacket(&packet) == 1);
       Debug::log("ogg", "OggDemuxer::parseContainer() getPacket returned ",
                  got_packet, " bytes=", got_packet ? packet.bytes : 0);
       if (got_packet) {
@@ -275,7 +279,8 @@ bool OggDemuxer::parseContainer() {
         if (pit != m_parsers.end() && !pit->second->isHeadersComplete()) {
           ogg_packet packet;
           int packet_count = 0;
-          while (it->second->getPacket(&packet)) {
+          // Only 1 means *packet is valid; -1 (data gap) must not be parsed.
+          while (it->second->getPacket(&packet) == 1) {
             Debug::log("ogg", "OggDemuxer::parseContainer() got packet ",
                        packet_count, " bytes=", packet.bytes);
             pit->second->parseHeader(&packet);
@@ -597,9 +602,11 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
         
         if (tit->second.codec_name == "opus") {
             if (granule < tit->second.pre_skip) return 0;
-            return (granule - tit->second.pre_skip) * 1000 / 48000;
+            uint64_t g = granule - tit->second.pre_skip;
+            // Split the division so granule * 1000 cannot overflow uint64.
+            return (g / 48000) * 1000 + (g % 48000) * 1000 / 48000;
         }
-        return granule * 1000 / rate;
+        return (granule / rate) * 1000 + (granule % rate) * 1000 / rate;
     }
 
     auto pit = m_parsers.find(stream_id);
@@ -614,11 +621,13 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
 
     if (codec == "opus") {
         if (granule < ci.pre_skip) return 0;
-        return (granule - ci.pre_skip) * 1000 / 48000;
+        uint64_t g = granule - ci.pre_skip;
+        // Split the division so granule * 1000 cannot overflow uint64.
+        return (g / 48000) * 1000 + (g % 48000) * 1000 / 48000;
     }
 
     // Generic sample-based (Vorbis, FLAC, Speex)
-    return granule * 1000 / ci.rate;
+    return (granule / ci.rate) * 1000 + (granule % ci.rate) * 1000 / ci.rate;
 }
 
 uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const {
@@ -667,7 +676,8 @@ int OggDemuxer::fetchAndProcessPacket() {
         auto tit = m_test_streams.find(serial);
         if (tit != m_test_streams.end()) {
             ogg_packet packet;
-            while (it->second->getPacket(&packet)) {
+            // Only 1 means *packet is valid; -1 (data gap) must not be queued.
+            while (it->second->getPacket(&packet) == 1) {
                 // We actually need to deep-copy the packet data if the test uses it
                 // but for now let's just push it. 
                 // Wait, ogg_packet has a pointer. This is unsafe.

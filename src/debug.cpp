@@ -25,8 +25,14 @@
 // Initialize static members
 std::ofstream Debug::m_logfile;
 std::mutex Debug::m_mutex;
-std::unordered_set<std::string> Debug::m_enabled_channels;
 bool Debug::m_log_to_file = false;
+
+// Construct-on-first-use accessor so the set is always constructed before any
+// use, regardless of static-initialization order across translation units.
+std::unordered_set<std::string>& Debug::enabledChannels() {
+    static std::unordered_set<std::string> channels;
+    return channels;
+}
 
 /**
  * @brief Initialises the debug subsystem.
@@ -43,7 +49,7 @@ void Debug::init(const std::string& logfile, const std::vector<std::string>& cha
     std::lock_guard<std::mutex> lock(m_mutex);
     
     // Clear previous state
-    m_enabled_channels.clear();
+    enabledChannels().clear();
     if (m_logfile.is_open()) {
         m_logfile.close();
     }
@@ -56,7 +62,7 @@ void Debug::init(const std::string& logfile, const std::vector<std::string>& cha
             m_log_to_file = true;
         }
     }
-    m_enabled_channels.insert(channels.begin(), channels.end());
+    enabledChannels().insert(channels.begin(), channels.end());
 }
 
 /**
@@ -70,7 +76,7 @@ void Debug::shutdown() {
     if (m_logfile.is_open()) {
         m_logfile.close();
     }
-    m_enabled_channels.clear();
+    enabledChannels().clear();
     m_log_to_file = false;
 }
 
@@ -92,12 +98,12 @@ bool Debug::isChannelEnabled(const std::string& channel) {
     std::lock_guard<std::mutex> lock(m_mutex);
     
     // A global "all" channel can enable all logging.
-    if (m_enabled_channels.count("all") > 0) {
+    if (enabledChannels().count("all") > 0) {
         return true;
     }
     
     // Check for exact match
-    if (m_enabled_channels.count(channel) > 0) {
+    if (enabledChannels().count(channel) > 0) {
         return true;
     }
     
@@ -108,7 +114,7 @@ bool Debug::isChannelEnabled(const std::string& channel) {
         std::string parent_channel = channel.substr(0, colon_pos);
         
         // Check if parent channel is enabled (e.g., "flac" enables "flac:frame")
-        if (m_enabled_channels.count(parent_channel) > 0) {
+        if (enabledChannels().count(parent_channel) > 0) {
             return true;
         }
     } else {
@@ -116,7 +122,7 @@ bool Debug::isChannelEnabled(const std::string& channel) {
         // Check if any specific sub-channels are enabled
         // If so, don't show parent channel messages unless parent is explicitly enabled
         bool has_specific_subchannels = false;
-        for (const auto& enabled : m_enabled_channels) {
+        for (const auto& enabled : enabledChannels()) {
             if (enabled.find(channel + ":") == 0) {
                 has_specific_subchannels = true;
                 break;

@@ -103,6 +103,28 @@ bool testMalformedSignatures() {
     return true;
 }
 
+bool testOggFLACExceptionHandling() {
+    std::cout << "Testing OggFLACPassthroughCodec exception handling..." << std::endl;
+
+    StreamInfo info;
+    info.codec_name = "flac";
+    // Provide an invalid sample rate to force initialization to fail.
+    // The maximum sample rate permitted by RFC 9639 is 1048575 Hz.
+    info.sample_rate = 2000000;
+    info.codec_data = {0x00, 0x01, 0x02};
+
+    OggFLACPassthroughCodec codec(info);
+    bool result = codec.initialize();
+
+    // Depending on the NativeFLACCodec implementation, it might throw an exception
+    // that OggFLACPassthroughCodec catches, or it might just return false.
+    // In either case, the passthrough codec should return false and not crash.
+    ASSERT(!result, "Should return false when underlying FLACCodec initialization fails");
+
+    std::cout << "  ✓ Passed" << std::endl;
+    return true;
+}
+
 int main() {
     std::cout << "Running OggDemuxer Error Handling Tests..." << std::endl;
     std::cout << "===========================================" << std::endl;
@@ -115,6 +137,7 @@ int main() {
     if (testInvalidGranuleHandling()) passed++; total++;
     if (testOverflowProtection()) passed++; total++;
     if (testMalformedSignatures()) passed++; total++;
+    if (testOggFLACExceptionHandling()) passed++; total++;
     
     std::cout << std::endl;
     if (passed == total) {

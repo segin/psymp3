@@ -24,7 +24,7 @@
 #ifndef DRAWABLEWIDGET_H
 #define DRAWABLEWIDGET_H
 
-// No direct includes - all includes should be in psymp3.h
+#include <atomic>
 
 namespace PsyMP3 {
 namespace Widget {
@@ -100,7 +100,7 @@ protected:
     virtual void onResize(int new_width, int new_height);
 
 private:
-    bool m_needs_redraw;
+    std::atomic<bool> m_needs_redraw;
     
     /**
      * @brief Internal method to create and update the widget surface.

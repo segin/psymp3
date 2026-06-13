@@ -610,6 +610,22 @@ protected:
      */
     std::string readFixedString(size_t length) {
         std::lock_guard<std::mutex> lock(m_io_mutex);
+        // `length` comes from an untrusted chunk-size field and could be up to
+        // ~4 GB. Clamp the up-front allocation to what the file can actually
+        // provide (reading past EOF returns fewer bytes anyway), with a hard
+        // ceiling as a backstop when the size is unknown (e.g. HTTP streams).
+        static constexpr size_t MAX_FIXED_STRING = 64 * 1024 * 1024; // 64 MB
+        off_t pos = m_handler->tell();
+        off_t fsize = m_handler->getFileSize();
+        if (pos >= 0 && fsize > pos) {
+            size_t remaining = static_cast<size_t>(fsize - pos);
+            if (length > remaining) {
+                length = remaining;
+            }
+        }
+        if (length > MAX_FIXED_STRING) {
+            length = MAX_FIXED_STRING;
+        }
         std::vector<char> buffer(length);
         size_t bytes_read = m_handler->read(buffer.data(), 1, length);
         return std::string(buffer.data(), bytes_read);

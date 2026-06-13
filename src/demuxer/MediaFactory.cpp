@@ -878,7 +878,7 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
                 // Check for MPEG audio sync after ID3 tag (confirms it's actually MP3)
                 if ((post_id3_buffer[0] == 0xFF) && ((post_id3_buffer[1] & 0xE0) == 0xE0)) {
                     Debug::log("loader", "MediaFactory::detectByMagicBytes found MPEG sync after ID3 tag");
-                    info.detected_format = "mpeg_audio";
+                    info.detected_format = "mp3";
                     info.confidence = 0.98f;
                     info.metadata["has_id3"] = "true";
                     info.metadata["magic_signature"] = "ID3+sync";
@@ -906,8 +906,13 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     
     std::vector<DetectionCandidate> candidates;
     
-    // Check against all registered formats and collect candidates
+    // Check against all registered formats and collect candidates.
+    // Hold s_factory_mutex while iterating: register/unregisterFormat can mutate
+    // s_formats from another thread, so iterating it unlocked is a data race /
+    // iterator-invalidation hazard. probeOggCodec below is lock-free.
     // Skip ID3 signature matching if we already handled ID3 above
+    {
+    std::lock_guard<std::mutex> formats_lock(s_factory_mutex);
     for (const auto& [format_id, registration] : s_formats) {
         for (const auto& signature : registration.format.magic_signatures) {
             // Skip ID3 signature - we handle it specially above
@@ -957,7 +962,8 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
             }
         }
     }
-    
+    } // s_factory_mutex scope
+
     // Select best candidate using enhanced priority-based resolution
     if (!candidates.empty()) {
         // Sort by priority first (lower number = higher priority), then by confidence
@@ -1047,7 +1053,7 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
                 // Validate MPEG header fields
                 if (version != 0x01 && layer != 0x00 && bitrate != 0x00 && 
                     bitrate != 0x0F && samplerate != 0x03) {
-                    info.detected_format = "mpeg_audio";
+                    info.detected_format = "mp3";
                     info.confidence = 0.75f;
                     info.metadata["sync_pattern_found"] = "true";
                     info.metadata["mpeg_validation"] = "passed";

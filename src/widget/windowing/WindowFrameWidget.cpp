@@ -265,9 +265,12 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             
             // Check for click in draggable area (start dragging, no double-click close)
             if (isInDraggableArea(relative_x, relative_y)) {
-                // Start dragging immediately with absolute coordinates
+                // Start dragging immediately with absolute coordinates. Use the
+                // event's logical coords rather than SDL_GetMouseState (which
+                // returns raw window pixels and breaks with display scaling).
                 m_is_dragging = true;
-                SDL_GetMouseState(&m_last_mouse_x, &m_last_mouse_y);
+                m_last_mouse_x = event.x;
+                m_last_mouse_y = event.y;
                 captureMouse(); // Capture mouse for global tracking
                 
                 if (m_on_drag_start) {
@@ -284,7 +287,8 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             if (resize_edge != 0) {
                 m_is_resizing = true;
                 m_resize_edge = resize_edge;
-                SDL_GetMouseState(&m_resize_start_x, &m_resize_start_y);
+                m_resize_start_x = event.x;
+                m_resize_start_y = event.y;
                 m_resize_start_width = m_client_width;
                 m_resize_start_height = m_client_height;
                 // Store original window position when resize starts
@@ -368,12 +372,10 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
     }
     
     if (m_is_resizing) {
-        // Use absolute mouse coordinates for resize tracking
-        int mouse_x, mouse_y;
-        SDL_GetMouseState(&mouse_x, &mouse_y);
-        
-        int dx = mouse_x - m_resize_start_x;
-        int dy = mouse_y - m_resize_start_y;
+        // Use the event's logical coordinates for resize tracking so display
+        // scaling doesn't desync the deltas from the captured start position.
+        int dx = event.x - m_resize_start_x;
+        int dy = event.y - m_resize_start_y;
         
         int new_width = m_resize_start_width;
         int new_height = m_resize_start_height;

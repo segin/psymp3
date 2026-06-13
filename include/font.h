@@ -34,6 +34,12 @@ class Font
         explicit Font(const TagLib::String& file, int ptsize = 12);
         virtual ~Font();
         std::unique_ptr<Surface> Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b);
+        // ClearType-style render: subpixel-accurate glyphs pre-blended against
+        // an opaque background. Returns an opaque RGB(A=255) surface; callers
+        // must paint the same background underneath before blitting.
+        std::unique_ptr<Surface> RenderLCD(const TagLib::String& text,
+                                           uint8_t fg_r, uint8_t fg_g, uint8_t fg_b,
+                                           uint8_t bg_r, uint8_t bg_g, uint8_t bg_b);
         bool isValid();
     protected:
     private:

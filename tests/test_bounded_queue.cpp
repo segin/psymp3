@@ -26,6 +26,55 @@ size_t calculateTestItemMemory(const TestItem& item) {
     return sizeof(TestItem) + item.data.capacity();
 }
 
+
+void testConstructor() {
+    std::cout << "Testing constructor..." << std::endl;
+
+    // Test default constructor
+    BoundedQueue<TestItem> queue1;
+    if (queue1.getMaxItems() != 0) {
+        std::cout << "FAIL: Default max items should be 0 (unlimited)" << std::endl;
+        return;
+    }
+    if (queue1.getMaxMemoryBytes() != 0) {
+        std::cout << "FAIL: Default max memory should be 0 (unlimited)" << std::endl;
+        return;
+    }
+    if (!queue1.empty()) {
+        std::cout << "FAIL: Default queue should be empty" << std::endl;
+        return;
+    }
+
+    // Test default memory calculator logic
+    TestItem item1(1, "test");
+    queue1.tryPush(item1);
+    if (queue1.memoryUsage() != sizeof(TestItem)) {
+        std::cout << "FAIL: Default memory calculator should return sizeof(T), got " << queue1.memoryUsage() << " expected " << sizeof(TestItem) << std::endl;
+        return;
+    }
+
+    // Test explicit initialization constructor
+    BoundedQueue<TestItem> queue2(10, 1024, calculateTestItemMemory);
+    if (queue2.getMaxItems() != 10) {
+        std::cout << "FAIL: Max items should be initialized to 10" << std::endl;
+        return;
+    }
+    if (queue2.getMaxMemoryBytes() != 1024) {
+        std::cout << "FAIL: Max memory should be initialized to 1024" << std::endl;
+        return;
+    }
+
+    TestItem item2(2, "hello world");
+    queue2.tryPush(item2);
+    size_t expectedMem = sizeof(TestItem) + item2.data.capacity();
+    if (queue2.memoryUsage() != expectedMem) {
+        std::cout << "FAIL: Custom memory calculator should be used, got " << queue2.memoryUsage() << " expected " << expectedMem << std::endl;
+        return;
+    }
+
+    std::cout << "PASS: Constructor test" << std::endl;
+}
+
 void testBasicOperations() {
     std::cout << "Testing basic operations..." << std::endl;
     
@@ -104,7 +153,7 @@ void testMemoryLimits() {
     std::cout << "Testing memory limits..." << std::endl;
     
     // Create queue with memory limit of 100 bytes
-    BoundedQueue<TestItem> queue(0, 100, calculateTestItemMemory);
+    BoundedQueue<TestItem> queue(0, 200, calculateTestItemMemory);
     
     // Create items with large data
     TestItem item1(1, std::string(50, 'a'));  // ~50 bytes data
@@ -254,6 +303,7 @@ void testConfigurationChanges() {
 int main() {
     std::cout << "Running BoundedQueue tests..." << std::endl;
     
+    testConstructor();
     testBasicOperations();
     testMemoryLimits();
     testClearOperation();

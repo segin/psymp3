@@ -342,6 +342,10 @@ MediaChunk MP3NullDemuxer::readChunk_unlocked() {
         return MediaChunk();
     }
 
+    // Loop rather than recurse on invalid/free-format frames: a malformed
+    // stream with many such frames would otherwise recurse once per frame and
+    // overflow the stack.
+    while (true) {
     uint64_t frame_offset = static_cast<uint64_t>(m_handler->tell());
     if (frame_offset >= m_data_end_offset) {
         m_eof_flag.store(true);
@@ -383,7 +387,7 @@ MediaChunk MP3NullDemuxer::readChunk_unlocked() {
             m_eof_flag.store(true);
             return MediaChunk();
         }
-        return readChunk_unlocked();
+        continue; // re-run from the top (was a recursive call)
     }
 
     // Read the complete frame (including header)
@@ -419,6 +423,7 @@ MediaChunk MP3NullDemuxer::readChunk_unlocked() {
     }
 
     return chunk;
+    } // while (true)
 }
 
 bool MP3NullDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
