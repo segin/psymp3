@@ -473,7 +473,11 @@ private:
     StreamInfoMetadata m_streaminfo;
     bool m_has_streaminfo;
     bool m_md5_validation_enabled;
-    
+    // Set when a mid-playback reset (seek) occurs: the running MD5 then covers
+    // only post-seek samples and can never match the whole-stream STREAMINFO
+    // MD5, so end-of-stream validation must be skipped to avoid a false error.
+    bool m_md5_invalidated_by_seek = false;
+
     // Buffers
     static constexpr size_t MAX_BLOCK_SIZE = 65535;
     static constexpr size_t MAX_CHANNELS = 8;

@@ -20,6 +20,7 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+#include <algorithm>
 
 #include "psymp3.h"
 
@@ -32,9 +33,17 @@ using Foundation::DrawableWidget;
 
 namespace {
 
+int getWindowZOrder(const Widget* window)
+{
+    if (auto* transparent_window = dynamic_cast<const TransparentWindowWidget*>(window)) {
+        return transparent_window->getZOrder();
+    }
+    return ZOrder::NORMAL;
+}
+
 bool isAlwaysOnTopWindow(const Widget* window)
 {
-    return dynamic_cast<const ToastWidget*>(window) != nullptr;
+    return getWindowZOrder(window) >= ZOrder::TOAST;
 }
 
 }
@@ -84,13 +93,21 @@ bool ApplicationWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             // Calculate relative coordinates for window
             int window_relative_x = relative_x - window_pos.x();
             int window_relative_y = relative_y - window_pos.y();
-            
-            // Bring window to front if clicked
-            bringWindowToFront(window.get());
-            
-            // Forward event to window
-            if (window->handleMouseDown(event, window_relative_x, window_relative_y)) {
-                return true; // Event was handled by window
+
+            Widget* clicked_window = window.get();
+            bool handled = clicked_window->handleMouseDown(event, window_relative_x, window_relative_y);
+
+            // Only consume the click if the window actually handled it. A
+            // mouse-transparent overlay (ToastWidget, LyricsWidget) returns
+            // false to let events pass through; returning unconditionally here
+            // swallowed clicks meant for lower windows / desktop widgets (and
+            // broke press/release pairing vs handleMouseUp/Motion, which
+            // continue on false).
+            if (handled) {
+                // Reordering the backing vector invalidates the iterator/reference,
+                // so do it only after the target window finished handling the click.
+                bringWindowToFront(clicked_window);
+                return true;
             }
         }
     }
@@ -236,10 +253,12 @@ void ApplicationWidget::bringWindowToFront(Widget* window)
         m_windows.erase(it);
 
         if (isAlwaysOnTopWindow(window_ptr.get())) {
-            // Toasts stay above every other window.
+            // Always-on-top overlays stay above every other window, but keep
+            // their relative ordering stable inside that reserved band.
             m_windows.push_back(std::move(window_ptr));
         } else {
-            // Ordinary windows can come to the front, but never above toasts.
+            // Ordinary windows can come to the front, but never above windows
+            // in the reserved always-on-top band.
             auto first_always_on_top = std::find_if(
                 m_windows.begin(), m_windows.end(),
                 [](const std::unique_ptr<Widget>& candidate) {
@@ -291,31 +310,38 @@ void ApplicationWidget::updateWindows()
     }
     m_windows_to_remove.clear();
     
-    // Check for toasts that need to be dismissed
-    auto it = m_windows.begin();
-    while (it != m_windows.end()) {
-        if (auto* toast = dynamic_cast<ToastWidget*>(it->get())) {
-            if (toast->shouldDismiss()) {
-                toast->dismiss(); // Call dismiss callback
-                it = m_windows.erase(it); // Remove from window list
-                continue;
+    // Check for toasts that need to be dismissed (preserving the crossfade-out
+    // animation: start the fade on shouldDismiss(), erase once isFinished()).
+    // remove_if applies the predicate exactly once per element in order, so the
+    // beginDismiss() side effects match the previous loop.
+    m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
+        [](const std::unique_ptr<Widget>& window) {
+            if (auto* toast = dynamic_cast<ToastWidget*>(window.get())) {
+                if (toast->shouldDismiss()) {
+                    toast->beginDismiss();
+                }
+                if (toast->isFinished()) {
+                    toast->dismiss(); // Call dismiss callback
+                    return true;      // remove from window list
+                }
             }
-        }
-        ++it;
-    }
+            return false;
+        }), m_windows.end());
 }
 
-void ApplicationWidget::removeAllToasts()
+void ApplicationWidget::removeAllToasts(int fade_out_ms)
 {
-    // Remove all existing toasts immediately
-    auto it = m_windows.begin();
-    while (it != m_windows.end()) {
-        if (dynamic_cast<ToastWidget*>(it->get())) {
-            it = m_windows.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    // Remove all existing toasts immediately, or let them crossfade out.
+    m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
+        [fade_out_ms](const std::unique_ptr<Widget>& window) {
+            if (auto* toast = dynamic_cast<ToastWidget*>(window.get())) {
+                if (fade_out_ms <= 0) {
+                    return true; // erase immediately
+                }
+                toast->beginDismiss(fade_out_ms); // start crossfade, keep
+            }
+            return false;
+        }), m_windows.end());
 }
 
 void ApplicationWidget::scheduleWindowRemoval(Widget* window)

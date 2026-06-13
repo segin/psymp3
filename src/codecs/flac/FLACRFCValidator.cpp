@@ -57,12 +57,14 @@ bool quickFrameHeaderCheck(const uint8_t* data, size_t size) {
         return false;
     }
     
-    uint8_t byte1 = data[1];
     uint8_t byte2 = data[2];
     uint8_t byte3 = data[3];
     
-    // Quick forbidden value checks
-    uint8_t block_size_bits = (byte1 >> 4) & 0x0F;
+    // Quick forbidden value checks. Per RFC 9639 the block-size code is the high
+    // nibble of data[2] and the sample-rate code its low nibble; data[1] is the
+    // sync byte (0xF8/0xF9), so reading block size from it made the reserved-
+    // block-size check below dead.
+    uint8_t block_size_bits = (byte2 >> 4) & 0x0F;
     uint8_t sample_rate_bits = byte2 & 0x0F;
     uint8_t sample_size_bits = (byte3 >> 1) & 0x07;
     uint8_t reserved_sample = byte3 & 0x01;

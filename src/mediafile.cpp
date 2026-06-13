@@ -22,11 +22,10 @@
  */
 
 #include "psymp3.h"
+#include <filesystem>
 
 /**
  * @brief Checks whether the given media file path refers to an accessible file.
- *
- * Currently always returns `true` (simplified placeholder implementation).
  *
  * @param file Path to the media file.
  * @return `true` if the file is accessible.
@@ -38,7 +37,7 @@ bool MediaFile::exists(const TagLib::String& file) {
 #else
         file.to8Bit(true);
 #endif
-    return true; // Simplified for now
+    return std::filesystem::exists(filestring);
 }
 
 /**

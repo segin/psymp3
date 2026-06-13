@@ -30,7 +30,6 @@ DISTS=(
 	freetype	"http://download.savannah.gnu.org/releases/freetype/freetype-2.4.11.tar.gz"
 	taglib		"http://taglib.github.com/releases/taglib-1.8.tar.gz"
 	libvisual	"http://ftp.freebsd.org/pub/FreeBSD/ports/distfiles/libvisual-0.4.0.tar.gz"
-	mpg123		"http://mpg123.de/download/mpg123-1.14.4.tar.bz2"
 	ogg			"http://downloads.xiph.org/releases/ogg/libogg-1.3.0.tar.gz"
 	vorbis		"http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.3.tar.gz"
 )
@@ -42,7 +41,6 @@ DISTVERS=(
 	freetype	"2.4.11"
 	taglib		"1.8"
 	libvisual	"0.4.0"
-	mpg123		"1.14.4"
 	ogg			"1.3.0"
 	vorbis		"1.3.3"
 )
@@ -54,7 +52,6 @@ DISTMD5=(
 	freetype	5af8234cf36f64dc2b97f44f89325117
 	taglib		dcb8bd1b756f2843e18b1fdf3aaeee15
 	libvisual	f4e78547c79ea8a8ad111cf8b85011bb
-	mpg123		a72d0c60a1d7dbec7cfe966bc11672bf
 	ogg			0a7eb40b86ac050db3a789ab65fe21c2
 	vorbis		6b1a36f0d72332fae5130688e65efe1f
 )
@@ -66,12 +63,11 @@ DISTSHA256=(
 	freetype	29a70e55863e4b697f6d9f3ddc405a88b83a317e3c8fd9c09dc4e4c8b5f9ec3e
 	taglib		66d33481703c90236a0a9d1c38fd81b584ca7109ded049225f5463dcaffc209a
 	libvisual	0b4dfdb87125e129567752089e3c8b54cefed601eef169d2533d8659da8dc1d7
-	mpg123		9ca189f24eb4ec6b5046b64d72c3c8439fd9ea300ce1b8b91a05cd6a9d3e5c12
 	ogg			a8de807631014615549d2356fd36641833b8288221cea214f8a72750efe93780
 	vorbis		6d747efe7ac4ad249bf711527882cef79fb61d9194c45b5ca5498aa60f290762
 )
 
-PACKAGES=( zlib	SDL SDL_ttf freetype taglib libvisual mpg123 ogg vorbis )
+PACKAGES=( zlib	SDL SDL_ttf freetype taglib libvisual ogg vorbis )
  
 # Utility functions
 
@@ -113,6 +109,22 @@ clean_workdir() {
 
 
 # dist-related functions
+
+
+fetch_url() {
+	local url="$1"
+	local out="$2"
+	if command -v curl >/dev/null 2>&1; then
+		curl -f -L -C - -o "$out" "$url"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -c -O "$out" "$url"
+	elif command -v fetch >/dev/null 2>&1; then
+		fetch -o "$out" "$url"
+	else
+		notice "No download tool found. Please install curl, wget, or fetch."
+		return 1
+	fi
+}
 
 distfiles_check() { # does the distfile exist and is it valid?
 	package=$1
@@ -171,7 +183,10 @@ distfiles_fetch () {
 
 	# If the file exists but didn't pass check, or doesn't exist, we download it using -c (continue)
 	notice "Fetching for ${package}-${DISTVERS[$package]}"
-	wget -c -O ${distfile} ${DISTS[$package]}
+	if ! fetch_url "${DISTS[$package]}" "${distfile}"; then
+		notice "Failed to download ${package}-${DISTVERS[$package]}! Bailing!"
+		exit 1
+	fi
 
 	if distfiles_sum MD5 ${package} && distfiles_sum SHA256 ${package}; then
 		return 0
