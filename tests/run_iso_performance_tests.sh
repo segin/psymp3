@@ -15,8 +15,8 @@ cd ../src
 
 # Compile the performance test
 g++ -DHAVE_CONFIG_H -I. -I../include \
-    -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT \
-    -I/usr/include/taglib -I/usr/include/freetype2 -I/usr/include/libpng16 \
+    -I/usr/include/SDL2 -D_GNU_SOURCE=1 -D_REENTRANT \
+    -I/usr/include/taglib -I/usr/include/libpng16 \
     -I/usr/include/x86_64-linux-gnu \
     -DPSYMP3_DATADIR='"/usr/local/share/psymp3/data"' \
     -Wall -g -O2 \

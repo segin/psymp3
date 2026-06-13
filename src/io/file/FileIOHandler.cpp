@@ -57,13 +57,21 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
 
     
     // Normalize the path for consistent cross-platform handling
-    std::string normalized_path = normalizePath(path.to8Bit(false));
+    const std::string utf8_path = path.to8Bit(true);
+    std::string normalized_path = normalizePath(utf8_path);
     Debug::log("io", "FileIOHandler::FileIOHandler() - Normalized path: ", normalized_path);
     
     // Security check: Validate file path for directory traversal attacks using robust C++17 filesystem API.
     // This resolves all ".." components and symbolic links to prevent bypasses.
     try {
-        std::filesystem::path p(path.to8Bit(false));
+#ifdef _WIN32
+        std::filesystem::path p(path.toWString());
+#else
+        // On POSIX the native path encoding is the byte string itself (UTF-8
+        // here), so constructing directly from the std::string is equivalent to
+        // the deprecated std::filesystem::u8path().
+        std::filesystem::path p(utf8_path);
+#endif
 
         // Resolve the path to its absolute and canonical (no ".." or symlinks) form.
         // weakly_canonical is used because the file might not exist yet in some scenarios.
@@ -180,7 +188,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         }
         
         // Create descriptive error message with both errno and Windows error details
-        std::string errorMsg = "Could not open file: " + path.to8Bit(false) + " (";
+        std::string errorMsg = "Could not open file: " + utf8_path + " (";
         errorMsg += strerror(errno);
         if (!win_error_msg.empty()) {
             errorMsg += ", Windows: " + win_error_msg;
@@ -195,8 +203,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         throw InvalidMediaException(errorMsg);
     }
 #else
-    // Unix/Linux: Use raw C string without UTF-8 conversion to preserve original filesystem encoding
-    bool file_opened = m_file_handle.open(path.toCString(false), "rb");
+    bool file_opened = m_file_handle.open(utf8_path.c_str(), "rb");
 
     // Handle file open failure
     if (!file_opened) {
@@ -220,7 +227,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
 #endif
     
     // Log successful file opening
-    Debug::log("io", "FileIOHandler::FileIOHandler() - Successfully opened file: ", path.to8Bit(false));
+    Debug::log("io", "FileIOHandler::FileIOHandler() - Successfully opened file: ", utf8_path);
     
     // Get and log file size for debugging and optimization (without locks during construction)
     filesize_t fileSize = getFileSizeInternal();
@@ -714,7 +721,7 @@ int FileIOHandler::close_unlocked() {
         return 0;  // Already closed, not an error
     }
     
-    Debug::log("io", "FileIOHandler::close_unlocked() - Closing file: ", m_file_path.to8Bit(false));
+    Debug::log("io", "FileIOHandler::close_unlocked() - Closing file: ", m_file_path.to8Bit(true));
     
     // Close the file using RAII
     int result = m_file_handle.close();
@@ -998,7 +1005,8 @@ bool FileIOHandler::attemptErrorRecovery() {
                 Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Windows reopen failed, error: ", win_error);
             }
 #else
-            m_file_handle.open(m_file_path.toCString(false), "rb");
+            const std::string utf8_path = m_file_path.to8Bit(true);
+            m_file_handle.open(utf8_path.c_str(), "rb");
 #endif
             
             if (m_file_handle) {
@@ -1090,9 +1098,13 @@ bool FileIOHandler::fillBuffer(filesize_t file_position, size_t min_bytes) {
         Debug::log("io", "FileIOHandler::fillBuffer() - Seek failed: ", strerror(errno));
         return false;
     }
+
+    std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
     
     // Get buffer from pool if current buffer is too small
     if (m_read_buffer.empty() || m_read_buffer.size() < buffer_size_to_use) {
+        invalidateBuffer();
+
         // Check memory limits before allocating new buffer
         size_t additional_memory = buffer_size_to_use - (m_read_buffer.empty() ? 0 : m_read_buffer.size());
         
@@ -1191,17 +1203,28 @@ size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_reques
         Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Buffer is empty or invalid");
         return 0;
     }
+
+    if (m_read_buffer.empty() || m_read_buffer.data() == nullptr) {
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Buffer metadata is stale: storage is empty");
+        return 0;
+    }
+
+    size_t readable_bytes = std::min(m_buffer_valid_bytes, m_read_buffer.size());
+    if (readable_bytes == 0) {
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - No readable bytes remain after storage bounds check");
+        return 0;
+    }
     
     // Calculate logical position relative to buffer
     off_t buffer_offset = logical_position - m_buffer_file_position;
     
-    if (buffer_offset < 0 || static_cast<size_t>(buffer_offset) >= m_buffer_valid_bytes) {
-        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Position ", logical_position, " not in buffer (buffer covers ", m_buffer_file_position, " to ", m_buffer_file_position + m_buffer_valid_bytes - 1, ")");
+    if (buffer_offset < 0 || static_cast<size_t>(buffer_offset) >= readable_bytes) {
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Position ", logical_position, " not in buffer (buffer covers ", m_buffer_file_position, " to ", m_buffer_file_position + readable_bytes - 1, ")");
         return 0;
     }
     
     // Calculate how many bytes we can read
-    size_t available_bytes = m_buffer_valid_bytes - static_cast<size_t>(buffer_offset);
+    size_t available_bytes = readable_bytes - static_cast<size_t>(buffer_offset);
     size_t bytes_to_copy = std::min(bytes_requested, available_bytes);
     
     // Copy data from buffer
@@ -1213,11 +1236,16 @@ size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_reques
 }
 
 bool FileIOHandler::isPositionBuffered(filesize_t file_position) const {
-    if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0) {
+    if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0 || m_read_buffer.empty()) {
         return false;
     }
     
-    off_t buffer_end = m_buffer_file_position + static_cast<off_t>(m_buffer_valid_bytes);
+    size_t readable_bytes = std::min(m_buffer_valid_bytes, m_read_buffer.size());
+    if (readable_bytes == 0) {
+        return false;
+    }
+
+    off_t buffer_end = m_buffer_file_position + static_cast<off_t>(readable_bytes);
     return (file_position >= m_buffer_file_position && file_position < buffer_end);
 }
 
@@ -1350,21 +1378,25 @@ void FileIOHandler::optimizeBufferPoolUsage() {
         Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Adjusting buffer size from ", m_buffer_size, 
                   " to ", optimal_buffer_size, " based on memory optimizer recommendations");
         
-        // Release current buffer back to pool
-        if (!m_read_buffer.empty()) {
-            m_read_buffer = IOBufferPool::Buffer(); // Release buffer
-            updateMemoryUsage(0);
+        {
+            std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+            invalidateBuffer();
+            if (!m_read_buffer.empty()) {
+                m_read_buffer = IOBufferPool::Buffer(); // Release buffer
+            }
         }
+        updateMemoryUsage(0);
         
         m_buffer_size = optimal_buffer_size;
         
         // Acquire new buffer with optimal size if memory allows
         if (checkMemoryLimits(m_buffer_size)) {
-            m_read_buffer = IOBufferPool::getInstance().acquire(m_buffer_size);
-            if (!m_read_buffer.empty()) {
-                updateMemoryUsage(m_read_buffer.size());
-                // Invalidate buffer since we have a new one
+            IOBufferPool::Buffer replacement = IOBufferPool::getInstance().acquire(m_buffer_size);
+            if (!replacement.empty()) {
+                std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+                m_read_buffer = std::move(replacement);
                 invalidateBuffer();
+                updateMemoryUsage(m_read_buffer.size());
             }
         }
     }
@@ -1558,7 +1590,7 @@ bool FileIOHandler::handleTimeout(const std::string& operation_name, int timeout
         Debug::log("io", "FileIOHandler::handleTimeout() - ", error_msg);
         
         // Detect if this might be a network file system causing the timeout
-        std::string path_str = m_file_path.to8Bit(false);
+        std::string path_str = m_file_path.to8Bit(true);
         bool likely_network_fs = false;
         
         // Check for common network file system indicators
@@ -1620,7 +1652,7 @@ std::string FileIOHandler::getFileOperationErrorMessage(int error_code, const st
         message += " (" + additional_context + ")";
     }
     
-    message += " on file: " + m_file_path.to8Bit(false);
+    message += " on file: " + m_file_path.to8Bit(true);
     
     // Add specific error details based on error code
     switch (error_code) {
@@ -1861,7 +1893,8 @@ bool FileIOHandler::handleFileResourceExhaustion(const std::string& resource_typ
 #ifdef _WIN32
                 m_file_handle.open(m_file_path.toCWString(), L"rb");
 #else
-                m_file_handle.open(m_file_path.toCString(false), "rb");
+                const std::string utf8_path = m_file_path.to8Bit(true);
+                m_file_handle.open(utf8_path.c_str(), "rb");
 #endif
                 if (m_file_handle) {
                     m_closed = false;

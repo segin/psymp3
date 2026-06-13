@@ -1,20 +1,17 @@
 /*
- * test_mediafile_split.cpp - Unit tests for MediaFile::split
+ * tests/test_mediafile_split.cpp - Unit tests for MediaFile::split
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
- *
- * PsyMP3 is free software. You may redistribute and/or modify it under
- * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
 #ifndef FINAL_BUILD
-#include "psymp3.h"
+#define FINAL_BUILD
 #endif
 
-#include "test_framework.h"
-#include "mediafile.h"
 #include <vector>
 #include <string>
+#include <memory>
+#include "psymp3.h"
+#include "test_framework.h"
 
 using namespace TestFramework;
 
@@ -24,49 +21,110 @@ public:
 
 protected:
     void runTest() override {
-        // Test basic comma-separated split
-        std::vector<std::string> r1 = MediaFile::split("a,b,c", ',');
-        ASSERT_EQUALS(static_cast<size_t>(3), r1.size(), "Basic split size");
-        ASSERT_EQUALS("a", r1[0], "First element");
-        ASSERT_EQUALS("b", r1[1], "Second element");
-        ASSERT_EQUALS("c", r1[2], "Third element");
+        // Test 1: Standard comma-separated string
+        {
+            std::string s = "apple,banana,cherry";
+            std::vector<std::string> result = MediaFile::split(s, ',');
+            ASSERT_EQUALS(static_cast<size_t>(3), result.size(), "Standard split should return 3 elements");
+            if (result.size() >= 3) {
+                ASSERT_EQUALS(std::string("apple"), result[0], "First element mismatch");
+                ASSERT_EQUALS(std::string("banana"), result[1], "Second element mismatch");
+                ASSERT_EQUALS(std::string("cherry"), result[2], "Third element mismatch");
+            }
+        }
 
-        // Test empty string
-        std::vector<std::string> r2 = MediaFile::split("", ',');
-        ASSERT_EQUALS(static_cast<size_t>(0), r2.size(), "Empty string should return empty vector");
+        // Test 2: Empty input string
+        {
+            std::string s = "";
+            std::vector<std::string> result = MediaFile::split(s, ',');
+            ASSERT_EQUALS(static_cast<size_t>(0), result.size(), "Empty string should return 0 elements");
+        }
 
-        // Test string with no delimiter
-        std::vector<std::string> r3 = MediaFile::split("hello", ',');
-        ASSERT_EQUALS(static_cast<size_t>(1), r3.size(), "No delimiter size");
-        ASSERT_EQUALS("hello", r3[0], "No delimiter element");
+        // Test 3: No delimiter present
+        {
+            std::string s = "single_element";
+            std::vector<std::string> result = MediaFile::split(s, ',');
+            ASSERT_EQUALS(static_cast<size_t>(1), result.size(), "String without delimiter should return 1 element");
+            if (result.size() >= 1) {
+                ASSERT_EQUALS(std::string("single_element"), result[0], "Element mismatch when no delimiter present");
+            }
+        }
 
-        // Test consecutive delimiters
-        std::vector<std::string> r4 = MediaFile::split("a,,b", ',');
-        ASSERT_EQUALS(static_cast<size_t>(3), r4.size(), "Consecutive delimiters size");
-        ASSERT_EQUALS("a", r4[0], "First element");
-        ASSERT_EQUALS("", r4[1], "Middle empty element");
-        ASSERT_EQUALS("b", r4[2], "Last element");
+        // Test 4: Leading delimiter
+        {
+            std::string s = ",leading";
+            std::vector<std::string> result = MediaFile::split(s, ',');
+            ASSERT_EQUALS(static_cast<size_t>(2), result.size(), "Leading delimiter should result in an empty first element");
+            if (result.size() >= 2) {
+                ASSERT_EQUALS(std::string(""), result[0], "First element should be empty");
+                ASSERT_EQUALS(std::string("leading"), result[1], "Second element mismatch");
+            }
+        }
 
-        // Test trailing delimiter (quirk: std::getline doesn't produce an empty element for trailing delimiter)
-        std::vector<std::string> r5 = MediaFile::split("a,b,", ',');
-        ASSERT_EQUALS(static_cast<size_t>(2), r5.size(), "Trailing delimiter size quirk");
-        ASSERT_EQUALS("a", r5[0], "First element");
-        ASSERT_EQUALS("b", r5[1], "Second element");
+        // Test 5: Trailing delimiter
+        {
+            std::string s = "trailing,";
+            std::vector<std::string> result = MediaFile::split(s, ',');
+            // std::getline behavior results in 1 element here
+            ASSERT_EQUALS(static_cast<size_t>(1), result.size(), "Trailing delimiter currently returns only preceding elements");
+            if (result.size() >= 1) {
+                ASSERT_EQUALS(std::string("trailing"), result[0], "Element mismatch");
+            }
+        }
 
-        // Test appending variant
-        std::vector<std::string> append_vec = {"x"};
-        MediaFile::split("y,z", ',', append_vec);
-        ASSERT_EQUALS(static_cast<size_t>(3), append_vec.size(), "Appended split size");
-        ASSERT_EQUALS("x", append_vec[0], "Original element");
-        ASSERT_EQUALS("y", append_vec[1], "Appended element 1");
-        ASSERT_EQUALS("z", append_vec[2], "Appended element 2");
+        // Test 6: Consecutive delimiters
+        {
+            std::string s = "a,,b";
+            std::vector<std::string> result = MediaFile::split(s, ',');
+            ASSERT_EQUALS(static_cast<size_t>(3), result.size(), "Consecutive delimiters should result in empty element in between");
+            if (result.size() >= 3) {
+                ASSERT_EQUALS(std::string("a"), result[0], "First element mismatch");
+                ASSERT_EQUALS(std::string(""), result[1], "Middle element should be empty");
+                ASSERT_EQUALS(std::string("b"), result[2], "Third element mismatch");
+            }
+        }
+
+        // Test 7: Only delimiters
+        {
+            std::string s = ",,";
+            std::vector<std::string> result = MediaFile::split(s, ',');
+            // 2 commas -> 2 successful getlines returning empty strings
+            ASSERT_EQUALS(static_cast<size_t>(2), result.size(), "N delimiters currently return N elements if they are at start/middle");
+            if (result.size() >= 2) {
+                ASSERT_EQUALS(std::string(""), result[0], "First element mismatch");
+                ASSERT_EQUALS(std::string(""), result[1], "Second element mismatch");
+            }
+        }
+
+        // Test 8: Different delimiter
+        {
+            std::string s = "path/to/file";
+            std::vector<std::string> result = MediaFile::split(s, '/');
+            ASSERT_EQUALS(static_cast<size_t>(3), result.size(), "Should work with different delimiters");
+            if (result.size() >= 3) {
+                ASSERT_EQUALS(std::string("path"), result[0], "First element mismatch");
+                ASSERT_EQUALS(std::string("to"), result[1], "Second element mismatch");
+                ASSERT_EQUALS(std::string("file"), result[2], "Third element mismatch");
+            }
+        }
+
+        // Test 9: Appending to existing vector
+        {
+            std::vector<std::string> elems = {"initial"};
+            std::string s = "extra1,extra2";
+            MediaFile::split(s, ',', elems);
+            ASSERT_EQUALS(static_cast<size_t>(3), elems.size(), "Should append to existing vector");
+            if (elems.size() >= 3) {
+                ASSERT_EQUALS(std::string("initial"), elems[0], "Original element should be preserved");
+                ASSERT_EQUALS(std::string("extra1"), elems[1], "First extra element mismatch");
+                ASSERT_EQUALS(std::string("extra2"), elems[2], "Second extra element mismatch");
+            }
+        }
     }
 };
 
-int main(int argc, char* argv[]) {
-    (void)argc;
-    (void)argv;
-    TestSuite suite("MediaFile Unit Tests");
+int main() {
+    TestSuite suite("MediaFile Split Tests");
     suite.addTest(std::make_unique<MediaFileSplitTest>());
     auto results = suite.runAll();
     suite.printResults(results);

@@ -396,6 +396,16 @@ private:
     void* getSymbol(void* handle, const std::string& symbol_name);
     bool registerPluginFormats(PluginHandle* plugin);
     void unregisterPluginFormats(PluginHandle* plugin);
+
+    // _unlocked variants assume m_mutex is already held (called from
+    // load/unloadPlugin via register/unregisterPluginFormats). The public
+    // counterparts above acquire m_mutex and delegate here.
+    bool registerCustomDemuxer_unlocked(const std::string& format_id,
+                                        DemuxerFactory::DemuxerFactoryFunc factory_func,
+                                        const MediaFormat& format_info);
+    bool registerCustomDetector_unlocked(const std::string& format_id,
+                                         ContentDetector detector_func);
+    bool unregisterCustomFormat_unlocked(const std::string& format_id);
     std::string getPluginFileName(const std::string& plugin_name) const;
     bool isValidPluginFile(const std::string& file_path) const;
     

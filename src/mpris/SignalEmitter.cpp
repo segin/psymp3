@@ -24,7 +24,7 @@ SignalEmitter::SignalEmitter(DBusConnectionManager *connection)
 }
 
 SignalEmitter::~SignalEmitter() {
-  stop(false); // Don't wait for completion in destructor
+  stop(true); // Always join the worker thread to prevent use-after-free
 }
 
 Result<void> SignalEmitter::emitPropertiesChanged(
@@ -45,8 +45,8 @@ Result<void> SignalEmitter::start() {
 }
 
 void SignalEmitter::stop(bool wait_for_completion) {
-  std::lock_guard<std::mutex> lock(m_mutex);
-  stop_unlocked(wait_for_completion);
+  std::unique_lock<std::mutex> lock(m_mutex);
+  stop_unlocked(wait_for_completion, lock);
 }
 
 bool SignalEmitter::isRunning() const {
@@ -113,8 +113,9 @@ Result<void> SignalEmitter::emitSeeked_unlocked([[maybe_unused]] uint64_t positi
   }
 
   // Seeked signals are not batched - emit immediately
+  // Note: signal_func is invoked by processNextSignal_unlocked() which already
+  // holds m_mutex, so we must NOT re-acquire it here (would deadlock).
   auto signal_func = [this, position_us]() {
-    std::lock_guard<std::mutex> lock(m_mutex);
     auto message_result = createSeekedMessage_unlocked(position_us);
     if (message_result.isSuccess()) {
       auto send_result =
@@ -167,7 +168,7 @@ Result<void> SignalEmitter::start_unlocked() {
 #endif
 }
 
-void SignalEmitter::stop_unlocked(bool wait_for_completion) {
+void SignalEmitter::stop_unlocked(bool wait_for_completion, std::unique_lock<std::mutex>& lock) {
   if (!isRunning_unlocked()) {
     return; // Already stopped
   }
@@ -177,18 +178,21 @@ void SignalEmitter::stop_unlocked(bool wait_for_completion) {
   m_signal_cv.notify_all();
 
   // Wait for thread to finish if requested and thread is joinable
-  if (wait_for_completion && m_signal_thread.joinable()) {
-    // Temporarily release lock to avoid deadlock during join
-    m_mutex.unlock();
+  if (m_signal_thread.joinable()) {
+    // Release lock to avoid deadlock during join (worker needs it to exit)
+    lock.unlock();
     try {
-      m_signal_thread.join();
+      if (wait_for_completion) {
+        m_signal_thread.join();
+      } else {
+        // Even without waiting for completion, always join to avoid
+        // use-after-free when the thread captures `this`
+        m_signal_thread.join();
+      }
     } catch (const std::exception &) {
       // Ignore join errors
     }
-    m_mutex.lock();
-  } else if (m_signal_thread.joinable()) {
-    // Detach thread if not waiting
-    m_signal_thread.detach();
+    lock.lock();
   }
 
   m_signal_thread_active = false;
@@ -259,8 +263,7 @@ bool SignalEmitter::processNextSignal_unlocked() {
   m_signal_queue.pop();
 
   try {
-    // Execute signal function (this may temporarily release and reacquire the
-    // lock)
+    // Execute signal function (lock is already held by the worker loop)
     signal_func();
     return true;
   } catch (const std::exception &) {
@@ -311,7 +314,7 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
   }
 
   for (const auto &[key, variant] : changed_properties) {
-    DBusMessageIter entry_iter, variant_iter;
+    DBusMessageIter entry_iter;
 
     // Open dict entry
     if (!dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
@@ -481,9 +484,10 @@ void SignalEmitter::flushBatch_unlocked() {
 
   // Create signal functions for each batched interface
   for (const auto &[interface_name, batch] : m_batched_properties) {
+    // Note: signal_func is invoked by processNextSignal_unlocked() which already
+    // holds m_mutex, so we must NOT re-acquire it here (would deadlock).
     auto signal_func = [this, interface_name = batch.m_interface,
                         properties = batch.properties]() {
-      std::lock_guard<std::mutex> lock(m_mutex);
       auto message_result =
           createPropertiesChangedMessage_unlocked(interface_name, properties);
       if (message_result.isSuccess()) {

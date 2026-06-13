@@ -40,9 +40,6 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 if HAVE_FLAC
 endif
 
-if HAVE_MP3
-AM_CPPFLAGS += $(LIBMPG123_CFLAGS)
-endif
 
 if HAVE_VORBIS
 AM_CPPFLAGS += $(VORBIS_CFLAGS)
@@ -76,13 +73,13 @@ endif
 CODEC_LIBS =
 DEMUXER_LIBS =
 
+# MP3 codec is always built (minimp3 has no external dependency)
+CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
+DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
+
 if HAVE_FLAC
 DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
 CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
-endif
-
-if HAVE_MP3
-CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
 endif
 
 if HAVE_VORBIS
@@ -119,13 +116,13 @@ else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
  audio.cpp \
- debug.cpp display.cpp \
- font.cpp \
+ debug.cpp core/display.cpp \
+ core/font.cpp \
  main.cpp mediafile.cpp \
  player.cpp playlist.cpp \
- stream.cpp surface.cpp \
+ stream.cpp core/surface.cpp \
  system.cpp \
- track.cpp truetype.cpp
+ track.cpp core/truetype.cpp
 
 # Link static libraries from subdirectories FIRST (regular build only)
 # Order matters: our convenience libraries must come BEFORE system libraries
@@ -142,6 +139,7 @@ psymp3_LDADD = \
 	$(CODEC_LIBS) \
 	demuxer/libpsymp3-demuxer.a \
 	$(DEMUXER_LIBS) \
+	codecs/libpsymp3-codecs.a \
 	demuxer/iso/libpsymp3-demuxer-iso.a \
 	demuxer/riff/libpsymp3-demuxer-riff.a \
 	demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -164,9 +162,6 @@ psymp3_LDADD += \
 	$(WINSOCK_LIBS)
 
 # Optional codec system libraries (must come after our libraries)
-if HAVE_MP3
-psymp3_LDADD += $(LIBMPG123_LIBS)
-endif
 
 if HAVE_VORBIS
 psymp3_LDADD += $(VORBIS_LIBS)

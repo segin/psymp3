@@ -17,6 +17,8 @@ TextInputWidget* TextInputWidget::s_focused_widget = nullptr;
 
 namespace {
 
+#ifndef PSYMP3_DRAW_WIN31_SUNKEN_FRAME
+#define PSYMP3_DRAW_WIN31_SUNKEN_FRAME
 void drawWin31SunkenFrame(::Surface& surface, int x, int y, int width, int height)
 {
     surface.box(x, y, x + width - 1, y + height - 1, 255, 255, 255, 255);
@@ -27,15 +29,11 @@ void drawWin31SunkenFrame(::Surface& surface, int x, int y, int width, int heigh
     surface.hline(x + 1, x + width - 2, y + 1, 0, 0, 0, 255);
     surface.vline(x + 1, y + 1, y + height - 2, 0, 0, 0, 255);
 }
+#endif
 
 std::string narrowText(const TagLib::String& text)
 {
     return text.to8Bit(true);
-}
-
-bool isPlainTextKey(const SDL_keysym& keysym)
-{
-    return !(keysym.mod & (KMOD_LCTRL | KMOD_RCTRL | KMOD_LALT | KMOD_RALT));
 }
 
 } // namespace
@@ -168,15 +166,26 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
             break;
     }
 
-    if (!isPlainTextKey(keysym)) {
+    return false;
+}
+
+bool TextInputWidget::handleFocusedTextInput(const char* text)
+{
+    if (!s_focused_widget || !text || text[0] == '\0') {
         return false;
     }
 
-    if (keysym.unicode >= 32 && keysym.unicode <= 126) {
-        return widget.insertCharacter(static_cast<char>(keysym.unicode));
+    TextInputWidget& widget = *s_focused_widget;
+    const std::string input(text);
+
+    bool changed = false;
+    for (unsigned char c : input) {
+        if (c >= 32 && c <= 126) {
+            changed = widget.insertCharacter(static_cast<char>(c)) || changed;
+        }
     }
 
-    return false;
+    return changed;
 }
 
 void TextInputWidget::focus()
