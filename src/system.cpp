@@ -415,7 +415,10 @@ TagLib::String System::getUser() {
   GetUserNameW(user, &bufsize);
   return user;
 #else
-  return getenv("USER");
+  // getenv may return nullptr (e.g. USER unset under cron/daemons);
+  // constructing a TagLib::String from nullptr would crash.
+  const char *user = getenv("USER");
+  return user ? TagLib::String(user, TagLib::String::UTF8) : TagLib::String();
 #endif
 }
 
@@ -529,7 +532,7 @@ bool System::createStoragePath() {
          (GetLastError() == ERROR_ALREADY_EXISTS);
 #else
   // mkdir returns 0 on success.
-  return mkdir(path.toCString(true), 0755) == 0 || (errno == EEXIST);
+  return mkdir(path.toCString(true), 0700) == 0 || (errno == EEXIST);
 #endif
 }
 

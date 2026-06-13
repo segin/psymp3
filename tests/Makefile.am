@@ -315,6 +315,25 @@ debug_dual_flac_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
+test_memory_optimizer_SOURCES = test_memory_optimizer.cpp
+test_memory_optimizer_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
+test_memory_leak_prevention_SOURCES = test_memory_leak_prevention.cpp
+test_memory_leak_prevention_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
 debug_bit_extraction_SOURCES = debug_bit_extraction.cpp
 debug_bit_extraction_LDADD = $(AM_LDFLAGS)
 
@@ -381,7 +400,7 @@ test_flac_frame_indexing_LDADD = \
 	$(AM_LDFLAGS)
 
 # Individual test executables
-check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
+check_PROGRAMS = test_mediafile_split test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
 	test_rect_centering \
 	test_rect_centering_overflow \
 	test_rect_expansion \
@@ -419,6 +438,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_widget_rendering \
 	test_http_client_parse_url \
 	test_http_client_fallback \
+	test_http_io_handler \
 	test_bounded_buffer \
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
@@ -569,7 +589,7 @@ endif
 check_PROGRAMS += test_codec_selection_validation_simple
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_memory_pool_allocation_failure test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_memory_pool_allocation_failure test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression test_memory_tracker_unit test_memory_optimizer test_memory_leak_prevention
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
@@ -893,12 +913,8 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
 
 test_ogg_multiplexed_seeking_SOURCES = test_ogg_multiplexed_seeking.cpp
 test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
@@ -911,8 +927,11 @@ test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
 	../src/io/libpsymp3-io.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
@@ -1140,6 +1159,7 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 check_PROGRAMS += test_ogg_error_handling
 test_ogg_error_handling_SOURCES = test_ogg_error_handling.cpp
 test_ogg_error_handling_LDADD = libtest_utilities.a \
+	$(FULL_CODEC_LIBS) \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -2409,6 +2429,16 @@ test_iohandler_memory_deadlock_prevention_LDADD = \
 # MemoryPoolManager integration test
 test_memory_pool_manager_integration_SOURCES = test_memory_pool_manager_integration.cpp
 test_memory_pool_manager_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
+# MemoryTracker unit test
+test_memory_tracker_unit_SOURCES = test_memory_tracker_unit.cpp
+test_memory_tracker_unit_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -3891,6 +3921,27 @@ test_base64_unit_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
+
+# BoundedQueue Tests
+# ============================================================================
+
+check_PROGRAMS += test_bounded_queue
+
+# BoundedQueue tests
+test_bounded_queue_SOURCES = test_bounded_queue.cpp
+test_bounded_queue_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+check_PROGRAMS += test_fft_mode
+test_fft_mode_SOURCES = test_fft_mode.cpp
+test_fft_mode_LDADD = \
+	libtest_utilities.a \
+	../src/core/libpsymp3-core.a
+
 # Run all check programs
 TESTS = $(check_PROGRAMS)
 
@@ -3925,3 +3976,20 @@ test_issue_ogg_duration_LDADD = \
 endif
 test_flac_stream_marker_with_logging_SOURCES = test_flac_stream_marker_with_logging.cpp
 test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)
+
+check_PROGRAMS += test_storage_permissions
+TESTS += test_storage_permissions
+test_storage_permissions_SOURCES = test_storage_permissions.cpp
+test_storage_permissions_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_mediafile_split_SOURCES = test_mediafile_split.cpp
+test_mediafile_split_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_http_io_handler_SOURCES = test_http_io_handler.cpp $(top_srcdir)/src/io/http/HTTPIOHandler.cpp
+test_http_io_handler_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)

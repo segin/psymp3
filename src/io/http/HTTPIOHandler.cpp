@@ -71,7 +71,7 @@ void HTTPIOHandler::initialize() {
     try {
         // Validate network operation
         if (!validateNetworkOperation("initialize")) {
-            return;
+            throw InvalidMediaException("HTTP stream initialization not permitted for: " + m_url);
         }
         
         // Perform HEAD request to get metadata with retry logic
@@ -86,8 +86,10 @@ void HTTPIOHandler::initialize() {
             std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "HEAD request");
             Debug::log("HTTPIOHandler", errorMsg);
             m_error = response.statusCode > 0 ? response.statusCode : -1;
-            cleanupOnError("HEAD request failed during initialization");
-            return;
+            // Throw rather than return: returning leaves the constructor to hand
+            // back a half-built handler whose every read yields 0 (a silent
+            // "empty stream") instead of surfacing the network failure.
+            throw InvalidMediaException(errorMsg);
         }
         
         Debug::log("HTTPIOHandler", "HEAD request successful (status: ", response.statusCode, ")");
@@ -152,6 +154,10 @@ void HTTPIOHandler::initialize() {
         updateErrorState(-1, "Exception during initialization");
         m_initialized.store(false);
         cleanupOnError("Exception during initialization");
+        // Propagate so the caller (e.g. MediaFactory::createIOHandler) sees the
+        // failure instead of receiving a zombie handler. Matches FileIOHandler,
+        // which throws InvalidMediaException when a file cannot be opened.
+        throw;
     }
 }
 
@@ -235,9 +241,9 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
         // Check if we have data in main buffer
         if (isPositionBuffered(read_position)) {
             // Read from main buffer
-            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, read_position, remaining_bytes);
             total_bytes_read += buffer_bytes_read;
-            
+
             if (buffer_bytes_read == 0) {
                 break; // Buffer exhausted
             }
@@ -258,9 +264,9 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
             }
             
             // Read from newly filled buffer
-            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, read_position, remaining_bytes);
             total_bytes_read += buffer_bytes_read;
-            
+
             if (buffer_bytes_read == 0) {
                 updateEofState(true);
                 break;
@@ -494,7 +500,11 @@ bool HTTPIOHandler::fillBuffer(filesize_t position, size_t min_size) {
     
     std::memcpy(m_buffer.data(), response.body.data(), response.body.size());
     m_buffer_offset = 0;
-    m_buffer_start_position = position;
+    // A 206 body starts at the requested position; a 200 body is the entire
+    // resource from byte 0 even when a range was requested (server ignored the
+    // Range header). Labelling a 200 body as starting at `position` would make
+    // every subsequent in-buffer offset wrong and corrupt the stream.
+    m_buffer_start_position = (response.statusCode == 200) ? 0 : position;
     
     // Update memory usage tracking
     updateMemoryUsage(m_buffer.size());
@@ -530,14 +540,18 @@ bool HTTPIOHandler::fillBuffer(filesize_t position, size_t min_size) {
     return true;
 }
 
-size_t HTTPIOHandler::readFromBuffer(void* buffer, size_t bytes_to_read) {
+size_t HTTPIOHandler::readFromBuffer(void* buffer, filesize_t position, size_t bytes_to_read) {
     if (m_buffer.empty()) {
         Debug::log("HTTPIOHandler", "Buffer is empty");
         return 0;
     }
-    
-    // Calculate offset within buffer for current position
-    off_t buffer_relative_pos = m_current_position - m_buffer_start_position;
+
+    // Calculate offset within buffer for the requested position. Must use the
+    // caller's position, not m_current_position: during a read spanning more
+    // than one buffer fill, m_current_position is still the read's start, so
+    // after a refill at an advanced position this would go negative and the
+    // read would falsely report EOF.
+    off_t buffer_relative_pos = position - m_buffer_start_position;
     
     if (buffer_relative_pos < 0 || 
         static_cast<size_t>(buffer_relative_pos) >= m_buffer.size()) {
@@ -1178,7 +1192,7 @@ bool HTTPIOHandler::validateNetworkOperation(const std::string& operation_name) 
     m_error = 0;
     
     // Check if handler is initialized
-    if (!m_initialized) {
+    if (!m_initialized && operation_name != "initialize") {
         m_error = EINVAL;  // Invalid argument
         Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " failed: handler not initialized");
         return false;

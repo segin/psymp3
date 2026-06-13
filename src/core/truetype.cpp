@@ -20,13 +20,34 @@ void PsyMP3::Core::TrueType::Init() {
                error);
     throw std::runtime_error("Failed to initialize FreeType2");
   }
+
+  // Enable the default 3-tap LCD filter so subpixel-rendered glyphs come out
+  // without rainbow fringing. Required for Font::RenderLCD to produce
+  // ClearType-quality output.
+  if (FT_Library_SetLcdFilter(m_library, FT_LCD_FILTER_DEFAULT)) {
+    Debug::log("font", "TrueType::Init() warning: LCD filter unavailable; "
+                       "subpixel text may show color fringing");
+  }
+
   Debug::log("font", "TrueType::Init() successful.");
 }
 
+namespace {
 class TrueTypeLifecycleManager {
 public:
   TrueTypeLifecycleManager() { PsyMP3::Core::TrueType::Init(); }
   ~TrueTypeLifecycleManager() { PsyMP3::Core::TrueType::Done(); }
 };
+} // namespace
 
-static TrueTypeLifecycleManager s_truetype_manager;
+FT_Library PsyMP3::Core::TrueType::getLibrary() {
+  // Construct-on-first-use: FreeType is initialized the first time a font is
+  // needed (at runtime), not during static initialization. This removes the
+  // cross-TU static-order dependency (Init() logs via Debug, whose state lives
+  // in another TU) and makes an FT_Init_FreeType failure throw from a normal
+  // call site a caller can catch, instead of escaping a static initializer
+  // uncatchably into std::terminate. FT_Done_FreeType runs at program exit.
+  static TrueTypeLifecycleManager manager;
+  (void)manager;
+  return m_library;
+}

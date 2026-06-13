@@ -173,7 +173,7 @@ void ToastWidget::draw(Surface& surface)
     // Step 6: Apply animation-scaled opacity to the complete toast so the
     // shell and text fade together.
     const float animation_opacity = std::clamp(currentAnimationOpacity(), 0.0f, 1.0f);
-    applyRelativeOpacity(surface, 0.85f * animation_opacity);
+    surface.applyRelativeOpacity(0.85f * animation_opacity);
 }
 
 ::Rect ToastWidget::calculateSize(const std::string& message, ::Font* font, int padding)
@@ -365,82 +365,6 @@ void ToastWidget::drawFilledCircleQuadrant(Surface& surface, int cx, int cy, int
                 }
             }
         }
-    }
-}
-
-void ToastWidget::applyOpacity(Surface& surface, float opacity)
-{
-    // Apply opacity to all pixels in the surface using SDL surface access
-    SDL_Surface* sdl_surface = surface.getHandle();
-    if (!sdl_surface || !sdl_surface->pixels) return;
-
-    const bool must_lock = SDL_MUSTLOCK(sdl_surface);
-    if (must_lock && SDL_LockSurface(sdl_surface) != 0) {
-        return;
-    }
-
-    int width = surface.width();
-    int height = surface.height();
-
-    for (int y = 0; y < height; y++) {
-        auto* row = reinterpret_cast<uint32_t*>(
-            static_cast<uint8_t*>(sdl_surface->pixels) + y * sdl_surface->pitch);
-        for (int x = 0; x < width; x++) {
-            uint32_t& pixel = row[x];
-            
-            // Extract RGBA components
-            uint8_t r, g, b, a;
-            SDL_GetRGBA(pixel, sdl_surface->format, &r, &g, &b, &a);
-            
-            // Apply opacity to alpha channel
-            a = static_cast<uint8_t>(a * opacity);
-            
-            // Reassemble pixel
-            pixel = SDL_MapRGBA(sdl_surface->format, r, g, b, a);
-        }
-    }
-
-    if (must_lock) {
-        SDL_UnlockSurface(sdl_surface);
-    }
-}
-
-void ToastWidget::applyRelativeOpacity(Surface& surface, float opacity)
-{
-    // Apply relative opacity - only affects pixels that are already non-transparent
-    SDL_Surface* sdl_surface = surface.getHandle();
-    if (!sdl_surface || !sdl_surface->pixels) return;
-
-    const bool must_lock = SDL_MUSTLOCK(sdl_surface);
-    if (must_lock && SDL_LockSurface(sdl_surface) != 0) {
-        return;
-    }
-
-    int width = surface.width();
-    int height = surface.height();
-
-    for (int y = 0; y < height; y++) {
-        auto* row = reinterpret_cast<uint32_t*>(
-            static_cast<uint8_t*>(sdl_surface->pixels) + y * sdl_surface->pitch);
-        for (int x = 0; x < width; x++) {
-            uint32_t& pixel = row[x];
-            
-            // Extract RGBA components
-            uint8_t r, g, b, a;
-            SDL_GetRGBA(pixel, sdl_surface->format, &r, &g, &b, &a);
-            
-            // Only apply opacity if pixel is not already fully transparent
-            if (a > 0) {
-                a = static_cast<uint8_t>(a * opacity);
-            }
-            
-            // Reassemble pixel
-            pixel = SDL_MapRGBA(sdl_surface->format, r, g, b, a);
-        }
-    }
-
-    if (must_lock) {
-        SDL_UnlockSurface(sdl_surface);
     }
 }
 

@@ -289,7 +289,10 @@ void MethodHandler::initializePropertyHandlers_unlocked() {
           return PsyMP3::MPRIS::Result<void>::error("Volume must be a double");
         }
         double vol = variant.get<double>();
-        if (vol < 0.0 || vol > 1.0) {
+        // Positive range test so NaN (for which every comparison is false) is
+        // rejected rather than passed through to setVolume() and the audio
+        // pipeline, where the float->int conversion would be UB.
+        if (!(vol >= 0.0 && vol <= 1.0)) {
           return PsyMP3::MPRIS::Result<void>::error(
               "Volume must be between 0.0 and 1.0");
         }
@@ -996,7 +999,9 @@ void MethodHandler::sendErrorReply_unlocked(DBusConnection *connection,
 
 PsyMP3::MPRIS::Result<int64_t>
 MethodHandler::validateSeekOffset_unlocked(int64_t offset) {
-  if (std::abs(offset) > MAX_SEEK_OFFSET_US) {
+  // Range check rather than std::abs(offset): std::abs(INT64_MIN) is UB (its
+  // negation overflows), and that value would otherwise slip past the limit.
+  if (offset > MAX_SEEK_OFFSET_US || offset < -MAX_SEEK_OFFSET_US) {
     return PsyMP3::MPRIS::Result<int64_t>::error(
         "Seek offset too large (max 1 hour)");
   }

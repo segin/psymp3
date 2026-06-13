@@ -252,21 +252,6 @@ private:
     void drawFilledCircleQuadrant(Surface& surface, int cx, int cy, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a, int quadrant);
     
     /**
-     * @brief Applies opacity to all pixels in the surface.
-     * @param surface Surface to modify
-     * @param opacity Opacity factor (0.0 = transparent, 1.0 = opaque)
-     */
-    void applyOpacity(Surface& surface, float opacity);
-    
-    /**
-     * @brief Applies relative opacity - only affects pixels that are already non-transparent.
-     * Fully transparent pixels (alpha=0) remain fully transparent.
-     * @param surface Surface to modify
-     * @param opacity Opacity factor (0.0 = transparent, 1.0 = opaque)
-     */
-    void applyRelativeOpacity(Surface& surface, float opacity);
-
-    /**
      * @brief Calculates the current animation opacity factor.
      * @return Value in the range [0.0, 1.0]
      */

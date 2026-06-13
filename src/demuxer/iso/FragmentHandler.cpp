@@ -420,25 +420,43 @@ bool FragmentHandler::ParseTrackFragmentRun(uint64_t offset, uint64_t size, std:
         fieldOffset += 4;
     }
     
-    // Prepare arrays for per-sample data
+    // Each present per-sample field is 4 bytes. Bound both the reservations and
+    // the read loop to what the box can actually contain, so an untrusted
+    // sampleCount (up to ~4 billion) cannot drive a multi-gigabyte reserve, and
+    // a box with no per-sample fields cannot spin the loop billions of times.
+    uint64_t bytesPerSample = 0;
+    if (flags & 0x000100) bytesPerSample += 4;
+    if (flags & 0x000200) bytesPerSample += 4;
+    if (flags & 0x000400) bytesPerSample += 4;
+    if (flags & 0x000800) bytesPerSample += 4;
+
+    if (bytesPerSample > 0) {
+        uint64_t availableBytes = (offset + size > fieldOffset) ? (offset + size - fieldOffset) : 0;
+        if (sampleCount > availableBytes / bytesPerSample) {
+            return false; // box too small for its declared sample count
+        }
+    }
+
+    // Prepare arrays for per-sample data (sampleCount is now bounded by box size)
     if (flags & 0x000100) { // Sample duration present
         trun.sampleDurations.reserve(sampleCount);
     }
-    
+
     if (flags & 0x000200) { // Sample size present
         trun.sampleSizes.reserve(sampleCount);
     }
-    
+
     if (flags & 0x000400) { // Sample flags present
         trun.sampleFlags.reserve(sampleCount);
     }
-    
+
     if (flags & 0x000800) { // Sample composition time offsets present
         trun.sampleCompositionTimeOffsets.reserve(sampleCount);
     }
-    
-    // Read per-sample data
-    for (uint32_t i = 0; i < sampleCount; i++) {
+
+    // Read per-sample data. Nothing to read when no per-sample fields are
+    // present (samples then use tfhd defaults), so skip the loop entirely.
+    for (uint32_t i = 0; bytesPerSample > 0 && i < sampleCount; i++) {
         // Sample duration present
         if (flags & 0x000100) {
             if (fieldOffset + 4 > offset + size) {

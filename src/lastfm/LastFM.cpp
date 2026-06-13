@@ -277,7 +277,16 @@ void LastFM::loadScrobbles()
             
             try {
                 Scrobble scrobble = Scrobble::fromXML(scrobbleXML);
-                m_scrobbles.push(scrobble);
+                // fromXML returns an empty sentinel (blank fields, timestamp 0)
+                // when the XML can't be parsed. Don't queue that — it would be
+                // submitted to Last.fm as a garbage scrobble.
+                if (scrobble.getTimestamp() > 0 &&
+                    !scrobble.getArtistStr().empty() &&
+                    !scrobble.getTitleStr().empty()) {
+                    m_scrobbles.push(scrobble);
+                } else {
+                    DEBUG_LOG_LAZY("lastfm", "Skipping invalid/unparseable cached scrobble");
+                }
             } catch (const std::exception& e) {
                 DEBUG_LOG_LAZY("lastfm", "Failed to parse cached scrobble: ", e.what());
             }
@@ -358,10 +367,14 @@ void LastFM::submissionThreadLoop()
         
         // Wait for scrobbles, now-playing requests, or shutdown, with backoff timeout (Requirements 4.1, 4.4)
         if (m_backoff_seconds > 0) {
-            // If in backoff, wait with timeout instead of indefinitely
+            // If in backoff, sleep the full timeout and only wake early for
+            // shutdown / permanent failure. Waking as soon as scrobbles (or
+            // now-playing requests) are queued would defeat the backoff
+            // entirely, since those are precisely what we are delaying a retry
+            // of after a server failure.
             auto timeout = std::chrono::seconds(m_backoff_seconds);
-            m_submission_cv.wait_for(lock, timeout, [this] { 
-                return !m_scrobbles.empty() || !m_nowplaying_requests.empty() || m_shutdown || m_handshake_permanently_failed; 
+            m_submission_cv.wait_for(lock, timeout, [this] {
+                return m_shutdown.load() || m_handshake_permanently_failed;
             });
         } else {
             // Normal wait when not in backoff
@@ -492,7 +505,12 @@ void LastFM::submitSavedScrobbles()
         
         if (submitted > 0) {
             DEBUG_LOG_LAZY("lastfm", "Successfully submitted ", submitted, " scrobbles");
-            resetBackoff_unlocked();  // Reset backoff on successful submission (Requirements 4.3)
+            // Only reset backoff on a fully-successful batch. On a partial
+            // failure, increaseBackoff_unlocked() above just applied a backoff;
+            // resetting it here would cancel it and retry immediately.
+            if (failed_scrobbles.empty()) {
+                resetBackoff_unlocked();  // Reset backoff on success (Requirements 4.3)
+            }
             saveScrobbles_unlocked(); // Update cache
         }
     }

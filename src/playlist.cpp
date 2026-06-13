@@ -72,12 +72,30 @@ std::string buildPlaylistResolutionKey(const TagLib::String& path)
     return normalized;
 }
 
+// Bounds on inline playlist expansion. The active_playlists set below only
+// blocks cycles (A -> A); it does not stop a crafted DAG like
+// list0=[list1,list1], list1=[list2,list2], ... from expanding 2^depth times,
+// since each key is removed once its subtree completes. These caps make such a
+// crafted file fail safely instead of exhausting CPU/memory.
+static constexpr size_t MAX_PLAYLIST_RESOLUTION_DEPTH = 32;
+static constexpr size_t MAX_RESOLVED_PLAYLIST_ENTRIES = 200000;
+
 void resolveInlineSourceRecursive(const Playlist::Entry& source,
                                   std::vector<Playlist::Entry>& resolved_entries,
-                                  std::unordered_set<std::string>& active_playlists)
+                                  std::unordered_set<std::string>& active_playlists,
+                                  size_t depth)
 {
+    if (resolved_entries.size() >= MAX_RESOLVED_PLAYLIST_ENTRIES) {
+        return; // overall expansion cap reached
+    }
+
     if (!isPlaylistPath(source.path)) {
         resolved_entries.push_back(source);
+        return;
+    }
+
+    if (depth >= MAX_PLAYLIST_RESOLUTION_DEPTH) {
+        Debug::log("playlist", "Playlist::resolveInlineSources(): Max nesting depth reached, not expanding: ", source.path.to8Bit(true));
         return;
     }
 
@@ -93,7 +111,7 @@ void resolveInlineSourceRecursive(const Playlist::Entry& source,
 
     std::vector<Playlist::Entry> nested_entries = Playlist::loadPlaylistEntries(source.path);
     for (const auto& nested_entry : nested_entries) {
-        resolveInlineSourceRecursive(nested_entry, resolved_entries, active_playlists);
+        resolveInlineSourceRecursive(nested_entry, resolved_entries, active_playlists, depth + 1);
     }
 
     if (!recursion_key.empty()) {
@@ -540,7 +558,8 @@ std::vector<Playlist::Entry> Playlist::resolveInlineSources(const std::vector<Ta
     for (const auto& source : sources) {
         resolveInlineSourceRecursive(Entry{source, TagLib::String(), TagLib::String(), 0},
                                      resolved_entries,
-                                     active_playlists);
+                                     active_playlists,
+                                     0);
     }
 
     return resolved_entries;

@@ -251,7 +251,9 @@ XMLUtil::Element XMLUtil::parseElement(const std::string& xml, size_t& pos, size
 }
 
 void XMLUtil::skipWhitespace(const std::string& xml, size_t& pos) {
-    while (pos < xml.length() && std::isspace(xml[pos])) {
+    // Cast to unsigned char: std::isspace on a negative char (UTF-8 byte
+    // >= 0x80) is undefined behaviour.
+    while (pos < xml.length() && std::isspace(static_cast<unsigned char>(xml[pos]))) {
         pos++;
     }
 }

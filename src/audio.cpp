@@ -131,6 +131,13 @@ void Audio::setup() {
     desired.format = AUDIO_S16; /* Always, I hope */
     desired.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
     Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: AUDIO_S16");
+
+    // A stream reporting zero rate or channels is malformed; opening the device
+    // would let the audio callback divide by zero (SIGFPE).
+    if (m_rate == 0 || m_channels == 0) {
+        Debug::log("audio", "Audio::setup: Refusing to open device with invalid rate=", m_rate, " channels=", static_cast<int>(m_channels));
+        return;
+    }
     desired.samples = 512; /* 512 sample frames for FFT / low-latency callback pacing */
     desired.callback = callback;
     desired.userdata = this;
@@ -218,26 +225,6 @@ bool Audio::isFinished() const
 }
 
 /**
- * @brief Locks the audio device using the SDL_LockAudio function.
- * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
- */
-void Audio::lock(void) {
-    if (m_device_id != 0) {
-        SDL_LockAudioDevice(m_device_id);
-    }
-}
-
-/**
- * @brief Unlocks the audio device using the SDL_UnlockAudio function.
- * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
- */
-void Audio::unlock(void) {
-    if (m_device_id != 0) {
-        SDL_UnlockAudioDevice(m_device_id);
-    }
-}
-
-/**
  * @brief Clears the decoded audio buffer and resets the samples-played counter.
  *
  * Thread-safe; acquires `m_buffer_mutex` internally.
@@ -245,6 +232,10 @@ void Audio::unlock(void) {
 void Audio::resetBuffer() {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     resetBuffer_unlocked();
+    // Wake the decoder so it refills after a seek. Required now that the decode
+    // loop blocks on the high water mark even while paused: clearing the buffer
+    // alone would otherwise leave the decoder asleep until the next drain.
+    m_buffer_cv.notify_all();
 }
 
 /**
@@ -306,8 +297,12 @@ void Audio::decoderThreadLoop() {
         // Wait until there is a valid stream to process, and get a safe local copy.
         {
             std::unique_lock<std::mutex> lock(m_stream_mutex);
+            // Also block while the installed stream is already at EOF: otherwise
+            // the loop re-enters, getData() returns 0 immediately, and the thread
+            // busy-spins at 100% CPU until Player installs a new stream.
+            // setStream_unlocked() clears m_stream_eof and notifies this cv.
             m_stream_cv.wait(lock, [this] {
-                return m_owned_stream != nullptr || !m_active;
+                return (m_owned_stream != nullptr && !m_stream_eof) || !m_active;
             });
             if (!m_active) break;
             local_stream = m_owned_stream;
@@ -319,7 +314,13 @@ void Audio::decoderThreadLoop() {
             {
                 std::unique_lock<std::mutex> lock(m_buffer_mutex);
                 m_buffer_cv.wait(lock, [this] {
-                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active || !m_playing;
+                    // Backpressure: only decode when the buffer is below the high
+                    // water mark (or on shutdown). Do NOT also wake on !m_playing:
+                    // while paused nothing drains the buffer, so a !m_playing term
+                    // lets the decoder run past the mark and grow it without bound.
+                    // resetBuffer() (seek) and the SDL callback (drain) both notify
+                    // this cv, so the decoder still wakes promptly when space frees.
+                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active;
                 });
             }
 
@@ -334,17 +335,16 @@ void Audio::decoderThreadLoop() {
                 // Lock the player mutex ONLY for stream validation (not during decoding)
                 std::lock_guard<std::mutex> lock(*m_player_mutex);
                 
-                // CRITICAL: Before using local_stream, verify it's still the active stream.
+                // Verify local_stream is still the active stream using the
+                // atomic raw pointer (kept in sync with m_owned_stream by the
+                // ctor and setStream_unlocked). Do NOT read the non-atomic
+                // m_owned_stream here: setStream mutates it under m_stream_mutex,
+                // not the player mutex, so that read would be a data race. The
+                // authoritative re-check under m_stream_mutex below discards any
+                // stale decode before it is committed.
                 Stream* current_stream = m_current_stream_raw_ptr.load();
                 if (local_stream.get() == current_stream && current_stream != nullptr) {
-                    // Double-check the stream is still valid by verifying it matches our owned stream
-                    if (m_owned_stream.get() == current_stream) {
-                        validated_stream = local_stream; // Stream is valid for use
-                    } else {
-                        // Stream ownership has changed, break to re-evaluate
-                        Debug::log("audio", "Audio decoder thread: Stream ownership changed, breaking");
-                        break;
-                    }
+                    validated_stream = local_stream; // Stream is valid for use
                 } else {
                     // Stream has changed. Break to re-evaluate in the outer loop.
                     Debug::log("audio", "Audio decoder thread: Stream changed, breaking to re-evaluate");
@@ -649,18 +649,17 @@ void Audio::toFloat(int channels, int16_t *in, float *out) {
             __m128i int32_lo = _mm_unpacklo_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
             __m128i int32_hi = _mm_unpackhi_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
             
-            // Convert to float
+            // Convert to float: float_lo = [L0,R0,L1,R1], float_hi = [L2,R2,L3,R3]
             __m128 float_lo = _mm_cvtepi32_ps(int32_lo);
             __m128 float_hi = _mm_cvtepi32_ps(int32_hi);
-            
-            // Manually add pairs: (L+R, L+R, L+R, L+R) since _mm_hadd_ps requires SSE3
-            // Shuffle to get L and R values adjacent for addition
-            __m128 lo_shuffled = _mm_shuffle_ps(float_lo, float_lo, _MM_SHUFFLE(3, 1, 2, 0)); // L0, R0, L1, R1
-            __m128 hi_shuffled = _mm_shuffle_ps(float_hi, float_hi, _MM_SHUFFLE(3, 1, 2, 0)); // L2, R2, L3, R3
-            __m128 sum_lo = _mm_add_ps(lo_shuffled, _mm_shuffle_ps(lo_shuffled, lo_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
-            __m128 sum_hi = _mm_add_ps(hi_shuffled, _mm_shuffle_ps(hi_shuffled, hi_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
-            __m128 sum = _mm_shuffle_ps(sum_lo, sum_hi, _MM_SHUFFLE(2, 0, 2, 0));
-            
+
+            // Gather the left and right channels separately, then add, so each
+            // output is L_i + R_i. (The previous shuffle summed same-channel
+            // neighbours, producing L0+L1 / R0+R1 instead of L0+R0 / L1+R1.)
+            __m128 lefts  = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(2, 0, 2, 0)); // L0,L1,L2,L3
+            __m128 rights = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(3, 1, 3, 1)); // R0,R1,R2,R3
+            __m128 sum = _mm_add_ps(lefts, rights);                                       // L0+R0, L1+R1, L2+R2, L3+R3
+
             // Scale and store
             __m128 result = _mm_mul_ps(sum, scale_vec);
             _mm_storeu_ps(&out[x], result);

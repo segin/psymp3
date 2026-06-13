@@ -55,7 +55,11 @@ private:
 
     static std::ofstream m_logfile;
     static std::mutex m_mutex;
-    static std::unordered_set<std::string> m_enabled_channels;
+    // Construct-on-first-use: Debug::log() (via isChannelEnabled) can run from
+    // other translation units' static initializers (e.g. truetype/HTTP
+    // lifecycle managers) before a plain static member's constructor would have
+    // run — unspecified cross-TU init order, which crashed on the unordered_set.
+    static std::unordered_set<std::string>& enabledChannels();
     static bool m_log_to_file;
 };
 
