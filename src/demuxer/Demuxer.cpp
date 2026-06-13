@@ -52,7 +52,10 @@ std::vector<uint8_t> BufferPool::getBuffer(size_t min_size) {
     for (auto it = m_buffers.begin(); it != m_buffers.end(); ++it) {
         if (it->capacity() >= min_size) {
             std::vector<uint8_t> buffer = std::move(*it);
-            m_buffers.erase(it);
+            if (it != m_buffers.end() - 1) {
+                *it = std::move(m_buffers.back());
+            }
+            m_buffers.pop_back();
             buffer.clear(); // Clear contents but keep capacity
             return buffer;
         }
