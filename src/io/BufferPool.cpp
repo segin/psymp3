@@ -684,7 +684,13 @@ void IOBufferPool::optimizeAllocationPatterns() {
     Debug::log("memory", "BufferPool::optimizeAllocationPatterns() - Analyzing allocation patterns");
     
     // Analyze usage patterns and optimize pool configuration
-    std::vector<std::pair<size_t, double>> size_efficiency; // (size, efficiency_score)
+    struct EfficiencyData {
+        size_t size;
+        double efficiency;
+        PoolEntry* entry;
+    };
+    std::vector<EfficiencyData> size_efficiency;
+    size_efficiency.reserve(m_pools.size());
     
     for (const auto& pool_pair : m_pools) {
         const PoolEntry& entry = *pool_pair.second;
@@ -708,7 +714,7 @@ void IOBufferPool::optimizeAllocationPatterns() {
             efficiency_score *= (1.0 - static_cast<double>(memory_used) / m_current_pool_size);
         }
         
-        size_efficiency.emplace_back(buffer_size, efficiency_score);
+        size_efficiency.push_back({buffer_size, efficiency_score, pool_pair.second.get()});
         
         Debug::log("memory", "BufferPool::optimizeAllocationPatterns() - Size ", buffer_size, 
                   ": hit_rate=", hit_rate, ", memory_used=", memory_used, ", efficiency=", efficiency_score);
@@ -716,8 +722,8 @@ void IOBufferPool::optimizeAllocationPatterns() {
     
     // Sort by efficiency (lowest first for potential eviction)
     std::sort(size_efficiency.begin(), size_efficiency.end(),
-        [](const auto& a, const auto& b) {
-            return a.second < b.second;
+        [](const EfficiencyData& a, const EfficiencyData& b) {
+            return a.efficiency < b.efficiency;
         });
     
     // Evict inefficient buffer sizes if memory pressure is high
@@ -725,28 +731,26 @@ void IOBufferPool::optimizeAllocationPatterns() {
         size_t sizes_to_evict = size_efficiency.size() / 4; // Evict bottom 25%
         
         for (size_t i = 0; i < sizes_to_evict && i < size_efficiency.size(); ++i) {
-            size_t buffer_size = size_efficiency[i].first;
-            double efficiency = size_efficiency[i].second;
+            size_t buffer_size = size_efficiency[i].size;
+            double efficiency = size_efficiency[i].efficiency;
+            PoolEntry* entry = size_efficiency[i].entry;
             
             // Only evict if efficiency is very low
-            if (efficiency < 0.3) {
-                auto it = m_pools.find(buffer_size);
-                if (it != m_pools.end()) {
-                    // Evict half the buffers for this size
-                    std::lock_guard<std::mutex> entry_lock(it->second->mutex);
-                    if (!it->second->available_buffers.empty()) {
-                        size_t to_evict = it->second->available_buffers.size() / 2;
+            if (efficiency < 0.3 && entry != nullptr) {
+                // Evict half the buffers for this size
+                std::lock_guard<std::mutex> entry_lock(entry->mutex);
+                if (!entry->available_buffers.empty()) {
+                    size_t to_evict = entry->available_buffers.size() / 2;
 
-                        for (size_t j = 0; j < to_evict; ++j) {
-                            uint8_t* buffer = it->second->available_buffers.back();
-                            it->second->available_buffers.pop_back();
-                            delete[] buffer;
-                            m_current_pool_size.fetch_sub(buffer_size, std::memory_order_relaxed);
-                        }
-
-                        Debug::log("memory", "BufferPool::optimizeAllocationPatterns() - Evicted ",
-                                  to_evict, " buffers of size ", buffer_size, " (low efficiency: ", efficiency, ")");
+                    for (size_t j = 0; j < to_evict; ++j) {
+                        uint8_t* buffer = entry->available_buffers.back();
+                        entry->available_buffers.pop_back();
+                        delete[] buffer;
+                        m_current_pool_size.fetch_sub(buffer_size, std::memory_order_relaxed);
                     }
+
+                    Debug::log("memory", "BufferPool::optimizeAllocationPatterns() - Evicted ",
+                              to_evict, " buffers of size ", buffer_size, " (low efficiency: ", efficiency, ")");
                 }
             }
         }
