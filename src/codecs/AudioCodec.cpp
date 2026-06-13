@@ -52,13 +52,6 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
             return std::move(codec);
         }
 #endif
-#ifdef HAVE_MP3
-    } else if (stream_info.codec_name == "mp3") {
-        auto codec = std::make_unique<PsyMP3::Codec::PCM::MP3PassthroughCodec>(stream_info);
-        if (codec->canDecode(stream_info)) {
-            return std::move(codec);
-        }
-#endif
 #ifdef HAVE_AAC
     } else if (stream_info.codec_name == "aac") {
         auto codec = std::make_unique<PsyMP3::Codec::AAC::AACCodec>(stream_info);

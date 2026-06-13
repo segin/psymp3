@@ -22,6 +22,11 @@
  */
 
 #include "psymp3.h"
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+#include <sys/mman.h>
+#include <cstring>
+#include <cerrno>
+#endif
 
 #ifdef _WIN32
 // For setting thread name in the Visual Studio debugger
@@ -36,6 +41,10 @@ typedef struct tagTHREADNAME_INFO {
 #pragma pack(pop)
 #endif
 
+#ifdef _WIN32
+SDL_Window* System::s_main_window = nullptr;
+#endif
+
 /**
  * @brief Percent-encodes a wide string.
  *
@@ -46,9 +55,7 @@ typedef struct tagTHREADNAME_INFO {
  * @param input The wide string to encode.
  * @return The percent-encoded wide string.
  */
-static std::wstring percentEncodeW(const std::wstring &input)
-    __attribute__((unused));
-static std::wstring percentEncodeW(const std::wstring &input) {
+[[maybe_unused]] static std::wstring percentEncodeW(const std::wstring &input) {
   std::wstringstream encoded;
   for (wchar_t wc : input) {
     if (iswalnum(wc) || wc == L'-' || wc == L'.' || wc == L'_' || wc == L'~') {
@@ -95,6 +102,8 @@ System::~System() {
 }
 
 #ifdef _WIN32
+void System::setMainWindow(SDL_Window* window) { s_main_window = window; }
+
 /**
  * @brief Initialises the Winamp-compatible IPC window for inter-process communication (Windows only).
  *
@@ -374,7 +383,7 @@ void System::InitializeTaskbar() {
 
 
   if (SUCCEEDED(hr)) {
-    Debug::log("system", "ITaskbarList3 COM object: 0x", std::hex, m_taskbar);
+    Debug::log("system", "ITaskbarList3 COM object: ", std::hex, m_taskbar);
     hr = m_taskbar->HrInit();
 
     if (FAILED(hr)) {
@@ -401,7 +410,10 @@ TagLib::String System::getUser() {
   GetUserNameW(user, &bufsize);
   return user;
 #else
-  return getenv("USER");
+  // getenv may return nullptr (e.g. USER unset under cron/daemons);
+  // constructing a TagLib::String from nullptr would crash.
+  const char *user = getenv("USER");
+  return user ? TagLib::String(user, TagLib::String::UTF8) : TagLib::String();
 #endif
 }
 
@@ -458,7 +470,8 @@ TagLib::String System::getHome() {
   // 4. Final fallback for very old systems or unusual configurations.
   return TagLib::String("C:\\My Documents", TagLib::String::Latin1);
 #else
-  return getenv("HOME");
+  const char *home = getenv("HOME");
+  return home ? TagLib::String(home, TagLib::String::UTF8) : TagLib::String();
 #endif
 }
 
@@ -487,7 +500,7 @@ TagLib::String System::getStoragePath() {
   // Use XDG config directory for unified storage
   const char *xdg_config = getenv("XDG_CONFIG_HOME");
   if (xdg_config && strlen(xdg_config) > 0) {
-    return TagLib::String(xdg_config) + "/psymp3";
+    return TagLib::String(xdg_config, TagLib::String::UTF8) + "/psymp3";
   } else {
     return getHome() + "/.config/psymp3";
   }
@@ -514,7 +527,7 @@ bool System::createStoragePath() {
          (GetLastError() == ERROR_ALREADY_EXISTS);
 #else
   // mkdir returns 0 on success.
-  return mkdir(path.toCString(true), 0755) == 0 || (errno == EEXIST);
+  return mkdir(path.toCString(true), 0700) == 0 || (errno == EEXIST);
 #endif
 }
 
@@ -524,13 +537,17 @@ bool System::createStoragePath() {
  * @return The window handle, or 0 if it cannot be retrieved.
  */
 HWND System::getHwnd() {
-  SDL_SysWMinfo wmi;
+  if (!s_main_window) {
+    return 0;
+  }
+
+  SDL_SysWMinfo wmi{};
   SDL_VERSION(&wmi.version);
 
-  if (!SDL_GetWMInfo(&wmi))
+  if (!SDL_GetWindowWMInfo(s_main_window, &wmi))
     return 0;
 
-  return wmi.window;
+  return wmi.info.win.window;
 }
 
 /**
@@ -612,6 +629,63 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
   }
 #else
   // No-op for other platforms.
+#endif
+}
+
+/**
+ * @brief Sets the priority of the calling thread.
+ *
+ * This is a cross-platform wrapper around SDL_SetThreadPriority.
+ *
+ * @param priority The desired thread priority.
+ */
+void System::setThreadPriority(ThreadPriority priority) {
+  SDL_ThreadPriority sdl_priority = SDL_THREAD_PRIORITY_NORMAL;
+
+  switch (priority) {
+  case ThreadPriority::Low:
+    sdl_priority = SDL_THREAD_PRIORITY_LOW;
+    break;
+  case ThreadPriority::Normal:
+    sdl_priority = SDL_THREAD_PRIORITY_NORMAL;
+    break;
+  case ThreadPriority::High:
+    sdl_priority = SDL_THREAD_PRIORITY_HIGH;
+    break;
+  case ThreadPriority::TimeCritical:
+    sdl_priority = SDL_THREAD_PRIORITY_TIME_CRITICAL;
+    break;
+  }
+
+  if (SDL_SetThreadPriority(sdl_priority) < 0) {
+    Debug::log("system", "Warning: Failed to set thread priority: ", SDL_GetError());
+  } else {
+    Debug::log("system", "Thread priority set successfully");
+  }
+}
+
+/**
+ * @brief Locks the process's virtual address space into RAM.
+ *
+ * On POSIX systems, this uses `mlockall(MCL_CURRENT | MCL_FUTURE)` to prevent
+ * the OS from swapping the process memory to disk, which helps avoid latency
+ * spikes in real-time audio code.
+ *
+ * @return `true` if successful or not supported, `false` if it failed (e.g., due to permissions).
+ */
+bool System::lockMemory() {
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+  if (mlockall(MCL_CURRENT | MCL_FUTURE) == 0) {
+    Debug::log("system", "Memory locked successfully");
+    return true;
+  } else {
+    Debug::log("system", "Warning: Failed to lock memory: ", strerror(errno));
+    // Often fails due to lack of CAP_IPC_LOCK or rlimit restrictions.
+    return false;
+  }
+#else
+  // Not implemented for other platforms
+  return true;
 #endif
 }
 

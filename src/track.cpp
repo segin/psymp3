@@ -137,11 +137,12 @@ bool track::shouldCreateTagLibRefForPath(const TagLib::String& path)
  * @param extinf_duration Duration in seconds from EXTINF (0 means unknown).
  */
 track::track(const TagLib::String& a_FilePath, const TagLib::String& extinf_artist, const TagLib::String& extinf_title, long extinf_duration)
-    : m_FilePath(a_FilePath), m_Len(extinf_duration)
+    : m_Artist(extinf_artist),
+      m_Title(extinf_title),
+      m_FilePath(a_FilePath),
+      m_Len(extinf_duration)
 {
     // Prioritize EXTINF data if provided
-    if (!extinf_artist.isEmpty()) m_Artist = extinf_artist;
-    if (!extinf_title.isEmpty()) m_Title = extinf_title;
 
     // Then attempt to load tags from TagLib, which will fill in missing info
     // and create m_FileRef if not already done.

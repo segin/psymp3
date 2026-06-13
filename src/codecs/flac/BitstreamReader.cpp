@@ -21,19 +21,48 @@ namespace Codec {
 namespace FLAC {
 
 BitstreamReader::BitstreamReader()
-    : m_byte_position(0), m_bit_position(0), m_bit_cache(0), m_cache_bits(0),
-      m_total_bits_read(0) {}
+    : m_head(0), m_valid_bytes(0), m_byte_position(0), m_bit_position(0),
+      m_bit_cache(0), m_cache_bits(0), m_total_bits_read(0) {}
 
 BitstreamReader::~BitstreamReader() {}
 
 void BitstreamReader::feedData(const uint8_t *data, size_t size) {
   if (data && size > 0) {
-    m_buffer.insert(m_buffer.end(), data, data + size);
+    if (m_valid_bytes + size > m_buffer.size()) {
+      size_t new_capacity = m_buffer.size() * 2;
+      if (new_capacity < m_valid_bytes + size) {
+        new_capacity = m_valid_bytes + size;
+      }
+      if (new_capacity == 0) new_capacity = 4096;
+
+      std::vector<uint8_t> new_buffer(new_capacity);
+      for (size_t i = 0; i < m_valid_bytes; ++i) {
+        size_t index = m_head + i;
+        if (index >= m_buffer.size()) index -= m_buffer.size();
+        new_buffer[i] = m_buffer[index];
+      }
+      m_buffer = std::move(new_buffer);
+      m_head = 0;
+    }
+
+    size_t tail = m_head + m_valid_bytes;
+    if (tail >= m_buffer.size()) tail -= m_buffer.size();
+
+    size_t first_part = m_buffer.size() - tail;
+    if (first_part > size) first_part = size;
+
+    std::copy(data, data + first_part, m_buffer.begin() + tail);
+    if (first_part < size) {
+      std::copy(data + first_part, data + size, m_buffer.begin());
+    }
+
+    m_valid_bytes += size;
   }
 }
 
 void BitstreamReader::clearBuffer() {
-  m_buffer.clear();
+  m_head = 0;
+  m_valid_bytes = 0;
   m_byte_position = 0;
   m_bit_position = 0;
   m_bit_cache = 0;
@@ -45,15 +74,19 @@ void BitstreamReader::discardReadBytes() {
   // Remove bytes that have already been read from the buffer
   // This helps manage memory for long streams
   if (m_byte_position > 0) {
-    m_buffer.erase(m_buffer.begin(), m_buffer.begin() + m_byte_position);
+    m_head += m_byte_position;
+    if (m_buffer.size() > 0 && m_head >= m_buffer.size()) {
+      m_head %= m_buffer.size();
+    }
+    m_valid_bytes -= m_byte_position;
     m_byte_position = 0;
   }
 }
 
-size_t BitstreamReader::getBufferSize() const { return m_buffer.size(); }
+size_t BitstreamReader::getBufferSize() const { return m_valid_bytes; }
 
 size_t BitstreamReader::getAvailableBits() const {
-  size_t bytes_remaining = m_buffer.size() - m_byte_position;
+  size_t bytes_remaining = m_valid_bytes - m_byte_position;
   size_t bits_remaining = (bytes_remaining * 8) + m_cache_bits;
 
   // Subtract any partial byte we're in the middle of
@@ -65,11 +98,11 @@ size_t BitstreamReader::getAvailableBits() const {
 }
 
 size_t BitstreamReader::getAvailableBytes() const {
-  return m_buffer.size() - m_byte_position;
+  return m_valid_bytes - m_byte_position;
 }
 
 bool BitstreamReader::hasData() const {
-  return m_cache_bits > 0 || m_byte_position < m_buffer.size();
+  return m_cache_bits > 0 || m_byte_position < m_valid_bytes;
 }
 
 bool BitstreamReader::canRead(uint32_t bit_count) const {
@@ -78,8 +111,11 @@ bool BitstreamReader::canRead(uint32_t bit_count) const {
 
 void BitstreamReader::refillCache() {
   // Fill cache with bytes from buffer (big-endian)
-  while (m_cache_bits <= 56 && m_byte_position < m_buffer.size()) {
-    uint64_t byte = m_buffer[m_byte_position++];
+  while (m_cache_bits <= 56 && m_byte_position < m_valid_bytes) {
+    size_t index = m_head + m_byte_position;
+    if (index >= m_buffer.size()) index -= m_buffer.size();
+    uint64_t byte = m_buffer[index];
+    m_byte_position++;
     m_bit_cache = (m_bit_cache << 8) | byte;
     m_cache_bits += 8;
   }
@@ -193,11 +229,18 @@ bool BitstreamReader::alignToByte() {
 bool BitstreamReader::isAligned() const { return (m_total_bits_read % 8) == 0; }
 
 bool BitstreamReader::skipBits(uint32_t bit_count) {
-  if (!ensureBits(bit_count)) {
-    return false;
+  // ensureBits/consumeBits operate on a <=64-bit cache, so a single
+  // ensureBits(bit_count) fails for bit_count > 64. Skip in chunks instead;
+  // otherwise setBitPosition() (which skips from the start) could never advance
+  // past 64 bits, breaking seeking and sync recovery.
+  while (bit_count > 0) {
+    uint32_t chunk = (bit_count < 32u) ? bit_count : 32u;
+    if (!ensureBits(chunk)) {
+      return false;
+    }
+    consumeBits(chunk);
+    bit_count -= chunk;
   }
-
-  consumeBits(bit_count);
   return true;
 }
 
@@ -217,7 +260,7 @@ void BitstreamReader::resetPosition() {
 }
 
 bool BitstreamReader::setBitPosition(uint64_t bit_position) {
-  if (bit_position > (m_buffer.size() * 8)) {
+  if (bit_position > (m_valid_bytes * 8)) {
     return false;
   }
 
