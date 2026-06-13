@@ -122,16 +122,6 @@ void resolveInlineSourceRecursive(const Playlist::Entry& source,
 } // namespace
 
 /**
- * @brief Destroys the Playlist object.
- *
- * The default destructor is sufficient as the std::vector of tracks will handle its own cleanup.
- */
-Playlist::~Playlist()
-{
-    //dtor
-}
-
-/**
  * @brief Adds a single media file to the end of the playlist.
  *
  * This method creates a `track` object from the given file path, which triggers

@@ -42,7 +42,7 @@ class Playlist
         Playlist();
         bool addFile(TagLib::String path, TagLib::String artist, TagLib::String title, long duration);
         bool addEntry(const Entry& entry);
-        ~Playlist();
+        ~Playlist() = default;
         bool addFile(TagLib::String path);
         long getPosition() const;
         long entries() const;
