@@ -85,7 +85,7 @@ void testBoundedQueue() {
     }
     
     // Get stats
-    std::cout << "Queue stats: " << queue.size() << " items, "
+    std::cout << "Queue size: " << queue.size() << " items, "
               << queue.memoryUsage() << " bytes" << std::endl;
     
     // Pop items
@@ -95,7 +95,7 @@ void testBoundedQueue() {
     }
     
     // Get stats after pop
-    std::cout << "Queue stats after pop: " << queue.size() << " items, "
+    std::cout << "Queue size after pop: " << queue.size() << " items, "
               << queue.memoryUsage() << " bytes" << std::endl;
     
     std::cout << "BoundedQueue test completed." << std::endl;
@@ -141,98 +141,64 @@ void testMemoryTracker() {
     std::cout << "MemoryTracker test completed." << std::endl;
 }
 
-// Test the MemoryOptimizer
-void testMemoryOptimizer() {
-    std::cout << "Testing MemoryOptimizer..." << std::endl;
+// Test the MemoryOptimizer Core functionality
+void testMemoryOptimizerCore() {
+    std::cout << "Testing MemoryOptimizer Core functionality..." << std::endl;
 
     MemoryOptimizer& optimizer = MemoryOptimizer::getInstance();
+    IOBufferPool& pool = IOBufferPool::getInstance();
 
-    // Test initial state
-    auto stats = optimizer.getMemoryStats();
-    std::cout << "Initial memory stats: " << stats["total_memory_usage"] << " bytes used" << std::endl;
+    // Initial state
+    pool.clear();
+    std::cout << "Initial pool size: " << pool.getStats().at("current_pool_size") << " bytes" << std::endl;
 
-    // Set memory limits
-    size_t test_max_total = 10 * 1024 * 1024; // 10MB
-    size_t test_max_buffer = 5 * 1024 * 1024; // 5MB
-    optimizer.setMemoryLimits(test_max_total, test_max_buffer);
+    // Set memory limits for MemoryOptimizer
+    optimizer.setMemoryLimits(1024 * 1024, 512 * 1024); // 1MB total, 512KB buffer
 
-    stats = optimizer.getMemoryStats();
-    std::cout << "After setting limits - Max total: " << stats["max_total_memory"]
-              << ", Max buffer: " << stats["max_buffer_memory"] << std::endl;
+    // Register some allocations to simulate usage
+    optimizer.registerAllocation(500 * 1024, "test_component1");
+    optimizer.registerAllocation(200 * 1024, "test_component2");
 
-    // Test safe to allocate
-    bool is_safe = optimizer.isSafeToAllocate(1 * 1024 * 1024, "audio"); // 1MB
-    std::cout << "Is 1MB audio allocation safe? " << (is_safe ? "Yes" : "No") << std::endl;
+    auto mem_stats = optimizer.getMemoryStats();
+    std::cout << "MemoryOptimizer total usage: " << mem_stats["total_memory_usage"] << " bytes" << std::endl;
 
-    is_safe = optimizer.isSafeToAllocate(6 * 1024 * 1024, "buffer"); // 6MB (exceeds buffer limit)
-    std::cout << "Is 6MB buffer allocation safe? " << (is_safe ? "Yes" : "No") << std::endl;
+    // Populate the IOBufferPool
+    std::vector<IOBufferPool::Buffer> buffers;
+    for (int i = 0; i < 50; i++) {
+        buffers.push_back(pool.acquire(8192)); // 8KB buffers
+    }
 
-    // Register allocations
-    std::cout << "Registering allocations..." << std::endl;
-    optimizer.registerAllocation(2 * 1024 * 1024, "audio"); // 2MB
-    optimizer.registerAllocation(3 * 1024 * 1024, "buffer"); // 3MB
+    // Release them back to populate the pool
+    for (auto& buffer : buffers) {
+        buffer.release();
+    }
+    buffers.clear();
 
-    stats = optimizer.getMemoryStats();
-    std::cout << "After allocations - Total used: " << stats["total_memory_usage"]
-              << ", Audio used: " << stats["component_audio"]
-              << ", Buffer used: " << stats["component_buffer"] << std::endl;
+    std::cout << "Pool size before optimization: " << pool.getStats().at("current_pool_size") << " bytes" << std::endl;
 
-    // Test cache trimming
-    std::cout << "Testing cache trimming behavior..." << std::endl;
+    // Set a critical memory pressure level
+    // Memory usage is 716800 bytes, total limit is 1MB. (716KB / 1024KB = 70%)
+    // Let's force optimization manually or change memory limits to trigger pressure
+    optimizer.setMemoryLimits(700 * 1024, 512 * 1024);
 
-    IOBufferPool& buffer_pool = IOBufferPool::getInstance();
-
-    // Check initial state
-    auto pool_stats = buffer_pool.getStats();
-    size_t initial_max_pool = pool_stats["max_pool_size"];
-    size_t initial_max_buffers = pool_stats["max_buffers_per_size"];
-    std::cout << "Initial BufferPool stats - Max size: " << initial_max_pool
-              << ", Max buffers per size: " << initial_max_buffers << std::endl;
-
-    // Reduce limits
-    optimizer.setMemoryLimits(4 * 1024 * 1024, 2 * 1024 * 1024); // Set limit to 4MB total
-
-    // Call optimizeMemoryUsage manually. Even at Normal pressure, it sets IOBufferPool limits
-    // to 25% of total max memory, which is 1MB. This should be much less than the initial 16MB default.
+    // Call optimizeMemoryUsage
     optimizer.optimizeMemoryUsage();
 
-    // Verify that BufferPool limits have been reduced by optimizeMemoryUsage
-    pool_stats = buffer_pool.getStats();
-    size_t new_max_pool = pool_stats["max_pool_size"];
-    size_t new_max_buffers = pool_stats["max_buffers_per_size"];
-    std::cout << "New BufferPool stats - Max size: " << new_max_pool
-              << ", Max buffers per size: " << new_max_buffers << std::endl;
+    std::cout << "Pool size after optimization: " << pool.getStats().at("current_pool_size") << " bytes" << std::endl;
 
-    if (new_max_pool >= initial_max_pool || new_max_buffers >= initial_max_buffers) {
-        std::cerr << "ASSERTION FAILED: IOBufferPool limits were not trimmed as expected." << std::endl;
+    // Assert cache trimming
+    if (pool.getStats().at("current_pool_size") >= 65536) {
+        std::cerr << "Assertion failed: Pool size was not trimmed during optimization!" << std::endl;
         std::exit(1);
     }
 
-    // Get recommended buffer pool params based on current pressure level
-    size_t recommended_pool_size, recommended_buffers_per_size;
-    optimizer.getRecommendedBufferPoolParams(recommended_pool_size, recommended_buffers_per_size);
-    std::cout << "Recommended buffer pool params - Max size: " << recommended_pool_size
-              << ", Max buffers per size: " << recommended_buffers_per_size << std::endl;
+    // Clean up
+    pool.clear();
+    optimizer.registerDeallocation(500 * 1024, "test_component1");
+    optimizer.registerDeallocation(200 * 1024, "test_component2");
 
-    // Test read ahead recommendations
-    bool should_read_ahead = optimizer.shouldEnableReadAhead();
-    size_t read_ahead_size = optimizer.getRecommendedReadAheadSize(1024 * 1024);
-    std::cout << "Should enable read ahead? " << (should_read_ahead ? "Yes" : "No")
-              << ", Recommended size: " << read_ahead_size << std::endl;
-
-    // Register deallocations
-    std::cout << "Registering deallocations..." << std::endl;
-    optimizer.registerDeallocation(1 * 1024 * 1024, "audio"); // 1MB
-    optimizer.registerDeallocation(3 * 1024 * 1024, "buffer"); // 3MB
-
-    stats = optimizer.getMemoryStats();
-    std::cout << "After deallocations - Total used: " << stats["total_memory_usage"]
-              << ", Audio used: " << stats["component_audio"]
-              << ", Buffer used: " << stats["component_buffer"] << std::endl;
-
-    std::cout << "MemoryOptimizer test completed." << std::endl;
+    std::cout << "MemoryOptimizer Core test completed." << std::endl;
 }
-
 
 // Main test function
 int main() {
@@ -250,7 +216,7 @@ int main() {
     testMemoryTracker();
     std::cout << std::endl;
     
-    testMemoryOptimizer();
+    testMemoryOptimizerCore();
     std::cout << std::endl;
 
     std::cout << "All tests completed." << std::endl;

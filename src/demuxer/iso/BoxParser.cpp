@@ -749,6 +749,9 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                         }, depth);
                 }
                 break;
+            case CODEC_MP3:
+                track.codecType = "mp3";
+                break;
             case CODEC_ALAC:
                 track.codecType = "alac";
                 // Look for alac box for ALAC magic cookie
@@ -831,14 +834,17 @@ bool BoxParser::ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTable
     
     // Skip version/flags (4 bytes)
     uint32_t entryCount = ReadUInt32BE(offset + 4);
-    
-    if (entryCount == 0 || size < 8 + (entryCount * 8)) {
+
+    // Use 64-bit arithmetic: entryCount * 8 in 32-bit can wrap and let a tiny
+    // box claim billions of entries, bypassing the size bound below.
+    if (entryCount == 0 || entryCount > MAX_SAMPLES_PER_TRACK ||
+        size < 8 + (static_cast<uint64_t>(entryCount) * 8)) {
         return false;
     }
-    
+
     // Clear existing time data
     tables.sampleTimes.clear();
-    tables.sampleTimes.reserve(entryCount * 2); // Rough estimate
+    tables.sampleTimes.reserve(static_cast<uint64_t>(entryCount) * 2); // Rough estimate
     
     uint64_t currentTime = 0;
     uint64_t entryOffset = offset + 8;
@@ -878,11 +884,13 @@ bool BoxParser::ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTabl
     
     // Skip version/flags (4 bytes)
     uint32_t entryCount = ReadUInt32BE(offset + 4);
-    
-    if (entryCount == 0 || size < 8 + (entryCount * 12)) {
+
+    // 64-bit arithmetic: entryCount * 12 in 32-bit can wrap (see stts).
+    if (entryCount == 0 || entryCount > MAX_SAMPLES_PER_TRACK ||
+        size < 8 + (static_cast<uint64_t>(entryCount) * 12)) {
         return false;
     }
-    
+
     // Clear existing chunk data and store raw entries
     tables.sampleToChunkEntries.clear();
     tables.sampleToChunkEntries.reserve(entryCount);
@@ -934,10 +942,14 @@ bool BoxParser::ParseSampleSizeBox(uint64_t offset, uint64_t size, SampleTableIn
         tables.sampleSizes[0] = sampleSize;
     } else {
         // Variable sample sizes
-        if (size < 12 + (sampleCount * 4)) {
+        // 64-bit arithmetic: sampleCount * 4 in 32-bit can wrap, letting a
+        // few-byte stsz box claim ~4 billion entries and trigger a multi-GB
+        // reserve below.
+        if (sampleCount > MAX_SAMPLES_PER_TRACK ||
+            size < 12 + (static_cast<uint64_t>(sampleCount) * 4)) {
             return false;
         }
-        
+
         tables.sampleSizes.reserve(sampleCount);
         uint64_t entryOffset = offset + 12;
         
@@ -964,10 +976,14 @@ bool BoxParser::ParseChunkOffsetBox(uint64_t offset, uint64_t size, SampleTableI
     }
     
     uint32_t entrySize = is64Bit ? 8 : 4;
-    if (size < 8 + (entryCount * entrySize)) {
+    // 64-bit arithmetic: entryCount * entrySize in 32-bit can wrap, letting a
+    // tiny stco/co64 box claim billions of entries and trigger an oversized
+    // reserve below.
+    if (entryCount > MAX_SAMPLES_PER_TRACK ||
+        size < 8 + (static_cast<uint64_t>(entryCount) * entrySize)) {
         return false;
     }
-    
+
     // Clear existing offset data
     tables.chunkOffsets.clear();
     tables.chunkOffsets.reserve(entryCount);
@@ -1008,10 +1024,12 @@ bool BoxParser::ParseSyncSampleBox(uint64_t offset, uint64_t size, SampleTableIn
         return true;
     }
     
-    if (size < 8 + (entryCount * 4)) {
+    // 64-bit arithmetic: entryCount * 4 in 32-bit can wrap (see stsz/stco).
+    if (entryCount > MAX_SAMPLES_PER_TRACK ||
+        size < 8 + (static_cast<uint64_t>(entryCount) * 4)) {
         return false;
     }
-    
+
     // Clear existing sync sample data
     tables.syncSamples.clear();
     tables.syncSamples.reserve(entryCount);
@@ -1100,6 +1118,15 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
                 return false;
             }
 
+            // Read objectTypeIndication to distinguish AAC from MP3
+            uint8_t objectTypeIndication = esds[cursor];
+            if (objectTypeIndication == 0x6B || objectTypeIndication == 0x69) {
+                // 0x6B = MPEG-1 Audio (MP3), 0x69 = MPEG-2 Audio
+                track.codecType = "mp3";
+                Debug::log("iso", "ISODemuxerBoxParser: esds objectTypeIndication 0x",
+                           std::hex, static_cast<int>(objectTypeIndication), std::dec,
+                           " indicates MP3, not AAC");
+            }
             cursor += 13; // objectTypeIndication + streamType + bufferSizeDB + max/avg bitrate
             continue;
         }

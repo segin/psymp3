@@ -136,41 +136,23 @@ void ChannelDecorrelator::decorrelateMidSide(int32_t* mid, int32_t* side, uint32
     // - The formulas ensure lossless reconstruction
     
     for (uint32_t i = 0; i < count; ++i) {
-        int32_t mid_sample = mid[i];
         int32_t side_sample = side[i];
-        
-        // Arithmetic right shift for signed values
-        // This handles both positive and negative side values correctly
-        int32_t side_half = side_sample >> 1;
-        
-        // Compute left and right channels
-        // Left = Mid + (Side>>1)
-        int32_t left_sample = mid_sample + side_half;
-        
-        // Right = Mid - (Side>>1)
-        // For odd side values, we need to handle rounding:
-        // - If side is odd and positive, right gets the extra bit
-        // - If side is odd and negative, left gets the extra bit
-        // The arithmetic right shift handles this correctly
-        int32_t right_sample = mid_sample - side_half;
-        
-        // Handle odd side values (Requirement 7.5)
-        // When side is odd, we need to adjust right channel
-        if (side_sample & 1) {
-            // For odd side values, subtract 1 from right to maintain proper rounding
-            // This ensures: left + right = 2 * mid (for even side)
-            //              left + right = 2 * mid - 1 (for odd positive side)
-            //              left + right = 2 * mid + 1 (for odd negative side)
-            if (side_sample > 0) {
-                right_sample--;
-            } else {
-                right_sample++;
-            }
-        }
-        
+
+        // The encoder stored mid = (L + R) >> 1, discarding the low bit that
+        // L + R and L - R share (both have the same parity). That bit is
+        // recoverable as side & 1, so it must be restored before reconstruction:
+        //   mid2  = (mid << 1) | (side & 1)   // == L + R exactly
+        //   left  = (mid2 + side) >> 1         // == L
+        //   right = (mid2 - side) >> 1         // == R
+        // Shifting a negative signed value left is UB in C++17, so restore the
+        // bit using unsigned (two's-complement) arithmetic, which is equivalent.
+        int32_t mid_sample = static_cast<int32_t>(
+            (static_cast<uint32_t>(mid[i]) << 1) |
+            (static_cast<uint32_t>(side_sample) & 1u));
+
         // Store results (in-place modification)
-        mid[i] = left_sample;   // mid buffer now contains left channel
-        side[i] = right_sample; // side buffer now contains right channel
+        mid[i]  = (mid_sample + side_sample) >> 1; // mid buffer now holds left
+        side[i] = (mid_sample - side_sample) >> 1; // side buffer now holds right
     }
     
     // After this operation:

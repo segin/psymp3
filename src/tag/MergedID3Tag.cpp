@@ -158,13 +158,7 @@ std::map<std::string, std::string> MergedID3Tag::getAllTags() const {
 
 bool MergedID3Tag::hasTag(const std::string& key) const {
     // Check both tags
-    if (m_v2 && m_v2->hasTag(key)) {
-        return true;
-    }
-    if (m_v1 && m_v1->hasTag(key)) {
-        return true;
-    }
-    return false;
+    return (m_v2 && m_v2->hasTag(key)) || (m_v1 && m_v1->hasTag(key));
 }
 
 size_t MergedID3Tag::pictureCount() const {

@@ -26,6 +26,34 @@
 namespace PsyMP3 {
 namespace IO {
 
+namespace {
+// RFC 3986 percent-decoding: "%XX" -> byte. Leaves malformed escapes verbatim.
+std::string percentDecode(const std::string& in)
+{
+    auto hexVal = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+    std::string out;
+    out.reserve(in.size());
+    for (size_t i = 0; i < in.size(); ++i) {
+        if (in[i] == '%' && i + 2 < in.size()) {
+            int hi = hexVal(in[i + 1]);
+            int lo = hexVal(in[i + 2]);
+            if (hi >= 0 && lo >= 0) {
+                out += static_cast<char>((hi << 4) | lo);
+                i += 2;
+                continue;
+            }
+        }
+        out += in[i];
+    }
+    return out;
+}
+} // namespace
+
 /**
  * @brief Constructs a URI object by parsing a URI string.
  *
@@ -36,15 +64,26 @@ URI::URI(const TagLib::String& uri_string)
 {
     std::string s = uri_string.to8Bit(true);
 
-    // Handle the common "file:///" case, which indicates a local file path.
-    if (s.rfind("file:///", 0) == 0) {
+    // file: URIs per RFC 8089. Accepted forms: file:///path, file://host/path,
+    // and the legacy file:/path. The authority (host) component, when present,
+    // must NOT be injected into the filesystem path — empty and "localhost"
+    // both mean the local host. Paths are percent-decoded.
+    if (s.rfind("file:", 0) == 0) {
         m_scheme = "file";
-        m_path = TagLib::String(s.substr(7), TagLib::String::UTF8);
-    }
-    // Handle the older "file:/" case, also for local files.
-    else if (s.rfind("file:/", 0) == 0) {
-        m_scheme = "file";
-        m_path = TagLib::String(s.substr(5), TagLib::String::UTF8);
+        std::string rest = s.substr(5); // everything after "file:"
+        std::string path;
+        if (rest.rfind("//", 0) == 0) {
+            // Authority present: //[authority]/path. The authority runs from
+            // after "//" to the next "/"; the path is the remainder.
+            std::string after_authority = rest.substr(2);
+            size_t path_start = after_authority.find('/');
+            path = (path_start == std::string::npos) ? std::string("/")
+                                                      : after_authority.substr(path_start);
+        } else {
+            // file:/path (no authority) or a relative file:path.
+            path = rest;
+        }
+        m_path = TagLib::String(percentDecode(path), TagLib::String::UTF8);
     } else {
         // Fallback for other schemes (like http://, https://) or plain file paths.
         size_t scheme_end = s.find("://");

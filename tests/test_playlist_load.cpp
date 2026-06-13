@@ -27,6 +27,9 @@ protected:
         testLoadEmptyPlaylist();
         testLoadNonExistentPlaylist();
         testLoadPlaylistWithComments();
+        testResolveInlineSourcesPreservesOrder();
+        testResolveInlineSourcesRecursesNestedPlaylists();
+        testLoadPlaylistWithInvalidDuration();
     }
 
 private:
@@ -128,6 +131,65 @@ private:
 
         std::string track = playlist->getTrack(0).to8Bit(true);
         ASSERT_TRUE(track.find("song.mp3") != std::string::npos, "Track should be loaded correctly ignoring comments");
+
+        std::remove(filename.c_str());
+    }
+
+    void testResolveInlineSourcesPreservesOrder() {
+        std::string inline_playlist = createTempM3U("song2.mp3\nsong3.m4a\n", "temp_inline_playlist.m3u");
+
+        std::vector<TagLib::String> sources = {
+            TagLib::String("file1.flac", TagLib::String::UTF8),
+            TagLib::String(inline_playlist, TagLib::String::UTF8),
+            TagLib::String("file4.flac", TagLib::String::UTF8)
+        };
+
+        auto resolved = Playlist::resolveInlineSources(sources);
+
+        ASSERT_EQUALS(4, resolved.size(), "Inline playlist sources should expand in place");
+        ASSERT_TRUE(resolved[0].path.to8Bit(true).find("file1.flac") != std::string::npos, "First entry should remain file1.flac");
+        ASSERT_TRUE(resolved[1].path.to8Bit(true).find("song2.mp3") != std::string::npos, "Inline playlist should insert song2.mp3 second");
+        ASSERT_TRUE(resolved[2].path.to8Bit(true).find("song3.m4a") != std::string::npos, "Inline playlist should insert song3.m4a third");
+        ASSERT_TRUE(resolved[3].path.to8Bit(true).find("file4.flac") != std::string::npos, "Fourth entry should remain file4.flac");
+
+        std::remove(inline_playlist.c_str());
+    }
+
+    void testResolveInlineSourcesRecursesNestedPlaylists() {
+        std::string inner_playlist = createTempM3U("song2.mp3\nsong3.m4a\n", "temp_inner_playlist.m3u");
+        std::string outer_content = inner_playlist + "\nfinal_track.flac\n";
+        std::string outer_playlist = createTempM3U(outer_content, "temp_outer_playlist.m3u");
+
+        std::vector<TagLib::String> sources = {
+            TagLib::String("intro.flac", TagLib::String::UTF8),
+            TagLib::String(outer_playlist, TagLib::String::UTF8)
+        };
+
+        auto resolved = Playlist::resolveInlineSources(sources);
+
+        ASSERT_EQUALS(4, resolved.size(), "Nested playlists should resolve recursively");
+        ASSERT_TRUE(resolved[0].path.to8Bit(true).find("intro.flac") != std::string::npos, "First entry should remain intro.flac");
+        ASSERT_TRUE(resolved[1].path.to8Bit(true).find("song2.mp3") != std::string::npos, "Nested playlist should insert first inner track");
+        ASSERT_TRUE(resolved[2].path.to8Bit(true).find("song3.m4a") != std::string::npos, "Nested playlist should insert second inner track");
+        ASSERT_TRUE(resolved[3].path.to8Bit(true).find("final_track.flac") != std::string::npos, "Outer playlist entries should continue after nested expansion");
+
+        std::remove(inner_playlist.c_str());
+        std::remove(outer_playlist.c_str());
+    }
+
+    void testLoadPlaylistWithInvalidDuration() {
+        std::string content = "#EXTM3U\n#EXTINF:invalid_duration,Artist Name - Song Title\n/path/to/song.mp3\n";
+        std::string filename = createTempM3U(content, "temp_invalid_duration.m3u");
+
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
+        ASSERT_EQUALS(1, playlist->entries(), "Playlist should have 1 entry");
+
+        const track* t = playlist->getTrackInfo(0);
+        ASSERT_NOT_NULL(t, "Track info should not be null");
+
+        ASSERT_EQUALS(0u, t->GetLen(), "Duration should be 0 for invalid EXTINF duration");
 
         std::remove(filename.c_str());
     }

@@ -137,17 +137,25 @@ int64_t OggSyncManager::findPrevPage() {
         if (!seek(offset)) return -1;
         
         ogg_page temp_page;
-        // Scan forward from offset to current_pos
-        while (m_io_handler->tell() < current_pos) {
-             long page_start_offset = m_logical_offset;
+        found_offset = -1;
+        // Scan forward recording the LAST page that starts before current_pos.
+        // Gate on the logical offset (page consumption), not the physical read
+        // position: getData() advances tell() in 4 KB chunks, so gating on
+        // tell() exited after the first page and could read past current_pos.
+        while (m_logical_offset < current_pos) {
              int page_res = getNextPage(&temp_page);
-             if (page_res == 1) {
-                 found_offset = page_start_offset;
-             } else if (page_res == 0) {
+             if (page_res != 1) {
                  break;
              }
+             // After getNextPage(), m_logical_offset is the end of the page just
+             // read; subtract its size for the page's start offset.
+             long page_size = temp_page.header_len + temp_page.body_len;
+             long page_start_offset = m_logical_offset - page_size;
+             if (page_start_offset < current_pos) {
+                 found_offset = page_start_offset;
+             }
         }
-        
+
         if (found_offset != -1) {
              return found_offset;
         }
@@ -168,15 +176,19 @@ int64_t OggSyncManager::findPrevPageSerial(long serial) {
         
         ogg_page temp_page;
         int64_t found_offset = -1;
-        while (m_io_handler->tell() < current_pos) {
-            long page_start_offset = m_logical_offset;
+        // See findPrevPage(): gate on the logical offset and use the accurate
+        // page-start offset, recording the last matching-serial page that starts
+        // before current_pos.
+        while (m_logical_offset < current_pos) {
             int res = getNextPage(&temp_page);
-            if (res == 1) {
-                if (ogg_page_serialno(&temp_page) == serial) {
-                    found_offset = page_start_offset;
-                }
-            } else if (res == 0) {
+            if (res != 1) {
                 break;
+            }
+            long page_size = temp_page.header_len + temp_page.body_len;
+            long page_start_offset = m_logical_offset - page_size;
+            if (page_start_offset < current_pos &&
+                ogg_page_serialno(&temp_page) == serial) {
+                found_offset = page_start_offset;
             }
         }
         if (found_offset != -1) {

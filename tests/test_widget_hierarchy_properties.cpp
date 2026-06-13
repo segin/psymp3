@@ -40,7 +40,7 @@ bool runWidgetHierarchyPropertyTests() {
         parent->addChild(std::move(child));
         
         // Verify parent pointer is set correctly
-        RC_ASSERT(child_ptr->m_parent == parent.get());
+        RC_ASSERT(child_ptr->getParent() == parent.get());
     });
     if (!result1) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
@@ -62,10 +62,10 @@ bool runWidgetHierarchyPropertyTests() {
         parent->addChild(std::move(child3));
         
         // Verify children are in the correct order
-        RC_ASSERT(parent->m_children.size() == 3);
-        RC_ASSERT(parent->m_children[0].get() == c1);
-        RC_ASSERT(parent->m_children[1].get() == c2);
-        RC_ASSERT(parent->m_children[2].get() == c3);
+        RC_ASSERT(parent->getChildren().size() == 3);
+        RC_ASSERT(parent->getChildren()[0].get() == c1);
+        RC_ASSERT(parent->getChildren()[1].get() == c2);
+        RC_ASSERT(parent->getChildren()[2].get() == c3);
     });
     if (!result2) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
@@ -79,8 +79,8 @@ bool runWidgetHierarchyPropertyTests() {
         parent->addChild(std::move(child));
         
         // After move, child should still be accessible through parent
-        RC_ASSERT(parent->m_children.size() == 1);
-        RC_ASSERT(parent->m_children[0].get() == child_ptr);
+        RC_ASSERT(parent->getChildren().size() == 1);
+        RC_ASSERT(parent->getChildren()[0].get() == child_ptr);
     });
     if (!result3) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
@@ -101,11 +101,11 @@ bool runWidgetHierarchyPropertyTests() {
         l2->addChild(std::move(level3));
         
         // Verify hierarchy depth
-        RC_ASSERT(l1->m_parent == root.get());
-        RC_ASSERT(l2->m_parent == l1);
-        RC_ASSERT(l3->m_parent == l2);
-        RC_ASSERT(l3->m_parent->m_parent == l1);
-        RC_ASSERT(l3->m_parent->m_parent->m_parent == root.get());
+        RC_ASSERT(l1->getParent() == root.get());
+        RC_ASSERT(l2->getParent() == l1);
+        RC_ASSERT(l3->getParent() == l2);
+        RC_ASSERT(l3->getParent()->getParent() == l1);
+        RC_ASSERT(l3->getParent()->getParent()->getParent() == root.get());
     });
     if (!result4) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
@@ -121,8 +121,8 @@ bool runWidgetHierarchyPropertyTests() {
         parent->addChild(std::move(child));
         
         // Verify no cycle: child's parent is parent, but parent's parent is null
-        RC_ASSERT(c->m_parent == p);
-        RC_ASSERT(p->m_parent == nullptr);
+        RC_ASSERT(c->getParent() == p);
+        RC_ASSERT(p->getParent() == nullptr);
     });
     if (!result5) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
@@ -130,7 +130,7 @@ bool runWidgetHierarchyPropertyTests() {
     std::cout << "  WidgetHierarchy_RootHasNoParent: ";
     auto result6 = rc::check("Root widget has no parent", []() {
         auto root = std::make_unique<Widget>();
-        RC_ASSERT(root->m_parent == nullptr);
+        RC_ASSERT(root->getParent() == nullptr);
     });
     if (!result6) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
@@ -148,8 +148,8 @@ bool runWidgetHierarchyPropertyTests() {
         parent->addChild(std::move(child1));
         parent->addChild(std::move(child2));
         
-        RC_ASSERT(c1->m_parent == p);
-        RC_ASSERT(c2->m_parent == p);
+        RC_ASSERT(c1->getParent() == p);
+        RC_ASSERT(c2->getParent() == p);
     });
     if (!result7) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
