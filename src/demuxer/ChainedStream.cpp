@@ -153,6 +153,7 @@ void ChainedStream::open(TagLib::String name)
  */
 size_t ChainedStream::getData(size_t len, void *buf)
 {
+    std::lock_guard<std::mutex> lock(m_chain_mutex);
     char *current_buf = static_cast<char *>(buf);
     size_t bytes_remaining = len;
     size_t total_bytes_read = 0;
@@ -184,7 +185,7 @@ size_t ChainedStream::getData(size_t len, void *buf)
     }
 
     // Update the base class position members for compatibility, using the aggregated position.
-    m_sposition = getSPosition();
+    m_sposition = getSPosition_unlocked();
     if (m_rate > 0) {
         m_position = (m_sposition * 1000) / m_rate;
     }
@@ -198,6 +199,7 @@ size_t ChainedStream::getData(size_t len, void *buf)
  */
 bool ChainedStream::eof()
 {
+    std::lock_guard<std::mutex> lock(m_chain_mutex);
     // The chain is at its end if there is no current stream to play from.
     // This happens when the last track finishes and openNextTrack() fails.
     return !m_current_stream;
@@ -224,7 +226,8 @@ unsigned long long ChainedStream::getSLength() { return m_total_samples; }
  */
 unsigned int ChainedStream::getPosition()
 {
-    if (m_rate > 0) return (getSPosition() * 1000) / m_rate;
+    std::lock_guard<std::mutex> lock(m_chain_mutex);
+    if (m_rate > 0) return (getSPosition_unlocked() * 1000) / m_rate;
     return 0;
 }
 
@@ -236,6 +239,12 @@ unsigned int ChainedStream::getPosition()
  * @return The current aggregated position in samples.
  */
 unsigned long long ChainedStream::getSPosition()
+{
+    std::lock_guard<std::mutex> lock(m_chain_mutex);
+    return getSPosition_unlocked();
+}
+
+unsigned long long ChainedStream::getSPosition_unlocked()
 {
     if (!m_current_stream) return m_total_samples;
     return m_samples_played_in_previous_tracks + m_current_stream->getSPosition();
@@ -253,6 +262,7 @@ unsigned long long ChainedStream::getSPosition()
  */
 void ChainedStream::seekTo(unsigned long pos)
 {
+    std::lock_guard<std::mutex> lock(m_chain_mutex);
     // 1. Convert target time in ms to an absolute sample position for the whole chain.
     unsigned long long target_sample_pos = (static_cast<unsigned long long>(pos) * m_rate) / 1000;
     if (target_sample_pos > m_total_samples) {
@@ -295,8 +305,8 @@ void ChainedStream::seekTo(unsigned long pos)
 
     // 6. Reset EOF flag and update base class position members for consistency.
     m_eof = false;
-    m_sposition = getSPosition();
-    m_position = getPosition();
+    m_sposition = getSPosition_unlocked();
+    m_position = (m_rate > 0) ? (m_sposition * 1000) / m_rate : 0;
 }
 
 } // namespace Demuxer

@@ -39,11 +39,17 @@ class Label : public Widget
 
         void setText(const TagLib::String& text);
         void setBackgroundColor(SDL_Color background_color);
+        void setMarqueeEnabled(bool enabled);
         void BlitTo(Surface& target) override;
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
 
     private:
         void blitWithBackgroundClear(Surface& target, const Rect& absolute_pos);
+        std::unique_ptr<Surface> createViewportSurface(int viewport_width, int viewport_height) const;
+        int calculateMarqueeOffset(uint32_t tick_ms) const;
+        bool isInMarqueeHomePause(uint32_t tick_ms) const;
+        float calculateLeftEdgeFadeStrength(uint32_t tick_ms) const;
+        void applyEdgeFade(Surface& surface, float left_fade_strength) const;
 
         Font* m_font; // Non-owning pointer to the global font
         TagLib::String m_text;
@@ -52,6 +58,12 @@ class Label : public Widget
         std::unique_ptr<Surface> m_text_surface;
         int m_last_drawn_width{0};
         int m_last_drawn_height{0};
+        bool m_marquee_enabled{false};
+        static constexpr int kEdgeFadeWidth = 14;
+        static constexpr int kMarqueeGapPixels = 48;
+        static constexpr int kMarqueePauseMs = 2000;
+        static constexpr int kMarqueePixelsPerSecond = 36;
+        static constexpr int kGradientTransitionMs = 220;
 };
 
 } // namespace UI

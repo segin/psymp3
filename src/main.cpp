@@ -23,32 +23,25 @@
 
 #include "psymp3.h"
 
-#ifdef HAVE_MP3
-// RAII wrapper for libmpg123 initialization and cleanup.
-// A single static instance of this class ensures that mpg123_init() is called
-// once at program startup and mpg123_exit() is called once at program termination.
-/**
- * @brief RAII wrapper that manages the lifetime of the libmpg123 library.
- *
- * The constructor calls `mpg123_init()` and the destructor calls `mpg123_exit()`,
- * ensuring the library is initialised exactly once before any MP3 decoding
- * takes place and cleaned up when the process exits.
- */
-class Mpg123LifecycleManager {
-public:
-    /** @brief Initialises libmpg123. Throws `std::runtime_error` on failure. */
-    Mpg123LifecycleManager() {
-        if (mpg123_init() != MPG123_OK) {
-            // Throwing an exception is a clear way to signal a fatal startup error.
-            throw std::runtime_error("Failed to initialize libmpg123.");
-        }
+namespace {
+
+std::string normalizeCommandLineText(const char* raw_text)
+{
+    if (!raw_text) {
+        return "";
     }
-    /** @brief Shuts down libmpg123 by calling `mpg123_exit()`. */
-    ~Mpg123LifecycleManager() {
-        mpg123_exit();
+
+    std::string text(raw_text);
+    if (UTF8Util::isValid(text)) {
+        return text;
     }
-};
-#endif
+
+    return UTF8Util::fromLatin1(text);
+}
+
+} // namespace
+
+
 
 // RAII wrapper for Windows Winsock initialization and cleanup
 #ifdef _WIN32
@@ -73,11 +66,6 @@ public:
 static WinsockLifecycleManager winsock_manager;
 #endif
 
-#ifdef HAVE_MP3
-// The global static instance that manages the library's lifetime.
-// Its constructor is called before main(), and its destructor is called after main() exits.
-static Mpg123LifecycleManager mpg123_manager;
-#endif
 
 /**
  * @brief Application entry point.
@@ -134,9 +122,19 @@ int main(int argc, char *argv[]) {
                 else if (strcmp(optarg, "neomat-in") == 0) options.fft_mode = FFTMode::NeomatIn;
                 else if (strcmp(optarg, "neomat-out") == 0) options.fft_mode = FFTMode::NeomatOut;
             } else if (option_name == "scale") {
-                options.scalefactor = atoi(optarg);
+                try {
+                    options.scalefactor = std::stoi(optarg);
+                } catch (const std::exception&) {
+                    std::cerr << "Invalid scale value: " << optarg << "\n";
+                    return 1;
+                }
             } else if (option_name == "decay") {
-                options.decayfactor = atof(optarg);
+                try {
+                    options.decayfactor = std::stod(optarg);
+                } catch (const std::exception&) {
+                    std::cerr << "Invalid decay value: " << optarg << "\n";
+                    return 1;
+                }
             } else if (option_name == "test") {
                 options.automated_test_mode = true;
             } else if (option_name == "debug") {
@@ -152,7 +150,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
             } else if (option_name == "logfile") {
-                logfile = optarg;
+                logfile = normalizeCommandLineText(optarg);
             } else if (option_name == "unattended-quit") {
                 options.unattended_quit = true;
             } else if (option_name == "no-mpris-errors") {
@@ -179,7 +177,7 @@ int main(int argc, char *argv[]) {
     // Collect non-option arguments as file paths.
     if (optind < argc) {
         for (int i = optind; i < argc; ++i) {
-            options.files.push_back(argv[i]);
+            options.files.push_back(normalizeCommandLineText(argv[i]));
         }
     }
 

@@ -193,11 +193,18 @@ bool BitstreamReader::alignToByte() {
 bool BitstreamReader::isAligned() const { return (m_total_bits_read % 8) == 0; }
 
 bool BitstreamReader::skipBits(uint32_t bit_count) {
-  if (!ensureBits(bit_count)) {
-    return false;
+  // ensureBits/consumeBits operate on a <=64-bit cache, so a single
+  // ensureBits(bit_count) fails for bit_count > 64. Skip in chunks instead;
+  // otherwise setBitPosition() (which skips from the start) could never advance
+  // past 64 bits, breaking seeking and sync recovery.
+  while (bit_count > 0) {
+    uint32_t chunk = (bit_count < 32u) ? bit_count : 32u;
+    if (!ensureBits(chunk)) {
+      return false;
+    }
+    consumeBits(chunk);
+    bit_count -= chunk;
   }
-
-  consumeBits(bit_count);
   return true;
 }
 
