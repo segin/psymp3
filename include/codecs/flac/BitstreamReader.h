@@ -61,9 +61,11 @@ public:
     bool canRead(uint32_t bit_count) const;
     
 private:
-    // Input buffer
+    // Input buffer (circular)
     std::vector<uint8_t> m_buffer;
-    size_t m_byte_position;      // Current byte position in buffer
+    size_t m_head;               // Start of valid data in circular buffer
+    size_t m_valid_bytes;        // Number of valid bytes currently in buffer
+    size_t m_byte_position;      // Current byte position relative to m_head
     uint32_t m_bit_position;     // Bit position within current byte (0-7)
     
     // Bit cache for efficient reading (big-endian)
