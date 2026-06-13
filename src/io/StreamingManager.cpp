@@ -300,9 +300,13 @@ void StreamingManager::streamingThreadFunc() {
                 continue;
             }
             
-            // Otherwise, throttle reading to avoid consuming too much CPU
+            // Otherwise, throttle reading to avoid consuming too much CPU.
+            // The buffer has room here (we are not in the buffer_full branch),
+            // so waiting on "room available" would return immediately and spin.
+            // Pace with a 1ms bounded wait that still wakes promptly on stop.
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_buffer_cv.wait(lock, [this]() { return !m_running || m_chunk_queue.size() < m_max_chunks; });
+            m_buffer_cv.wait_for(lock, std::chrono::milliseconds(1),
+                                 [this]() { return !m_running; });
         }
     }
     
