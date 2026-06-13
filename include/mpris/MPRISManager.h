@@ -62,6 +62,16 @@ public:
      * Shutdown MPRIS system and clean up all resources
      */
     void shutdown();
+
+    /**
+     * Pump pending incoming D-Bus messages (method calls / property requests).
+     *
+     * Must be called periodically from the main thread (the thread that drives
+     * Player), because dispatched method handlers invoke Player methods that are
+     * not thread-safe. Non-blocking. Intentionally does not take the manager
+     * mutex; see the implementation for the reentrancy rationale.
+     */
+    void processEvents();
     
     /**
      * Update metadata for current track

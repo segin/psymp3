@@ -202,15 +202,6 @@ std::string decodeUTF16_BE(const uint8_t* data, size_t size);
 std::string decodeUTF16_LE(const uint8_t* data, size_t size);
 
 /**
- * @brief Encode UTF-8 to UTF-16 with BOM
- * 
- * @deprecated Use PsyMP3::Core::Utility::UTF8Util::toUTF16BOM() instead
- * @param text UTF-8 string
- * @return UTF-16 encoded bytes with BOM
- */
-std::vector<uint8_t> encodeUTF16_BOM(const std::string& text);
-
-/**
  * @brief Encode UTF-8 to UTF-16 Big Endian
  * 
  * @deprecated Use PsyMP3::Core::Utility::UTF8Util::toUTF16BE() instead

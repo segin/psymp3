@@ -30,6 +30,7 @@ public:
 
     static void clearFocusedWidget();
     static bool handleFocusedKeyPress(const SDL_keysym& keysym);
+    static bool handleFocusedTextInput(const char* text);
 
 private:
     void focus();

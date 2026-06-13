@@ -10,7 +10,7 @@
  * - Raw PCM (LPCM) data
  * - RIFF WAVE format
  *
- * This serves as a test of the MP3 decoder implementation (wrapping libmpg123).
+ * This serves as a test of the MP3 decoder implementation (minimp3-based).
  * Note: Output is 16-bit signed PCM as that's what the codec produces.
  *
  * Usage:
@@ -26,7 +26,6 @@
  */
 
 #include "psymp3.h"
-#include "codecs/mp3/MP3Codec.h"
 #include <iostream>
 #include <fstream>
 #include <cstring>
@@ -221,10 +220,9 @@ static int decode(const Mp3OutConfig& config) {
     
     TagLib::String path(config.input_file.c_str(), TagLib::String::UTF8);
     
-    std::unique_ptr<Stream> stream;
+    std::unique_ptr<DemuxedStream> stream;
     try {
-        // Use Libmpg123 directly for MP3 decoding (legacy architecture)
-        stream = std::make_unique<PsyMP3::Codec::MP3::Libmpg123>(path);
+        stream = std::make_unique<DemuxedStream>(path);
     } catch (const std::exception& e) {
         std::cerr << "Error: Failed to open file: " << e.what() << "\n";
         std::cerr << "Check mp3out_debug.log for detailed error information\n";
@@ -237,28 +235,25 @@ static int decode(const Mp3OutConfig& config) {
     }
 
     // Get stream info
-    // Note: MP3Codec uses simple getters from Stream base class
-    uint32_t sample_rate = stream->getRate();
-    uint16_t channels = stream->getChannels();
+    StreamInfo info = stream->getCurrentStreamInfo();
+    uint32_t sample_rate = info.sample_rate;
+    uint16_t channels = info.channels;
     uint64_t duration_ms = stream->getLength();
     
     if (!config.quiet) {
         std::cerr << "Stream info:\n"
-                  << "  Codec: MP3 (libmpg123)\n"
+                  << "  Demuxer: " << stream->getDemuxerType() << "\n"
+                  << "  Codec: " << stream->getCodecType() << "\n"
                   << "  Sample rate: " << sample_rate << " Hz\n"
                   << "  Channels: " << channels << "\n"
                   << "  Output bits per sample: 16 (S16_LE)\n"
                   << "  Duration: " << formatTime(duration_ms) << "\n";
-        
-        // Metadata access via Stream interface
-        TagLib::String title = stream->getTitle();
-        TagLib::String artist = stream->getArtist();
-        
-        if (!title.isEmpty()) {
-            std::cerr << "  Title: " << title.to8Bit(true) << "\n";
+
+        if (!info.title.empty()) {
+            std::cerr << "  Title: " << info.title << "\n";
         }
-        if (!artist.isEmpty()) {
-            std::cerr << "  Artist: " << artist.to8Bit(true) << "\n";
+        if (!info.artist.empty()) {
+            std::cerr << "  Artist: " << info.artist << "\n";
         }
     }
     
@@ -292,7 +287,7 @@ static int decode(const Mp3OutConfig& config) {
     uint64_t total_bytes = 0;
     uint64_t total_samples = 0;
     
-    // Buffer for matching libmpg123 read size or generic size
+    // Buffer for reading decoded PCM data
     const size_t buffer_size = 16384;  // 16KB buffer
     std::vector<uint8_t> buffer(buffer_size);
     
@@ -307,8 +302,7 @@ static int decode(const Mp3OutConfig& config) {
         
         if (bytes_read == 0) {
             if (stream->eof()) break;
-            // If bytes_read is 0 but not EOF, it might be a glitch or need more data? 
-            // Libmpg123::getData sets m_eof=true on MPG123_DONE.
+            // If bytes_read is 0 but not EOF, continue and wait for more decoded data.
             continue; 
         }
         
@@ -379,8 +373,6 @@ int main(int argc, char* argv[]) {
     // Initialize debug system
     std::vector<std::string> debug_channels = {"all"};
     Debug::init("mp3out_debug.log", debug_channels);
-    // Note: registerAllCodecs/Demuxers not needed for direct Libmpg123 usage
-    // But good practice if we used tags/lyrics features that rely on them
     registerAllCodecs();
     registerAllDemuxers();
     

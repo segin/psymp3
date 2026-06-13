@@ -304,7 +304,7 @@ void IOHandlerRegistry::registerBuiltInHandlers() {
         if (path.substr(0, 7) == "file://") {
             path = path.substr(7);
         }
-        return std::make_unique<FileIOHandler>(TagLib::String(path.c_str()));
+        return std::make_unique<FileIOHandler>(TagLib::String(path, TagLib::String::UTF8));
     });
     
     // Register built-in HTTP handler

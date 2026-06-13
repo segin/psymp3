@@ -567,7 +567,7 @@ void test_unicode_filename_support() {
             LegacyCompatibilityTest::createTestFile(filename, "Unicode filename test content");
             
             // Test that FileIOHandler can open Unicode filenames
-            FileIOHandler handler{TagLib::String(filename)};
+            FileIOHandler handler{TagLib::String(filename, TagLib::String::UTF8)};
             
             // Verify basic operations work
             LegacyCompatibilityTest::assert_false(handler.eof(), "Unicode filename handler should not be at EOF");

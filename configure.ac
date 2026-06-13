@@ -40,19 +40,8 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 AC_CHECK_FUNCS([atexit getcwd memset])
 
 # Core mandatory dependencies
-# SDL: Try pkg-config first, fall back to sdl-config
-PKG_CHECK_MODULES([SDL], [sdl >= 1.2], [], [
-  AC_MSG_CHECKING([for SDL using sdl-config])
-  if test -x "`which sdl-config 2>/dev/null`"; then
-    SDL_CFLAGS="`sdl-config --cflags`"
-    SDL_LIBS="`sdl-config --libs`"
-    AC_MSG_RESULT([yes])
-    AC_SUBST([SDL_CFLAGS])
-    AC_SUBST([SDL_LIBS])
-  else
-    AC_MSG_RESULT([no])
-    AC_MSG_ERROR([SDL >= 1.2 is required. Install libsdl1.2-dev or equivalent.])
-  fi
+PKG_CHECK_MODULES([SDL], [sdl2 >= 2.0], [], [
+  AC_MSG_ERROR([SDL2 >= 2.0 is required. Install libsdl2-dev or equivalent.])
 ])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])
@@ -63,10 +52,6 @@ PKG_CHECK_MODULES([CURL], [libcurl])
 AC_ARG_ENABLE([flac],
   [AS_HELP_STRING([--enable-flac], [Enable FLAC support (native implementation, no libFLAC dependency) @<:@default=yes@:>@])],
   [enable_flac=$enableval], [enable_flac=yes])
-
-AC_ARG_ENABLE([mp3],
-  [AS_HELP_STRING([--enable-mp3], [Enable MP3 support @<:@default=yes@:>@])],
-  [enable_mp3=$enableval], [enable_mp3=yes])
 
 AC_ARG_ENABLE([vorbis],
   [AS_HELP_STRING([--enable-vorbis], [Enable Vorbis support @<:@default=yes@:>@])],
@@ -87,7 +72,6 @@ AC_ARG_ENABLE([g722],
 # Check for optional codec libraries
 have_flac=no
 have_native_flac=no
-have_mp3=no
 have_vorbis=no
 have_opus=no
 have_aac=no
@@ -102,12 +86,7 @@ if test "x$enable_flac" = "xyes"; then
   AC_MSG_NOTICE([Using native FLAC decoder (RFC 9639 compliant, no external dependencies)])
 fi
 
-if test "x$enable_mp3" = "xyes"; then
-  PKG_CHECK_MODULES([LIBMPG123], [libmpg123 >= 1.8], [have_mp3=yes], [have_mp3=no])
-  if test "x$have_mp3" = "xyes"; then
-    AC_DEFINE([HAVE_MP3], [1], [Define to 1 if MP3 support is enabled])
-  fi
-fi
+
 
 # Check for libogg first - required for Vorbis, Opus, and optionally FLAC
 PKG_CHECK_MODULES([OGG], [ogg], [have_ogg=yes], [have_ogg=no])
@@ -216,7 +195,6 @@ have_mulaw=no
 
 if test "x$enable_alaw" = "xyes"; then
   have_alaw=yes
-  AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
 fi
 
 # G711 codec option (enables both μ-law and A-law)
@@ -235,13 +213,18 @@ else
   # Enable both codecs by default
   have_alaw=yes
   have_mulaw=yes
+fi
+
+# Define codec macros based on final have_alaw/have_mulaw values
+if test "x$have_alaw" = "xyes"; then
   AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
+fi
+if test "x$have_mulaw" = "xyes"; then
   AC_DEFINE([ENABLE_MULAW_CODEC], [1], [Define to 1 if μ-law codec support is enabled])
 fi
 
 AM_CONDITIONAL([HAVE_G711], [test "x$have_g711" = "xyes"])
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
-AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
@@ -464,7 +447,7 @@ PKG_CHECK_MODULES([DEPENDS], [taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
-AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/codecs/aac/Makefile src/lastfm/Makefile src/mpris/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/tag/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/core/Makefile src/core/utility/Makefile src/core/compression/Makefile res/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/codecs/aac/Makefile src/lastfm/Makefile src/mpris/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/demuxer/mp3/Makefile src/tag/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/core/Makefile src/core/utility/Makefile src/core/compression/Makefile res/Makefile tests/Makefile])
 
 # Print configuration summary
 echo ""
@@ -475,12 +458,12 @@ echo ""
 echo "Core Dependencies:"
 echo "  SDL:           yes"
 echo "  TagLib:        yes"
-echo "  FreeType:      yes"
+echo "  FreeType2:     yes"
 echo "  OpenSSL:       yes"
 echo "  libcurl:       yes"
 echo ""
 echo "Audio Codec Support:"
-echo "  MP3 (libmpg123):   $have_mp3"
+echo "  MP3 (minimp3):     yes (bundled, no external dependency)"
 echo "  FLAC:              $have_flac"
 if test "x$have_flac" = "xyes"; then
   echo "    Implementation:  Native"
