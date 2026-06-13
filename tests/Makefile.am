@@ -438,6 +438,7 @@ check_PROGRAMS = test_mediafile_split test_rect_area_validation test_rect_contai
 	test_widget_rendering \
 	test_http_client_parse_url \
 	test_http_client_fallback \
+	test_http_iohandler_validation \
 	test_http_io_handler \
 	test_bounded_buffer \
 	test_io_buffer_pool \
@@ -849,6 +850,16 @@ test_http_client_fallback_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
+test_http_iohandler_validation_SOURCES = test_http_iohandler_validation.cpp
+test_http_iohandler_validation_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	-lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 test_bounded_buffer_SOURCES = test_bounded_buffer.cpp
