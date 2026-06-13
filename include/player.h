@@ -85,7 +85,9 @@ class Player
         static Uint32 AutomatedTestTimer(Uint32 interval, void* param);
         static Uint32 AutomatedQuitTimer(Uint32 interval, void* param);
         /* SDL event synthesis */
-        static void synthesizeUserEvent(int uevent, void *data1, void *data2);
+        // Returns true if the event was queued; false if SDL dropped it (e.g.
+        // queue full). Callers that pass a heap-owned payload must check this.
+        static bool synthesizeUserEvent(int uevent, void *data1, void *data2);
         static void synthesizeKeyEvent(SDLKey kpress);
         /* state management */
 
@@ -107,6 +109,8 @@ class Player
             Stream* stream;
             TagLib::String error_message;
             size_t num_chained_tracks; // How many tracks are in this stream (for playlist advancement)
+            std::vector<int16_t> primed_samples;
+            bool primed_eof = false;
         };
 
         // Asynchronous track loading
@@ -169,6 +173,7 @@ class Player
         void renderOverlay(Stream* current_stream, unsigned long current_pos_ms);
 
         bool updateGUI();
+        bool handleWindowEvent(const SDL_WindowEvent& event);
         bool handleKeyPress(const SDL_keysym& keysym);
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
         void handleMouseMotion(const SDL_MouseMotionEvent& event);
@@ -188,6 +193,7 @@ class Player
         void handleDoSetLoopModeEvent(LoopMode mode);
         void handleKeyUp(const SDL_keysym& keysym);
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
+        void seekToInternal(unsigned long pos, bool monitor_seek_errors);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
         
         // Initialization and cleanup
@@ -210,6 +216,8 @@ class Player
         
         Stream* stream = nullptr;
         std::unique_ptr<Stream> m_next_stream; // Slot for the pre-loaded next track
+        std::vector<int16_t> m_next_stream_primed_samples;
+        bool m_next_stream_primed_eof = false;
         size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
         size_t m_num_tracks_in_current_stream = 0; // How many playlist entries the current stream represents
 

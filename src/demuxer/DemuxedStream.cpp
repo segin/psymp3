@@ -12,21 +12,18 @@
 namespace PsyMP3 {
 namespace Demuxer {
 
-DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id) 
-    : Stream(), m_current_stream_id(preferred_stream_id) {
-    m_path = path;
-    loadLyrics();
-    
+DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id)
+    // Chain through Stream(path) so the base class opens its own TagLib
+    // FileRef and loads lyrics; otherwise tag accessors return empty for every
+    // demuxer-routed format (including MP3 since the minimp3 migration).
+    : Stream(path), m_current_stream_id(preferred_stream_id) {
     if (!initialize()) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
     }
 }
 
-DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id) 
-    : Stream(), m_current_stream_id(preferred_stream_id) {
-    m_path = path;
-    loadLyrics();
-    
+DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id)
+    : Stream(path), m_current_stream_id(preferred_stream_id) {
     if (!initializeWithHandler(std::move(handler))) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
     }
@@ -146,6 +143,9 @@ void DemuxedStream::updateStreamProperties() {
 }
 
 size_t DemuxedStream::getData(size_t len, void *buf) {
+    // Serialize the entire decode path against seekTo so a concurrent seek
+    // cannot clear m_current_frame / the chunk buffers mid-decode.
+    std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
     if (m_eof_reached || !m_codec) {
         return 0;
     }
@@ -410,7 +410,10 @@ void DemuxedStream::seekTo(unsigned long pos) {
     if (!m_demuxer) {
         return;
     }
-    
+
+    // Exclude the decoder thread (getData) for the whole seek; see m_decode_mutex.
+    std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
+
     // Thread-safe clearing of chunk buffer and current frame
     {
         std::lock_guard<std::mutex> lock(m_buffer_mutex);
@@ -608,72 +611,65 @@ const PsyMP3::Tag::Tag& DemuxedStream::getTag() const {
 }
 
 TagLib::String DemuxedStream::getArtist() {
-    if (!m_demuxer) {
-        return TagLib::String();
-    }
-    
-    // First, try to get artist from the demuxer's Tag framework
-    const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
-    if (!tag.isEmpty()) {
-        std::string artist = tag.artist();
-        if (!artist.empty()) {
-            return TagLib::String(artist, TagLib::String::UTF8);
+    if (m_demuxer) {
+        // First, try to get artist from the demuxer's Tag framework
+        const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+        if (!tag.isEmpty()) {
+            std::string artist = tag.artist();
+            if (!artist.empty()) {
+                return TagLib::String(artist, TagLib::String::UTF8);
+            }
+        }
+
+        // Fall back to StreamInfo metadata (legacy path for Ogg files)
+        StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+        if (!stream_info.artist.empty()) {
+            return TagLib::String(stream_info.artist, TagLib::String::UTF8);
         }
     }
-    
-    // Fall back to StreamInfo metadata (legacy path for Ogg files)
-    StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
-    if (!stream_info.artist.empty()) {
-        return TagLib::String(stream_info.artist, TagLib::String::UTF8);
-    }
 
-    return TagLib::String();
+    // Last resort: read tags through the base class's TagLib::FileRef. This
+    // covers MP3NullDemuxer (and any other demuxer that doesn't parse ID3
+    // into the Tag framework), where ID3v2 tags would otherwise be unread.
+    return Stream::getArtist();
 }
 
 TagLib::String DemuxedStream::getTitle() {
-    if (!m_demuxer) {
-        return TagLib::String();
-    }
-    
-    // First, try to get title from the demuxer's Tag framework
-    const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
-    if (!tag.isEmpty()) {
-        std::string title = tag.title();
-        if (!title.empty()) {
-            return TagLib::String(title, TagLib::String::UTF8);
+    if (m_demuxer) {
+        const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+        if (!tag.isEmpty()) {
+            std::string title = tag.title();
+            if (!title.empty()) {
+                return TagLib::String(title, TagLib::String::UTF8);
+            }
+        }
+
+        StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+        if (!stream_info.title.empty()) {
+            return TagLib::String(stream_info.title, TagLib::String::UTF8);
         }
     }
-    
-    // Fall back to StreamInfo metadata (legacy path for Ogg files)
-    StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
-    if (!stream_info.title.empty()) {
-        return TagLib::String(stream_info.title, TagLib::String::UTF8);
-    }
 
-    return TagLib::String();
+    return Stream::getTitle();
 }
 
 TagLib::String DemuxedStream::getAlbum() {
-    if (!m_demuxer) {
-        return TagLib::String();
-    }
-    
-    // First, try to get album from the demuxer's Tag framework
-    const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
-    if (!tag.isEmpty()) {
-        std::string album = tag.album();
-        if (!album.empty()) {
-            return TagLib::String(album, TagLib::String::UTF8);
+    if (m_demuxer) {
+        const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+        if (!tag.isEmpty()) {
+            std::string album = tag.album();
+            if (!album.empty()) {
+                return TagLib::String(album, TagLib::String::UTF8);
+            }
+        }
+
+        StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+        if (!stream_info.album.empty()) {
+            return TagLib::String(stream_info.album, TagLib::String::UTF8);
         }
     }
-    
-    // Fall back to StreamInfo metadata (legacy path for Ogg files)
-    StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
-    if (!stream_info.album.empty()) {
-        return TagLib::String(stream_info.album, TagLib::String::UTF8);
-    }
 
-    return TagLib::String();
+    return Stream::getAlbum();
 }
 
 } // namespace Demuxer

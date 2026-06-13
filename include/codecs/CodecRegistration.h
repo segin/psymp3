@@ -42,8 +42,8 @@
  * - Ogg FLAC passthrough (HAVE_FLAC && HAVE_OGGDEMUXER)
  * - Speex codec (HAVE_OGGDEMUXER)
  * 
- * Legacy Stream architecture (not registered with CodecRegistry):
- * - MP3 codec (HAVE_MP3) - uses Libmpg123 class
+ * Always available codecs:
+ * - MP3 codec (minimp3)
  * 
  * This function should be called once at application startup before
  * any codec creation is attempted.

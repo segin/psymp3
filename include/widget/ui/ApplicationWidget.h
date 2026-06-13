@@ -122,10 +122,11 @@ public:
     void updateWindows();
     
     /**
-     * @brief Removes all toast windows immediately.
+     * @brief Removes all toast windows, optionally fading them out first.
      * Used when showing a new toast to replace existing ones.
+     * @param fade_out_ms Fade duration in milliseconds; 0 removes immediately
      */
-    void removeAllToasts();
+    void removeAllToasts(int fade_out_ms = 0);
     
     /**
      * @brief Schedules a window for removal on the next update cycle.

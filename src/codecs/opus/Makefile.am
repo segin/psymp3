@@ -14,9 +14,6 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -Wall -Werror
 
 # Add optional codec flags if available
-if HAVE_MP3
-AM_CPPFLAGS += $(LIBMPG123_CFLAGS)
-endif
 
 if HAVE_VORBIS
 AM_CPPFLAGS += $(VORBIS_CFLAGS)

@@ -21,24 +21,25 @@
 #include "core/persistentstorage.cpp"
 #include "core/rect.cpp"
 #include "core/song.cpp"
+#include "core/display.cpp"
+#include "core/font.cpp"
+#include "core/surface.cpp"
+#include "core/truetype.cpp"
 #include "debug.cpp"
-#include "display.cpp"
-#include "exceptions.cpp"
-#include "font.cpp"
+#include "core/exceptions.cpp"
 #include "core/lyrics.cpp"
 #include "main.cpp"
 #include "mediafile.cpp"
 #include "player.cpp"
 #include "playlist.cpp"
 #include "stream.cpp"
-#include "surface.cpp"
 #include "system.cpp"
 #include "track.cpp"
-#include "truetype.cpp"
 
 // ============================================================================
 // Utility
 // ============================================================================
+#include "core/utility/Base64.cpp"
 #include "core/utility/UTF8Util.cpp"
 #include "core/utility/XMLUtil.cpp"
 #include "core/utility/utility.cpp"
@@ -133,6 +134,14 @@
 #endif
 
 // ============================================================================
+// MP3 Codec/Demuxer (always available via bundled minimp3)
+// ============================================================================
+#include "demuxer/mp3/MP3NullDemuxer.cpp"
+#define MINIMP3_IMPLEMENTATION
+#include "../third_party/minimp3/minimp3.h"
+#include "codecs/mp3/MiniMP3Codec.cpp"
+
+// ============================================================================
 // Optional Codec: Vorbis
 // ============================================================================
 #ifdef HAVE_VORBIS
@@ -180,13 +189,6 @@
 #endif // HAVE_FLAC
 
 // ============================================================================
-// Optional Codec: MP3
-// ============================================================================
-#ifdef HAVE_MP3
-#include "codecs/mp3/MP3Codec.cpp"
-#endif
-
-// ============================================================================
 // Widget System - Foundation
 // ============================================================================
 #include "widget/foundation/DrawableWidget.cpp"
@@ -216,11 +218,13 @@
 #include "widget/ui/ProgressBarFrameWidget.cpp"
 #include "widget/ui/ScrollbarWidget.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
+#include "widget/ui/TextInputWidget.cpp"
 #include "widget/ui/ToastWidget.cpp"
 
 // ============================================================================
 // Tag Subsystem
 // ============================================================================
+#include "tag/ImageUtils.cpp"
 #include "tag/Tag.cpp"
 #include "tag/NullTag.cpp"
 #include "tag/VorbisCommentTag.cpp"

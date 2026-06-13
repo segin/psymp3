@@ -23,6 +23,34 @@
 
 #include "psymp3.h"
 
+namespace {
+
+bool ensureSDLAudioSubsystem()
+{
+    static std::once_flag init_once;
+    static bool init_ok = false;
+
+    std::call_once(init_once, []() {
+        if ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) != 0) {
+            init_ok = true;
+            return;
+        }
+
+        Debug::log("audio", "Audio::setup: Initializing SDL audio subsystem on demand");
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+            Debug::log("audio", "Unable to init SDL audio subsystem: ", SDL_GetError());
+            init_ok = false;
+            return;
+        }
+
+        init_ok = true;
+    });
+
+    return init_ok || ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) != 0);
+}
+
+} // namespace
+
 /**
  * @brief Constructs an Audio object.
  * @param data A pointer to a struct containing shared data from the Player,
@@ -30,7 +58,11 @@
  *             the mutex for thread-safe access to the stream.
  * This constructor initializes the audio system for the given stream and starts the background decoder thread.
  */
-Audio::Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex *player_mutex)
+Audio::Audio(std::unique_ptr<Stream> stream_to_own,
+             FastFourier *fft,
+             std::mutex *player_mutex,
+             std::vector<int16_t> primed_samples,
+             bool primed_eof)
     : m_active(true),
       m_owned_stream(std::move(stream_to_own)),
       m_current_stream_raw_ptr(m_owned_stream.get()),
@@ -44,6 +76,8 @@ Audio::Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex
     }
     Debug::log("audio", "Audio::Audio(): ", std::dec, m_owned_stream->getRate(), "Hz, channels: ", std::dec, m_owned_stream->getChannels());
     m_buffer.reserve(16384); // Reserve space for the buffer to avoid reallocations
+    m_buffer = std::move(primed_samples);
+    m_stream_eof = primed_eof;
     setup();
     m_decoder_thread = std::thread(&Audio::decoderThreadLoop, this);
 }
@@ -70,7 +104,10 @@ Audio::~Audio() {
         m_decoder_thread.join();
     }
     
-    SDL_CloseAudio();
+    if (m_device_id != 0) {
+        SDL_CloseAudioDevice(m_device_id);
+        m_device_id = 0;
+    }
 }
 
 /**
@@ -80,26 +117,33 @@ Audio::~Audio() {
  * of the current stream and registers the static `callback` function to be called by SDL.
  */
 void Audio::setup() {
-    SDL_AudioSpec desired, obtained;
+    SDL_AudioSpec desired{}, obtained{};
 
-    if ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) == 0) {
-        Debug::log("audio", "Audio::setup: Initializing SDL audio subsystem on demand");
-        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
-            Debug::log("audio", "Unable to init SDL audio subsystem: ", SDL_GetError());
-            return;
-        }
+    if (!ensureSDLAudioSubsystem()) {
+        return;
     }
+
+    // Lock memory to prevent swapping-induced latency spikes
+    System::lockMemory();
 
     // Use m_current_stream_raw_ptr to get rate and channels
     desired.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
     desired.format = AUDIO_S16; /* Always, I hope */
     desired.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
     Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: AUDIO_S16");
-    desired.samples = 512 * desired.channels; /* 512 samples for fft */
+
+    // A stream reporting zero rate or channels is malformed; opening the device
+    // would let the audio callback divide by zero (SIGFPE).
+    if (m_rate == 0 || m_channels == 0) {
+        Debug::log("audio", "Audio::setup: Refusing to open device with invalid rate=", m_rate, " channels=", static_cast<int>(m_channels));
+        return;
+    }
+    desired.samples = 512; /* 512 sample frames for FFT / low-latency callback pacing */
     desired.callback = callback;
     desired.userdata = this;
     
-    if ( SDL_OpenAudio(&desired, &obtained) < 0 ) {
+    m_device_id = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
+    if (m_device_id == 0) {
         Debug::log("audio", "Unable to open audio: ", SDL_GetError());
         // throw;
     } else {
@@ -118,9 +162,11 @@ void Audio::setup() {
             Debug::log("audio", "WARNING: Audio format mismatch! Requested AUDIO_S16 but got format ", obtained.format);
         }
         
-        // Update our stored values to match what SDL actually opened
-        m_rate = obtained.freq;
-        m_channels = obtained.channels;
+        // Keep the stream format separate from the device format. The player
+        // position math and stream reuse checks are based on decoded PCM, not
+        // the backend's obtained device configuration.
+        m_device_rate = obtained.freq;
+        m_device_channels = obtained.channels;
     }
 }
 
@@ -130,7 +176,9 @@ void Audio::setup() {
  */
 void Audio::play(bool go) {
     m_playing = go;
-    SDL_PauseAudio(go ? 0 : 1);
+    if (m_device_id != 0) {
+        SDL_PauseAudioDevice(m_device_id, go ? 0 : 1);
+    }
     
     // Notify decoder thread about playback state change
     // This is critical for proper shutdown when play(false) is called
@@ -144,13 +192,21 @@ void Audio::play(bool go) {
  * This method is thread-safe and is used to seamlessly switch tracks.
  * @param new_stream A pointer to the new Stream object.
  */
-std::unique_ptr<Stream> Audio::setStream(std::unique_ptr<Stream> new_stream)
+std::unique_ptr<Stream> Audio::setStream(std::unique_ptr<Stream> new_stream,
+                                         std::vector<int16_t> primed_samples,
+                                         bool primed_eof)
 {
+    if (new_stream && primed_samples.empty() && !primed_eof) {
+        auto primed = primeStream(new_stream.get(), 0);
+        primed_samples = std::move(primed.first);
+        primed_eof = primed.second;
+    }
+
     // Lock acquisition order: m_stream_mutex before m_buffer_mutex
     std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
     std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
 
-    return setStream_unlocked(std::move(new_stream));
+    return setStream_unlocked(std::move(new_stream), std::move(primed_samples), primed_eof);
 }
 
 /**
@@ -169,22 +225,6 @@ bool Audio::isFinished() const
 }
 
 /**
- * @brief Locks the audio device using the SDL_LockAudio function.
- * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
- */
-void Audio::lock(void) {
-    SDL_LockAudio();
-}
-
-/**
- * @brief Unlocks the audio device using the SDL_UnlockAudio function.
- * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
- */
-void Audio::unlock(void) {
-    SDL_UnlockAudio();
-}
-
-/**
  * @brief Clears the decoded audio buffer and resets the samples-played counter.
  *
  * Thread-safe; acquires `m_buffer_mutex` internally.
@@ -192,6 +232,10 @@ void Audio::unlock(void) {
 void Audio::resetBuffer() {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     resetBuffer_unlocked();
+    // Wake the decoder so it refills after a seek. Required now that the decode
+    // loop blocks on the high water mark even while paused: clearing the buffer
+    // alone would otherwise leave the decoder asleep until the next drain.
+    m_buffer_cv.notify_all();
 }
 
 /**
@@ -240,6 +284,7 @@ uint64_t Audio::getBufferLatencyMs() const {
  */
 void Audio::decoderThreadLoop() {
     System::setThisThreadName("audio-decoder");
+    System::setThreadPriority(System::ThreadPriority::High);
     std::vector<int16_t> decode_chunk(4096); // Decode in 8KB chunks
     // The high water mark prevents the decoder from reading too far ahead,
     // which is important for responsive seeking and track changes. It defines
@@ -248,15 +293,19 @@ void Audio::decoderThreadLoop() {
 
     while (m_active)
     {
-        Stream* local_stream = nullptr;
+        std::shared_ptr<Stream> local_stream;
         // Wait until there is a valid stream to process, and get a safe local copy.
         {
             std::unique_lock<std::mutex> lock(m_stream_mutex);
+            // Also block while the installed stream is already at EOF: otherwise
+            // the loop re-enters, getData() returns 0 immediately, and the thread
+            // busy-spins at 100% CPU until Player installs a new stream.
+            // setStream_unlocked() clears m_stream_eof and notifies this cv.
             m_stream_cv.wait(lock, [this] {
-                return m_owned_stream != nullptr || !m_active;
+                return (m_owned_stream != nullptr && !m_stream_eof) || !m_active;
             });
             if (!m_active) break;
-            local_stream = m_owned_stream.get();
+            local_stream = m_owned_stream;
         }
 
         // Inner loop: Decode from the current stream until it ends.
@@ -265,7 +314,13 @@ void Audio::decoderThreadLoop() {
             {
                 std::unique_lock<std::mutex> lock(m_buffer_mutex);
                 m_buffer_cv.wait(lock, [this] {
-                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active || !m_playing;
+                    // Backpressure: only decode when the buffer is below the high
+                    // water mark (or on shutdown). Do NOT also wake on !m_playing:
+                    // while paused nothing drains the buffer, so a !m_playing term
+                    // lets the decoder run past the mark and grow it without bound.
+                    // resetBuffer() (seek) and the SDL callback (drain) both notify
+                    // this cv, so the decoder still wakes promptly when space frees.
+                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active;
                 });
             }
 
@@ -273,24 +328,23 @@ void Audio::decoderThreadLoop() {
 
             size_t bytes_read = 0;
             bool eof = false;
-            Stream* validated_stream = nullptr;
+            std::shared_ptr<Stream> validated_stream;
             
             // CRITICAL SECTION: Minimize player mutex hold time
             {
                 // Lock the player mutex ONLY for stream validation (not during decoding)
                 std::lock_guard<std::mutex> lock(*m_player_mutex);
                 
-                // CRITICAL: Before using local_stream, verify it's still the active stream.
+                // Verify local_stream is still the active stream using the
+                // atomic raw pointer (kept in sync with m_owned_stream by the
+                // ctor and setStream_unlocked). Do NOT read the non-atomic
+                // m_owned_stream here: setStream mutates it under m_stream_mutex,
+                // not the player mutex, so that read would be a data race. The
+                // authoritative re-check under m_stream_mutex below discards any
+                // stale decode before it is committed.
                 Stream* current_stream = m_current_stream_raw_ptr.load();
-                if (local_stream == current_stream && current_stream != nullptr) {
-                    // Double-check the stream is still valid by verifying it matches our owned stream
-                    if (m_owned_stream.get() == current_stream) {
-                        validated_stream = local_stream; // Stream is valid for use
-                    } else {
-                        // Stream ownership has changed, break to re-evaluate
-                        Debug::log("audio", "Audio decoder thread: Stream ownership changed, breaking");
-                        break;
-                    }
+                if (local_stream.get() == current_stream && current_stream != nullptr) {
+                    validated_stream = local_stream; // Stream is valid for use
                 } else {
                     // Stream has changed. Break to re-evaluate in the outer loop.
                     Debug::log("audio", "Audio decoder thread: Stream changed, breaking to re-evaluate");
@@ -323,8 +377,16 @@ void Audio::decoderThreadLoop() {
                 }
             }
 
+            std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+
+            if (local_stream.get() != m_owned_stream.get() ||
+                local_stream.get() != m_current_stream_raw_ptr.load()) {
+                Debug::log("audio", "Audio decoder thread: Discarding stale decode result after stream swap");
+                break;
+            }
+
             if (bytes_read > 0) {
-                std::lock_guard<std::mutex> lock(m_buffer_mutex);
                 size_t samples_read = bytes_read / sizeof(int16_t);
                 m_buffer.insert(m_buffer.end(), decode_chunk.begin(), decode_chunk.begin() + samples_read);
                 
@@ -335,14 +397,7 @@ void Audio::decoderThreadLoop() {
             m_buffer_cv.notify_one();
 
             if (eof) {
-                // This stream is finished. Signal this by setting the eof flag.
-                // The stream object itself will be cleared when the next track is loaded.
-                size_t final_buffer_size = 0;
-                {
-                    std::lock_guard<std::mutex> buf_lock(m_buffer_mutex);
-                    final_buffer_size = m_buffer.size();
-                }
-                Debug::log("audio", "Audio decoder thread: EOF detected, final buffer size=", final_buffer_size, " samples");
+                Debug::log("audio", "Audio decoder thread: EOF detected, final buffer size=", m_buffer.size(), " samples");
                 m_stream_eof = true;
                 break; // Exit the inner decoding loop.
             }
@@ -373,6 +428,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     thread_local bool thread_name_set = false;
     if (!thread_name_set) {
         System::setThisThreadName("sdl-audio");
+        System::setThreadPriority(System::ThreadPriority::TimeCritical);
         thread_name_set = true;
     }
 
@@ -422,7 +478,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
 
     // Perform FFT on the data we are sending to the sound card
     if (bytes_copied > 0) { // FIXED: Always compute FFT, regardless of GUI state
-        std::lock_guard<std::mutex> lock(*self->m_player_mutex);
+        std::lock_guard<std::mutex> lock(self->m_fft_mutex);
         toFloat(self->m_channels, reinterpret_cast<int16_t*>(buf), self->m_fft->getTimeDom());
         self->m_fft->doFFT();
     }
@@ -475,12 +531,14 @@ bool Audio::isFinished_unlocked() const {
  * @param new_stream The new stream to set
  * @return nullptr (ownership transferred)
  */
-std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_stream) {
-    m_buffer.clear();
-    m_owned_stream = std::move(new_stream);
+std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_stream,
+                                                  std::vector<int16_t> primed_samples,
+                                                  bool primed_eof) {
+    m_buffer = std::move(primed_samples);
+    m_owned_stream = std::shared_ptr<Stream>(std::move(new_stream));
     m_current_stream_raw_ptr.store(m_owned_stream.get());
     m_samples_played = 0;
-    m_stream_eof = false;
+    m_stream_eof = primed_eof;
 
     // Notify the decoder thread that a new stream is available.
     m_stream_cv.notify_one();
@@ -505,6 +563,24 @@ uint64_t Audio::getBufferLatencyMs_unlocked() const {
     }
     size_t samples_in_buffer = m_buffer.size() / m_channels;
     return (static_cast<uint64_t>(samples_in_buffer) * 1000) / m_rate;
+}
+
+std::pair<std::vector<int16_t>, bool> Audio::primeStream(Stream* stream, size_t max_samples)
+{
+    if (!stream) {
+        return {{}, false};
+    }
+
+    if (max_samples == 0) {
+        const size_t samples_per_ms = static_cast<size_t>(stream->getRate()) *
+                                      static_cast<size_t>(stream->getChannels());
+        max_samples = std::max<size_t>(4096, samples_per_ms / 2);
+    }
+
+    std::vector<int16_t> primed_samples(max_samples);
+    const size_t bytes_read = stream->getData(max_samples * sizeof(int16_t), primed_samples.data());
+    primed_samples.resize(bytes_read / sizeof(int16_t));
+    return {std::move(primed_samples), stream->eof()};
 }
 
 /**
@@ -573,18 +649,17 @@ void Audio::toFloat(int channels, int16_t *in, float *out) {
             __m128i int32_lo = _mm_unpacklo_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
             __m128i int32_hi = _mm_unpackhi_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
             
-            // Convert to float
+            // Convert to float: float_lo = [L0,R0,L1,R1], float_hi = [L2,R2,L3,R3]
             __m128 float_lo = _mm_cvtepi32_ps(int32_lo);
             __m128 float_hi = _mm_cvtepi32_ps(int32_hi);
-            
-            // Manually add pairs: (L+R, L+R, L+R, L+R) since _mm_hadd_ps requires SSE3
-            // Shuffle to get L and R values adjacent for addition
-            __m128 lo_shuffled = _mm_shuffle_ps(float_lo, float_lo, _MM_SHUFFLE(3, 1, 2, 0)); // L0, R0, L1, R1
-            __m128 hi_shuffled = _mm_shuffle_ps(float_hi, float_hi, _MM_SHUFFLE(3, 1, 2, 0)); // L2, R2, L3, R3
-            __m128 sum_lo = _mm_add_ps(lo_shuffled, _mm_shuffle_ps(lo_shuffled, lo_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
-            __m128 sum_hi = _mm_add_ps(hi_shuffled, _mm_shuffle_ps(hi_shuffled, hi_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
-            __m128 sum = _mm_shuffle_ps(sum_lo, sum_hi, _MM_SHUFFLE(2, 0, 2, 0));
-            
+
+            // Gather the left and right channels separately, then add, so each
+            // output is L_i + R_i. (The previous shuffle summed same-channel
+            // neighbours, producing L0+L1 / R0+R1 instead of L0+R0 / L1+R1.)
+            __m128 lefts  = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(2, 0, 2, 0)); // L0,L1,L2,L3
+            __m128 rights = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(3, 1, 3, 1)); // R0,R1,R2,R3
+            __m128 sum = _mm_add_ps(lefts, rights);                                       // L0+R0, L1+R1, L2+R2, L3+R3
+
             // Scale and store
             __m128 result = _mm_mul_ps(sum, scale_vec);
             _mm_storeu_ps(&out[x], result);
