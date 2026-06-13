@@ -27,9 +27,23 @@ public:
         testLargeAllocation();
         testClear();
         testLimits();
+        testDirectAllocationFailure();
     }
 
 private:
+    void testDirectAllocationFailure() {
+        IOBufferPool& pool = IOBufferPool::getInstance();
+
+        // Request a ridiculously large size to trigger std::bad_alloc
+        // since it is > 1MB, shouldPool() returns false, and it does direct allocation.
+        // It will fail, catch bad_alloc, and return an empty Buffer.
+        size_t size = static_cast<size_t>(-1) - 1024;
+
+        IOBufferPool::Buffer buffer = pool.acquire(size);
+        ASSERT_NULL(buffer.data(), "Buffer data should be null after allocation failure");
+        ASSERT_EQUALS(static_cast<size_t>(0), buffer.size(), "Buffer size should be 0 after allocation failure");
+    }
+
     void testSingleton() {
         IOBufferPool& pool1 = IOBufferPool::getInstance();
         IOBufferPool& pool2 = IOBufferPool::getInstance();
