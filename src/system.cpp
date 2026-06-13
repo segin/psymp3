@@ -532,7 +532,7 @@ bool System::createStoragePath() {
          (GetLastError() == ERROR_ALREADY_EXISTS);
 #else
   // mkdir returns 0 on success.
-  return mkdir(path.toCString(true), 0755) == 0 || (errno == EEXIST);
+  return mkdir(path.toCString(true), 0700) == 0 || (errno == EEXIST);
 #endif
 }
 
