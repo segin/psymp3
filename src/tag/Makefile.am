@@ -32,5 +32,5 @@ AM_CPPFLAGS = \
 	@DBUS_CFLAGS@ \
 	@OPUS_CFLAGS@
 
-AM_CXXFLAGS = -Wall -Werror
+AM_CXXFLAGS = -Wall -Werror $(PSYMP3_CXXFLAGS)
 

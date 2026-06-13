@@ -16,3 +16,6 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 libpsymp3_lastfm_a_SOURCES = \
 	LastFM.cpp \
 	scrobble.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

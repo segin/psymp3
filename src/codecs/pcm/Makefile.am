@@ -44,3 +44,6 @@ libpsymp3_codec_pcm_a_SOURCES = \
 if HAVE_G722
 libpsymp3_codec_pcm_a_SOURCES += G722Codec.cpp
 endif
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

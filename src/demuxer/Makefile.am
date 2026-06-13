@@ -26,3 +26,6 @@ libpsymp3_demuxer_a_SOURCES = \
 	DemuxerRegistry.cpp \
 	MediaFactory.cpp \
 	ModernStream.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

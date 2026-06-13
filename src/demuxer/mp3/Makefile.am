@@ -34,3 +34,6 @@ noinst_LIBRARIES = libpsymp3-demuxer-mp3.a
 
 libpsymp3_demuxer_mp3_a_SOURCES = \
 	MP3NullDemuxer.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

@@ -4018,3 +4018,6 @@ test_http_io_handler_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

@@ -36,3 +36,6 @@ endif
 if HAVE_AAC
 SUBDIRS += aac
 endif
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

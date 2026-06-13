@@ -35,3 +35,6 @@ noinst_LIBRARIES = libpsymp3-codec-opus.a
 
 libpsymp3_codec_opus_a_SOURCES = \
 	OpusCodec.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

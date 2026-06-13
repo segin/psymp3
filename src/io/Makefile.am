@@ -29,3 +29,6 @@ libpsymp3_io_a_SOURCES = \
 	BoundedBuffer.cpp \
 	RAIIFileHandle.cpp \
 	MemoryIOHandler.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

@@ -13,17 +13,29 @@ AC_HEADER_STDBOOL
 AC_FUNC_MALLOC
 AX_CXX_COMPILE_STDCXX_17
 
-# Check for -Wno-psabi (suppress GCC 7.1 ABI warnings on ARM)
-AC_MSG_CHECKING([if compiler supports -Wno-psabi])
-OLD_CXXFLAGS="$CXXFLAGS"
-CXXFLAGS="$CXXFLAGS -Wno-psabi"
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
-  AC_MSG_RESULT([yes])
-  # Keep -Wno-psabi in CXXFLAGS
-], [
-  AC_MSG_RESULT([no])
-  CXXFLAGS="$OLD_CXXFLAGS"
-])
+# Project-owned C++ flags (ABI-quieting + security hardening). These are kept
+# in a substituted variable wired into each Makefile.am's AM_CXXFLAGS rather
+# than appended to the user's CXXFLAGS, so a `make CXXFLAGS=...` override (or a
+# distro build that resets CXXFLAGS) cannot silently drop hardening or
+# re-expose the GCC 7.1 ARM psabi warnings. Each flag is probed for support.
+#   -Wno-psabi             : suppress GCC 7.1 ARM ABI-change notes (noise only)
+#   -fstack-protector-strong, -fPIE, -D_FORTIFY_SOURCE=2 : hardening
+PSYMP3_CXXFLAGS=""
+AC_LANG_PUSH([C++])
+for psymp3_flag in -Wno-psabi -fstack-protector-strong -fPIE; do
+  AC_MSG_CHECKING([if compiler supports $psymp3_flag])
+  psymp3_save_cxxflags="$CXXFLAGS"
+  CXXFLAGS="$CXXFLAGS $psymp3_flag -Werror"
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])],
+    [AC_MSG_RESULT([yes]); PSYMP3_CXXFLAGS="$PSYMP3_CXXFLAGS $psymp3_flag"],
+    [AC_MSG_RESULT([no])])
+  CXXFLAGS="$psymp3_save_cxxflags"
+done
+AC_LANG_POP([C++])
+# _FORTIFY_SOURCE needs an optimizing build; it is inert (with a warning we do
+# not treat as error here) at -O0, so request it unconditionally as before.
+PSYMP3_CXXFLAGS="$PSYMP3_CXXFLAGS -D_FORTIFY_SOURCE=2"
+AC_SUBST([PSYMP3_CXXFLAGS])
 
 
 # Check for atomic library (required for 64-bit atomics on some 32-bit architectures like ARM)
@@ -369,7 +381,9 @@ if test -n "$SANITIZER_FLAGS"; then
 fi
 
 # Security Hardening Flags
-CXXFLAGS="$CXXFLAGS -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE"
+# Compile-side hardening (-fstack-protector-strong, -fPIE, -D_FORTIFY_SOURCE=2)
+# is carried in PSYMP3_CXXFLAGS (see above) and applied via each AM_CXXFLAGS so
+# it survives a user CXXFLAGS override. Link-side hardening stays here.
 LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now -pie"
 
 AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])

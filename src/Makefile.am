@@ -195,3 +195,6 @@ endif
 if HAVE_WINDRES
 psymp3_LDADD += ../res/psymp3.res
 endif
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

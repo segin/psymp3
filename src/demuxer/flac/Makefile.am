@@ -34,3 +34,6 @@ noinst_LIBRARIES = libpsymp3-demuxer-flac.a
 
 libpsymp3_demuxer_flac_a_SOURCES = \
 	FLACDemuxer.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

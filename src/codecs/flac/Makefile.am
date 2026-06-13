@@ -49,3 +49,6 @@ libpsymp3_codec_flac_a_SOURCES = \
 	MD5Validator.cpp \
 	NativeFLACCodec.cpp
 endif
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

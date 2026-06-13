@@ -36,3 +36,6 @@ noinst_LIBRARIES = libpsymp3-codec-aac.a
 
 libpsymp3_codec_aac_a_SOURCES = \
 	AACCodec.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

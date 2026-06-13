@@ -16,3 +16,6 @@ noinst_LIBRARIES = libpsymp3-codec-mp3.a
 
 libpsymp3_codec_mp3_a_SOURCES = \
 	MiniMP3Codec.cpp
+
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
