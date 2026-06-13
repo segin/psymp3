@@ -56,6 +56,14 @@ T read_le(IOHandler* handler)
     if (handler->read(&value, sizeof(T), 1) != 1) {
         throw BadFormatException("WaveStream: Unexpected end of file while reading header.");
     }
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    // WAV header fields are little-endian; swap on big-endian hosts. No-op on
+    // the little-endian targets this project ships on.
+    if constexpr (sizeof(T) > 1) {
+        unsigned char* p = reinterpret_cast<unsigned char*>(&value);
+        std::reverse(p, p + sizeof(T));
+    }
+#endif
     return value;
 }
 
@@ -244,7 +252,12 @@ size_t WaveStream::getData(size_t len, void *buf) {
     std::vector<char> source_buffer(source_bytes_to_read);
     size_t actual_source_bytes_read = m_handler->read(source_buffer.data(), 1, source_bytes_to_read);
 
-    if (actual_source_bytes_read == 0) return 0;
+    if (actual_source_bytes_read == 0) {
+        // A 0-byte read means the data chunk is truncated; mark EOF so the
+        // decoder stops instead of spinning on repeated empty reads.
+        m_eof = true;
+        return 0;
+    }
 
     // Pointers for conversion.
     auto* out_ptr = static_cast<int16_t*>(buf);
@@ -257,7 +270,14 @@ size_t WaveStream::getData(size_t len, void *buf) {
                 for (size_t i = 0; i < samples_to_convert; ++i) *out_ptr++ = (static_cast<int16_t>(static_cast<uint8_t>(*in_ptr++)) - 128) << 8;
             } else if (m_bits_per_sample == 24) {
                 for (size_t i = 0; i < samples_to_convert; ++i) {
-                    int32_t s24_sample = (static_cast<int8_t>(in_ptr[2]) << 16) | (static_cast<uint8_t>(in_ptr[1]) << 8) | static_cast<uint8_t>(in_ptr[0]);
+                    // Build the 24-bit value (little-endian) in unsigned, then
+                    // sign-extend from bit 23. Shifting a negative int8_t left
+                    // by 16 (the previous code) is UB in C++17.
+                    uint32_t raw = (static_cast<uint32_t>(static_cast<uint8_t>(in_ptr[2])) << 16) |
+                                   (static_cast<uint32_t>(static_cast<uint8_t>(in_ptr[1])) << 8) |
+                                    static_cast<uint32_t>(static_cast<uint8_t>(in_ptr[0]));
+                    int32_t s24_sample = (raw & 0x800000u) ? static_cast<int32_t>(raw | 0xFF000000u)
+                                                           : static_cast<int32_t>(raw);
                     in_ptr += 3;
                     *out_ptr++ = static_cast<int16_t>(s24_sample >> 8);
                 }

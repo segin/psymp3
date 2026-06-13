@@ -104,7 +104,10 @@ int32_t SampleReconstructor::convertTo16Bit(int32_t sample,
   case 10:
   case 11:
   case 12:
-    // Requirement 9.5: 4-12 bit depths upscaling
+  case 13:
+  case 14:
+  case 15:
+    // Requirement 9.5: 4-15 bit depths upscaling
     return upscaleTo16(sample, source_bit_depth);
 
   default:
