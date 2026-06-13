@@ -203,7 +203,13 @@ bool DemuxerPluginManager::registerCustomDemuxer(const std::string& format_id,
                                                 DemuxerFactory::DemuxerFactoryFunc factory_func,
                                                 const MediaFormat& format_info) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+    return registerCustomDemuxer_unlocked(format_id, factory_func, format_info);
+}
+
+bool DemuxerPluginManager::registerCustomDemuxer_unlocked(const std::string& format_id,
+                                                DemuxerFactory::DemuxerFactoryFunc factory_func,
+                                                const MediaFormat& format_info) {
+    // Assumes m_mutex is held (called from loadPlugin via registerPluginFormats).
     Debug::log("plugin", "DemuxerPluginManager::registerCustomDemuxer: Registering format: ", format_id);
     
     // Validate parameters
@@ -226,7 +232,7 @@ bool DemuxerPluginManager::registerCustomDemuxer(const std::string& format_id,
             if (MediaFactory::isHttpUri(uri)) {
                 handler = std::make_unique<HTTPIOHandler>(uri);
             } else {
-                handler = std::make_unique<FileIOHandler>(uri);
+                handler = std::make_unique<FileIOHandler>(TagLib::String(uri, TagLib::String::UTF8));
             }
             
             if (!handler) {
@@ -240,7 +246,7 @@ bool DemuxerPluginManager::registerCustomDemuxer(const std::string& format_id,
             }
             
             // Wrap in DemuxedStream
-            return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
         
         // Register with DemuxerFactory
@@ -263,7 +269,12 @@ bool DemuxerPluginManager::registerCustomDemuxer(const std::string& format_id,
 bool DemuxerPluginManager::registerCustomDetector(const std::string& format_id,
                                                  ContentDetector detector_func) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+    return registerCustomDetector_unlocked(format_id, detector_func);
+}
+
+bool DemuxerPluginManager::registerCustomDetector_unlocked(const std::string& format_id,
+                                                 ContentDetector detector_func) {
+    // Assumes m_mutex is held (called from loadPlugin via registerPluginFormats).
     Debug::log("plugin", "DemuxerPluginManager::registerCustomDetector: Registering detector: ", format_id);
     
     // Validate parameters
@@ -291,7 +302,11 @@ bool DemuxerPluginManager::registerCustomDetector(const std::string& format_id,
 
 bool DemuxerPluginManager::unregisterCustomFormat(const std::string& format_id) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+    return unregisterCustomFormat_unlocked(format_id);
+}
+
+bool DemuxerPluginManager::unregisterCustomFormat_unlocked(const std::string& format_id) {
+    // Assumes m_mutex is held (called from unloadPlugin via unregisterPluginFormats).
     Debug::log("plugin", "DemuxerPluginManager::unregisterCustomFormat: Unregistering: ", format_id);
     
     bool found = false;
@@ -523,17 +538,19 @@ bool DemuxerPluginManager::registerPluginFormats(PluginHandle* plugin) {
             // Wrap plugin factory
             auto factory = wrapPluginFactory(plugin->factory_func);
             
-            // Register with MediaFactory
-            if (!registerCustomDemuxer(plugin_format.format_id, factory, format)) {
+            // Register with MediaFactory. Use the _unlocked variant: the caller
+            // (loadPlugin) already holds m_mutex, so the public locking version
+            // would self-deadlock on the non-recursive mutex.
+            if (!registerCustomDemuxer_unlocked(plugin_format.format_id, factory, format)) {
                 Debug::log("plugin", "DemuxerPluginManager::registerPluginFormats: Failed to register format: ", 
                            plugin_format.format_id);
                 return false;
             }
             
-            // Register detector if available
+            // Register detector if available (already under m_mutex; see above)
             if (plugin->detector_func) {
                 auto detector = wrapPluginDetector(plugin->detector_func);
-                registerCustomDetector(plugin_format.format_id, detector);
+                registerCustomDetector_unlocked(plugin_format.format_id, detector);
             }
         }
         
@@ -549,7 +566,8 @@ void DemuxerPluginManager::unregisterPluginFormats(PluginHandle* plugin) {
     if (!plugin) return;
     
     for (const auto& plugin_format : plugin->formats) {
-        unregisterCustomFormat(plugin_format.format_id);
+        // _unlocked: unloadPlugin already holds m_mutex.
+        unregisterCustomFormat_unlocked(plugin_format.format_id);
     }
 }
 

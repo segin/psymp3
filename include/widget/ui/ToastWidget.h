@@ -52,6 +52,9 @@ public:
     /// Toast duration constants (in milliseconds)
     static constexpr int DURATION_SHORT = 2000;   // 2 seconds
     static constexpr int DURATION_LONG = 3500;    // 3.5 seconds
+    static constexpr int FADE_IN_MS = 350;
+    static constexpr int FADE_OUT_MS = 350;
+    static constexpr int CROSSFADE_MS = 200;
     
     /**
      * @brief Constructor for ToastWidget.
@@ -100,6 +103,12 @@ public:
      * @brief Manually dismisses the toast (calls dismiss callback).
      */
     void dismiss();
+
+    /**
+     * @brief Starts the fade-out animation for this toast.
+     * @param fade_duration_ms Fade-out duration in milliseconds
+     */
+    void beginDismiss(int fade_duration_ms = FADE_OUT_MS);
     
     /**
      * @brief Checks if the toast should be automatically dismissed.
@@ -107,11 +116,36 @@ public:
      * @return true if toast should be dismissed, false otherwise
      */
     bool shouldDismiss() const;
+
+    /**
+     * @brief Checks whether the toast is currently fading out.
+     * @return true if the toast is exiting
+     */
+    bool isExiting() const { return m_exiting; }
+
+    /**
+     * @brief Checks whether the toast has finished its fade-out animation.
+     * @return true if the toast can be removed
+     */
+    bool isFinished() const;
     
     /**
      * @brief Resets the dismiss timer (extends the toast lifetime).
      */
     void resetTimer();
+
+    /**
+     * @brief Ensures animated toasts redraw while blitting.
+     * @param target Surface to draw into
+     */
+    virtual void BlitTo(Surface& target) override;
+
+    /**
+     * @brief Ensures animated toasts redraw while recursively blitting.
+     * @param target Surface to draw into
+     * @param parent_absolute_pos Absolute parent position
+     */
+    virtual void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
 
 protected:
     /**
@@ -134,7 +168,10 @@ private:
     ::Font* m_font;
     int m_duration_ms;
     std::chrono::steady_clock::time_point m_start_time;
+    std::chrono::steady_clock::time_point m_exit_start_time;
     std::function<void(ToastWidget*)> m_on_dismiss;
+    int m_exit_duration_ms;
+    bool m_exiting;
     
     static constexpr int DEFAULT_PADDING = 16;  // Padding around text
     static constexpr int DEFAULT_CORNER_RADIUS = 8;  // Rounded corner radius
@@ -215,19 +252,16 @@ private:
     void drawFilledCircleQuadrant(Surface& surface, int cx, int cy, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a, int quadrant);
     
     /**
-     * @brief Applies opacity to all pixels in the surface.
-     * @param surface Surface to modify
-     * @param opacity Opacity factor (0.0 = transparent, 1.0 = opaque)
+     * @brief Calculates the current animation opacity factor.
+     * @return Value in the range [0.0, 1.0]
      */
-    void applyOpacity(Surface& surface, float opacity);
-    
+    float currentAnimationOpacity() const;
+
     /**
-     * @brief Applies relative opacity - only affects pixels that are already non-transparent.
-     * Fully transparent pixels (alpha=0) remain fully transparent.
-     * @param surface Surface to modify
-     * @param opacity Opacity factor (0.0 = transparent, 1.0 = opaque)
+     * @brief Checks whether the toast still needs animation-driven redraws.
+     * @return true while fade-in or fade-out is active
      */
-    void applyRelativeOpacity(Surface& surface, float opacity);
+    bool isAnimationActive() const;
 };
 
 } // namespace UI

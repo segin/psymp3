@@ -135,10 +135,21 @@ bool ID3v2Tag::parseBody(const uint8_t* data, size_t /*size*/, size_t tag_size) 
         frame_data_offset += ext_header_size;
     }
 
-    // Parse frames
+    // Parse frames. All of these subtractions are on size_t, so guard against
+    // underflow from a malformed tag (e.g. a tiny declared size with the footer
+    // flag set, or an extended header that overruns the tag) — an underflow
+    // would yield a huge length and overread the buffer in parseFrames.
+    if (frame_data_offset > tag_size) {
+        Debug::log("tag", "ID3v2Tag::parse: Frame data offset exceeds tag size");
+        return false;
+    }
     size_t frame_data_size = tag_size - frame_data_offset;
     if (hasFooter()) {
-        frame_data_size -= 10; // Footer is 10 bytes
+        if (frame_data_size < 10) { // Footer is 10 bytes
+            Debug::log("tag", "ID3v2Tag::parse: Tag too small to contain declared footer");
+            return false;
+        }
+        frame_data_size -= 10;
     }
 
     if (frame_data_size > 0) {
@@ -376,12 +387,14 @@ bool ID3v2Tag::parseFrames(const uint8_t* data, size_t size) {
         if (!frame.isEmpty()) {
             // Normalize frame ID
             frame.id = normalizeFrameId(frame.id, m_major_version);
-            
+
+            // Log before the move below; reading frame.id/frame.size() after
+            // std::move(frame) would touch a moved-from object.
+            Debug::log("tag", "ID3v2Tag::parseFrames: Parsed frame ", frame.id, " (", frame.size(), " bytes)");
+
             // Store frame
             m_frames[frame.id].push_back(std::move(frame));
             frame_count++;
-            
-            Debug::log("tag", "ID3v2Tag::parseFrames: Parsed frame ", frame.id, " (", frame.size(), " bytes)");
         }
         
         offset += bytes_consumed;
@@ -621,7 +634,9 @@ uint32_t ID3v2Tag::parseYear(const std::string& text) {
     // Extract first 4 digits
     std::string year_str;
     for (char c : text) {
-        if (std::isdigit(c)) {
+        // Cast to unsigned char: std::isdigit on a negative char (UTF-8 byte
+        // >= 0x80) is undefined behaviour.
+        if (std::isdigit(static_cast<unsigned char>(c))) {
             year_str += c;
             if (year_str.length() == 4) {
                 break;

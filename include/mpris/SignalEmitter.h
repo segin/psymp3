@@ -121,7 +121,7 @@ private:
                                               const std::map<std::string, DBusVariant>& changed_properties);
     Result<void> emitSeeked_unlocked(uint64_t position_us);
     Result<void> start_unlocked();
-    void stop_unlocked(bool wait_for_completion);
+    void stop_unlocked(bool wait_for_completion, std::unique_lock<std::mutex>& lock);
     bool isRunning_unlocked() const;
     size_t getQueueSize_unlocked() const;
     bool isQueueFull_unlocked() const;

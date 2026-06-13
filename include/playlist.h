@@ -26,6 +26,13 @@
 class Playlist
 {
     public:
+        struct Entry {
+            TagLib::String path;
+            TagLib::String artist;
+            TagLib::String title;
+            long duration = 0;
+        };
+
         // Explicitly delete copy operations as std::vector<track> is non-copyable
         Playlist(const Playlist&) = delete;
         Playlist& operator=(const Playlist&) = delete; // Keep copy assignment deleted
@@ -34,6 +41,7 @@ class Playlist
         // Playlist& operator=(Playlist&&) = default; // Removed: Cannot be defaulted due to non-movable member
         Playlist();
         bool addFile(TagLib::String path, TagLib::String artist, TagLib::String title, long duration);
+        bool addEntry(const Entry& entry);
         ~Playlist();
         bool addFile(TagLib::String path);
         long getPosition() const;
@@ -47,6 +55,8 @@ class Playlist
         const track* getTrackInfo(long position) const;
         void setShuffle(bool enabled);
         bool isShuffle() const;
+        static std::vector<Entry> loadPlaylistEntries(TagLib::String path);
+        static std::vector<Entry> resolveInlineSources(const std::vector<TagLib::String>& sources);
         static std::unique_ptr<Playlist> loadPlaylist(TagLib::String path);
         void savePlaylist(TagLib::String path);
     protected:

@@ -189,7 +189,11 @@ bool MemoryIOHandler::eof() {
 
 filesize_t MemoryIOHandler::getFileSize() {
     std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
-    return static_cast<filesize_t>(m_own_buffer ? m_buffer.size() : m_external_size);
+    // Return the logical size, consistent with tell()/seek() which work in
+    // logical coordinates (buffer position + already-discarded bytes). Ignoring
+    // m_discarded_bytes here made getFileSize() smaller than a valid tell().
+    size_t logical_size = (m_own_buffer ? m_buffer.size() : m_external_size) + m_discarded_bytes;
+    return static_cast<filesize_t>(logical_size);
 }
 
 size_t MemoryIOHandler::write(const void* data, size_t size) {
