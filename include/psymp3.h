@@ -262,24 +262,18 @@ typedef struct ssl_method_st SSL_METHOD;
 typedef struct bio_st BIO;
 
 // Third-party library headers
-#if defined(__APPLE__)
-#include <SDL/SDL.h>
-#include <SDL/SDL_ttf.h>
-#include <SDL/SDL_thread.h>
-#include <SDL/SDL_mutex.h>
-#else
 #include <SDL.h>
+#include <SDL_thread.h>
+#include <SDL_mutex.h>
+
+using SDL_keysym = SDL_Keysym;
+using SDLKey = SDL_Keycode;
+
 
 #ifdef HAVE_SPEEX
 #include <speex/speex.h>
 #include <speex/speex_header.h>
 #include <speex/speex_stereo.h>
-#endif
-#include <SDL_thread.h>
-#include <SDL_mutex.h>
-#endif
-#ifdef HAVE_MP3
-#include <mpg123.h>
 #endif
 #ifdef HAVE_AAC
 #include <neaacdec.h>
@@ -299,6 +293,7 @@ typedef struct bio_st BIO;
 // FreeType headers
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_LCD_FILTER_H
 
 // Additional system headers needed by source files
 #include <getopt.h>
@@ -331,6 +326,10 @@ using PsyMP3::Core::Rect;
 #include "font.h"
 #include "truetype.h"
 #include "core/lyrics.h"
+using PsyMP3::Core::Surface;
+using PsyMP3::Core::Display;
+using PsyMP3::Core::Font;
+using PsyMP3::Core::TrueType;
 using PsyMP3::Core::LyricLine;
 using PsyMP3::Core::LyricsFile;
 namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
@@ -468,7 +467,6 @@ using PsyMP3::IO::StreamingManager;
 #include "codecs/CodecRegistration.h"
 #include "codecs/pcm/PCMCodecs.h"
 using PsyMP3::Codec::PCM::PCMCodec;
-using PsyMP3::Codec::PCM::MP3PassthroughCodec;
 #ifdef ENABLE_MULAW_CODEC
 #include "codecs/pcm/MuLawCodec.h"
 using PsyMP3::Codec::PCM::MuLawCodec;
@@ -533,9 +531,8 @@ using PsyMP3::Codec::AAC::AACCodec;
 #include "demuxer/iso/ComplianceValidator.h"
 #include "demuxer/iso/ISODemuxer.h"
 #include "demuxer/ModernStream.h"
-#ifdef HAVE_MP3
-#include "codecs/mp3/MP3Codec.h"
-#endif
+#include "codecs/mp3/MiniMP3Codec.h"
+#include "demuxer/mp3/MP3NullDemuxer.h"
 #ifdef HAVE_OPUS
 using PsyMP3::Codec::Opus::OpusComments;
 #endif

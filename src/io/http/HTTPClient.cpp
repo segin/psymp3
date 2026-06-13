@@ -82,7 +82,11 @@ public:
     }
     
     ~CurlLifecycleManager() {
-        // Cleanup is handled by explicit cleanup call or program exit
+        // libcurl stays initialized for the entire process lifetime; tear it
+        // down only here, at static-destruction (process finalization) time.
+        // This object is defined after all static members in this TU, so it is
+        // destroyed first, while s_cleanup_mutex/s_pool_mutex are still alive.
+        forceCleanup();
     }
     
     static bool isInitialized() { return s_initialized.load(); }
@@ -92,15 +96,11 @@ public:
     }
     
     static void decrementHandleCount() {
-        int count = s_active_handles.fetch_sub(1);
-        if (count == 1) { // Was the last handle
-            // Perform cleanup after a delay to allow for connection reuse
-            std::thread cleanup_thread([]() {
-                std::this_thread::sleep_for(std::chrono::seconds(5));
-                performCleanupIfNeeded();
-            });
-            cleanup_thread.detach();
-        }
+        // Only track the in-flight handle count. libcurl is deliberately NOT
+        // torn down when the count reaches zero: a subsequent request would then
+        // run against a curl_global_cleanup()'d library. Global teardown happens
+        // exclusively in forceCleanup() (explicit shutdown / static destruction).
+        s_active_handles.fetch_sub(1);
     }
     
     static void forceCleanup() {
@@ -175,17 +175,6 @@ public:
     }
     
 private:
-    static void performCleanupIfNeeded() {
-        std::lock_guard<std::mutex> lock(s_cleanup_mutex);
-        if (s_active_handles.load() == 0 && s_initialized.load()) {
-            // No active handles, safe to cleanup
-            cleanupConnectionPool();
-            curl_global_cleanup();
-            s_initialized.store(false);
-            Debug::log("http", "CurlLifecycleManager: libcurl cleanup completed (no active handles)");
-        }
-    }
-    
     static void cleanupExpiredConnections() {
         // This method assumes s_pool_mutex is already locked
         // For now, we'll keep connections alive for the duration of the program

@@ -339,10 +339,10 @@ class Widget : public Surface
         
         /**
          * @brief Sets the bounds rectangle for this widget.
-         * 
+         *
          * @param bounds New bounds rectangle
          */
-        void setBounds(const Rect& bounds) { m_pos = bounds; }
+        void setBounds(const Rect& bounds) { setPos(bounds); }
         
         /**
          * @brief Gets the Z-order level of this widget.
@@ -484,16 +484,13 @@ class Widget : public Surface
         
     private:
         // Private unlocked methods - assume lock is already held
-        
-        void render_unlocked();
+
         void invalidate_unlocked();
         void invalidateArea_unlocked(const Rect& area);
-        void renderChildren_unlocked();
-        
-        bool handleEvent_unlocked(const SDL_Event& event, int relative_x, int relative_y);
+
         bool hitTest_unlocked(int x, int y) const;
         std::pair<int, int> transformCoordinates_unlocked(int parent_x, int parent_y) const;
-        
+
         void addChild_unlocked(std::unique_ptr<Widget> child);
         void removeChild_unlocked(Widget* child);
         void destroy_unlocked();

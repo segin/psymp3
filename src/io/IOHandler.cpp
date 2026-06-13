@@ -61,9 +61,13 @@ IOHandler::~IOHandler() {
 }
 
 size_t IOHandler::read(void* buffer, size_t size, size_t count) {
-    // Thread-safe read operation using shared lock (allows concurrent reads)
-    std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
-    
+    // Exclusive lock: a read advances the stream position and mutates buffer
+    // state, so concurrent reads on the same handler would interleave and
+    // corrupt the position. (A shared lock here would wrongly permit that.)
+    // Read-only operations like tell() correctly cannot run concurrently with
+    // this exclusive lock either.
+    std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
+
     return read_unlocked(buffer, size, count);
 }
 

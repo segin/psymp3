@@ -166,20 +166,24 @@ MediaChunk StreamingManager::readChunk() {
         }
     }
     
-    // If still no chunk, read directly from demuxer
-    if (m_demuxer) {
-        chunk = m_demuxer->readChunk(m_stream_id);
-        
-        // Update EOF status
-        if (chunk.isEmpty() && m_demuxer->isEOF()) {
-            m_eof = true;
-        }
-        
-        // Update position based on chunk timestamp
-        if (!chunk.isEmpty() && chunk.timestamp_samples > 0) {
-            StreamInfo info = m_demuxer->getStreamInfo(m_stream_id);
-            if (info.sample_rate > 0) {
-                m_position_ms = (chunk.timestamp_samples * 1000) / info.sample_rate;
+    // If still no chunk, read directly from demuxer (must hold mutex to
+    // avoid racing with the background streaming thread and seekTo())
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_demuxer) {
+            chunk = m_demuxer->readChunk(m_stream_id);
+            
+            // Update EOF status
+            if (chunk.isEmpty() && m_demuxer->isEOF()) {
+                m_eof = true;
+            }
+            
+            // Update position based on chunk timestamp
+            if (!chunk.isEmpty() && chunk.timestamp_samples > 0) {
+                StreamInfo info = m_demuxer->getStreamInfo(m_stream_id);
+                if (info.sample_rate > 0) {
+                    m_position_ms = (chunk.timestamp_samples * 1000) / info.sample_rate;
+                }
             }
         }
     }
@@ -296,8 +300,13 @@ void StreamingManager::streamingThreadFunc() {
                 continue;
             }
             
-            // Otherwise, throttle reading to avoid consuming too much CPU
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            // Otherwise, throttle reading to avoid consuming too much CPU.
+            // The buffer has room here (we are not in the buffer_full branch),
+            // so waiting on "room available" would return immediately and spin.
+            // Pace with a 1ms bounded wait that still wakes promptly on stop.
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_buffer_cv.wait_for(lock, std::chrono::milliseconds(1),
+                                 [this]() { return !m_running; });
         }
     }
     

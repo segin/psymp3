@@ -22,9 +22,6 @@ using Result = PsyMP3::MPRIS::Result<T>;
 
 #ifdef HAVE_DBUS
 
-// Static instance pointer for singleton access (if needed by other components)
-static MPRISManager* s_instance = nullptr;
-
 MPRISManager::MPRISManager(Player* player)
     : m_player(player)
     , m_connection(nullptr)
@@ -64,6 +61,32 @@ Result<void> MPRISManager::initialize() {
 void MPRISManager::shutdown() {
     std::lock_guard<std::mutex> lock(m_mutex);
     shutdown_unlocked();
+}
+
+void MPRISManager::processEvents() {
+    // Pump pending incoming D-Bus traffic. Call from the main thread (the same
+    // thread that drives Player), since dispatched method handlers invoke
+    // non-thread-safe Player methods.
+    //
+    // Deliberately does NOT take m_mutex: a dispatched method call re-enters
+    // this object on the same thread via Player (e.g. play() ->
+    // updatePlaybackStatus(), which locks m_mutex). Holding m_mutex here would
+    // self-deadlock on the non-recursive mutex. Reading m_connection without
+    // the lock is safe because initialize()/shutdown()/processEvents() all run
+    // on the main thread and never overlap.
+    if (!m_initialized.load() || m_shutdown_requested.load()) {
+        return;
+    }
+    DBusConnectionManager* conn_mgr = m_connection.get();
+    if (!conn_mgr) {
+        return;
+    }
+    DBusConnection* conn = conn_mgr->getConnection();
+    if (!conn) {
+        return;
+    }
+    // Non-blocking: read whatever is available and dispatch queued messages.
+    dbus_connection_read_write_dispatch(conn, 0);
 }
 
 void MPRISManager::updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us) {
@@ -558,40 +581,52 @@ Result<void> MPRISManager::establishDBusConnection_unlocked() {
     return Result<void>::success();
 }
 
+// Trampoline from libdbus's C vtable into the C++ MethodHandler. user_data is
+// the MethodHandler* supplied at registration time; the object path is always
+// unregistered (in unregisterDBusService_unlocked / shutdown) before that
+// handler is destroyed, so this pointer is valid whenever it is invoked.
+static DBusHandlerResult mprisDispatchThunk(DBusConnection* connection,
+                                            DBusMessage* message,
+                                            void* user_data) {
+    auto* handler = static_cast<PsyMP3::MPRIS::MethodHandler*>(user_data);
+    if (!handler) {
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    }
+    return handler->handleMessage(connection, message);
+}
+
 Result<void> MPRISManager::registerDBusService_unlocked() {
     if (!m_connection || !m_connection->isConnected()) {
         return Result<void>::error("Not connected to D-Bus");
     }
-    
+
     DBusConnection* conn = m_connection->getConnection();
     if (!conn) {
         return Result<void>::error("Invalid D-Bus connection");
     }
-    
+
     m_initialization_phase = InitializationPhase::Registration;
-    
-    // Request service name
-    DBusError error;
-    dbus_error_init(&error);
-    
-    int result = dbus_bus_request_name(conn, DBUS_SERVICE_NAME, 
-                                      DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
-    
-    if (dbus_error_is_set(&error)) {
-        std::string error_msg = "Failed to request D-Bus name: " + std::string(error.message);
-        dbus_error_free(&error);
-        return Result<void>::error(error_msg);
+
+    // The bus name was already acquired in DBusConnectionManager when the
+    // connection was established; re-requesting it here would return
+    // ALREADY_OWNER and fail the PRIMARY_OWNER check. We only need to register
+    // the object path so incoming method calls reach the MethodHandler.
+    if (!m_methods) {
+        return Result<void>::error("MethodHandler not initialized; cannot route D-Bus method calls");
     }
-    
-    if (result != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
-        return Result<void>::error("Failed to become primary owner of D-Bus name");
-    }
-    
-    // Register object path with method handler
-    if (!dbus_connection_register_object_path(conn, DBUS_OBJECT_PATH, nullptr, nullptr)) {
+
+    // Wire the object path to the MethodHandler. A previous version passed a
+    // NULL vtable, which makes dbus_connection_register_object_path() fail (so
+    // the whole subsystem refused to initialize) and, even if it had not, left
+    // incoming method calls with nowhere to go.
+    DBusObjectPathVTable vtable;
+    std::memset(&vtable, 0, sizeof(vtable));
+    vtable.message_function = &mprisDispatchThunk;
+
+    if (!dbus_connection_register_object_path(conn, DBUS_OBJECT_PATH, &vtable, m_methods.get())) {
         return Result<void>::error("Failed to register D-Bus object path");
     }
-    
+
     logInfo_unlocked("D-Bus service registered successfully");
     return Result<void>::success();
 }
@@ -964,6 +999,7 @@ Result<void> MPRISManager::initialize() {
 }
 
 void MPRISManager::shutdown() {}
+void MPRISManager::processEvents() {}
 void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&, uint64_t) {}
 void MPRISManager::updatePlaybackStatus(PlaybackStatus) {}
 void MPRISManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus) {}

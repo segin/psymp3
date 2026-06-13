@@ -144,12 +144,6 @@ std::string decodeUTF16_BOM(const uint8_t* data, size_t size) {
     return PsyMP3::Core::Utility::UTF8Util::fromUTF16BOM(data, size);
 }
 
-
-std::vector<uint8_t> encodeUTF16_BOM(const std::string& text) {
-    // Delegate to centralized UTF8Util
-    return PsyMP3::Core::Utility::UTF8Util::toUTF16BOM(text);
-}
-
 std::vector<uint8_t> encodeUTF16_BE(const std::string& text) {
     // Delegate to centralized UTF8Util
     return PsyMP3::Core::Utility::UTF8Util::toUTF16BE(text);
@@ -193,7 +187,7 @@ std::vector<uint8_t> encodeText(const std::string& text, TextEncoding encoding) 
         case TextEncoding::ISO_8859_1:
             return encodeISO8859_1(text);
         case TextEncoding::UTF_16_BOM:
-            return encodeUTF16_BOM(text);
+            return PsyMP3::Core::Utility::UTF8Util::toUTF16BOM(text);
         case TextEncoding::UTF_16_BE:
             return encodeUTF16_BE(text);
         case TextEncoding::UTF_8:
@@ -225,12 +219,24 @@ std::vector<uint8_t> decodeUnsync(const uint8_t* data, size_t size) {
     std::vector<uint8_t> result;
     result.reserve(size);
     
-    for (size_t i = 0; i < size; ++i) {
-        result.push_back(data[i]);
+    const uint8_t* current = data;
+    const uint8_t* end = data + size;
+
+    while (current < end) {
+        const uint8_t* next_ff = static_cast<const uint8_t*>(std::memchr(current, 0xFF, end - current));
+        if (!next_ff) {
+            result.insert(result.end(), current, end);
+            break;
+        }
+
+        // Copy everything up to and including 0xFF
+        size_t copy_len = (next_ff - current) + 1;
+        result.insert(result.end(), current, current + copy_len);
+        current += copy_len;
         
-        // Skip 0x00 byte after 0xFF (unsync marker)
-        if (data[i] == 0xFF && i + 1 < size && data[i + 1] == 0x00) {
-            ++i; // Skip the 0x00
+        // Skip 0x00 byte after 0xFF
+        if (current < end && *current == 0x00) {
+            ++current;
         }
     }
     

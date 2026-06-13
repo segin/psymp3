@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -30,6 +30,9 @@ endif
 CODEC_LIBS =
 DEMUXER_LIBS =
 
+# MP3 codec and demuxer are always available (bundled minimp3)
+CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
+DEMUXER_LIBS += $(top_builddir)/src/demuxer/mp3/libpsymp3-demuxer-mp3.a
 
 if HAVE_FLAC
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a
@@ -38,10 +41,6 @@ CODEC_LIBS += $(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a
 else
 CODEC_LIBS += $(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a
 endif
-endif
-
-if HAVE_MP3
-CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
 endif
 
 if HAVE_VORBIS
@@ -71,7 +70,6 @@ SYSTEM_LIBS = \
 	$(OPENSSL_LIBS) \
 	$(CURL_LIBS) \
 	$(FLAC_LIBS) \
-	$(LIBMPG123_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OGG_LIBS) \
 	$(AAC_LIBS) \
@@ -89,11 +87,11 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/playlist.o \
 	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/core/surface.o \
 	$(top_builddir)/src/mediafile.o \
-	$(top_builddir)/src/display.o \
-	$(top_builddir)/src/font.o \
-	$(top_builddir)/src/truetype.o \
+	$(top_builddir)/src/core/display.o \
+	$(top_builddir)/src/core/font.o \
+	$(top_builddir)/src/core/truetype.o \
 	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
 	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
 	$(top_builddir)/src/widget/ui/libpsymp3-widget-ui.a \
@@ -107,6 +105,7 @@ COMMON_TEST_LIBS = \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -152,7 +151,6 @@ OGG_DEMUXER_TEST_LIBS = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -234,7 +232,7 @@ COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
 MPRIS_TEST_LIBS = $(COMMON_TEST_LIBS)
 
 # Common library links for codec tests
-COMMON_CODEC_LIBS = -lmpg123 -lvorbis -lopus -logg
+COMMON_CODEC_LIBS = -lvorbis -lopus -logg
 AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS) $(AAC_LIBS) $(G722_LIBS)
 
 # Common test utilities library
@@ -287,6 +285,7 @@ opusout_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
@@ -298,7 +297,7 @@ opusout_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OPUS_LIBS) $(OGG_LIBS) \
-	-lvorbis -lmpg123 -lcurl -lssl -lcrypto \
+	-lvorbis -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS) $(AAC_LIBS)
 endif
 
@@ -312,6 +311,25 @@ debug_dual_flac_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
+test_memory_optimizer_SOURCES = test_memory_optimizer.cpp
+test_memory_optimizer_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
+test_memory_leak_prevention_SOURCES = test_memory_leak_prevention.cpp
+test_memory_leak_prevention_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
@@ -382,7 +400,7 @@ test_flac_frame_indexing_LDADD = \
 	$(AM_LDFLAGS)
 
 # Individual test executables
-check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
+check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
 	test_rect_centering \
 	test_rect_centering_overflow \
 	test_rect_expansion \
@@ -416,15 +434,20 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
 	test_widget_event_routing \
+	test_widget_hierarchy_properties \
+	test_widget_rendering \
 	test_http_client_parse_url \
 	test_http_client_fallback \
+	test_http_iohandler_validation \
+	test_http_io_handler \
 	test_bounded_buffer \
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
 	test_surface_from_bmp_error \
 	test_extensibility_utils \
 	test_lastfm_url_encode_unit \
-	test_track_utils
+	test_track_utils \
+	test_verify_random
 
 if HAVE_AAC
 check_PROGRAMS += test_aac_integration
@@ -434,6 +457,9 @@ endif
 
 test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
 test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_widget_rendering_SOURCES = test_widget_rendering.cpp
+test_widget_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -512,8 +538,7 @@ test_opus_codec_property_LDADD = \
 	$(TAGLIB_LIBS) \
 	$(VORBIS_LIBS) \
 	$(FLAC_LIBS) \
-	$(FLAC_LIBS) \
-	-lmpg123 \
+	$(FLAC_LIBS) \ \
 	$(AM_LDFLAGS)
 
 test_fixed_predictor_properties_SOURCES = test_fixed_predictor_properties.cpp
@@ -565,10 +590,13 @@ endif
 check_PROGRAMS += test_codec_selection_validation_simple
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_memory_pool_allocation_failure test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_memory_pool_allocation_failure test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression test_memory_tracker_unit test_memory_optimizer test_memory_leak_prevention
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
+
+# MemoryOptimizer tests
+check_PROGRAMS += test_memory_optimizer
 
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
@@ -607,6 +635,9 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 endif
 
 # Test program sources and dependencies
+test_mediafile_SOURCES = test_mediafile.cpp
+test_mediafile_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 
@@ -657,7 +688,7 @@ test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/cor
 test_widget_event_routing_SOURCES = test_widget_event_routing.cpp
 test_widget_event_routing_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_widget_hierarchy_properties_SOURCES = test_widget_hierarchy_properties.cpp
-test_widget_hierarchy_properties_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(top_builddir)/src/widget/foundation/libpsymp3-widget-foundation.a $(AM_LDFLAGS)
+test_widget_hierarchy_properties_LDADD = $(COMMON_TEST_LIBS) $(RAPIDCHECK_LIBS) $(AM_LDFLAGS)
 
 
 test_harness_integration_SOURCES = test_harness_integration.cpp
@@ -824,6 +855,16 @@ test_http_client_fallback_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
+test_http_iohandler_validation_SOURCES = test_http_iohandler_validation.cpp
+test_http_iohandler_validation_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	-lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+
 test_bounded_buffer_SOURCES = test_bounded_buffer.cpp
 test_bounded_buffer_LDADD = \
 	libtest_utilities.a \
@@ -855,18 +896,12 @@ test_enhanced_buffer_pool_LDADD = \
 test_surface_from_bmp_error_SOURCES = test_surface_from_bmp_error.cpp
 test_surface_from_bmp_error_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/core/surface.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(SDL_LIBS) \
 	$(AM_LDFLAGS)
 
-test_extensibility_utils_SOURCES = test_extensibility_utils.cpp
-test_extensibility_utils_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -883,6 +918,7 @@ test_ogg_fuzzing_SOURCES = test_ogg_fuzzing.cpp
 test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
@@ -894,25 +930,25 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
 
 test_ogg_multiplexed_seeking_SOURCES = test_ogg_multiplexed_seeking.cpp
 test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
@@ -926,6 +962,7 @@ test_ogg_seeking_stress_SOURCES = test_ogg_seeking_stress.cpp
 test_ogg_seeking_stress_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
@@ -947,6 +984,7 @@ test_ogg_aggressive_SOURCES = test_ogg_aggressive.cpp
 test_ogg_aggressive_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
@@ -969,6 +1007,7 @@ test_stream_manager_SOURCES = test_stream_manager.cpp
 test_stream_manager_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -990,6 +1029,7 @@ test_codec_identification_SOURCES = test_codec_identification.cpp
 test_codec_identification_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1008,6 +1048,7 @@ test_codec_identification_LDADD = libtest_utilities.a \
 
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1029,6 +1070,7 @@ test_opus_parser_SOURCES = test_opus_parser.cpp
 test_opus_parser_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1050,6 +1092,7 @@ test_flac_parser_SOURCES = test_flac_parser.cpp
 test_flac_parser_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1071,6 +1114,7 @@ test_speex_parser_SOURCES = test_speex_parser.cpp
 test_speex_parser_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1092,6 +1136,7 @@ test_ogg_seeking_algorithms_SOURCES = test_ogg_seeking_algorithms.cpp
 test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1110,6 +1155,7 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1130,8 +1176,10 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 check_PROGRAMS += test_ogg_error_handling
 test_ogg_error_handling_SOURCES = test_ogg_error_handling.cpp
 test_ogg_error_handling_LDADD = libtest_utilities.a \
+	$(FULL_CODEC_LIBS) \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1153,6 +1201,7 @@ test_ogg_integration_SOURCES = test_ogg_integration.cpp
 test_ogg_integration_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	../src/tag/libpsymp3-tag.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -1345,6 +1394,9 @@ test_track_utils_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(AM_LDFLAGS)
 
+test_verify_random_SOURCES = verify_random.cpp
+test_verify_random_LDADD =
+
 test_raw_audio_tag_safety_SOURCES = test_raw_audio_tag_safety.cpp
 test_raw_audio_tag_safety_LDADD = \
 	libtest_utilities.a \
@@ -1441,8 +1493,7 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lmpg123 -lvorbis -lopus -logg \
+	$(top_builddir)/src/core/libpsymp3-core.a \ -lvorbis -lopus -logg \
 	$(AM_LDFLAGS)
 
 # Codec thread safety test
@@ -1646,8 +1697,8 @@ $(top_builddir)/src/track.o:
 	$(MAKE) -C $(top_builddir)/src track.o
 
 # Build rules for Surface thread safety test dependencies
-$(top_builddir)/src/surface.o:
-	$(MAKE) -C $(top_builddir)/src surface.o
+$(top_builddir)/src/core/surface.o:
+	$(MAKE) -C $(top_builddir)/src/core surface.o
 
 # Build rules for ISO demuxer test dependencies
 
@@ -1659,7 +1710,7 @@ test_system_wide_threading_integration_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/core/surface.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/system.o \
@@ -1675,7 +1726,7 @@ test_threading_performance_regression_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/core/surface.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/system.o \
@@ -1726,7 +1777,7 @@ test_audio_threading_pattern_LDADD = \
 test_surface_thread_safety_SOURCES = test_surface_thread_safety.cpp
 test_surface_thread_safety_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/core/surface.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -1736,7 +1787,7 @@ test_surface_thread_safety_LDADD = \
 test_surface_performance_regression_SOURCES = test_surface_performance_regression.cpp
 test_surface_performance_regression_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/core/surface.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -1883,7 +1934,7 @@ test_flac_seektable_placeholder_properties_LDADD = $(AM_LDFLAGS)
 # **Validates: Requirements 19.1, 19.4, 13.1**
 test_flac_vorbis_comment_endianness_properties_SOURCES = test_flac_vorbis_comment_endianness_properties.cpp
 test_flac_vorbis_field_name_properties_SOURCES = test_flac_vorbis_field_name_properties.cpp
-test_flac_vorbis_field_name_properties_LDADD = $(AM_LDFLAGS) $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a $(top_builddir)/src/demuxer/libpsymp3-demuxer.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/utility/libpsymp3-core-utility.a $(top_builddir)/src/core/libpsymp3-core.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/debug.o
+test_flac_vorbis_field_name_properties_LDADD = $(AM_LDFLAGS) $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a $(top_builddir)/src/demuxer/libpsymp3-demuxer.a $(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/utility/libpsymp3-core-utility.a $(top_builddir)/src/core/libpsymp3-core.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/debug.o
 test_flac_vorbis_comment_endianness_properties_LDADD = $(AM_LDFLAGS)
 
 # FLAC CUESHEET track count validation property-based tests (standalone, minimal dependencies)
@@ -2402,6 +2453,16 @@ test_memory_pool_manager_integration_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
+# MemoryTracker unit test
+test_memory_tracker_unit_SOURCES = test_memory_tracker_unit.cpp
+test_memory_tracker_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
 # MemoryPoolManager comprehensive thread safety test
 test_memory_pool_manager_thread_safety_comprehensive_SOURCES = test_memory_pool_manager_thread_safety_comprehensive.cpp
 test_memory_pool_manager_thread_safety_comprehensive_LDADD = \
@@ -2454,7 +2515,6 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(top_builddir)/src/widget/windowing/libpsymp3-widget-windowing.a \
 #	$(top_builddir)/src/widget/foundation/libpsymp3-widget-foundation.a \
 #	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 #	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 #	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 #	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -2472,7 +2532,6 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 #	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 #	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 #	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 #	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 #	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
@@ -2480,7 +2539,6 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 #	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 #	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 #	$(top_builddir)/src/io/libpsymp3-io.a \
 #	-lFLAC++ -lFLAC \
 #	$(SDL_LIBS) \
@@ -2488,7 +2546,6 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(FREETYPE_LIBS) \
 #	$(OPENSSL_LIBS) \
 #	$(CURL_LIBS) \
-#	$(LIBMPG123_LIBS) \
 #	$(VORBIS_LIBS) \
 #	$(OPUS_LIBS) \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -2834,8 +2891,7 @@ test_opus_codec_core_decoding_LDADD = \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
-	$(CODEC_LIBS) \
-	-lmpg123 \
+	$(CODEC_LIBS) \ \
 	$(AM_LDFLAGS)
 
 test_opus_codec_error_handling_SOURCES = test_opus_codec_error_handling.cpp
@@ -2866,8 +2922,7 @@ test_opus_codec_error_handling_LDADD = \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
-	$(CODEC_LIBS) \
-	-lmpg123 \
+	$(CODEC_LIBS) \ \
 	$(AM_LDFLAGS)
 
 test_opus_integration_SOURCES = test_opus_integration.cpp
@@ -2900,8 +2955,7 @@ test_opus_integration_LDADD = \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	-lmpg123 \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \ \
 	$(AM_LDFLAGS)
 
 test_opus_compatibility_performance_SOURCES = test_opus_compatibility_performance.cpp
@@ -2934,8 +2988,7 @@ test_opus_compatibility_performance_LDADD = \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	-lmpg123 \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \ \
 	$(AM_LDFLAGS)
 
 # MPRIS Mock Framework Tests
@@ -3062,7 +3115,7 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 	$(FULL_CODEC_LIBS) \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS) \
-	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto -ltag
+	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto -ltag
 endif
 endif
 
@@ -3359,6 +3412,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -3369,7 +3423,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(AAC_LIBS)
 endif
 
@@ -3407,6 +3461,7 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -3417,7 +3472,7 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(VORBIS_LIBS) \
-	-logg -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(AAC_LIBS)
 endif
 
@@ -3436,7 +3491,6 @@ endif
 #
 # ============================================================================
 
-if HAVE_MP3
 noinst_PROGRAMS += mp3out
 
 mp3out_SOURCES = mp3out.cpp
@@ -3454,6 +3508,7 @@ mp3out_LDADD = \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
@@ -3463,10 +3518,9 @@ mp3out_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(LIBMPG123_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(AAC_LIBS)
-endif
+
 
 
 # ============================================================================
@@ -3590,7 +3644,7 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	-lvorbis -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 else
 test_stream_tag_integration_LDADD = \
@@ -3616,7 +3670,7 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	-lvorbis -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 endif
 
@@ -3877,6 +3931,14 @@ check_PROGRAMS += test_base64_unit
 
 # Base64 unit tests
 test_base64_unit_SOURCES = test_base64_unit.cpp
+check_PROGRAMS += test_fft_unit
+test_fft_unit_SOURCES = test_fft_unit.cpp
+test_fft_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 test_base64_unit_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
@@ -3884,13 +3946,29 @@ test_base64_unit_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
+
+# BoundedQueue Tests
+# ============================================================================
+
+check_PROGRAMS += test_bounded_queue
+
+# BoundedQueue tests
+test_bounded_queue_SOURCES = test_bounded_queue.cpp
+test_bounded_queue_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+check_PROGRAMS += test_fft_mode
+test_fft_mode_SOURCES = test_fft_mode.cpp
+test_fft_mode_LDADD = \
+	libtest_utilities.a \
+	../src/core/libpsymp3-core.a
+
 # Run all check programs
 TESTS = $(check_PROGRAMS)
-
-check_PROGRAMS += test_mp3_codec_wrapper
-test_mp3_codec_wrapper_SOURCES = test_mp3_codec.cpp
-test_mp3_codec_wrapper_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir)/tests
-test_mp3_codec_wrapper_LDADD = # No external libs
 
 if HAVE_DBUS
 check_PROGRAMS += test_loop_status
@@ -3923,3 +4001,20 @@ test_issue_ogg_duration_LDADD = \
 endif
 test_flac_stream_marker_with_logging_SOURCES = test_flac_stream_marker_with_logging.cpp
 test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)
+
+check_PROGRAMS += test_storage_permissions
+TESTS += test_storage_permissions
+test_storage_permissions_SOURCES = test_storage_permissions.cpp
+test_storage_permissions_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_mediafile_split_SOURCES = test_mediafile_split.cpp
+test_mediafile_split_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_http_io_handler_SOURCES = test_http_io_handler.cpp $(top_srcdir)/src/io/http/HTTPIOHandler.cpp
+test_http_io_handler_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)

@@ -25,15 +25,22 @@
 #ifndef SURFACE_H
 #define SURFACE_H
 
-class Display;
-
 // Forward declaration for Widget (now in namespace)
 namespace PsyMP3 {
 namespace Widget {
 namespace Foundation {
     class Widget;
-}}}
+}
+}
+namespace Core {
+class Display;
+class Font;
+class Surface;
+}
+}
 using PsyMP3::Widget::Foundation::Widget;
+
+namespace PsyMP3::Core {
 
 class Surface
 {
@@ -56,13 +63,15 @@ class Surface
 
         static std::unique_ptr<Surface> FromBMP(const char *a_file);
         static std::unique_ptr<Surface> FromBMP(std::string a_file);
-        bool isValid();
+        bool isValid() const;
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
+        void SetAlpha(uint8_t alpha);
         void SetAlpha(uint32_t flags, uint8_t alpha); // SDL_SRCALPHA, SDL_ALPHA_OPAQUE, etc.
         uint32_t MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void Blit(Surface& src, const Rect& rect); // Changed to const Rect&
         void FillRect(uint32_t color);
-        void Flip();
+        void applyRelativeOpacity(float opacity);
+        virtual void Flip();
         void pixel(int16_t x, int16_t y, uint32_t color);
         void pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color);
@@ -85,10 +94,11 @@ class Surface
         int16_t width();
         SDL_Surface * getHandle();
         friend class Display;
-        friend class Widget;
         friend class Font;
+        friend class PsyMP3::Widget::Foundation::Widget;
     protected:
         std::unique_ptr<SDL_Surface, void (*)(SDL_Surface*)> m_handle;
+        void wrapNonOwnedSurface(SDL_Surface* non_owned_sfc);
     private:
         // RAII helper for SDL surface locking
         class SDLLockGuard {
@@ -131,6 +141,8 @@ class Surface
         void floodFill_unlocked(Sint16 x, Sint16 y, uint32_t new_color, uint32_t original_color);
         void bezierCurve_unlocked(const std::vector<std::pair<double, double>>& points, uint32_t color, double step);
 };
+
+} // namespace PsyMP3::Core
 
 /* This is experimental */
 

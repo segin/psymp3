@@ -146,7 +146,7 @@ void SpectrumAnalyzerWidget::draw(Surface& surface)
     
     // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
     if (fade_alpha != cached_fade_alpha) {
-        fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
+        fade_surface.SetAlpha(fade_alpha);
         cached_fade_alpha = fade_alpha;
     }
     

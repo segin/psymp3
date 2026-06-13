@@ -10,30 +10,9 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 # Use same flags as parent to ensure consistent compilation
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -Wall -Werror
-
-# Add optional codec flags if available
-if HAVE_MP3
-AM_CPPFLAGS += $(LIBMPG123_CFLAGS)
-endif
-
-if HAVE_VORBIS
-AM_CPPFLAGS += $(VORBIS_CFLAGS)
-endif
-
-if HAVE_OPUS
-AM_CPPFLAGS += $(OPUS_CFLAGS)
-endif
-
-if HAVE_OGG
-AM_CPPFLAGS += $(OGG_CFLAGS)
-endif
-
-if HAVE_DBUS
-AM_CPPFLAGS += $(DBUS_CFLAGS)
-endif
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(SPEEX_CFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS) -Wall -Werror
 
 noinst_LIBRARIES = libpsymp3-codec-mp3.a
 
 libpsymp3_codec_mp3_a_SOURCES = \
-	MP3Codec.cpp
+	MiniMP3Codec.cpp
