@@ -8,8 +8,8 @@ set -e
 echo "Building FLAC-in-MP4 integration test..."
 
 # Compile the integration test
-g++ -std=c++17 -I../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT \
-    -I/usr/include/taglib -I/usr/include/freetype2 -I/usr/include/libpng16 \
+g++ -std=c++17 -I../include -I/usr/include/SDL2 -D_GNU_SOURCE=1 -D_REENTRANT \
+    -I/usr/include/taglib -I/usr/include/libpng16 \
     -I/usr/include/x86_64-linux-gnu -DPSYMP3_DATADIR='"/usr/local/share/psymp3/data"' \
     -Wall -g -O2 -I/usr/include/x86_64-linux-gnu -I/usr/include/opus \
     -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include \
@@ -20,7 +20,7 @@ g++ -std=c++17 -I../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT \
     ../src/ISODemuxerErrorRecovery.o ../src/ISODemuxerComplianceValidator.o \
     ../src/FileIOHandler.o ../src/IOHandler.o ../src/Demuxer.o \
     ../src/MemoryTracker.o ../src/debug.o \
-    -lSDL -ltag -lfreetype -lpng -lxml2 -lz -lm -ldl -lpthread
+    -lSDL2 -lfreetype -ltag -lpng -lxml2 -lz -lm -ldl -lpthread
 
 echo "Running FLAC-in-MP4 integration test..."
 ./test_iso_flac_integration

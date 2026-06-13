@@ -1,5 +1,5 @@
 /*
- * font.cpp - wrapper for SDL_ttf's TTF_Font type, class header.
+ * font.h - FreeType-backed font wrapper, class header.
  * This file is part of PsyMP3.
  * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
  *
@@ -26,16 +26,26 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3::Core {
+
 class Font
 {
     public:
         explicit Font(const TagLib::String& file, int ptsize = 12);
         virtual ~Font();
         std::unique_ptr<Surface> Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b);
+        // ClearType-style render: subpixel-accurate glyphs pre-blended against
+        // an opaque background. Returns an opaque RGB(A=255) surface; callers
+        // must paint the same background underneath before blitting.
+        std::unique_ptr<Surface> RenderLCD(const TagLib::String& text,
+                                           uint8_t fg_r, uint8_t fg_g, uint8_t fg_b,
+                                           uint8_t bg_r, uint8_t bg_g, uint8_t bg_b);
         bool isValid();
     protected:
     private:
-        FT_Face m_face;
+        FT_Face m_face = nullptr;
 };
+
+} // namespace PsyMP3::Core
 
 #endif // FONT_H
