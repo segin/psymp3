@@ -14,6 +14,42 @@
 namespace PsyMP3 {
 namespace MPRIS {
 
+#ifdef HAVE_DBUS
+DBusAPIWrapper DBusConnectionManager::s_dbus_api = {
+    [](int type, DBusError* error) { return dbus_bus_get((DBusBusType)type, error); },
+    [](DBusConnection* conn, const char* name, unsigned int flags, DBusError* error) { return dbus_bus_request_name(conn, name, flags, error); },
+    [](DBusConnection* conn, const char* name, DBusError* error) { return dbus_bus_release_name(conn, name, error); },
+    [](DBusConnection* conn) { return (int)dbus_connection_get_is_connected(conn); },
+    [](DBusError* error) { dbus_error_init(error); },
+    [](const DBusError* error) { return (int)dbus_error_is_set(error); },
+    [](DBusError* error) { dbus_error_free(error); },
+    [](DBusConnection* conn, int exit_on_disconnect) { dbus_connection_set_exit_on_disconnect(conn, (dbus_bool_t)exit_on_disconnect); },
+    [](DBusConnection* conn) { dbus_connection_unref(conn); }
+};
+
+// libdbus must be told to use threads before the first connection is created:
+// the SignalEmitter worker thread sends signals concurrently with the main
+// thread's read_write_dispatch pump, and that is only safe once libdbus has
+// installed its internal locks.
+static std::once_flag s_dbus_threads_init_flag;
+#else
+DBusAPIWrapper DBusConnectionManager::s_dbus_api = {
+    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
+};
+#endif
+
+void DBusConnectionManager::setDBusAPI(const DBusAPIWrapper& api) {
+    s_dbus_api = api;
+}
+
+void DBusConnectionManager::unrefConnection(DBusConnection* conn) {
+#ifdef HAVE_DBUS
+    if (conn && s_dbus_api.connection_unref) {
+        s_dbus_api.connection_unref(conn);
+    }
+#endif
+}
+
 DBusConnectionManager::DBusConnectionManager()
     : m_connection(nullptr),
       m_last_reconnect_attempt(std::chrono::steady_clock::time_point{}),
@@ -97,7 +133,7 @@ bool DBusConnectionManager::isConnected_unlocked() const {
   return false;
 #else
   return m_connected && m_connection &&
-         dbus_connection_get_is_connected(m_connection.get());
+         s_dbus_api.connection_get_is_connected(m_connection.get());
 #endif
 }
 
@@ -177,19 +213,19 @@ void DBusConnectionManager::cleanupConnection_unlocked() {
                              "Starting connection cleanup");
 
     // Unregister from D-Bus if we were registered
-    if (dbus_connection_get_is_connected(m_connection.get())) {
+    if (s_dbus_api.connection_get_is_connected(m_connection.get())) {
       MPRIS_LOG_DEBUG("DBusConnectionManager", "Releasing D-Bus service name");
       // Release the service name if we own it
       DBusError error;
-      dbus_error_init(&error);
+      s_dbus_api.error_init(&error);
 
       [[maybe_unused]] int result =
-          dbus_bus_release_name(m_connection.get(), DBUS_SERVICE_NAME, &error);
-      if (dbus_error_is_set(&error)) {
+          s_dbus_api.bus_release_name(m_connection.get(), DBUS_SERVICE_NAME, &error);
+      if (s_dbus_api.error_is_set(&error)) {
         MPRIS_LOG_WARN("DBusConnectionManager",
                        "Error releasing D-Bus service name: " +
                            std::string(error.message));
-        dbus_error_free(&error);
+        s_dbus_api.error_free(&error);
       } else {
         MPRIS_LOG_DEBUG("DBusConnectionManager",
                         "D-Bus service name released successfully");
@@ -212,17 +248,20 @@ Result<void> DBusConnectionManager::establishConnection_unlocked() {
 #else
   MPRIS_LOG_INFO("DBusConnectionManager", "Establishing D-Bus connection");
 
+  // Enable libdbus thread support before the first connection is created.
+  std::call_once(s_dbus_threads_init_flag, []() { dbus_threads_init_default(); });
+
   DBusError error;
-  dbus_error_init(&error);
+  s_dbus_api.error_init(&error);
 
   // Connect to session bus
   MPRIS_LOG_DEBUG("DBusConnectionManager", "Connecting to D-Bus session bus");
-  DBusConnection *raw_connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
-  if (dbus_error_is_set(&error)) {
+  DBusConnection *raw_connection = s_dbus_api.bus_get(DBUS_BUS_SESSION, &error);
+  if (s_dbus_api.error_is_set(&error)) {
     std::string error_msg = "Failed to connect to D-Bus session bus: ";
     error_msg += error.message;
     MPRIS_LOG_ERROR("DBusConnectionManager", error_msg);
-    dbus_error_free(&error);
+    s_dbus_api.error_free(&error);
     return Result<void>::error(error_msg);
   }
 
@@ -243,14 +282,14 @@ Result<void> DBusConnectionManager::establishConnection_unlocked() {
   MPRIS_LOG_DEBUG("DBusConnectionManager", "Requesting D-Bus service name: " +
                                                std::string(DBUS_SERVICE_NAME));
   int name_result =
-      dbus_bus_request_name(m_connection.get(), DBUS_SERVICE_NAME,
+      s_dbus_api.bus_request_name(m_connection.get(), DBUS_SERVICE_NAME,
                             DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
 
-  if (dbus_error_is_set(&error)) {
+  if (s_dbus_api.error_is_set(&error)) {
     std::string error_msg = "Failed to request D-Bus service name: ";
     error_msg += error.message;
     MPRIS_LOG_ERROR("DBusConnectionManager", error_msg);
-    dbus_error_free(&error);
+    s_dbus_api.error_free(&error);
     cleanupConnection_unlocked();
     return Result<void>::error(error_msg);
   }
@@ -270,7 +309,7 @@ Result<void> DBusConnectionManager::establishConnection_unlocked() {
                  "D-Bus service name acquired successfully");
 
   // Set up connection for threading
-  dbus_connection_set_exit_on_disconnect(m_connection.get(), FALSE);
+  s_dbus_api.connection_set_exit_on_disconnect(m_connection.get(), FALSE);
 
   MPRIS_LOG_INFO("DBusConnectionManager", "D-Bus connection fully established");
   return Result<void>::success();

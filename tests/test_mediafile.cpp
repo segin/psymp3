@@ -84,9 +84,10 @@ public:
         });
 
         addTest("test_exists", []() {
-            // currently always returns true
-            if (!MediaFile::exists("any_file.mp3")) {
-                throw AssertionFailure("exists() should return true based on current implementation");
+            // exists() is a real std::filesystem::exists() check: false for a
+            // path that is not present on disk.
+            if (MediaFile::exists("this_file_does_not_exist.invalid_ext")) {
+                throw AssertionFailure("exists() should return false for a non-existent file");
             }
         });
 

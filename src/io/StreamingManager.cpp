@@ -166,20 +166,24 @@ MediaChunk StreamingManager::readChunk() {
         }
     }
     
-    // If still no chunk, read directly from demuxer
-    if (m_demuxer) {
-        chunk = m_demuxer->readChunk(m_stream_id);
-        
-        // Update EOF status
-        if (chunk.isEmpty() && m_demuxer->isEOF()) {
-            m_eof = true;
-        }
-        
-        // Update position based on chunk timestamp
-        if (!chunk.isEmpty() && chunk.timestamp_samples > 0) {
-            StreamInfo info = m_demuxer->getStreamInfo(m_stream_id);
-            if (info.sample_rate > 0) {
-                m_position_ms = (chunk.timestamp_samples * 1000) / info.sample_rate;
+    // If still no chunk, read directly from demuxer (must hold mutex to
+    // avoid racing with the background streaming thread and seekTo())
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_demuxer) {
+            chunk = m_demuxer->readChunk(m_stream_id);
+            
+            // Update EOF status
+            if (chunk.isEmpty() && m_demuxer->isEOF()) {
+                m_eof = true;
+            }
+            
+            // Update position based on chunk timestamp
+            if (!chunk.isEmpty() && chunk.timestamp_samples > 0) {
+                StreamInfo info = m_demuxer->getStreamInfo(m_stream_id);
+                if (info.sample_rate > 0) {
+                    m_position_ms = (chunk.timestamp_samples * 1000) / info.sample_rate;
+                }
             }
         }
     }

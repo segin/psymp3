@@ -40,12 +40,9 @@ MuLawCodec::MuLawCodec(const StreamInfo& stream_info)
     : SimplePCMCodec(stream_info) {
     Debug::log("codec", "MuLawCodec: Constructor called for codec: ", stream_info.codec_name);
     
-    // Ensure lookup table is initialized
-    if (!s_table_initialized) {
-        Debug::log("codec", "MuLawCodec: Initializing lookup table");
-        initializeMuLawTable();
-    }
-    
+    // Ensure lookup table is initialized (thread-safe; no-op after first call).
+    initializeMuLawTable();
+
     Debug::log("codec", "MuLawCodec: Constructor completed successfully");
 }
 
@@ -139,14 +136,12 @@ bool MuLawCodec::initialize() {
             return false;
         }
         
-        // Ensure lookup table is properly initialized
+        // Ensure lookup table is properly initialized (thread-safe; no-op after
+        // the first successful call).
+        initializeMuLawTable();
         if (!s_table_initialized) {
-            Debug::log("codec", "MuLawCodec: Lookup table not initialized, initializing now");
-            initializeMuLawTable();
-            if (!s_table_initialized) {
-                Debug::log("codec", "MuLawCodec: Initialization failed - lookup table initialization failed");
-                return false;
-            }
+            Debug::log("codec", "MuLawCodec: Initialization failed - lookup table initialization failed");
+            return false;
         }
         
         // Set default parameters for raw streams
@@ -329,13 +324,13 @@ size_t MuLawCodec::getBytesPerInputSample() const {
 }
 
 void MuLawCodec::initializeMuLawTable() {
-    if (s_table_initialized) {
-        Debug::log("codec", "MuLawCodec: Lookup table already initialized");
-        return; // Already initialized
-    }
-    
+    // Thread-safe one-time init: two codecs constructed concurrently would
+    // otherwise both write MULAW_TO_PCM (a data race) and read a half-filled
+    // table. call_once serializes and runs the computation exactly once.
+    static std::once_flag s_table_once;
+    std::call_once(s_table_once, []() {
     auto start_time = std::chrono::high_resolution_clock::now();
-    
+
     try {
         Debug::log("codec", "MuLawCodec: Computing ITU-T G.711 μ-law lookup table at runtime");
         
@@ -412,6 +407,7 @@ void MuLawCodec::initializeMuLawTable() {
         Debug::log("codec", "MuLawCodec: Unknown exception during table computation");
         // Don't set s_table_initialized to true on error
     }
+    });
 }
 
 void registerMuLawCodec() {

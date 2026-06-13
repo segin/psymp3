@@ -168,6 +168,7 @@ constexpr uint32_t CODEC_ALAC = FOURCC('a','l','a','c'); // Apple Lossless
 constexpr uint32_t CODEC_FLAC = FOURCC('f','L','a','C'); // FLAC lossless
 constexpr uint32_t CODEC_ULAW = FOURCC('u','l','a','w'); // μ-law
 constexpr uint32_t CODEC_ALAW = FOURCC('a','l','a','w'); // A-law
+constexpr uint32_t CODEC_MP3  = FOURCC('.','m','p','3'); // MP3 audio
 constexpr uint32_t CODEC_LPCM = FOURCC('l','p','c','m'); // Linear PCM
 constexpr uint32_t CODEC_SOWT = FOURCC('s','o','w','t'); // Little-endian PCM
 constexpr uint32_t CODEC_TWOS = FOURCC('t','w','o','s'); // Big-endian PCM
