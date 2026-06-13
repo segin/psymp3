@@ -631,31 +631,24 @@ uint32_t ID3v2Tag::parseYear(const std::string& text) {
         return 0;
     }
     
-    // Extract first 4 digits
-    std::string year_str;
+    uint32_t year = 0;
+    int digits = 0;
     for (char c : text) {
         // Cast to unsigned char: std::isdigit on a negative char (UTF-8 byte
         // >= 0x80) is undefined behaviour.
-        if (std::isdigit(static_cast<unsigned char>(c))) {
-            year_str += c;
-            if (year_str.length() == 4) {
-                break;
+        unsigned char uc = static_cast<unsigned char>(c);
+        if (std::isdigit(uc)) {
+            year = year * 10 + (uc - '0');
+            if (++digits == 4) {
+                // Sanity check (reasonable year range)
+                if (year >= 1900 && year <= 2100) {
+                    return year;
+                }
+                return 0;
             }
-        } else if (!year_str.empty()) {
+        } else if (digits > 0) {
             // Non-digit after digits - stop
             break;
-        }
-    }
-    
-    if (year_str.length() == 4) {
-        try {
-            uint32_t year = static_cast<uint32_t>(std::stoul(year_str));
-            // Sanity check (reasonable year range)
-            if (year >= 1900 && year <= 2100) {
-                return year;
-            }
-        } catch (const std::exception&) {
-            // Fall through
         }
     }
     
