@@ -188,10 +188,12 @@ private:
     /**
      * @brief Read data from internal buffer
      * @param buffer Destination buffer
+     * @param position Absolute stream position to read from (NOT m_current_position,
+     *                 which is only updated after a multi-buffer read completes)
      * @param bytes_to_read Number of bytes to read
      * @return Number of bytes actually read from buffer
      */
-    size_t readFromBuffer(void* buffer, size_t bytes_to_read);
+    size_t readFromBuffer(void* buffer, filesize_t position, size_t bytes_to_read);
     
     /**
      * @brief Check if a position is currently buffered

@@ -26,7 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3::Core {
 class Font;
+}
 
 namespace PsyMP3 {
 namespace Widget {
@@ -88,7 +90,7 @@ public:
      * @param title Window title displayed in the titlebar
      * @param font Font used for the titlebar text
      */
-    WindowWidget(int client_width, int client_height, const std::string& title = "", Font* font = nullptr);
+    WindowWidget(int client_width, int client_height, const std::string& title = "", Core::Font* font = nullptr);
     
     /**
      * @brief Virtual destructor.

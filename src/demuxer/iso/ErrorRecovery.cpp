@@ -129,9 +129,14 @@ bool ErrorRecovery::RepairTimeToSampleTable(SampleTableInfo& tables) {
                 // Fixed sample size, need to estimate count from chunk information
                 size_t totalChunks = tables.chunkOffsets.size();
                 if (totalChunks > 0 && !tables.sampleToChunkEntries.empty()) {
-                    // Use sample-to-chunk entries to estimate total samples
+                    // Use sample-to-chunk entries to estimate total samples.
+                    // samplesPerChunk is an untrusted 32-bit field, so compute in
+                    // 64-bit and refuse to synthesize an absurdly large table
+                    // (which would otherwise reserve/fill billions of entries).
+                    static constexpr uint64_t MAX_SYNTHETIC_SAMPLES = 10000000; // 10M
                     uint32_t samplesPerChunk = tables.sampleToChunkEntries[0].samplesPerChunk;
-                    totalSamples = totalChunks * samplesPerChunk;
+                    uint64_t product = static_cast<uint64_t>(totalChunks) * samplesPerChunk;
+                    totalSamples = (product > MAX_SYNTHETIC_SAMPLES) ? 0 : static_cast<size_t>(product);
                 }
             } else {
                 // Variable sample sizes, count is size of array

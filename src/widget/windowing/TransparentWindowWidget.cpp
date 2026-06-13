@@ -31,17 +31,14 @@ using Foundation::DrawableWidget;
 
 TransparentWindowWidget::TransparentWindowWidget(int width, int height, float opacity, bool mouse_transparent)
     : DrawableWidget(width, height)
-    , m_z_order(ZOrder::NORMAL)
-    , m_opacity(opacity)
+    , m_opacity(std::max(0.0f, std::min(1.0f, opacity)))
     , m_mouse_pass_through(mouse_transparent)
     , m_corner_radius(0)
-    , m_bg_r(0), m_bg_g(0), m_bg_b(0)  // Default to black background
+    , m_bg_r(0), m_bg_g(0), m_bg_b(0)
 {
-    // Clamp opacity to valid range
-    m_opacity = std::max(0.0f, std::min(1.0f, m_opacity));
-    
-    // Set mouse transparency on the Widget base class as well
-    setMouseTransparent(m_mouse_pass_through);
+    m_z_order = ZOrder::NORMAL; // Widget::m_z_order (protected)
+    // Sync both pass-through flag and Widget hit-test flag
+    Widget::setMouseTransparent(m_mouse_pass_through);
 }
 
 void TransparentWindowWidget::setOpacity(float opacity)
