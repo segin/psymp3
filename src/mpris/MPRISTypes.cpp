@@ -696,9 +696,19 @@ bool ErrorRecoveryManager::attemptRecovery(
     return false;
   }
 
-  // Calculate delay before retry
+  // Enforce the backoff delay as a minimum interval between attempts. Rather
+  // than sleeping under m_mutex (which would block other callers), defer the
+  // retry if not enough time has elapsed since the last attempt; the delay was
+  // previously computed and discarded, so backoff never actually happened.
   int attempt = m_attempt_counts[category];
   auto delay = calculateDelay(category, attempt);
+  auto last_it = m_last_attempt_times.find(category);
+  if (last_it != m_last_attempt_times.end()) {
+    auto elapsed = std::chrono::system_clock::now() - last_it->second;
+    if (elapsed < delay) {
+      return false; // too soon since the last attempt; back off
+    }
+  }
 
   m_attempt_counts[category]++;
   m_last_attempt_times[category] = std::chrono::system_clock::now();

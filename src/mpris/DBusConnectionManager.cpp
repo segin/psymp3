@@ -26,6 +26,12 @@ DBusAPIWrapper DBusConnectionManager::s_dbus_api = {
     [](DBusConnection* conn, int exit_on_disconnect) { dbus_connection_set_exit_on_disconnect(conn, (dbus_bool_t)exit_on_disconnect); },
     [](DBusConnection* conn) { dbus_connection_unref(conn); }
 };
+
+// libdbus must be told to use threads before the first connection is created:
+// the SignalEmitter worker thread sends signals concurrently with the main
+// thread's read_write_dispatch pump, and that is only safe once libdbus has
+// installed its internal locks.
+static std::once_flag s_dbus_threads_init_flag;
 #else
 DBusAPIWrapper DBusConnectionManager::s_dbus_api = {
     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
@@ -241,6 +247,9 @@ Result<void> DBusConnectionManager::establishConnection_unlocked() {
   return Result<void>::error("D-Bus support not compiled in");
 #else
   MPRIS_LOG_INFO("DBusConnectionManager", "Establishing D-Bus connection");
+
+  // Enable libdbus thread support before the first connection is created.
+  std::call_once(s_dbus_threads_init_flag, []() { dbus_threads_init_default(); });
 
   DBusError error;
   s_dbus_api.error_init(&error);

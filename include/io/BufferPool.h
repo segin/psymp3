@@ -228,6 +228,15 @@ private:
         PoolEntry(size_t size, IOBufferPool* instance)
             : buffer_size(size), total_allocated(0), pool_hits(0), pool_misses(0), pool_instance(instance) {}
 
+        // Free the buffers this entry still owns; available_buffers holds raw
+        // new[]-allocated pointers, so without this they leak when the entry is
+        // destroyed (e.g. when the pool map is cleared).
+        ~PoolEntry() {
+            for (uint8_t* buf : available_buffers) {
+                delete[] buf;
+            }
+        }
+
         // Disable copy/move because mutex is not copyable/movable
         PoolEntry(const PoolEntry&) = delete;
         PoolEntry& operator=(const PoolEntry&) = delete;
