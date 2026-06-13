@@ -50,8 +50,11 @@ bool SpeexHeaderParser::parseHeader(ogg_packet* packet) {
         
         // Nb Channels (48-51) - LE
         m_info.channels = data[48] | (data[49] << 8) | (data[50] << 16) | (data[51] << 24);
-        
-        if (m_info.rate == 0) return false;
+
+        // Speex is mono or stereo only. Reject a zero rate or an out-of-range
+        // channel count (untrusted header fields) before they reach divisors
+        // and channel-indexed buffers downstream.
+        if (m_info.rate == 0 || m_info.channels < 1 || m_info.channels > 2) return false;
         
         storeHeaderPacket(packet);
         m_headers_count = 1;

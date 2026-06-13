@@ -58,6 +58,22 @@ TagLib::ByteVector TagLibIOHandlerAdapter::readBlock(size_t length)
         return TagLib::ByteVector();
     }
 
+    // Clamp the allocation to the file's remaining bytes (reading past EOF
+    // returns fewer anyway), with a hard ceiling when the size is unknown, so
+    // an untrusted requested length can't force a huge allocation.
+    static constexpr size_t MAX_READ_BLOCK = 256 * 1024 * 1024; // 256 MB
+    off_t pos = m_io_handler->tell();
+    off_t fsize = m_io_handler->getFileSize();
+    if (pos >= 0 && fsize > pos) {
+        size_t remaining = static_cast<size_t>(fsize - pos);
+        if (length > remaining) {
+            length = remaining;
+        }
+    }
+    if (length > MAX_READ_BLOCK) {
+        length = MAX_READ_BLOCK;
+    }
+
     // Allocate buffer for reading
     std::vector<char> buffer(length);
     

@@ -332,10 +332,16 @@ bool ComplianceValidator::ValidateSampleTableConsistency(const SampleTableInfo& 
             }
             
             // Calculate number of chunks this entry applies to
-            uint32_t nextFirstChunk = (i + 1 < sampleTable.sampleToChunkEntries.size()) 
-                ? sampleTable.sampleToChunkEntries[i + 1].firstChunk 
+            uint32_t nextFirstChunk = (i + 1 < sampleTable.sampleToChunkEntries.size())
+                ? sampleTable.sampleToChunkEntries[i + 1].firstChunk
                 : static_cast<uint32_t>(sampleTable.chunkOffsets.size()) + 1; // +1 because firstChunk is 1-based
-            
+
+            // firstChunk values must be strictly increasing; otherwise the
+            // subtraction below underflows to ~4 billion.
+            if (nextFirstChunk <= entry.firstChunk) {
+                return false;
+            }
+
             uint32_t chunksForThisEntry = nextFirstChunk - entry.firstChunk;
             totalSamples += chunksForThisEntry * entry.samplesPerChunk;
         }

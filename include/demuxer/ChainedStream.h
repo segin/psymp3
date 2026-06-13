@@ -46,7 +46,14 @@ public:
     virtual unsigned long long getSPosition() override;
 
 private:
-    bool openNextTrack();
+    bool openNextTrack();                       // assumes m_chain_mutex is held
+    unsigned long long getSPosition_unlocked(); // assumes m_chain_mutex is held
+
+    // Serializes the decode path (getData) against position/seek queries from
+    // the UI thread, which read/dereference m_current_stream while getData
+    // reassigns it at track boundaries. Lock order: m_chain_mutex before any
+    // inner-stream lock.
+    mutable std::mutex m_chain_mutex;
 
     std::vector<TagLib::String> m_paths;
     std::vector<unsigned int> m_track_lengths_ms;
