@@ -594,6 +594,9 @@ check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_con
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
 
+# MemoryOptimizer tests
+check_PROGRAMS += test_memory_optimizer
+
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
 
