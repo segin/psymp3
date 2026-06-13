@@ -41,12 +41,14 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: G.722 codec disabled at compile time");
 #endif
 
-    // MP3 remains in legacy Stream architecture - not registered with CodecRegistry
-#ifdef HAVE_MP3
-    Debug::log("codec", "registerAllCodecs: MP3 codec uses legacy Stream architecture (not registered)");
-#else
-    Debug::log("codec", "registerAllCodecs: MP3 codec disabled at compile time");
-#endif
+    // minimp3-based MP3 codec (always available, no external dependency)
+    PsyMP3::Codec::MP3::MiniMP3CodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: Registered MiniMP3Codec with AudioCodecFactory");
+
+    CodecRegistry::registerCodec("mp3", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::MP3::MiniMP3Codec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered minimp3 codec with CodecRegistry");
 
 #ifdef HAVE_VORBIS
     // Register the new container-agnostic VorbisCodec with AudioCodecFactory
@@ -155,6 +157,12 @@ void registerAllDemuxers() {
         return std::make_unique<PsyMP3::Demuxer::Raw::RawAudioDemuxer>(std::move(handler), "");
     }, "Raw Audio", {"pcm", "raw"});
     Debug::log("demuxer", "registerAllDemuxers: Registered raw audio demuxer");
+
+    // MP3 null demuxer (always available - MP3 is self-containerizing)
+    DemuxerRegistry::getInstance().registerDemuxer("mp3", [](std::unique_ptr<IOHandler> handler) {
+        return std::make_unique<PsyMP3::Demuxer::MP3::MP3NullDemuxer>(std::move(handler));
+    }, "MP3", {"mp3"});
+    Debug::log("demuxer", "registerAllDemuxers: Registered MP3 null demuxer");
 
     // FLAC demuxer registration
 #ifdef HAVE_FLAC

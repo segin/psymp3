@@ -70,7 +70,7 @@ private:
     bool m_capture_on_down;
 };
 
-SDL_MouseButtonEvent makeMouseButtonEvent(Uint8 type, Uint8 button = SDL_BUTTON_LEFT)
+SDL_MouseButtonEvent makeMouseButtonEvent(Uint32 type, Uint8 button = SDL_BUTTON_LEFT)
 {
     SDL_MouseButtonEvent event{};
     event.type = type;

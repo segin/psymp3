@@ -101,12 +101,25 @@ struct TimestampResult {
     }
 
     uint32_t code_point = word;
-    if (word >= 0xD800 && word <= 0xDBFF && i + 1 < raw_bytes.size()) {
-      const uint16_t low = read_u16(i);
-      if (low >= 0xDC00 && low <= 0xDFFF) {
-        code_point = 0x10000 + (((word - 0xD800) << 10) | (low - 0xDC00));
-        i += 2;
+    if (word >= 0xD800 && word <= 0xDBFF) {
+      // High surrogate: must be followed by a low surrogate. Substitute U+FFFD
+      // for an unpaired high surrogate (no valid low follows, or end of input)
+      // rather than emitting it directly, which would produce ill-formed
+      // (CESU-8) UTF-8.
+      if (i + 1 < raw_bytes.size()) {
+        const uint16_t low = read_u16(i);
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          code_point = 0x10000 + (((word - 0xD800) << 10) | (low - 0xDC00));
+          i += 2;
+        } else {
+          code_point = 0xFFFD;
+        }
+      } else {
+        code_point = 0xFFFD;
       }
+    } else if (word >= 0xDC00 && word <= 0xDFFF) {
+      // Lone low surrogate is also ill-formed.
+      code_point = 0xFFFD;
     }
 
     decoded += utf8FromCodePoint(code_point);

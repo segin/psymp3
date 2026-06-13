@@ -67,13 +67,13 @@ public:
      * @brief Sets the Z-order level for this window.
      * @param z_order Z-order level (see ZOrder namespace)
      */
-    void setZOrder(int z_order) { m_z_order = z_order; }
-    
+    void setZOrder(int z_order) override { m_z_order = z_order; }
+
     /**
      * @brief Gets the current Z-order level.
      * @return Z-order level
      */
-    int getZOrder() const { return m_z_order; }
+    int getZOrder() const override { return m_z_order; }
     
     /**
      * @brief Sets the background opacity.
@@ -91,7 +91,10 @@ public:
      * @brief Sets whether this window passes through mouse events.
      * @param transparent true to pass through mouse events, false to handle them
      */
-    void setMouseTransparent(bool transparent) { m_mouse_pass_through = transparent; }
+    void setMouseTransparent(bool transparent) {
+        m_mouse_pass_through = transparent;
+        Widget::setMouseTransparent(transparent); // keep base hit-test in sync
+    }
     
     /**
      * @brief Checks if this window passes through mouse events.
@@ -141,7 +144,6 @@ protected:
                                 int radius, uint32_t color);
 
 private:
-    int m_z_order;
     float m_opacity;
     bool m_mouse_pass_through;
     int m_corner_radius;

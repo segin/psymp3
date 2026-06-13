@@ -214,6 +214,7 @@ class System
 #endif
         void InitializeTaskbar();
         #if defined(_WIN32)
+        static void setMainWindow(SDL_Window* window);
         void announceNowPlaying(const TagLib::String& artist, const TagLib::String& title, const TagLib::String& album);
         void clearNowPlaying();
         #endif
@@ -221,7 +222,16 @@ class System
         static TagLib::String getHome();
         static TagLib::String getStoragePath();
         static bool createStoragePath(); // directory name is implicit.
+        enum class ThreadPriority {
+            Low,
+            Normal,
+            High,
+            TimeCritical
+        };
+
         static void setThisThreadName(const std::string& name);
+        static void setThreadPriority(ThreadPriority priority);
+        static bool lockMemory();
         #if defined(_WIN32) // This block is for static methods
         static HWND getHwnd();
         void updateProgress(ULONGLONG now, ULONGLONG max);
@@ -230,6 +240,7 @@ class System
     private:
     #if defined(_WIN32)
         static LRESULT CALLBACK ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+        static SDL_Window* s_main_window;
         void broadcastMsnMessage(const std::wstring& message);
         // Using a smart pointer for the COM object automates Release() calls,
         // making resource management safer and simpler (RAII).
