@@ -326,12 +326,20 @@ protected:
         uint64_t latency = audio.getBufferLatencyMs();
         ASSERT_TRUE(latency >= 0, "Buffer latency should be non-negative");
         
-        // Test setStream functionality
-        auto new_stream = std::make_unique<MockStream>(48000, 1);  // Different rate and channels
-        audio.setStream(std::move(new_stream));
-        
-        ASSERT_EQUALS(48000, audio.getRate(), "Rate should be updated after setStream");
-        ASSERT_EQUALS(1, audio.getChannels(), "Channels should be updated after setStream");
+        // Test primed handoff functionality
+        audio.resetBuffer();
+        auto primed_stream = std::make_unique<MockStream>();
+        std::vector<int16_t> primed_samples(4096, 1234);
+        audio.setStream(std::move(primed_stream), primed_samples, false);
+
+        ASSERT_TRUE(audio.getBufferLatencyMs() > 0,
+                    "setStream should install primed PCM so the next track does not start with an empty buffer");
+
+        std::vector<int16_t> ctor_primed_samples(4096, 2345);
+        auto ctor_stream = std::make_unique<MockStream>();
+        Audio ctor_primed_audio(std::move(ctor_stream), &fft, &player_mutex, ctor_primed_samples, false);
+        ASSERT_TRUE(ctor_primed_audio.getBufferLatencyMs() > 0,
+                    "Audio constructor should preserve primed PCM when a new device/object is created");
     }
 };
 

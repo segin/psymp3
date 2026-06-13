@@ -36,7 +36,7 @@ float PsyMP3::Core::Utility::logarithmicScale(const int f, float x) {
   constexpr int LUT_COUNT = 5;
   constexpr int LUT_SIZE = 16384;
   static float luts[LUT_COUNT][LUT_SIZE];
-  static bool initialized = []() {
+  [[maybe_unused]] static bool initialized = []() {
     for (int i = 0; i < LUT_SIZE; ++i) {
       float val = static_cast<float>(i) / (LUT_SIZE - 1);
       luts[0][i] = val;

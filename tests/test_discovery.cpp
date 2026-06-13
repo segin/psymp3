@@ -422,8 +422,8 @@ namespace TestFramework {
         std::ostringstream cmd;
         cmd << "cd " << m_test_directory << " && ";
         cmd << "g++ -DHAVE_CONFIG_H -I. -I../include ";
-        cmd << "-I../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT ";
-        cmd << "-I/usr/include/taglib -I/usr/include/freetype2 -I/usr/include/libpng16 ";
+        cmd << "-I../include -I/usr/include/SDL2 -D_GNU_SOURCE=1 -D_REENTRANT ";
+        cmd << "-I/usr/include/taglib -I/usr/include/libpng16 ";
         cmd << "-g -O2 -c -o " << test_info.name << ".o " << test_info.source_path;
         cmd << " 2>&1"; // Redirect stderr to stdout for capture
         

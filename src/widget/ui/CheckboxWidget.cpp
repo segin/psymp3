@@ -15,6 +15,8 @@ namespace UI {
 
 namespace {
 
+#ifndef PSYMP3_DRAW_WIN31_SUNKEN_FRAME
+#define PSYMP3_DRAW_WIN31_SUNKEN_FRAME
 void drawWin31SunkenFrame(::Surface& surface, int x, int y, int width, int height)
 {
     surface.box(x, y, x + width - 1, y + height - 1, 255, 255, 255, 255);
@@ -25,6 +27,7 @@ void drawWin31SunkenFrame(::Surface& surface, int x, int y, int width, int heigh
     surface.hline(x + 1, x + width - 2, y + 1, 0, 0, 0, 255);
     surface.vline(x + 1, y + 1, y + height - 2, 0, 0, 0, 255);
 }
+#endif
 
 } // namespace
 

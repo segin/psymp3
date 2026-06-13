@@ -19,16 +19,17 @@ public:
 
 protected:
     void runTest() override {
-        // HTTPIOHandler initialized with an empty URL should fail validation
-        HTTPIOHandler handler("");
-
-        // Since URL is empty, validateNetworkOperation("initialize") should fail
-        // and handler should not be successfully initialized.
-        ASSERT_FALSE(handler.isInitialized(), "Handler with empty URL should not be initialized");
-
-        // validateNetworkOperation sets m_error to EINVAL when URL is empty
-        ASSERT_TRUE(handler.getLastError() != 0, "Handler with empty URL should report an error");
-        ASSERT_EQUALS(EINVAL, handler.getLastError(), "Error should be EINVAL for empty URL");
+        // An empty URL fails validateNetworkOperation("initialize"), so the
+        // constructor's initialize() throws rather than handing back a
+        // half-built handler whose reads silently yield 0 bytes.
+        bool threw = false;
+        try {
+            HTTPIOHandler handler("");
+            (void)handler;
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        ASSERT_TRUE(threw, "Constructing HTTPIOHandler with empty URL should throw");
     }
 };
 

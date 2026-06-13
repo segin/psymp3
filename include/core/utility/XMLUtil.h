@@ -116,6 +116,7 @@ private:
      * @return Parsed element
      */
     static Element parseElement(const std::string& xml, size_t& pos);
+    static Element parseElement(const std::string& xml, size_t& pos, size_t depth);
     
     /**
      * @brief Skip whitespace characters

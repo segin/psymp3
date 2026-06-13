@@ -93,8 +93,8 @@ void print_help()
     std::cout << "  display, error, flac, flac_benchmark, flac_codec, flac_rfc_validator,\n";
     std::cout << "  font, http, io, iso, iso_compliance, lastfm, loader, lyrics, memory,\n";
     std::cout << "  mp3, mpris, ogg, opus, opus_codec, performance, player, playlist,\n";
-    std::cout << "  plugin, raii, resource, spectrum, stream, streaming, system, test,\n";
-    std::cout << "  timer, vorbis, widget\n\n";
+    std::cout << "  plugin, raii, resource, seek_error, spectrum, stream, streaming,\n";
+    std::cout << "  system, test, timer, vorbis, widget\n\n";
     
     std::cout << "Examples:\n";
     std::cout << "  psymp3 song.mp3                    Play a single file\n";

@@ -38,7 +38,7 @@ MemoryIOHandler::MemoryIOHandler(const void* data, size_t size, bool copy)
     if (copy) {
         if (data && size > 0) {
             m_buffer.assign(static_cast<const uint8_t*>(data), static_cast<const uint8_t*>(data) + size);
-            updateMemoryUsage(m_buffer.capacity());
+            updateMemoryUsage(m_buffer.size());
         }
     } else {
         m_external_data = static_cast<const uint8_t*>(data);
@@ -70,24 +70,25 @@ size_t MemoryIOHandler::read(void* buffer, size_t size, size_t count) {
     if (bytes_requested == 0) return 0;
 
     size_t available = 0;
-    const uint8_t* source = nullptr;
 
     if (m_own_buffer) {
         if (m_pos < m_buffer.size()) {
             available = m_buffer.size() - m_pos;
-            source = m_buffer.data() + m_pos;
         }
     } else {
         if (m_pos < m_external_size) {
             available = m_external_size - m_pos;
-            source = m_external_data + m_pos;
         }
     }
 
     size_t to_read = std::min(bytes_requested, available);
 
     if (to_read > 0) {
-        std::memcpy(buffer, source, to_read);
+        if (m_own_buffer) {
+            std::copy(m_buffer.begin() + m_pos, m_buffer.begin() + m_pos + to_read, static_cast<uint8_t*>(buffer));
+        } else {
+            std::memcpy(buffer, m_external_data + m_pos, to_read);
+        }
         m_pos += to_read;
         updatePosition(m_pos); // Update atomic base class position too
     }
@@ -189,7 +190,11 @@ bool MemoryIOHandler::eof() {
 
 filesize_t MemoryIOHandler::getFileSize() {
     std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
-    return static_cast<filesize_t>(m_own_buffer ? m_buffer.size() : m_external_size);
+    // Return the logical size, consistent with tell()/seek() which work in
+    // logical coordinates (buffer position + already-discarded bytes). Ignoring
+    // m_discarded_bytes here made getFileSize() smaller than a valid tell().
+    size_t logical_size = (m_own_buffer ? m_buffer.size() : m_external_size) + m_discarded_bytes;
+    return static_cast<filesize_t>(logical_size);
 }
 
 size_t MemoryIOHandler::write(const void* data, size_t size) {
@@ -214,7 +219,7 @@ size_t MemoryIOHandler::write(const void* data, size_t size) {
     try {
         const uint8_t* p = static_cast<const uint8_t*>(data);
         m_buffer.insert(m_buffer.end(), p, p + size);
-        updateMemoryUsage(m_buffer.capacity());
+        updateMemoryUsage(m_buffer.size());
 
         // If we were at EOF, we might not be anymore
         updateEofState(m_pos >= m_buffer.size());
@@ -234,7 +239,7 @@ void MemoryIOHandler::discard(size_t count) {
     size_t to_remove = std::min(count, m_buffer.size());
 
     m_buffer.erase(m_buffer.begin(), m_buffer.begin() + to_remove);
-    updateMemoryUsage(m_buffer.capacity());
+    updateMemoryUsage(m_buffer.size());
 
     // Update discarded bytes counter for virtual positioning
     m_discarded_bytes += to_remove;
@@ -265,7 +270,7 @@ void MemoryIOHandler::discardRead() {
     size_t to_remove = std::min(m_pos, m_buffer.size());
 
     m_buffer.erase(m_buffer.begin(), m_buffer.begin() + to_remove);
-    updateMemoryUsage(m_buffer.capacity());
+    updateMemoryUsage(m_buffer.size());
 
     // Update discarded bytes counter
     m_discarded_bytes += to_remove;
@@ -281,7 +286,7 @@ void MemoryIOHandler::clear() {
     std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
     if (m_own_buffer) {
         m_buffer.clear();
-        updateMemoryUsage(m_buffer.capacity());
+        updateMemoryUsage(m_buffer.size());
     }
     m_pos = 0;
     m_discarded_bytes = 0;
