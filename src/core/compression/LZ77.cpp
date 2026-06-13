@@ -95,7 +95,6 @@ std::vector<uint8_t> LZ77Decompressor::decompress(const uint8_t* data, size_t si
     size_t cursor = 0;
 
     while (cursor < size) {
-        if (cursor >= size) break;
         uint8_t flags = data[cursor++];
         
         for (int i = 0; i < 8 && cursor < size; ++i) {
@@ -132,7 +131,6 @@ std::vector<uint8_t> LZ77Decompressor::decompress(const uint8_t* data, size_t si
                 }
             } else {
                 // Literal
-                if (cursor >= size) break; // Should effectively not happen if logic correct
                 output.push_back(data[cursor++]);
             }
             
