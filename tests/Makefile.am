@@ -400,7 +400,7 @@ test_flac_frame_indexing_LDADD = \
 	$(AM_LDFLAGS)
 
 # Individual test executables
-check_PROGRAMS = test_mediafile_split test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
+check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
 	test_rect_centering \
 	test_rect_centering_overflow \
 	test_rect_expansion \
@@ -635,6 +635,9 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 endif
 
 # Test program sources and dependencies
+test_mediafile_SOURCES = test_mediafile.cpp
+test_mediafile_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 
