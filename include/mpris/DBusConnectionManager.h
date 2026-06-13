@@ -14,6 +14,21 @@ namespace PsyMP3 {
 namespace MPRIS {
 
 /**
+ * @brief D-Bus API wrapper for dependency injection during testing
+ */
+struct DBusAPIWrapper {
+    DBusConnection* (*bus_get)(int, DBusError*);
+    int (*bus_request_name)(DBusConnection*, const char*, unsigned int, DBusError*);
+    int (*bus_release_name)(DBusConnection*, const char*, DBusError*);
+    int (*connection_get_is_connected)(DBusConnection*);
+    void (*error_init)(DBusError*);
+    int (*error_is_set)(const DBusError*);
+    void (*error_free)(DBusError*);
+    void (*connection_set_exit_on_disconnect)(DBusConnection*, int);
+    void (*connection_unref)(DBusConnection*);
+};
+
+/**
  * @brief Manages D-Bus connection lifecycle with automatic error recovery
  * 
  * This class handles D-Bus connection establishment, monitoring, and automatic
@@ -89,7 +104,21 @@ public:
      */
     std::chrono::seconds getTimeSinceLastReconnectAttempt() const;
 
+    /**
+     * @brief Set the D-Bus API wrapper for dependency injection
+     * @param api The DBusAPIWrapper struct containing function pointers
+     */
+    static void setDBusAPI(const DBusAPIWrapper& api);
+
+    /**
+     * @brief Unrefs a connection using the currently configured API wrapper
+     * @param conn The connection to unref
+     */
+    static void unrefConnection(DBusConnection* conn);
+
 private:
+    static DBusAPIWrapper s_dbus_api;
+
     // Private implementations - assume locks are already held
     Result<void> connect_unlocked();
     void disconnect_unlocked();
