@@ -118,6 +118,32 @@ int main() {
         std::cout << "Passed.\n";
     }
 
+
+    // Test 7: Exact Boundary Backreference (Distance == Output Size + 1)
+    // We need some initial data to be valid and a full block to reset flags.
+    // Block 1: 8 Literals [0x00, 'A'...'H'] -> Output "ABCDEFGH" (size 8)
+    // Block 2: Flags [0x01] (1st item Ref)
+    //          Ref bytes [0x00, 0x90] -> Dist 9, Len 3.
+    //
+    // Distance 9 == Output Size 8 + 1.
+    // Implementation clamps distance to output.size() = 8.
+    // Start = 8 - 8 = 0.
+    // Copies output[0]...output[2] -> "ABC".
+    // Result: "ABCDEFGHABC".
+    {
+        std::cout << "  Test 7: Exact Boundary Backreference... ";
+        std::vector<uint8_t> input = {
+            0x00, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', // Block 1
+            0x01, 0x00, 0x90                               // Block 2
+        };
+        auto output = decompressor.decompress(input.data(), input.size());
+
+        ASSERT_EQ(output.size(), 11);
+        std::string s(output.begin(), output.end());
+        ASSERT_EQ(s, "ABCDEFGHABC");
+        std::cout << "Passed.\n";
+    }
+
     std::cout << "[EDGE] All tests passed.\n";
     return 0;
 }

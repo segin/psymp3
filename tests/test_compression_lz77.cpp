@@ -184,6 +184,28 @@ int edge_case_tests() {
         ASSERT_EQ(output[1], 0x42);
     }
 
+
+    // 7. Exact Boundary Distance (Distance == Output Size + 1)
+    {
+        // Block 1: 8 Literals ('A'...'H') -> Output "ABCDEFGH" (size 8)
+        // Block 2: Ref (Dist 9, Len 3)
+        // Flags: 0 (all literals)
+        // Data: 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'
+        // Flags: 1 (Ref at bit 0)
+        // Data: Dist 9, Len 3. Dist 9 -> 0x009.
+        // b1 = (9 >> 4) = 0.
+        // b2 = ((9 & 0xF) << 4) | 0 = 0x90.
+        std::vector<uint8_t> input = {
+            0x00, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', // Block 1
+            0x01, 0x00, 0x90                               // Block 2
+        };
+        auto output = decompressor.decompress(input.data(), input.size());
+
+        ASSERT_EQ(output.size(), 11);
+        std::string s(output.begin(), output.end());
+        ASSERT_EQ(s, "ABCDEFGHABC");
+    }
+
     std::cout << "[EDGE] Passed.\n";
     return 0;
 }
