@@ -144,12 +144,6 @@ std::string decodeUTF16_BOM(const uint8_t* data, size_t size) {
     return PsyMP3::Core::Utility::UTF8Util::fromUTF16BOM(data, size);
 }
 
-
-std::vector<uint8_t> encodeUTF16_BOM(const std::string& text) {
-    // Delegate to centralized UTF8Util
-    return PsyMP3::Core::Utility::UTF8Util::toUTF16BOM(text);
-}
-
 std::vector<uint8_t> encodeUTF16_BE(const std::string& text) {
     // Delegate to centralized UTF8Util
     return PsyMP3::Core::Utility::UTF8Util::toUTF16BE(text);
@@ -193,7 +187,7 @@ std::vector<uint8_t> encodeText(const std::string& text, TextEncoding encoding) 
         case TextEncoding::ISO_8859_1:
             return encodeISO8859_1(text);
         case TextEncoding::UTF_16_BOM:
-            return encodeUTF16_BOM(text);
+            return PsyMP3::Core::Utility::UTF8Util::toUTF16BOM(text);
         case TextEncoding::UTF_16_BE:
             return encodeUTF16_BE(text);
         case TextEncoding::UTF_8:
