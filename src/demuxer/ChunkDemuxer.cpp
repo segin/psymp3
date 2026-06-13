@@ -407,7 +407,13 @@ bool ChunkDemuxer::parseWaveFormat(const Chunk& chunk) {
     stream_data.bits_per_sample = readLE<uint16_t>();
     
     stream_data.bytes_per_frame = stream_data.channels * (stream_data.bits_per_sample / 8);
-    
+
+    // A zero sample rate is invalid and would cause SIGFPE in every downstream
+    // duration/position division (e.g. parseWaveData, seekTo).
+    if (stream_data.sample_rate == 0) {
+        return false;
+    }
+
     // Read extra data if present
     if (chunk.size > 16) {
         uint16_t extra_size = readLE<uint16_t>();
@@ -545,6 +551,12 @@ bool ChunkDemuxer::parseAiffCommon(const Chunk& chunk) {
     stream_data.bytes_per_frame = stream_data.channels * (stream_data.bits_per_sample / 8);
     stream_data.avg_bytes_per_sec = stream_data.sample_rate * stream_data.bytes_per_frame;
     stream_data.block_align = stream_data.bytes_per_frame;
+
+    // A zero sample rate is invalid and would cause SIGFPE in every downstream
+    // duration/position division.
+    if (stream_data.sample_rate == 0) {
+        return false;
+    }
     
     // Check for compression type (AIFF-C)
     if (chunk.size > 18) {
@@ -587,7 +599,14 @@ bool ChunkDemuxer::parseAiffSoundData(const Chunk& chunk) {
     // Read SSND chunk header (offset and blockSize)
     stream_data.ssnd_offset = readBE<uint32_t>();
     stream_data.ssnd_block_size = readBE<uint32_t>();
-    
+
+    // ssnd_offset comes from the file. Guard the size subtraction (done in
+    // 32-bit below) against underflow when the chunk is too small to contain
+    // the declared offset, which would wrap data_size to ~4 GB.
+    if (static_cast<uint64_t>(chunk.size) < 8ULL + stream_data.ssnd_offset) {
+        return false;
+    }
+
     // Audio data starts after the offset/blockSize fields
     stream_data.data_offset = chunk.data_offset + 8 + stream_data.ssnd_offset;
     stream_data.data_size = chunk.size - 8 - stream_data.ssnd_offset;

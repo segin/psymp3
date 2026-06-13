@@ -486,29 +486,25 @@ void MediaFactory::initializeDefaultFormats() {
     
     // Register formats based on what's available in the registries
     // This replaces hardcoded conditional compilation with registry lookups
-    
-#ifdef HAVE_MP3
-    // MPEG Audio formats - MP3 uses legacy Stream architecture
-    MediaFormat mp3_format;
-    mp3_format.format_id = "mpeg_audio";
-    mp3_format.display_name = "MPEG Audio";
-    // Enhanced extension mappings per requirements - add MP2, .bit, .mpga extensions
-    mp3_format.extensions = {"MP3", "MP2", "MPA", "MPGA", "BIT", "M2A", "MP2A"};
-    // Comprehensive MIME type support for MPEG audio
-    mp3_format.mime_types = {"audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3", "audio/x-mpeg", "audio/x-mpeg-3"};
-    mp3_format.magic_signatures = {"ID3", "\xFF\xFB", "\xFF\xFA"};
-    mp3_format.priority = 10;
-    mp3_format.supports_streaming = true;
-    mp3_format.supports_seeking = true;
-    mp3_format.description = "MPEG-1/2 Audio Layer II/III";
-    
-    // MP3 uses legacy Stream architecture via Libmpg123 codec
-    registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
-        Debug::log("loader", "MediaFactory: Creating Libmpg123 stream for MP3 file: ", uri);
-        Debug::log("mp3", "MediaFactory: Creating Libmpg123 stream for MP3 file: ", uri);
-        return std::make_unique<PsyMP3::Codec::MP3::Libmpg123>(TagLib::String(uri.c_str()));
-    });
-#endif
+
+    if (DemuxerRegistry::getInstance().isFormatSupported("mp3")) {
+        MediaFormat mp3_format;
+        mp3_format.format_id = "mp3";
+        mp3_format.display_name = "MPEG Audio";
+        mp3_format.extensions = {"MP3", "MP2", "MPA", "MPGA", "BIT", "M2A", "MP2A"};
+        mp3_format.mime_types = {"audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3", "audio/x-mpeg", "audio/x-mpeg-3"};
+        mp3_format.magic_signatures = {"ID3", "\xFF\xFB", "\xFF\xFA"};
+        mp3_format.priority = 10;
+        mp3_format.supports_streaming = true;
+        mp3_format.supports_seeking = true;
+        mp3_format.description = "MPEG-1/2 Audio Layer II/III";
+
+        registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
+            Debug::log("loader", "MediaFactory: Creating DemuxedStream for MP3 file: ", uri);
+            Debug::log("mp3", "MediaFactory: Creating DemuxedStream for MP3 file: ", uri);
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
+        });
+    }
     
 #ifdef HAVE_FLAC
     // FLAC format - uses legacy Stream architecture
@@ -534,7 +530,7 @@ void MediaFactory::initializeDefaultFormats() {
             
             // Route FLAC files through enhanced FLACDemuxer for RFC 9639 compliant container parsing
             // This ensures proper frame boundary detection, CRC validation, and error recovery
-            return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
 #endif
@@ -562,7 +558,7 @@ void MediaFactory::initializeDefaultFormats() {
             Debug::log("demuxer", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
             Debug::log("ogg", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
             // Route all Ogg files through OggDemuxer for proper container parsing
-            return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
         
         // Register enhanced content detector for Ogg files
@@ -619,7 +615,7 @@ void MediaFactory::initializeDefaultFormats() {
         wave_format.description = "RIFF WAVE audio";
         
         registerFormatInternal(wave_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -639,7 +635,7 @@ void MediaFactory::initializeDefaultFormats() {
         aiff_format.description = "Apple AIFF audio";
         
         registerFormatInternal(aiff_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -659,7 +655,7 @@ void MediaFactory::initializeDefaultFormats() {
         mp4_format.description = "ISO Base Media (MP4/M4A)";
         
         registerFormatInternal(mp4_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -676,7 +672,7 @@ void MediaFactory::initializeDefaultFormats() {
         raw_format.description = "Raw PCM/A-law/μ-law/G.722 audio";
         
         registerFormatInternal(raw_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -692,7 +688,7 @@ void MediaFactory::initializeDefaultFormats() {
     playlist_format.description = "M3U/M3U8 playlists";
     
     registerFormatInternal(playlist_format, [](const std::string& uri, const ContentInfo& info) {
-        return std::make_unique<NullStream>(TagLib::String(uri.c_str()));
+        return std::make_unique<NullStream>(TagLib::String(uri, TagLib::String::UTF8));
     });
     
     rebuildLookupTables();
@@ -882,7 +878,7 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
                 // Check for MPEG audio sync after ID3 tag (confirms it's actually MP3)
                 if ((post_id3_buffer[0] == 0xFF) && ((post_id3_buffer[1] & 0xE0) == 0xE0)) {
                     Debug::log("loader", "MediaFactory::detectByMagicBytes found MPEG sync after ID3 tag");
-                    info.detected_format = "mpeg_audio";
+                    info.detected_format = "mp3";
                     info.confidence = 0.98f;
                     info.metadata["has_id3"] = "true";
                     info.metadata["magic_signature"] = "ID3+sync";
@@ -910,8 +906,13 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     
     std::vector<DetectionCandidate> candidates;
     
-    // Check against all registered formats and collect candidates
+    // Check against all registered formats and collect candidates.
+    // Hold s_factory_mutex while iterating: register/unregisterFormat can mutate
+    // s_formats from another thread, so iterating it unlocked is a data race /
+    // iterator-invalidation hazard. probeOggCodec below is lock-free.
     // Skip ID3 signature matching if we already handled ID3 above
+    {
+    std::lock_guard<std::mutex> formats_lock(s_factory_mutex);
     for (const auto& [format_id, registration] : s_formats) {
         for (const auto& signature : registration.format.magic_signatures) {
             // Skip ID3 signature - we handle it specially above
@@ -961,7 +962,8 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
             }
         }
     }
-    
+    } // s_factory_mutex scope
+
     // Select best candidate using enhanced priority-based resolution
     if (!candidates.empty()) {
         // Sort by priority first (lower number = higher priority), then by confidence
@@ -1051,7 +1053,7 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
                 // Validate MPEG header fields
                 if (version != 0x01 && layer != 0x00 && bitrate != 0x00 && 
                     bitrate != 0x0F && samplerate != 0x03) {
-                    info.detected_format = "mpeg_audio";
+                    info.detected_format = "mp3";
                     info.confidence = 0.75f;
                     info.metadata["sync_pattern_found"] = "true";
                     info.metadata["mpeg_validation"] = "passed";
@@ -1136,7 +1138,7 @@ std::unique_ptr<IOHandler> MediaFactory::createIOHandler(const std::string& uri)
     if (isHttpUri(uri)) {
         return std::make_unique<HTTPIOHandler>(uri);
     } else {
-        return std::make_unique<FileIOHandler>(uri);
+        return std::make_unique<FileIOHandler>(TagLib::String(uri, TagLib::String::UTF8));
     }
 }
 

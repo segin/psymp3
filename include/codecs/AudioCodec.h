@@ -33,10 +33,10 @@
  */
 struct AudioFrame {
     std::vector<int16_t> samples;    // Decoded PCM samples (16-bit signed)
-    uint32_t sample_rate;            // Sample rate of this frame
-    uint16_t channels;               // Number of channels
-    uint64_t timestamp_samples;      // Timestamp in sample units
-    uint64_t timestamp_ms;           // Timestamp in milliseconds
+    uint32_t sample_rate = 0;        // Sample rate of this frame
+    uint16_t channels = 0;           // Number of channels
+    uint64_t timestamp_samples = 0;  // Timestamp in sample units
+    uint64_t timestamp_ms = 0;       // Timestamp in milliseconds
     
     // Constructors
     AudioFrame() = default;

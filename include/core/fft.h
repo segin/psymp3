@@ -25,6 +25,10 @@
 #ifndef FFT_H
 #define FFT_H
 
+#include <vector>
+#include <complex>
+#include <string>
+
 namespace PsyMP3 {
 namespace Core {
 

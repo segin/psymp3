@@ -229,11 +229,16 @@ void MemoryPoolManager::releaseBuffer_unlocked(uint8_t* buffer, size_t size, con
     
     // Check if this size should be pooled
     if (shouldPool(size)) {
-        // Find the appropriate pool
-        auto pool_it = findBestPool(size);
+        // Recycle ONLY into an exact-size pool, never a best-fit larger one.
+        // This buffer's guaranteed capacity is only `size` (it may have been a
+        // direct allocation of exactly `size` bytes). findBestPool() can return
+        // a pool whose buffer_size > size; recycling there would later hand the
+        // undersized buffer to a caller expecting pool.buffer_size bytes, which
+        // overflows it. An exact-size pool (buffer_size == size) is always safe.
+        auto pool_it = m_pools.find(size);
         if (pool_it != m_pools.end()) {
             auto& pool = pool_it->second;
-            
+
             // Only return to pool if we're not over capacity
             if (pool.free_buffers.size() < getMaxBuffersPerPool()) {
                 pool.free_buffers.push_back(buffer);

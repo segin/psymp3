@@ -93,11 +93,16 @@ int64_t OggSeekingEngine::getLastGranule() {
     int64_t file_size = m_sync.getFileSize();
     if (file_size <= 0) return -1;
     
-    // Progressive search from end to find last page
+    // Progressive backward search from the end. Keep expanding the window until
+    // a page with a granule for our stream is found, or the whole file has been
+    // scanned (search_pos == 0, which always terminates the loop). The previous
+    // 1 MB cap gave up early and returned duration 0 on chained files or files
+    // with >1 MB of trailing data, where the primary stream's last page lies
+    // further back.
     int64_t search_size = 65536; // Start with 64KB
     int64_t last_granule = -1;
-    
-    while (search_size <= 1024 * 1024) { // Up to 1MB logic, but also handles small files
+
+    while (true) {
         int64_t search_pos = file_size - search_size;
         if (search_pos < 0) search_pos = 0;
         
