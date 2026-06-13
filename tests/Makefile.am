@@ -3921,6 +3921,21 @@ test_base64_unit_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
+
+# BoundedQueue Tests
+# ============================================================================
+
+check_PROGRAMS += test_bounded_queue
+
+# BoundedQueue tests
+test_bounded_queue_SOURCES = test_bounded_queue.cpp
+test_bounded_queue_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 check_PROGRAMS += test_fft_mode
 test_fft_mode_SOURCES = test_fft_mode.cpp
 test_fft_mode_LDADD = \
