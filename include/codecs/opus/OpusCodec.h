@@ -166,7 +166,6 @@ private:
     // Audio decoding (private    // Audio decoding
     AudioFrame decodeAudioPacket_unlocked(const MediaChunk& chunk);
     AudioFrame decodeAudioPacket_unlocked(const std::vector<uint8_t>& packet_data); // Legacy overload for header processing
-    void applyPreSkip_unlocked(AudioFrame& frame);
     void applyOutputGain_unlocked(AudioFrame& frame);
     
     // Initialization methods (private unlocked methods)
