@@ -400,7 +400,7 @@ test_flac_frame_indexing_LDADD = \
 	$(AM_LDFLAGS)
 
 # Individual test executables
-check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
+check_PROGRAMS = test_mediafile_split test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
 	test_rect_centering \
 	test_rect_centering_overflow \
 	test_rect_expansion \
@@ -3961,6 +3961,9 @@ test_issue_ogg_duration_LDADD = \
 endif
 test_flac_stream_marker_with_logging_SOURCES = test_flac_stream_marker_with_logging.cpp
 test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)
+
+test_mediafile_split_SOURCES = test_mediafile_split.cpp
+test_mediafile_split_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_http_io_handler_SOURCES = test_http_io_handler.cpp $(top_srcdir)/src/io/http/HTTPIOHandler.cpp
 test_http_io_handler_LDADD = \
