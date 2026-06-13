@@ -301,7 +301,8 @@ void StreamingManager::streamingThreadFunc() {
             }
             
             // Otherwise, throttle reading to avoid consuming too much CPU
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_buffer_cv.wait(lock, [this]() { return !m_running || m_chunk_queue.size() < m_max_chunks; });
         }
     }
     
