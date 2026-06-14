@@ -470,14 +470,15 @@ void ErrorLogger::setDefaultLogHandler() {
       break;
     }
 
-    // Output to stderr
-    fprintf(stderr, "[%s] %s [%s] %s", time_str, level_str, category_str,
-            message.c_str());
+    // Route through the gated "mpris" debug channel rather than always
+    // writing to stderr, so MPRIS error logging is silent unless the user
+    // passes --debug mpris (or --debug all).
+    std::string line = std::string("[") + time_str + "] " + level_str + " [" +
+                       category_str + "] " + message;
     if (!context.empty()) {
-      fprintf(stderr, " (Context: %s)", context.c_str());
+      line += " (Context: " + context + ")";
     }
-    fprintf(stderr, "\n");
-    fflush(stderr);
+    Debug::log("mpris", line);
   };
 }
 
