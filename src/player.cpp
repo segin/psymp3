@@ -587,6 +587,27 @@ void Player::handleTrackSeamlessSwapEvent() {
     stream = audio->getCurrentStream();
     startTrackScrobbling();
 
+    // Notify now-playing listeners of the new track. The seamless-swap path
+    // (a track ending into a preloaded one) must do this just like the manual
+    // load path in handleTrackLoadSuccessEvent(); otherwise MPRIS clients never
+    // see the metadata change on natural track end.
+#ifdef HAVE_DBUS
+    if (m_mpris_manager) {
+        m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
+        if (stream) {
+            m_mpris_manager->updateMetadata(
+                stream->getArtist().to8Bit(true),
+                stream->getTitle().to8Bit(true),
+                stream->getAlbum().to8Bit(true),
+                static_cast<uint64_t>(stream->getLength()) * 1000
+            );
+        }
+    }
+#endif
+#ifdef _WIN32
+    if (system && stream) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
+#endif
+
     // Update GUI and lyrics for the new stream
     updateInfo(false, "");
     if (m_lyrics_widget) {
