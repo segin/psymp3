@@ -34,6 +34,11 @@ namespace PsyMP3 {
 namespace Widget {
 namespace Windowing {
 
+// Bring the Foundation Widget base into this namespace for inheritance.
+// Without this, unqualified "Widget" resolves to the enclosing namespace
+// PsyMP3::Widget instead of the class (clang rejects it; GCC is lenient).
+using PsyMP3::Widget::Foundation::Widget;
+
 // Forward declaration
 class WindowWidget;
 
@@ -197,7 +202,7 @@ public:
      * @param relative_y Y coordinate relative to this widget
      * @return true if the event was handled
      */
-    virtual bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
+    virtual bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     
     /**
      * @brief Handles mouse motion events and forwards to child widgets.
@@ -206,7 +211,7 @@ public:
      * @param relative_y Y coordinate relative to this widget
      * @return true if the event was handled
      */
-    virtual bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y);
+    virtual bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
     
     /**
      * @brief Handles mouse button up events and forwards to child widgets.
@@ -215,7 +220,7 @@ public:
      * @param relative_y Y coordinate relative to this widget
      * @return true if the event was handled
      */
-    virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
+    virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     
     /**
      * @brief Gets the window title.
@@ -256,13 +261,13 @@ public:
      * @brief Gets the z-order level of this window.
      * @return Z-order level (higher values are in front)
      */
-    int getZOrder() const { return m_z_order; }
+    int getZOrder() const override { return m_z_order; }
     
     /**
      * @brief Sets the z-order level of this window.
      * @param z_order New z-order level
      */
-    void setZOrder(int z_order) { m_z_order = z_order; }
+    void setZOrder(int z_order) override { m_z_order = z_order; }
 
 protected:
     /**

@@ -34,6 +34,11 @@ namespace PsyMP3 {
 namespace Widget {
 namespace Windowing {
 
+// Bring the Foundation Widget base into this namespace for inheritance.
+// Without this, unqualified "Widget" resolves to the enclosing namespace
+// PsyMP3::Widget instead of the class (clang rejects it; GCC is lenient).
+using PsyMP3::Widget::Foundation::Widget;
+
 /**
  * @brief A classic window frame widget with titlebar and resize border.
  * 
