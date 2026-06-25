@@ -84,18 +84,20 @@ class Widget : public Surface
         Widget& operator=(const Widget&) = delete;
         
         /**
-         * @brief Move constructor (defaulted).
-         * 
-         * Allows efficient transfer of widget ownership.
+         * @brief Move constructor is deleted.
+         *
+         * Widget holds a std::mutex (m_mutex), which is non-movable, so the
+         * compiler would implicitly delete a defaulted move anyway. Declaring
+         * it deleted is explicit and avoids clang's -Wdefaulted-function-deleted.
          */
-        Widget(Widget&&) = default;
-        
+        Widget(Widget&&) = delete;
+
         /**
-         * @brief Move assignment operator (defaulted).
-         * 
-         * Allows efficient transfer of widget ownership.
+         * @brief Move assignment operator is deleted.
+         *
+         * See the move constructor: the std::mutex member makes Widget non-movable.
          */
-        Widget& operator=(Widget&&) = default;
+        Widget& operator=(Widget&&) = delete;
         
         /**
          * @brief Constructs a Widget by taking ownership of a Surface.
