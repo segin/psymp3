@@ -115,14 +115,14 @@ public:
      * @brief Sets whether the button is enabled.
      * @param enabled If false, button appears grayed out and doesn't respond to clicks
      */
-    void setEnabled(bool enabled);
+    void setEnabled(bool enabled) override;
     void setText(const TagLib::String& text, Font* font);
     
     /**
      * @brief Gets whether the button is enabled.
      * @return True if button is enabled
      */
-    bool isEnabled() const { return m_enabled; }
+    bool isEnabled() const override { return m_enabled; }
     
     /**
      * @brief Sets the click callback.
