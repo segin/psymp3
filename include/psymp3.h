@@ -141,7 +141,7 @@ inline std::ostream& operator<<(std::ostream& os, LoopMode mode) {
 // System-specific headers
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifndef _WIN32
+#ifdef __linux__
 #include <sys/statfs.h>
 #endif
 #if defined(_WIN32)
