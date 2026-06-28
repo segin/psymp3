@@ -54,6 +54,9 @@ class track
         std::unique_ptr<TagLibIOHandlerAdapter> m_TagLibStream; // Keeps stream alive for FileRef
         unsigned int m_Len;
     private:
+        // Fallback metadata loader used when TagLib cannot parse the file
+        // (e.g. an MP3 without proper ID3 tags). Reads via the demuxer/codec.
+        void loadTagsFromDecoder();
 };
 
 #endif // TRACK_H

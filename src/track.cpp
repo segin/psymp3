@@ -92,6 +92,23 @@ std::optional<unsigned int> getSyntheticRawLengthSeconds(const TagLib::String& p
     }
 }
 
+// Derives a human-readable display name from a path: the final path component
+// with its extension stripped. Used as a last-resort title so a track is never
+// shown as a blank row when no embedded title is available.
+TagLib::String filenameStem(const TagLib::String& path)
+{
+    std::string s = path.to8Bit(true);
+    std::string::size_type slash = s.find_last_of("/\\");
+    if (slash != std::string::npos) {
+        s.erase(0, slash + 1);
+    }
+    std::string::size_type dot = s.find_last_of('.');
+    if (dot != std::string::npos && dot != 0) {
+        s.erase(dot);
+    }
+    return TagLib::String(s, TagLib::String::UTF8);
+}
+
 } // namespace
 
 bool track::isKnownRawAudioExtension(const TagLib::String& path)
@@ -164,15 +181,20 @@ void track::loadTags() {
     }
 
     if (!shouldCreateTagLibRefForPath(m_FilePath)) {
+        // Raw audio (telephony/PCM): no container and no embedded tags. Derive
+        // a synthetic duration and fall back to the filename for the title.
         if (m_Len == 0) {
             auto synthetic_length = getSyntheticRawLengthSeconds(m_FilePath);
             if (synthetic_length.has_value()) {
                 m_Len = *synthetic_length;
             }
         }
+        if (m_Title.isEmpty()) {
+            m_Title = filenameStem(m_FilePath);
+        }
         return;
     }
-    
+
     if (!m_FileRef) {
         try {
             // Create IOHandler-based stream for TagLib
@@ -180,10 +202,10 @@ void track::loadTags() {
             auto io_handler = std::make_unique<FileIOHandler>(m_FilePath);
             m_TagLibStream = std::make_unique<TagLibIOHandlerAdapter>(
                 std::move(io_handler), m_FilePath, true);
-            
+
             // Use custom stream with TagLib
             m_FileRef = std::make_unique<TagLib::FileRef>(m_TagLibStream.get());
-            
+
         } catch (std::exception& e) {
             std::cerr << "track::loadTags(): Exception: " << e.what() << std::endl;
             m_FileRef = nullptr;
@@ -191,19 +213,63 @@ void track::loadTags() {
         }
     }
 
-    if (!m_FileRef || m_FileRef->isNull() || !m_FileRef->tag() || !m_FileRef->audioProperties()) {
-        return;
-    }
-
-    if (m_FileRef && m_FileRef->tag() && m_FileRef->audioProperties()) {
+    if (m_FileRef && !m_FileRef->isNull() && m_FileRef->tag() && m_FileRef->audioProperties()) {
         // Only set if not already set by EXTINF data
         if (m_Artist.isEmpty()) m_Artist = m_FileRef->tag()->artist();
         if (m_Title.isEmpty()) m_Title = m_FileRef->tag()->title();
-        
+
         // Always get album from TagLib as it's not part of EXTINF
         m_Album = m_FileRef->tag()->album();
-        
+
         // Only set length if not already set by EXTINF data
         if (m_Len == 0) m_Len = m_FileRef->audioProperties()->lengthInSeconds();
+    } else if (m_Title.isEmpty() || m_Len == 0) {
+        // TagLib could not parse this file (e.g. an MP3 with no proper ID3
+        // tags). Don't reject it or leave the entry blank just because TagLib
+        // bailed: fall back to the demuxer/codec, which is the authority for
+        // playback anyway. Skipped when EXTINF already supplied a title and
+        // duration, so playlist loads don't pay for a needless decoder open.
+        loadTagsFromDecoder();
+    }
+
+    // A track should never display as a blank row. If nothing supplied a
+    // title, fall back to the file's name.
+    if (m_Title.isEmpty()) {
+        m_Title = filenameStem(m_FilePath);
+    }
+}
+
+/**
+ * @brief Fallback metadata loader used when TagLib rejects the file.
+ *
+ * Opens the file through the demuxer framework (the same path used for
+ * playback) and fills in any still-missing artist/title/album/duration, so an
+ * MP3 without proper ID3 tags still gets a real length and any embedded tags
+ * instead of being shown as an empty, zero-length entry. Failures are
+ * swallowed: a file the decoder also rejects simply keeps the metadata it had.
+ */
+void track::loadTagsFromDecoder()
+{
+    try {
+        std::unique_ptr<Stream> stream = MediaFile::open(m_FilePath);
+        if (!stream) {
+            return;
+        }
+
+        if (m_Artist.isEmpty()) m_Artist = stream->getArtist();
+        if (m_Title.isEmpty())  m_Title  = stream->getTitle();
+        if (m_Album.isEmpty()) {
+            TagLib::String album = stream->getAlbum();
+            if (!album.isEmpty()) m_Album = album;
+        }
+        if (m_Len == 0) {
+            unsigned int length_ms = stream->getLength();
+            if (length_ms > 0) {
+                m_Len = length_ms / 1000;
+            }
+        }
+    } catch (const std::exception& e) {
+        Debug::log("track", "track::loadTagsFromDecoder(): decoder fallback failed for ",
+                   m_FilePath.to8Bit(true), ": ", e.what());
     }
 }
