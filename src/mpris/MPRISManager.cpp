@@ -16,9 +16,8 @@
 namespace PsyMP3 {
 namespace MPRIS {
 
-// Define Result template for local use if not in header
-template<typename T>
-using Result = PsyMP3::MPRIS::Result<T>;
+// Result<T> is declared in MPRISManager.h / MPRISTypes.h; no local alias needed
+// (a `using Result = ...` here redefines that name and clang rejects it).
 
 #ifdef HAVE_DBUS
 
