@@ -168,7 +168,7 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         }
         
         // Need a new frame - decode on-demand from buffered chunks
-        m_current_frame = std::move(getNextFrame());
+        m_current_frame = getNextFrame();
         m_current_frame_offset = 0;
         
         // Note: m_samples_consumed is now updated inside getNextFrame() 

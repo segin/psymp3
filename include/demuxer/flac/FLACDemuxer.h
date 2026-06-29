@@ -360,7 +360,6 @@ private:
     // Requirements 22.4, 22.7: Build frame index during parsing for seeking
     // ========================================================================
     std::vector<FLACFrameIndexEntry> m_frame_index;        ///< Cached frame positions
-    bool m_frame_index_complete = false;                   ///< True if entire file has been indexed
     
     // ========================================================================
     // Private unlocked implementations (assume locks are held)

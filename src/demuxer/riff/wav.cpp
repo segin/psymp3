@@ -182,7 +182,7 @@ void WaveStream::parseHeaders() {
 
         // Seek to the next chunk, accounting for padding byte if chunk size is odd.
         // Check if chunk_size fits in off_t (positive) to prevent implementation-defined behavior
-        if (chunk_size > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+        if (static_cast<uint64_t>(chunk_size) > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
             throw BadFormatException("Chunk size too large (exceeds platform limits).");
         }
 

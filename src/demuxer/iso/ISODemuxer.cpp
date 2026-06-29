@@ -55,8 +55,10 @@ void ISODemuxer::InitializeMemoryManagement() {
     // Enable lazy loading based on system memory
     MemoryTracker::MemoryStats stats = memoryTracker.getStats();
     if (stats.total_physical_memory > 0) {
-        // Enable lazy loading if system has less than 4GB RAM
-        bool enableLazyLoading = (stats.total_physical_memory < 4ULL * 1024 * 1024 * 1024);
+        // Enable lazy loading if system has less than 4GB RAM. Cast to 64-bit so
+        // the comparison is well-formed where size_t is 32-bit (e.g. i386), where
+        // it is simply always true rather than a tautological-compare error.
+        bool enableLazyLoading = (static_cast<uint64_t>(stats.total_physical_memory) < 4ULL * 1024 * 1024 * 1024);
         if (sampleTables) {
             sampleTables->EnableLazyLoading(enableLazyLoading);
         }
