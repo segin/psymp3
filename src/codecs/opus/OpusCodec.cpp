@@ -3370,8 +3370,8 @@ void OpusCodec::optimizeCacheEfficiency_unlocked()
     // Performance Optimization 10.2: Optimize memory access patterns for cache efficiency (Requirement 9.7, 9.8)
     
     // Ensure buffers are aligned for optimal cache performance
-    constexpr size_t CACHE_LINE_SIZE = 64;
-    constexpr size_t ALIGNMENT = CACHE_LINE_SIZE / sizeof(int16_t);
+    constexpr size_t kCacheLineSize = 64;  // not CACHE_LINE_SIZE: that's a macro in FreeBSD's <machine/param.h>
+    constexpr size_t ALIGNMENT = kCacheLineSize / sizeof(int16_t);
     
     // Reserve buffer sizes that are multiples of cache line size when possible
     size_t current_capacity = m_output_buffer.capacity();
