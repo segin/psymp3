@@ -24,6 +24,40 @@
 #include "psymp3.h"
 #include <filesystem>
 
+namespace {
+
+// Decoder-backed metadata resolver registered with the track class. When TagLib
+// cannot parse a file, track::loadTagsFromDecoder() calls this to recover real
+// duration and any embedded tags via the demuxer/codec stack. Living here (and
+// self-registered below) keeps the dependency on MediaFile/the demuxer in
+// mediafile.o rather than track.o, so small tools/tests that link track.o do
+// not have to pull in the whole media stack.
+bool resolveTrackMetadataFromDecoder(const TagLib::String& path,
+                                     TagLib::String& artist, TagLib::String& title,
+                                     TagLib::String& album, unsigned int& length_seconds)
+{
+    std::unique_ptr<Stream> stream = MediaFile::open(path);
+    if (!stream) {
+        return false;
+    }
+    artist = stream->getArtist();
+    title  = stream->getTitle();
+    album  = stream->getAlbum();
+    unsigned int length_ms = stream->getLength();
+    length_seconds = (length_ms > 0) ? length_ms / 1000 : 0;
+    return true;
+}
+
+// Install the resolver at static-init time. track::s_decoder_resolver is
+// constant-initialized to nullptr (static-init phase), which always precedes
+// this dynamic initializer, so the registration is never clobbered.
+const bool g_decoder_resolver_registered = [] {
+    track::setDecoderMetadataResolver(&resolveTrackMetadataFromDecoder);
+    return true;
+}();
+
+} // namespace
+
 /**
  * @brief Checks whether the given media file path refers to an accessible file.
  *

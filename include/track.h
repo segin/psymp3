@@ -45,6 +45,18 @@ class track
         void SetLen(unsigned int val) { m_Len = val; }
         void loadTags();
         static TagLib::String nullstr;
+
+        // Hook used by loadTags() to recover metadata from the actual decoder
+        // when TagLib cannot parse a file (e.g. an MP3 without proper ID3 tags).
+        // It fills artist/title/album/length_seconds and returns true on success.
+        // Registered by mediafile.cpp so that binaries which do not link the
+        // demuxer stack (small tools/tests) don't pull MediaFile into track.o;
+        // when unset, the decoder fallback is simply skipped.
+        using DecoderMetadataResolver = bool (*)(const TagLib::String& path,
+            TagLib::String& artist, TagLib::String& title,
+            TagLib::String& album, unsigned int& length_seconds);
+        static void setDecoderMetadataResolver(DecoderMetadataResolver resolver)
+            { s_decoder_resolver = resolver; }
     protected:
         TagLib::String m_Artist;
         TagLib::String m_Title;
@@ -55,8 +67,10 @@ class track
         unsigned int m_Len;
     private:
         // Fallback metadata loader used when TagLib cannot parse the file
-        // (e.g. an MP3 without proper ID3 tags). Reads via the demuxer/codec.
+        // (e.g. an MP3 without proper ID3 tags). Delegates to the registered
+        // DecoderMetadataResolver, if any.
         void loadTagsFromDecoder();
+        static DecoderMetadataResolver s_decoder_resolver;
 };
 
 #endif // TRACK_H

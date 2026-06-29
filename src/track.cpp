@@ -239,37 +239,41 @@ void track::loadTags() {
     }
 }
 
+track::DecoderMetadataResolver track::s_decoder_resolver = nullptr;
+
 /**
  * @brief Fallback metadata loader used when TagLib rejects the file.
  *
- * Opens the file through the demuxer framework (the same path used for
- * playback) and fills in any still-missing artist/title/album/duration, so an
- * MP3 without proper ID3 tags still gets a real length and any embedded tags
- * instead of being shown as an empty, zero-length entry. Failures are
- * swallowed: a file the decoder also rejects simply keeps the metadata it had.
+ * Delegates to the registered DecoderMetadataResolver (installed by
+ * mediafile.cpp), which opens the file through the demuxer framework -- the same
+ * path used for playback -- so an MP3 without proper ID3 tags still gets a real
+ * length and any embedded tags instead of being shown as an empty, zero-length
+ * entry. Only still-missing fields are filled. The resolver is decoupled via a
+ * function pointer so track.o does not depend on MediaFile/the demuxer stack;
+ * when no resolver is registered (tools/tests that don't link it), this is a
+ * no-op. Failures are swallowed: a file the decoder also rejects keeps the
+ * metadata it had.
  */
 void track::loadTagsFromDecoder()
 {
-    try {
-        std::unique_ptr<Stream> stream = MediaFile::open(m_FilePath);
-        if (!stream) {
-            return;
-        }
+    if (!s_decoder_resolver) {
+        return;
+    }
 
-        if (m_Artist.isEmpty()) m_Artist = stream->getArtist();
-        if (m_Title.isEmpty())  m_Title  = stream->getTitle();
-        if (m_Album.isEmpty()) {
-            TagLib::String album = stream->getAlbum();
-            if (!album.isEmpty()) m_Album = album;
-        }
-        if (m_Len == 0) {
-            unsigned int length_ms = stream->getLength();
-            if (length_ms > 0) {
-                m_Len = length_ms / 1000;
-            }
+    TagLib::String artist, title, album;
+    unsigned int length_seconds = 0;
+    try {
+        if (!s_decoder_resolver(m_FilePath, artist, title, album, length_seconds)) {
+            return;
         }
     } catch (const std::exception& e) {
         Debug::log("track", "track::loadTagsFromDecoder(): decoder fallback failed for ",
                    m_FilePath.to8Bit(true), ": ", e.what());
+        return;
     }
+
+    if (m_Artist.isEmpty()) m_Artist = artist;
+    if (m_Title.isEmpty())  m_Title  = title;
+    if (m_Album.isEmpty() && !album.isEmpty()) m_Album = album;
+    if (m_Len == 0 && length_seconds > 0) m_Len = length_seconds;
 }
