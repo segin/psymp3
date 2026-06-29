@@ -1,5 +1,6 @@
 AC_PREREQ([2.69])
 AC_INIT([PsyMP3],[2-CURRENT],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
+AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([1.10 subdir-objects])
 
 AU_DEFUN([AX_REQUIRE_CPP], [ax_require_cpp(std_17, reject)])
@@ -13,6 +14,23 @@ AC_HEADER_STDBOOL
 AC_FUNC_MALLOC
 AX_CXX_COMPILE_STDCXX_17
 
+# Position-independent executable (PIE) hardening. Enabled by default, but
+# auto-disabled on i386: the system libraries available there are often non-PIC
+# static archives (e.g. the TagLib package's libtag.a) that cannot be linked
+# into a PIE -- ld reports "relocation R_386_32 ... recompile with -fPIC"
+# against .eh_frame. --enable-pie forces it on, --disable-pie forces it off.
+AC_ARG_ENABLE([pie],
+  [AS_HELP_STRING([--enable-pie/--disable-pie],
+    [build position-independent executables @<:@default=yes, except i386@:>@])],
+  [enable_pie=$enableval], [enable_pie=auto])
+if test "x$enable_pie" = "xauto"; then
+  case "$host_cpu" in
+    i?86) enable_pie=no ;;
+    *)    enable_pie=yes ;;
+  esac
+fi
+AC_MSG_NOTICE([position-independent executable (PIE): $enable_pie])
+
 # Project-owned C++ flags (ABI-quieting + security hardening). These are kept
 # in a substituted variable wired into each Makefile.am's AM_CXXFLAGS rather
 # than appended to the user's CXXFLAGS, so a `make CXXFLAGS=...` override (or a
@@ -20,9 +38,15 @@ AX_CXX_COMPILE_STDCXX_17
 # re-expose the GCC 7.1 ARM psabi warnings. Each flag is probed for support.
 #   -Wno-psabi             : suppress GCC 7.1 ARM ABI-change notes (noise only)
 #   -fstack-protector-strong, -fPIE, -D_FORTIFY_SOURCE=2 : hardening
+#   -pthread               : threading; AM_CXXFLAGS is used on the link command
+#                            line too, so this also pulls in libthr/-lpthread.
+psymp3_candidate_flags="-Wno-psabi -fstack-protector-strong -pthread"
+if test "x$enable_pie" = "xyes"; then
+  psymp3_candidate_flags="$psymp3_candidate_flags -fPIE"
+fi
 PSYMP3_CXXFLAGS=""
 AC_LANG_PUSH([C++])
-for psymp3_flag in -Wno-psabi -fstack-protector-strong -fPIE; do
+for psymp3_flag in $psymp3_candidate_flags; do
   AC_MSG_CHECKING([if compiler supports $psymp3_flag])
   psymp3_save_cxxflags="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS $psymp3_flag -Werror"
@@ -384,7 +408,10 @@ fi
 # Compile-side hardening (-fstack-protector-strong, -fPIE, -D_FORTIFY_SOURCE=2)
 # is carried in PSYMP3_CXXFLAGS (see above) and applied via each AM_CXXFLAGS so
 # it survives a user CXXFLAGS override. Link-side hardening stays here.
-LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now -pie"
+LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now"
+if test "x$enable_pie" = "xyes"; then
+  LDFLAGS="$LDFLAGS -pie"
+fi
 
 AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
 AM_CONDITIONAL([ENABLE_UBSAN], [test "x$enable_ubsan" = "xyes"])

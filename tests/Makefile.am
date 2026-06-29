@@ -73,8 +73,7 @@ SYSTEM_LIBS = \
 	$(VORBIS_LIBS) \
 	$(OGG_LIBS) \
 	$(AAC_LIBS) \
-	$(SPEEX_LIBS) \
-	-latomic
+	$(SPEEX_LIBS)
 
 # Common library set for tests (mirrors main binary linking)
 # Order: architecture layers top-down, objects first, then archives
