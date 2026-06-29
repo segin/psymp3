@@ -30,6 +30,12 @@
 #include <regex>
 #include <fstream>
 
+#ifndef _WIN32
+// POSIX leaves `environ` undeclared in headers; FreeBSD (unlike glibc) does not
+// expose it via <unistd.h>, so declare it here for buildEnvironment().
+extern char **environ;
+#endif
+
 namespace TestFramework {
 
     // ========================================

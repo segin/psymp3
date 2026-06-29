@@ -77,7 +77,7 @@ public:
                 m_position = std::min(static_cast<size_t>(offset), m_data.size());
                 break;
             case SEEK_CUR:
-                m_position = std::min(m_position + offset, m_data.size());
+                m_position = std::min<size_t>(m_position + offset, m_data.size());
                 break;
             case SEEK_END:
                 m_position = m_data.size();
