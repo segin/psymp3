@@ -69,7 +69,6 @@ ApplicationWidget& ApplicationWidget::getInstance()
 
 ApplicationWidget::ApplicationWidget(Display& display)
     : Widget()
-    , m_display(display)
 {
     // Set position to cover entire screen
     Rect screen_rect(0, 0, display.width(), display.height());

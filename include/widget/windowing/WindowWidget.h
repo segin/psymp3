@@ -301,8 +301,6 @@ private:
     std::function<void(WindowWidget*)> m_on_shutdown;
     
     // Internal state for event handling
-    bool m_is_dragging = false;
-    int m_drag_start_x = 0, m_drag_start_y = 0;
     uint32_t m_last_click_time = 0;
     int m_last_click_x = 0, m_last_click_y = 0;
     

@@ -153,8 +153,7 @@ private:
      * @param display Reference to the display object for getting screen dimensions
      */
     ApplicationWidget(Display& display);
-    
-    Display& m_display;
+
     std::vector<std::unique_ptr<Widget>> m_windows;
     std::vector<Widget*> m_windows_to_remove; // Windows scheduled for removal
     
