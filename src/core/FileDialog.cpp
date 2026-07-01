@@ -40,10 +40,14 @@
 #include <QString>
 #include <QStringList>
 #include <QByteArray>
+#if PSYMP3_QT_MAJOR >= 5
+#include <QLoggingCategory>
+#endif
 #else // Qt 3
 #include <qapplication.h>
 #include <qfiledialog.h>
 #include <qstring.h>
+#include <qcstring.h>
 #include <qstringlist.h>
 #endif
 
@@ -55,8 +59,11 @@ std::string qstr_to_utf8(const QString& s)
     QByteArray b = s.toUtf8();
     return std::string(b.constData(), static_cast<size_t>(b.size()));
 #else
-    // Qt3: QString::utf8() returns a QCString convertible to const char*.
-    const char* c = s.utf8();
+    // Qt3: QString::utf8() returns a QCString BY VALUE. Bind it to a named local
+    // so its buffer outlives the pointer we read from it (otherwise the QCString
+    // temporary is destroyed at the end of the statement and we read freed heap).
+    const QCString utf8 = s.utf8();
+    const char* c = utf8;
     return c ? std::string(c) : std::string();
 #endif
 }
@@ -99,6 +106,13 @@ std::vector<std::string> FileDialog::openFiles(bool allow_multiple,
 {
     std::vector<std::string> result;
     ensure_qapp();
+#if PSYMP3_QT_MAJOR >= 5
+    // Under KDE, QFileDialog uses KIO's file dialog, whose KDirModel logs a
+    // benign "kdirmodel: No node found for item that was just removed" warning
+    // for every file filtered out of the view (e.g. .lrc lyrics next to audio).
+    // Silence that one category so it doesn't flood the terminal.
+    QLoggingCategory::setFilterRules(QStringLiteral("kf.kio.widgets.kdirmodel.warning=false"));
+#endif
     const QString caption = QString::fromUtf8(title.c_str());
     const QString filter = build_filter(extensions);
 
