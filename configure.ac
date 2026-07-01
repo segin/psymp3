@@ -294,6 +294,91 @@ fi
 
 AM_CONDITIONAL([HAVE_DBUS], [test "x$have_dbus" = "xyes"])
 
+# Native open-file dialog backend for the "I"/"L" runtime track loader (optional).
+# Build-time selection, preferring Qt over GTK and newer over older:
+#   Qt6 -> Qt5 -> Qt4 -> Qt3 -> GTK4 -> GTK+3 -> GTK+2 ; Win32 on Windows.
+# If nothing is found the feature compiles out and the I/L keys are unbound.
+AC_ARG_ENABLE([filedialog],
+  [AS_HELP_STRING([--disable-filedialog], [Disable the native open-file dialog / I+L keys @<:@default=auto@:>@])],
+  [enable_filedialog=$enableval], [enable_filedialog=auto])
+AC_ARG_WITH([qt3-dir],
+  [AS_HELP_STRING([--with-qt3-dir=DIR], [Qt3 install prefix for the file dialog (enables the Qt3 backend)])],
+  [with_qt3_dir=$withval], [with_qt3_dir=no])
+
+have_filedialog=no
+filedialog_backend=none
+psymp3_qt_major=
+psymp3_gtk_major=
+
+if test "x$enable_filedialog" != "xno"; then
+  case "$host_os" in
+    mingw*|msys*|cygwin*|*windows*)
+      have_filedialog=yes
+      filedialog_backend="Win32"
+      DIALOG_LIBS="-lcomdlg32 -lole32 -lshell32"
+      AC_DEFINE([PSYMP3_FILEDIALOG_WIN32], [1], [Use the Win32 comdlg32 open-file dialog])
+      ;;
+    *)
+      # Pick the first available toolkit (existence-only probes; no side effects).
+      dialog_pkg=
+      PKG_CHECK_EXISTS([Qt6Widgets], [dialog_pkg="Qt6Widgets"; filedialog_backend="Qt6"; psymp3_qt_major=6])
+      if test -z "$dialog_pkg"; then
+        PKG_CHECK_EXISTS([Qt5Widgets], [dialog_pkg="Qt5Widgets"; filedialog_backend="Qt5"; psymp3_qt_major=5])
+      fi
+      if test -z "$dialog_pkg"; then
+        PKG_CHECK_EXISTS([QtGui], [dialog_pkg="QtGui"; filedialog_backend="Qt4"; psymp3_qt_major=4])
+      fi
+      # Qt3 has no pkg-config; opt in explicitly with --with-qt3-dir=PREFIX.
+      if test -z "$dialog_pkg" && test "x$with_qt3_dir" != "xno"; then
+        if test -f "$with_qt3_dir/include/qfiledialog.h"; then
+          have_filedialog=yes
+          filedialog_backend="Qt3"
+          psymp3_qt_major=3
+          DIALOG_CFLAGS="-I$with_qt3_dir/include"
+          DIALOG_LIBS="-L$with_qt3_dir/lib -lqt-mt"
+        else
+          AC_MSG_WARN([--with-qt3-dir given but $with_qt3_dir/include/qfiledialog.h not found; ignoring])
+        fi
+      fi
+      if test -z "$dialog_pkg" && test "x$have_filedialog" = "xno"; then
+        PKG_CHECK_EXISTS([gtk4], [dialog_pkg="gtk4"; filedialog_backend="GTK4"; psymp3_gtk_major=4])
+      fi
+      if test -z "$dialog_pkg" && test "x$have_filedialog" = "xno"; then
+        PKG_CHECK_EXISTS([gtk+-3.0], [dialog_pkg="gtk+-3.0"; filedialog_backend="GTK+3"; psymp3_gtk_major=3])
+      fi
+      if test -z "$dialog_pkg" && test "x$have_filedialog" = "xno"; then
+        PKG_CHECK_EXISTS([gtk+-2.0], [dialog_pkg="gtk+-2.0"; filedialog_backend="GTK+2"; psymp3_gtk_major=2])
+      fi
+      # Pull in the chosen toolkit's flags (single PKG_CHECK_MODULES on the winner).
+      if test -n "$dialog_pkg"; then
+        PKG_CHECK_MODULES([DIALOG], [$dialog_pkg], [have_filedialog=yes], [have_filedialog=no])
+      fi
+      if test "x$have_filedialog" = "xyes"; then
+        if test -n "$psymp3_qt_major"; then
+          AC_DEFINE([PSYMP3_FILEDIALOG_QT], [1], [Use a Qt QFileDialog backend])
+          AC_DEFINE_UNQUOTED([PSYMP3_QT_MAJOR], [$psymp3_qt_major], [Qt major version for the file dialog])
+        elif test -n "$psymp3_gtk_major"; then
+          AC_DEFINE([PSYMP3_FILEDIALOG_GTK], [1], [Use a GTK file-chooser backend])
+          AC_DEFINE_UNQUOTED([PSYMP3_GTK_MAJOR], [$psymp3_gtk_major], [GTK major version for the file dialog])
+        fi
+      fi
+      ;;
+  esac
+
+  if test "x$have_filedialog" = "xyes"; then
+    AC_DEFINE([HAVE_FILEDIALOG], [1], [Define to 1 if a native open-file dialog backend is available])
+  else
+    if test "x$enable_filedialog" = "xyes"; then
+      AC_MSG_ERROR([--enable-filedialog requested but no Qt (6/5/4/3) or GTK (4/3/2) toolkit was found])
+    fi
+    AC_MSG_WARN([No file-dialog toolkit found; the I/L track-loader keys will be disabled])
+  fi
+fi
+
+AC_SUBST([DIALOG_CFLAGS])
+AC_SUBST([DIALOG_LIBS])
+AM_CONDITIONAL([HAVE_FILEDIALOG], [test "x$have_filedialog" = "xyes"])
+
 # RapidCheck property-based testing library (optional)
 AC_ARG_ENABLE([rapidcheck],
   [AS_HELP_STRING([--enable-rapidcheck], [Enable RapidCheck property-based testing @<:@default=auto@:>@])],
@@ -525,6 +610,7 @@ echo "  RIFF (WAV):        yes"
 echo ""
 echo "Optional Features:"
 echo "  MPRIS (D-Bus):     $have_dbus"
+echo "  File dialog (I/L): $filedialog_backend"
 echo "  Test Harness:      $enable_test_harness"
 echo "  RapidCheck (PBT):  $have_rapidcheck"
 echo "  Release Build:     $enable_release"

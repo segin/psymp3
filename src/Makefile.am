@@ -191,6 +191,14 @@ if HAVE_DBUS
 psymp3_LDADD += $(DBUS_LIBS)
 endif
 
+# Native open-file dialog backend (I/L keys). The toolkit code is isolated in
+# core/libpsymp3-filedialog.a (built by the src/core SUBDIR in both regular and
+# final builds); $(DIALOG_LIBS) resolves its Qt/GTK/Win32 symbols. Listed after
+# the object that references it and before the toolkit libs (left-to-right ld).
+if HAVE_FILEDIALOG
+psymp3_LDADD += core/libpsymp3-filedialog.a $(DIALOG_LIBS)
+endif
+
 # Windows resource file support
 if HAVE_WINDRES
 psymp3_LDADD += ../res/psymp3.res

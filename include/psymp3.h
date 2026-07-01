@@ -400,6 +400,7 @@ namespace Util = PsyMP3::Core::Utility;
 using PsyMP3::Core::Utility::UTF8Util;
 using PsyMP3::Core::Utility::Base64;
 #include "system.h"
+#include "core/FileDialog.h"
 #include "io/BufferPool.h"
 #include "io/BoundedBuffer.h"
 #include "io/EnhancedBufferPool.h"
