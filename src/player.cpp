@@ -665,8 +665,9 @@ void Player::handleShowNotificationEvent(std::pair<std::string, NotificationType
 void Player::handleDoSetLoopModeEvent(LoopMode mode) {
     m_loop_mode = mode;
     std::string toastMsg = "Loop: ";
-    std::string mprisStatus;
-    PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+    // Only consumed under HAVE_DBUS below; keep it set unconditionally (the enum
+    // type is always available) but mark it maybe-unused for --disable-mpris.
+    [[maybe_unused]] PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
     switch(m_loop_mode) {
         case LoopMode::None:
             toastMsg += "None";
