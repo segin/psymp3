@@ -42,6 +42,9 @@ class Playlist
         Playlist();
         bool addFile(TagLib::String path, TagLib::String artist, TagLib::String title, long duration);
         bool addEntry(const Entry& entry);
+        // Insert entries at the given index, shifting existing tracks (and the
+        // current-position cursor and shuffle order) down. Used by the "I" key.
+        bool insertEntries(long position, const std::vector<Entry>& entries);
         ~Playlist() = default;
         bool addFile(TagLib::String path);
         long getPosition() const;

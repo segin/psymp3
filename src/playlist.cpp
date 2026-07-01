@@ -175,6 +175,57 @@ bool Playlist::addEntry(const Entry& entry)
     return addFile(entry.path, entry.artist, entry.title, entry.duration);
 }
 
+bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (entries.empty()) {
+        return false;
+    }
+
+    const long size = static_cast<long>(tracks.size());
+    if (position < 0) position = 0;
+    if (position > size) position = size;
+    const long n = static_cast<long>(entries.size());
+
+    // Construct each track in place at increasing indices (track is move-only;
+    // emplace move-shifts the trailing elements). The track ctor reads tags.
+    long idx = position;
+    for (const auto& e : entries) {
+        tracks.emplace(tracks.begin() + idx, e.path, e.artist, e.title, e.duration);
+        ++idx;
+    }
+
+    // Keep the position cursor on the same logical track if we inserted at or
+    // before it (callers that want to jump to an insert override this after).
+    if (position <= m_position) {
+        m_position += n;
+    }
+
+    // Shuffle bookkeeping: shift indices at/after the insertion point, then
+    // splice the new indices in just after the current shuffle cursor so they
+    // are up next in shuffle order too.
+    if (m_shuffle) {
+        for (long& si : m_shuffled_indices) {
+            if (si >= position) {
+                si += n;
+            }
+        }
+        std::vector<long> fresh;
+        fresh.reserve(static_cast<size_t>(n));
+        for (long i = 0; i < n; ++i) {
+            fresh.push_back(position + i);
+        }
+        long at = m_shuffle_index + 1;
+        if (at < 0) at = 0;
+        if (at > static_cast<long>(m_shuffled_indices.size())) {
+            at = static_cast<long>(m_shuffled_indices.size());
+        }
+        m_shuffled_indices.insert(m_shuffled_indices.begin() + at, fresh.begin(), fresh.end());
+    }
+
+    return true;
+}
+
 
 
 
