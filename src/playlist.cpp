@@ -187,13 +187,20 @@ bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
     if (position > size) position = size;
     const long n = static_cast<long>(entries.size());
 
-    // Construct each track in place at increasing indices (track is move-only;
-    // emplace move-shifts the trailing elements). The track ctor reads tags.
-    long idx = position;
+    // Build all tracks off to the side FIRST. The track ctor reads tags and can
+    // throw (e.g. bad_alloc): if it does, `staged` unwinds cleanly and the
+    // playlist (tracks, m_position, shuffle indices) is left untouched, rather
+    // than escaping mid-insert with inconsistent bookkeeping.
+    std::vector<track> staged;
+    staged.reserve(entries.size());
     for (const auto& e : entries) {
-        tracks.emplace(tracks.begin() + idx, e.path, e.artist, e.title, e.duration);
-        ++idx;
+        staged.emplace_back(e.path, e.artist, e.title, e.duration);
     }
+
+    // Splice the staged tracks into place in one move (track is move-only).
+    tracks.insert(tracks.begin() + position,
+                  std::make_move_iterator(staged.begin()),
+                  std::make_move_iterator(staged.end()));
 
     // Keep the position cursor on the same logical track if we inserted at or
     // before it (callers that want to jump to an insert override this after).
@@ -647,6 +654,18 @@ void Playlist::savePlaylist(TagLib::String path)
 bool Playlist::setPosition_unlocked(long position) {
     if(position >= 0 && static_cast<size_t>(position) < tracks.size()) {
         m_position = position;
+        // In shuffle mode keep the shuffle cursor pointed at the track we just
+        // jumped to, so a subsequent next()/prev() continues relative to it.
+        // Without this, a jump (e.g. the "I" insert) leaves m_shuffle_index on
+        // the previous slot and the next advance replays/skips a track.
+        if (m_shuffle) {
+            for (size_t i = 0; i < m_shuffled_indices.size(); ++i) {
+                if (m_shuffled_indices[i] == position) {
+                    m_shuffle_index = static_cast<long>(i);
+                    break;
+                }
+            }
+        }
         return true;
     } else {
         return false;
