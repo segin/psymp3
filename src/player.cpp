@@ -793,6 +793,60 @@ void Player::prevTrack(void) {
     requestTrackLoad(playlist->getTrack(new_pos));
 }
 
+#ifdef HAVE_FILEDIALOG
+/**
+ * @brief "I" key: open a multi-select native chooser and insert the chosen
+ *        track(s) at the current playlist index, then start playing the first
+ *        inserted track. The track that was current shifts down by N and plays
+ *        after the inserts.
+ */
+void Player::openInsertDialog()
+{
+    if (!playlist) {
+        return;
+    }
+    std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
+        true, "Insert track(s)", MediaFile::getSupportedExtensions());
+    if (paths.empty()) {
+        return;
+    }
+
+    std::vector<Playlist::Entry> entries;
+    entries.reserve(paths.size());
+    for (const std::string& p : paths) {
+        entries.push_back(Playlist::Entry{
+            TagLib::String(p, TagLib::String::UTF8), TagLib::String(), TagLib::String(), 0});
+    }
+
+    long pos = playlist->getPosition();
+    if (pos < 0) {
+        pos = 0;
+    }
+    playlist->insertEntries(pos, entries);
+    // Jump to the first inserted track now (it now lives at `pos`).
+    playlist->setPosition(pos);
+    m_skip_attempts = 0;
+    requestTrackLoad(playlist->getTrack(pos));
+}
+
+/**
+ * @brief "L" key: open a single-select native chooser and play the chosen file
+ *        in place of the current track WITHOUT modifying the playlist. The
+ *        playlist cursor is untouched, so the next track change (natural end or
+ *        user navigation) resumes normal playlist flow and this override is
+ *        forgotten.
+ */
+void Player::openTemporaryTrackDialog()
+{
+    std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
+        false, "Load temporary track", MediaFile::getSupportedExtensions());
+    if (paths.empty()) {
+        return;
+    }
+    requestTrackLoad(TagLib::String(paths.front(), TagLib::String::UTF8));
+}
+#endif // HAVE_FILEDIALOG
+
 /**
  * @brief Returns whether the "Previous" navigation action is possible.
  *
@@ -1380,6 +1434,16 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 synthesizeUserEvent(DO_SAVE_PLAYLIST, nullptr, nullptr);
             }
             break;
+
+#ifdef HAVE_FILEDIALOG
+        case SDLK_i:
+            openInsertDialog();
+            break;
+
+        case SDLK_l:
+            openTemporaryTrackDialog();
+            break;
+#endif
 
         case SDLK_UP:
             setVolume(getVolume() + 0.05);

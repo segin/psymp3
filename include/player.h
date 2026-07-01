@@ -175,6 +175,14 @@ class Player
         bool updateGUI();
         bool handleWindowEvent(const SDL_WindowEvent& event);
         bool handleKeyPress(const SDL_keysym& keysym);
+#ifdef HAVE_FILEDIALOG
+        // "I": multi-select native chooser; insert at the current playlist index
+        // and jump to the first inserted track.
+        void openInsertDialog();
+        // "L": single-select native chooser; play the chosen file in place of the
+        // current track without modifying the playlist (forgotten on next change).
+        void openTemporaryTrackDialog();
+#endif
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
         void handleMouseMotion(const SDL_MouseMotionEvent& event);
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
