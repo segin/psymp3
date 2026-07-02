@@ -62,9 +62,46 @@ PSYMP3_CXXFLAGS="$PSYMP3_CXXFLAGS -D_FORTIFY_SOURCE=2"
 AC_SUBST([PSYMP3_CXXFLAGS])
 
 
-# Check for atomic library (required for 64-bit atomics on some 32-bit architectures like ARM)
-# Use __atomic_compare_exchange_8 as it's the specific symbol often missing on ARM
-AC_SEARCH_LIBS([__atomic_compare_exchange_8], [atomic])
+# 64-bit atomics need libatomic on some 32-bit targets (i386, ARM) where the
+# compiler lowers std::atomic<uint64_t> ops to __atomic_*_8 library calls
+# instead of inlining them. Probe with a REAL std::atomic<uint64_t> program:
+# the old AC_SEARCH_LIBS([__atomic_compare_exchange_8]) is unreliable because
+# GCC treats that name as a builtin, so the conftest mis-links and no -latomic
+# is added (observed: NetBSD i386/GCC 10 -> undefined __atomic_store_8 at link).
+# Resolution order: inline (amd64, clang/i386) -> -latomic -> on i386 enable
+# CMPXCHG8B via -march=i586 so GCC inlines them (NetBSD's base GCC ships no
+# libatomic and defaults to i486, which lacks the instruction).
+AC_MSG_CHECKING([how to link 64-bit atomics])
+AC_LANG_PUSH([C++])
+psymp3_atomic_prog="AC_LANG_PROGRAM([[#include <atomic>
+#include <cstdint>
+static std::atomic<std::uint64_t> a;]], [[
+  a.store(2, std::memory_order_relaxed);
+  return (int)(a.fetch_add(1) + a.load(std::memory_order_relaxed));]])"
+AC_LINK_IFELSE([$psymp3_atomic_prog],
+  [AC_MSG_RESULT([inlined])],
+  [psymp3_save_libs="$LIBS"
+   LIBS="$LIBS -latomic"
+   AC_LINK_IFELSE([$psymp3_atomic_prog],
+     [AC_MSG_RESULT([-latomic])],
+     [LIBS="$psymp3_save_libs"
+      psymp3_atomic_fixed=no
+      case "$host_cpu" in
+        i?86)
+          psymp3_save_cxxflags="$CXXFLAGS"
+          CXXFLAGS="$CXXFLAGS -march=i586"
+          AC_LINK_IFELSE([$psymp3_atomic_prog],
+            [AC_MSG_RESULT([-march=i586])
+             PSYMP3_CXXFLAGS="$PSYMP3_CXXFLAGS -march=i586"
+             psymp3_atomic_fixed=yes])
+          CXXFLAGS="$psymp3_save_cxxflags"
+          ;;
+      esac
+      if test "x$psymp3_atomic_fixed" != "xyes"; then
+        AC_MSG_RESULT([unavailable])
+        AC_MSG_WARN([could not make 64-bit std::atomic link; the build may fail])
+      fi])])
+AC_LANG_POP([C++])
 
 AC_TYPE_INT16_T
 AC_TYPE_SIZE_T
