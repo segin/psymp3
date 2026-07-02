@@ -279,7 +279,18 @@ using SDLKey = SDL_Keycode;
 #include <neaacdec.h>
 #endif
 #ifdef HAVE_OGGDEMUXER
+// vorbisfile.h defines file-scope `static ov_callbacks OV_CALLBACKS_*` structs.
+// Pulled into every TU through this umbrella, they trip -Werror=unused-variable
+// on GCC (e.g. NetBSD's GCC 10). Suppress it for the third-party header only;
+// our own -Wunused-variable checks stay in force after the pop.
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
 #include <vorbis/vorbisfile.h>
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #endif
 #ifdef HAVE_OGGDEMUXER
 #include <opus/opus.h>
