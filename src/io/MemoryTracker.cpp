@@ -9,6 +9,14 @@
 
 #include "psymp3.h"
 
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
+#if !defined(_WIN32)
+#include <sys/resource.h>   // getrusage() for the BSD / fallback peak-RSS paths
+#endif
+
 namespace PsyMP3 {
 namespace IO {
 
@@ -85,8 +93,37 @@ void MemoryTracker::update() {
     
     // Get peak memory usage (not directly available on macOS)
     new_stats.peak_memory_usage = new_stats.process_memory_usage;
+    #elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+    // BSD implementation: total physical RAM via sysctl, peak RSS via getrusage.
+    // (No /proc/meminfo here: FreeBSD has no procfs by default, and NetBSD's is
+    // only Linux-shaped when explicitly mounted that way.)
+    {
+        int mib[2];
+        mib[0] = CTL_HW;
+    #if defined(HW_PHYSMEM64)
+        mib[1] = HW_PHYSMEM64;   // NetBSD, OpenBSD
     #else
-    // Linux implementation
+        mib[1] = HW_PHYSMEM;     // FreeBSD, DragonFly
+    #endif
+        uint64_t physmem = 0;
+        size_t len = sizeof(physmem);
+        if (sysctl(mib, 2, &physmem, &len, nullptr, 0) == 0) {
+            new_stats.total_physical_memory = static_cast<size_t>(physmem);
+        }
+    }
+    {
+        struct rusage ru;
+        if (getrusage(RUSAGE_SELF, &ru) == 0) {
+            // ru_maxrss is in kilobytes on the BSDs.
+            new_stats.peak_memory_usage = static_cast<size_t>(ru.ru_maxrss) * 1024;
+            new_stats.process_memory_usage = new_stats.peak_memory_usage;
+        }
+    }
+    // available_physical_memory and the pressure level are left at 0: the
+    // free-memory sysctls differ per-BSD, and total_physical_memory is the field
+    // consumers actually use (e.g. the ISODemuxer lazy-load heuristic).
+    #elif defined(__linux__)
+    // Linux implementation (/proc)
     FILE* file = fopen("/proc/meminfo", "r");
     if (file) {
         char line[128];
@@ -127,8 +164,17 @@ void MemoryTracker::update() {
         }
         fclose(file);
     }
+    #else
+    // Other/unknown Unix: best-effort peak RSS; memory totals stay unknown (0).
+    {
+        struct rusage ru;
+        if (getrusage(RUSAGE_SELF, &ru) == 0) {
+            new_stats.peak_memory_usage = static_cast<size_t>(ru.ru_maxrss) * 1024;
+            new_stats.process_memory_usage = new_stats.peak_memory_usage;
+        }
+    }
     #endif
-    
+
     // Update stats and pressure level
     {
         std::lock_guard<std::mutex> lock(m_mutex);
