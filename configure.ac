@@ -530,10 +530,19 @@ fi
 # Compile-side hardening (-fstack-protector-strong, -fPIE, -D_FORTIFY_SOURCE=2)
 # is carried in PSYMP3_CXXFLAGS (see above) and applied via each AM_CXXFLAGS so
 # it survives a user CXXFLAGS override. Link-side hardening stays here.
-LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now"
-if test "x$enable_pie" = "xyes"; then
-  LDFLAGS="$LDFLAGS -pie"
-fi
+# ELF uses -z relro/-z now (+ -pie); the mingw PE linker rejects -z ("ld:
+# unrecognized option '-z'"), so use the PE equivalents (ASLR/DEP) there.
+case "$host_os" in
+  mingw*|msys*|cygwin*)
+    LDFLAGS="$LDFLAGS -Wl,--dynamicbase,--nxcompat"
+    ;;
+  *)
+    LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now"
+    if test "x$enable_pie" = "xyes"; then
+      LDFLAGS="$LDFLAGS -pie"
+    fi
+    ;;
+esac
 
 AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
 AM_CONDITIONAL([ENABLE_UBSAN], [test "x$enable_ubsan" = "xyes"])
