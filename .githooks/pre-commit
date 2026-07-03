@@ -1,0 +1,30 @@
+#!/bin/sh
+# PsyMP3 pre-commit hook: increment the build number (the 4th version field) in
+# res/psymp3.rc on every commit, keeping FILEVERSION, PRODUCTVERSION, and the
+# "FileVersion" string in sync. The build number is a monotonic counter and
+# must NEVER be reset — only ever carried forward and incremented.
+#
+# Installed by autogen.sh (git config core.hooksPath .githooks); bypass a single
+# commit with `git commit --no-verify` if you must avoid bumping.
+
+rc="res/psymp3.rc"
+[ -f "$rc" ] || exit 0
+
+cur=$(sed -n 's/^FILEVERSION [0-9]*,[0-9]*,[0-9]*,\([0-9]*\).*/\1/p' "$rc" | head -1)
+case "$cur" in
+    ''|*[!0-9]*) exit 0 ;;   # no numeric build field found -> do nothing
+esac
+next=$((cur + 1))
+
+tmp=$(mktemp "${TMPDIR:-/tmp}/psymp3rc.XXXXXX") || exit 0
+if sed \
+    -e "s/^\(FILEVERSION [0-9][0-9]*,[0-9][0-9]*,[0-9][0-9]*,\)[0-9][0-9]*/\1$next/" \
+    -e "s/^\(PRODUCTVERSION [0-9][0-9]*,[0-9][0-9]*,[0-9][0-9]*,\)[0-9][0-9]*/\1$next/" \
+    -e "s/\(VALUE \"FileVersion\", \"[0-9][0-9]*, [0-9][0-9]*, [0-9][0-9]*, \)[0-9][0-9]*/\1$next/" \
+    "$rc" > "$tmp" && [ -s "$tmp" ]; then
+    mv "$tmp" "$rc"
+    git add "$rc"
+else
+    rm -f "$tmp"
+fi
+exit 0

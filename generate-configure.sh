@@ -148,11 +148,21 @@ verify_configure() {
 }
 
 # Main execution
+# Install the tracked git hooks (build-number bumper) for developers.
+install_git_hooks() {
+    if test -d .git && test -f .githooks/pre-commit; then
+        if git config core.hooksPath .githooks 2>/dev/null; then
+            log_info "Installed git hooks (core.hooksPath=.githooks)"
+        fi
+    fi
+}
+
 main() {
     log_info "Starting autotools configuration generation for $PROJECT_NAME"
-    
+
     # Perform checks and setup
     check_project_directory
+    install_git_hooks
     check_autotools
     show_versions
     
