@@ -614,6 +614,17 @@ case "$host_os" in
     ;;
 esac
 
+# Large-file offsets on Windows. AC_SYS_LARGEFILE records _FILE_OFFSET_BITS in
+# config.h, but on mingw off_t only widens to 64-bit when the macro is defined
+# on the command line, before any system header. Under llvm-mingw/clang the
+# config.h define lands too late and off_t stays 32-bit (long, LLP64), tripping
+# the IOHandler filesize_t static_assert. Force it on the command line for mingw.
+case "$host_os" in
+  *mingw*|*cygwin*|*msys*)
+    CPPFLAGS="$CPPFLAGS -D_FILE_OFFSET_BITS=64"
+    ;;
+esac
+
 # Core dependencies check for final validation
 # SDL: Try pkg-config first, fall back to sdl-config (already checked above, just validate others)
 PKG_CHECK_MODULES([DEPENDS], [taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
