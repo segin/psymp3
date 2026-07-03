@@ -56,9 +56,22 @@ for psymp3_flag in $psymp3_candidate_flags; do
   CXXFLAGS="$psymp3_save_cxxflags"
 done
 AC_LANG_POP([C++])
-# _FORTIFY_SOURCE needs an optimizing build; it is inert (with a warning we do
-# not treat as error here) at -O0, so request it unconditionally as before.
-PSYMP3_CXXFLAGS="$PSYMP3_CXXFLAGS -D_FORTIFY_SOURCE=2"
+# _FORTIFY_SOURCE needs an optimizing build; it is inert at -O0. Add it only if
+# the toolchain/environment has not already defined it: distributions (e.g. Arch
+# builds with =3) set their own via CPPFLAGS/CFLAGS, and defining it a second
+# time is a fatal redefinition under -Werror.
+AC_MSG_CHECKING([whether _FORTIFY_SOURCE is already defined])
+AC_LANG_PUSH([C++])
+AC_COMPILE_IFELSE(
+  [AC_LANG_PROGRAM([[
+#ifndef _FORTIFY_SOURCE
+#error _FORTIFY_SOURCE is not defined
+#endif
+  ]], [[]])],
+  [AC_MSG_RESULT([yes; leaving it to the toolchain])],
+  [AC_MSG_RESULT([no])
+   PSYMP3_CXXFLAGS="$PSYMP3_CXXFLAGS -D_FORTIFY_SOURCE=2"])
+AC_LANG_POP([C++])
 AC_SUBST([PSYMP3_CXXFLAGS])
 
 
