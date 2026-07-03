@@ -64,6 +64,25 @@ Font::Font(const TagLib::String& file, int ptsize)
     Debug::log("font", "FT_Set_Pixel_Sizes successful.");
 }
 
+Font::Font(const uint8_t* data, size_t size, int ptsize)
+{
+    // Non-throwing: leave the Font !isValid() on any failure so callers can
+    // fall back to another source.
+    if (!data || size == 0) {
+        Debug::log("font", "Font(memory): empty buffer");
+        return;
+    }
+    m_data.assign(data, data + size);
+    if (FT_New_Memory_Face(TrueType::getLibrary(), m_data.data(),
+                           static_cast<FT_Long>(m_data.size()), 0, &m_face)) {
+        Debug::log("font", "FT_New_Memory_Face failed");
+        m_face = nullptr;
+        return;
+    }
+    FT_Set_Pixel_Sizes(m_face, 0, ptsize);
+    Debug::log("font", "Font(memory): loaded ", size, " bytes at ptsize ", ptsize);
+}
+
 Font::~Font()
 {
     Debug::log("font", "Font destructor called.");

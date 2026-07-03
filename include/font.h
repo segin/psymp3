@@ -32,6 +32,9 @@ class Font
 {
     public:
         explicit Font(const TagLib::String& file, int ptsize = 12);
+        // Construct from an in-memory font image (e.g. an embedded resource).
+        // Non-throwing: on failure the Font is simply left !isValid().
+        Font(const uint8_t* data, size_t size, int ptsize = 12);
         virtual ~Font();
         std::unique_ptr<Surface> Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b);
         // ClearType-style render: subpixel-accurate glyphs pre-blended against
@@ -44,6 +47,9 @@ class Font
     protected:
     private:
         FT_Face m_face = nullptr;
+        // Backing store for memory faces; FT_New_Memory_Face does not copy, so
+        // this must outlive m_face.
+        std::vector<uint8_t> m_data;
 };
 
 } // namespace PsyMP3::Core
