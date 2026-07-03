@@ -37,5 +37,10 @@ libpsymp3_filedialog_a_CPPFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/incl
 # -fPIC (overriding the project default -fPIE): Qt6 exports protected-visibility
 # symbols (e.g. QCoreApplication::self) that the linker can't reach via a copy
 # relocation from a PIE, so this TU must use full position-independent code.
+# NOTE: this -fPIC is defeated by an LTO build (the link-time recompile drops it,
+# reintroducing the copy relocation against libQt6Core). A per-TU -fno-lto does
+# not help — automake appends the environment $(CXXFLAGS) after these flags, so
+# a caller's -flto wins. LTO builds must therefore disable LTO (the AUR PKGBUILD
+# uses options=('!lto')); see contrib/aur/PKGBUILD.
 libpsymp3_filedialog_a_CXXFLAGS = $(PSYMP3_CXXFLAGS) -fPIC
 endif
