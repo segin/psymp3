@@ -121,18 +121,19 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    // Speex decoder state
-    void* m_decoder_state = nullptr;
-    void* m_bits = nullptr;        // SpeexBits*
-    void* m_stereo_state = nullptr; // SpeexStereoState*
+    // Speex decoder state (stub fields; [[maybe_unused]] until the decoder is
+    // implemented — clang's -Wunused-private-field flags them otherwise).
+    [[maybe_unused]] void* m_decoder_state = nullptr;
+    [[maybe_unused]] void* m_bits = nullptr;        // SpeexBits*
+    [[maybe_unused]] void* m_stereo_state = nullptr; // SpeexStereoState*
 
     // Config
     uint32_t m_sample_rate = 0;
     uint16_t m_channels = 0;
-    uint32_t m_frame_size = 160;  // Default Speex frame size (nb_samples)
+    [[maybe_unused]] uint32_t m_frame_size = 160;  // Default Speex frame size (nb_samples)
 
     // Initialization state
-    bool m_initialized_speex = false;
+    [[maybe_unused]] bool m_initialized_speex = false;
 };
 
 #endif // OGGCODECS_H
