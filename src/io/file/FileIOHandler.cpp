@@ -73,15 +73,16 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         std::filesystem::path p(utf8_path);
 #endif
 
-        // Directory-traversal guard. Resolving to canonical form (to catch ".."
-        // and symlink escapes) only matters for RELATIVE paths — absolute paths
-        // are explicit user intent. Crucially, weakly_canonical() touches the
-        // filesystem and can legitimately fail on paths it cannot resolve, most
-        // notably Windows UNC / network shares (\\host\share\...), where mingw
-        // throws "cannot make canonical path". That is NOT a security problem and
-        // must not fail the open, so it is (a) restricted to relative paths and
-        // (b) treated as "unverifiable" on failure. The platform-independent ".."
-        // component scan below still guards traversal regardless.
+        // Relative-path escape check via canonicalization (catches ".." and
+        // symlink escapes that resolve outside the CWD). POSIX ONLY: on Windows,
+        // mingw's std::filesystem mis-handles UNC / network shares
+        // (\\host\share\...) — depending on the path it either throws "cannot
+        // make canonical path" OR misclassifies the path as relative and reports
+        // a bogus traversal, which broke every network-hosted file. Paths on
+        // Windows come from explicit user selection (dialog/CLI) anyway. The
+        // platform-independent ".." component scan below remains the guard on all
+        // platforms; the canonicalization failure is also treated as non-fatal.
+#ifndef _WIN32
         if (p.is_relative()) {
             try {
                 std::filesystem::path canonical_path = std::filesystem::weakly_canonical(p);
@@ -104,11 +105,12 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
                     }
                 }
             } catch (const std::filesystem::filesystem_error& e) {
-                // Could not canonicalize (network/UNC path, permissions, etc.).
-                // Not a traversal attack; fall through to the ".." scan below.
+                // Could not canonicalize (e.g. a transient network mount);
+                // not a traversal attack — fall through to the ".." scan.
                 Debug::log("io", "FileIOHandler::FileIOHandler() - path canonicalization skipped: ", e.what());
             }
         }
+#endif // !_WIN32
 
         // Additionally, check if any component of the path is ".." to prevent obfuscation.
         // This maintains backward compatibility with the previous check but is more robust.
