@@ -30,7 +30,7 @@
 
 #ifdef _WIN32
 // For setting thread name in the Visual Studio debugger
-const DWORD MS_VC_EXCEPTION = 0x406D1388;
+[[maybe_unused]] const DWORD MS_VC_EXCEPTION = 0x406D1388;
 #pragma pack(push, 8)
 typedef struct tagTHREADNAME_INFO {
   DWORD dwType;     // Must be 0x1000.
