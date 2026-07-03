@@ -1,0 +1,83 @@
+# Maintainer: Kirn Gill II <segin2005@gmail.com>
+
+pkgname=psymp3
+pkgver=1.99.7
+pkgrel=1
+_tag="1.99.7-RELEASE"
+pkgdesc="Cross-platform C++17 audio player with FFT visualization"
+arch=('x86_64' 'aarch64' 'armv7h')
+url="https://github.com/segin/psymp3"
+license=('ISC')
+# Mandatory: SDL2, TagLib, FreeType, cURL, OpenSSL. Codecs: Opus/Vorbis/Ogg
+# (FLAC and MP3 are decoded natively). D-Bus enables MPRIS media-key control;
+# qt6-base provides the native file-open dialog behind the I / L track-loader
+# keys (configure prefers Qt6, then Qt5..3, then GTK4..2 if present).
+depends=('sdl2' 'taglib' 'freetype2' 'curl' 'openssl' 'opus' 'libvorbis'
+         'libogg' 'dbus' 'qt6-base')
+makedepends=('autoconf' 'automake' 'autoconf-archive' 'pkgconf')
+# The Qt6 file-dialog TU must be -fPIC to reference Qt's protected symbols
+# (QCoreApplication::self); LTO recompiles it at link time and drops that,
+# reintroducing a copy-relocation link error against libQt6Core.
+options=('!lto')
+source=("$pkgname-$_tag.tar.gz::$url/archive/refs/tags/$_tag.tar.gz")
+sha256sums=('9001b3cfe3fb2677560949f0e888e19183c27d6b2e7266fa46056925749fca2f')
+
+prepare() {
+    cd "$pkgname-$_tag"
+    # The release tarball ships no generated configure; regenerate it.
+    ./autogen.sh
+}
+
+build() {
+    cd "$pkgname-$_tag"
+    # PsyMP3's configure hardcodes -D_FORTIFY_SOURCE=2 in its own CXXFLAGS.
+    # Arch's makepkg injects -D_FORTIFY_SOURCE=3, and the redefinition is fatal
+    # under PsyMP3's -Werror. Drop makepkg's copy so PsyMP3's stands alone.
+    CFLAGS="${CFLAGS//-Wp,-D_FORTIFY_SOURCE=?/}"
+    CFLAGS="${CFLAGS//-D_FORTIFY_SOURCE=?/}"
+    CXXFLAGS="${CXXFLAGS//-Wp,-D_FORTIFY_SOURCE=?/}"
+    CXXFLAGS="${CXXFLAGS//-D_FORTIFY_SOURCE=?/}"
+    CPPFLAGS="${CPPFLAGS//-Wp,-D_FORTIFY_SOURCE=?/}"
+    CPPFLAGS="${CPPFLAGS//-D_FORTIFY_SOURCE=?/}"
+
+    # Also strip LTO explicitly (belt-and-suspenders with options=('!lto') above,
+    # since some makepkg.conf hardcodes -flto in the flags rather than via the
+    # managed option): with LTO the Qt6 file-dialog TU's -fPIC is dropped at the
+    # link-time recompile, reintroducing the copy-relocation error.
+    CFLAGS="${CFLAGS//-flto=auto/}"; CFLAGS="${CFLAGS//-flto/}"
+    CXXFLAGS="${CXXFLAGS//-flto=auto/}"; CXXFLAGS="${CXXFLAGS//-flto/}"
+    LDFLAGS="${LDFLAGS//-flto=auto/}"; LDFLAGS="${LDFLAGS//-flto/}"
+    CFLAGS="${CFLAGS//-ffat-lto-objects/}"; CXXFLAGS="${CXXFLAGS//-ffat-lto-objects/}"
+    export CFLAGS CXXFLAGS CPPFLAGS LDFLAGS
+
+    ./configure --prefix=/usr
+    make
+}
+
+package() {
+    cd "$pkgname-$_tag"
+    make DESTDIR="$pkgdir" install
+
+    install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING"
+
+    # Icons (hicolor) so the desktop entry below has one at several sizes.
+    local _sz
+    for _sz in 16 32 48 64 96 128; do
+        install -Dm644 "res/psymp3_icon1_nobg_${_sz}x${_sz}.png" \
+            "$pkgdir/usr/share/icons/hicolor/${_sz}x${_sz}/apps/$pkgname.png"
+    done
+
+    install -d "$pkgdir/usr/share/applications"
+    cat > "$pkgdir/usr/share/applications/$pkgname.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=PsyMP3
+GenericName=Audio Player
+Comment=Audio player with FFT visualization
+Exec=psymp3 %F
+Icon=psymp3
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+MimeType=audio/mpeg;audio/flac;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/x-wav;audio/aiff;
+DESKTOP
+}
