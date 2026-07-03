@@ -73,31 +73,40 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         std::filesystem::path p(utf8_path);
 #endif
 
-        // Resolve the path to its absolute and canonical (no ".." or symlinks) form.
-        // weakly_canonical is used because the file might not exist yet in some scenarios.
-        std::filesystem::path canonical_path = std::filesystem::weakly_canonical(p);
+        // Directory-traversal guard. Resolving to canonical form (to catch ".."
+        // and symlink escapes) only matters for RELATIVE paths — absolute paths
+        // are explicit user intent. Crucially, weakly_canonical() touches the
+        // filesystem and can legitimately fail on paths it cannot resolve, most
+        // notably Windows UNC / network shares (\\host\share\...), where mingw
+        // throws "cannot make canonical path". That is NOT a security problem and
+        // must not fail the open, so it is (a) restricted to relative paths and
+        // (b) treated as "unverifiable" on failure. The platform-independent ".."
+        // component scan below still guards traversal regardless.
+        if (p.is_relative()) {
+            try {
+                std::filesystem::path canonical_path = std::filesystem::weakly_canonical(p);
+                if (canonical_path.is_absolute()) {
+                    std::filesystem::path cwd = std::filesystem::current_path();
+                    auto it_cwd = cwd.begin();
+                    auto it_path = canonical_path.begin();
 
-        // If the path is relative, ensure it doesn't escape the current working directory
-        // hierarchy if it uses ".." or symlinks to point outside.
-        // Note: Absolute paths provided by the user (e.g., from command line) are allowed
-        // as they represent explicit intent, but we still validate them for ".." traversal.
-        if (p.is_relative() && canonical_path.is_absolute()) {
-            std::filesystem::path cwd = std::filesystem::current_path();
-            // Using a more robust prefix check for canonical paths
-            auto it_cwd = cwd.begin();
-            auto it_path = canonical_path.begin();
-            
-            while (it_cwd != cwd.end() && it_path != canonical_path.end() && *it_cwd == *it_path) {
-                ++it_cwd;
-                ++it_path;
-            }
+                    while (it_cwd != cwd.end() && it_path != canonical_path.end() && *it_cwd == *it_path) {
+                        ++it_cwd;
+                        ++it_path;
+                    }
 
-            if (it_cwd != cwd.end()) {
-                m_path_secure = false;
-                std::string errorMsg = "Potential directory traversal attack detected in relative path: " + normalized_path;
-                Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
-                m_error = EACCES;
-                throw InvalidMediaException(errorMsg);
+                    if (it_cwd != cwd.end()) {
+                        m_path_secure = false;
+                        std::string errorMsg = "Potential directory traversal attack detected in relative path: " + normalized_path;
+                        Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
+                        m_error = EACCES;
+                        throw InvalidMediaException(errorMsg);
+                    }
+                }
+            } catch (const std::filesystem::filesystem_error& e) {
+                // Could not canonicalize (network/UNC path, permissions, etc.).
+                // Not a traversal attack; fall through to the ".." scan below.
+                Debug::log("io", "FileIOHandler::FileIOHandler() - path canonicalization skipped: ", e.what());
             }
         }
 
