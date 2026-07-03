@@ -9,9 +9,14 @@
 #define IDC_PLAYLIST_LIST 1102
 #define IDC_PLAYLIST_OK 1103
 #define IDC_PLAYLIST_CANCEL 1104
+#define IDR_VERA_TTF 2000
 
 FB_PROGRAM_ICON ICON DISCARDABLE "psymp3.ico"
 FileIcon ICON DISCARDABLE "music.ico"
+
+/* Embedded UI font (Bitstream Vera), loaded via FindResource on Windows so the
+   exe is self-contained (no external vera.ttf needed). See src/player.cpp. */
+IDR_VERA_TTF RCDATA "vera.ttf"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION 2,0,0,805

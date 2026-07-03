@@ -43,6 +43,38 @@ bool widgetBelongsToWindow(const Widget* candidate, const WindowFrameWidget* win
     return false;
 }
 
+#if defined(_WIN32)
+// Load the UI font, preferring the copy embedded in the exe (RCDATA
+// IDR_VERA_TTF = 2000, see res/psymp3.rc) so the binary is self-contained;
+// fall back to ./vera.ttf then ./res/vera.ttf relative to the CWD. Always
+// returns a non-null Font (an invalid one as last resort) so callers keep the
+// "font is never null" invariant. The file Font ctor throws, so those attempts
+// are guarded.
+std::unique_ptr<Font> loadUiFont(int ptsize)
+{
+    HMODULE mod = GetModuleHandleW(nullptr);
+    if (HRSRC res = FindResourceW(mod, MAKEINTRESOURCEW(2000),
+                                  reinterpret_cast<LPCWSTR>(RT_RCDATA))) {
+        if (HGLOBAL h = LoadResource(mod, res)) {
+            const void* data = LockResource(h);
+            DWORD size = SizeofResource(mod, res);
+            if (data && size) {
+                auto f = std::make_unique<Font>(static_cast<const uint8_t*>(data),
+                                                static_cast<size_t>(size), ptsize);
+                if (f->isValid()) return f;
+            }
+        }
+    }
+    for (const char* path : {"./vera.ttf", "./res/vera.ttf"}) {
+        try {
+            auto f = std::make_unique<Font>(TagLib::String(path), ptsize);
+            if (f->isValid()) return f;
+        } catch (const std::exception&) { /* try next source */ }
+    }
+    return std::make_unique<Font>(nullptr, 0, ptsize); // invalid, but non-null
+}
+#endif // _WIN32
+
 bool canReuseAudioForStream(const Audio* audio, Stream* stream)
 {
     if (!audio || !stream) {
@@ -1829,23 +1861,13 @@ bool Player::Initialize(const PlayerOptions& options) {
     system->InitializeIPC(this);
 #endif
 #if defined(_WIN32)
-    // Try multiple paths on Windows: current directory first, then res/ subdirectory
-    font = std::make_unique<Font>("./vera.ttf");
-    if (!font->isValid()) {
-        font = std::make_unique<Font>("./res/vera.ttf");
-    }
+    // Font is embedded in the exe (see loadUiFont); no external vera.ttf needed.
+    font = loadUiFont(12);
+    // Create a larger font for status indicators like the pause message.
+    m_large_font = loadUiFont(36);
 #else
     font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 12);
-#endif // _WIN32
-    
     // Create a larger font for status indicators like the pause message.
-#if defined(_WIN32)
-    // Try multiple paths on Windows for large font too
-    m_large_font = std::make_unique<Font>("./vera.ttf", 36);
-    if (!m_large_font->isValid()) {
-        m_large_font = std::make_unique<Font>("./res/vera.ttf", 36);
-    }
-#else
     m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
 #endif // _WIN32
     Debug::log("font", "font->isValid(): ", font->isValid());
