@@ -48,7 +48,7 @@ public:
     // Alignment
     bool alignToByte();
     bool isAligned() const;
-    bool skipBits(uint32_t bit_count);
+    bool skipBits(uint64_t bit_count);
     
     // Position tracking
     uint64_t getBitPosition() const;

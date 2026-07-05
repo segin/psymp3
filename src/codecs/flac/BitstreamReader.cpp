@@ -228,13 +228,14 @@ bool BitstreamReader::alignToByte() {
 
 bool BitstreamReader::isAligned() const { return (m_total_bits_read % 8) == 0; }
 
-bool BitstreamReader::skipBits(uint32_t bit_count) {
+bool BitstreamReader::skipBits(uint64_t bit_count) {
   // ensureBits/consumeBits operate on a <=64-bit cache, so a single
   // ensureBits(bit_count) fails for bit_count > 64. Skip in chunks instead;
   // otherwise setBitPosition() (which skips from the start) could never advance
-  // past 64 bits, breaking seeking and sync recovery.
+  // past 64 bits, breaking seeking and sync recovery. bit_count is 64-bit so a
+  // seek past 2^32 bits (~512 MB) is not silently truncated.
   while (bit_count > 0) {
-    uint32_t chunk = (bit_count < 32u) ? bit_count : 32u;
+    uint32_t chunk = (bit_count < 32u) ? static_cast<uint32_t>(bit_count) : 32u;
     if (!ensureBits(chunk)) {
       return false;
     }
@@ -270,7 +271,7 @@ bool BitstreamReader::setBitPosition(uint64_t bit_position) {
   m_cache_bits = 0;
   m_total_bits_read = 0;
 
-  return skipBits(static_cast<uint32_t>(bit_position));
+  return skipBits(bit_position);
 }
 
 int32_t BitstreamReader::unfoldSigned(uint32_t folded) {
