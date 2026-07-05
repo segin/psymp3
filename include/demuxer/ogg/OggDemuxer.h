@@ -39,7 +39,7 @@ struct OggStream {
     uint64_t pre_skip = 0;
     bool headers_complete = false;
     bool headers_sent = false;
-    std::deque<ogg_packet> m_packet_queue; // Using libogg's ogg_packet
+    std::deque<OggPacket> m_packet_queue; // Owning copies; libogg's ogg_packet only borrows its data buffer
     std::vector<std::vector<uint8_t>> header_packets;
 };
 

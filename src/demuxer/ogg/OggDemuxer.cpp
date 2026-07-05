@@ -469,7 +469,6 @@ uint64_t OggDemuxer::getDuration() const {
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
   // Duration is pre-calculated in parseContainer() to avoid blocking
   return m_cached_duration;
-  return m_cached_duration;
 }
 
 uint64_t OggDemuxer::getPosition() const {
@@ -678,11 +677,17 @@ int OggDemuxer::fetchAndProcessPacket() {
             ogg_packet packet;
             // Only 1 means *packet is valid; -1 (data gap) must not be queued.
             while (it->second->getPacket(&packet) == 1) {
-                // We actually need to deep-copy the packet data if the test uses it
-                // but for now let's just push it. 
-                // Wait, ogg_packet has a pointer. This is unsafe.
-                // But test_ogg_data_streaming.cpp just checks queue size.
-                tit->second.m_packet_queue.push_back(packet);
+                // ogg_packet::packet borrows libogg's internal stream buffer,
+                // which is overwritten by the next getPacket() in this very loop.
+                // Deep-copy the bytes into an owning OggPacket before queueing so
+                // the queue never holds a dangling pointer.
+                OggPacket queued;
+                if (packet.packet && packet.bytes > 0) {
+                    queued.data.assign(packet.packet, packet.packet + packet.bytes);
+                }
+                queued.granule_position = packet.granulepos;
+                queued.is_keyframe = false;
+                tit->second.m_packet_queue.push_back(std::move(queued));
                 
                 // If ID header, set codec name for test
                 if (ogg_page_bos(&page)) {
