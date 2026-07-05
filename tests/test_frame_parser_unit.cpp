@@ -75,6 +75,28 @@ void test_sync_detection_invalid() {
     ASSERT_FALSE(parser.findSync(), "Should not find invalid sync pattern 0xFFF7");
 }
 
+// Test sync detection when the sync is preceded by garbage (resync / sliding
+// path): must find sync at a non-zero offset and leave the reader at the sync
+// start, and must fail (without hanging) on sync-free data.
+void test_sync_detection_sliding() {
+    BitstreamReader reader;
+    CRCValidator crc;
+    FrameParser parser(&reader, &crc);
+
+    // 3 garbage bytes, then a valid sync 0xFFF8 at byte offset 3 (bit 24).
+    uint8_t data[] = {0x00, 0x11, 0x22, 0xFF, 0xF8, 0x00, 0x00, 0x00};
+    reader.feedData(data, sizeof(data));
+    ASSERT_TRUE(parser.findSync(), "Should find sync after leading garbage");
+    ASSERT_TRUE(reader.getBitPosition() == 24,
+                "Reader should be left at the sync start (bit 24)");
+
+    BitstreamReader reader2;
+    FrameParser parser2(&reader2, &crc);
+    uint8_t nosync[] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+    reader2.feedData(nosync, sizeof(nosync));
+    ASSERT_FALSE(parser2.findSync(), "Should not find sync in sync-free data");
+}
+
 // Test header parsing with standard block size
 void test_header_parsing_standard_block_size() {
     BitstreamReader reader;
@@ -259,6 +281,7 @@ int main() {
     suite.addTest("Sync Detection Valid", test_sync_detection_valid);
     suite.addTest("Sync Detection Range", test_sync_detection_range);
     suite.addTest("Sync Detection Invalid", test_sync_detection_invalid);
+    suite.addTest("Sync Detection Sliding", test_sync_detection_sliding);
     suite.addTest("Header Parsing Standard Block Size", test_header_parsing_standard_block_size);
     suite.addTest("Uncommon Block Size", test_uncommon_block_size);
     suite.addTest("Channel Assignment", test_channel_assignment);

@@ -67,55 +67,46 @@ bool FrameParser::findSync() {
     }
   }
 
-  // Search for sync pattern
-  // We need to find 0xFF followed by 0xF8-0xFF
-  while (m_reader->getAvailableBits() >= 16) {
-    // Save position before reading potential sync
-    uint64_t sync_start_bit_position = m_reader->getBitPosition();
+  // Search for the 16-bit frame sync: 0xFFF8..0xFFFF (RFC 9639 Section 9.1).
+  // Slide a 16-bit window forward one byte at a time WITHOUT rewinding. The
+  // reader has no O(1) seek (setBitPosition re-skips from the start), so the
+  // previous "rewind to 0 and re-read every preceding byte" per candidate was
+  // O(n^2). Reading straight through is O(n); we seek back only once, on a hit,
+  // to leave the reader at the sync start for parseFrameHeader().
+  if (m_reader->getAvailableBits() < 16) {
+    Debug::log("flac_codec", "Frame sync not found");
+    return false;
+  }
 
-    // Read potential sync word (16 bits)
-    uint32_t sync_word = 0;
-    if (!m_reader->readBits(sync_word, 16)) {
-      return false;
-    }
+  uint64_t window_start = m_reader->getBitPosition();
+  uint32_t byte_hi = 0, byte_lo = 0;
+  if (!m_reader->readBits(byte_hi, 8) || !m_reader->readBits(byte_lo, 8)) {
+    return false;
+  }
 
-    // Check if it's a valid sync pattern (0xFFF8-0xFFFF)
-    // Per RFC 9639 Section 9.1: sync code is 14 bits of 1 followed by 2 bits
+  for (;;) {
+    uint32_t sync_word = (byte_hi << 8) | byte_lo;
     if ((sync_word & 0xFFF8) == 0xFFF8) {
-      // Found sync pattern!
-      // We need to restore position to the START of the sync code
-      // so that parseFrameHeader() can read and validate it
-
-      // Reset to beginning and advance to sync start position
-      m_reader->resetPosition();
-
-      // Advance to the sync start position (in bytes)
-      uint64_t bytes_to_skip = sync_start_bit_position / 8;
-      for (uint64_t i = 0; i < bytes_to_skip; i++) {
-        uint32_t dummy;
-        if (!m_reader->readBits(dummy, 8)) {
-          return false;
-        }
+      // Restore position to the start of the sync code so parseFrameHeader()
+      // can read and validate it.
+      if (!m_reader->setBitPosition(window_start)) {
+        return false;
       }
-
       m_last_sync_position = m_reader->getBitPosition();
       Debug::log("flac_codec", "Found frame sync at bit position ",
                  static_cast<unsigned long long>(m_last_sync_position));
       return true;
     }
 
-    // Not a valid sync pattern
-    // Instead of continuing byte-by-byte, back up to one byte after sync_start
-    // to check if the second byte could be the start of a new sync
-    m_reader->resetPosition();
-
-    // Advance to one byte after where we started checking
-    uint64_t next_check_position = (sync_start_bit_position / 8) + 1;
-    for (uint64_t i = 0; i < next_check_position; i++) {
-      uint32_t dummy;
-      if (!m_reader->readBits(dummy, 8)) {
-        break;
-      }
+    // Slide one byte forward: the low byte becomes the high byte and we pull in
+    // the next byte; window_start tracks the high byte's position.
+    if (m_reader->getAvailableBits() < 8) {
+      break;
+    }
+    window_start += 8;
+    byte_hi = byte_lo;
+    if (!m_reader->readBits(byte_lo, 8)) {
+      break;
     }
   }
 
