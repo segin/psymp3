@@ -57,7 +57,8 @@ public:
 private:
     void setup();
     static void callback(void *userdata, Uint8 *buf, int len);
-    static void toFloat(int channels, int16_t *in, float *out);
+    static void toFloat(int channels, const int16_t *in, float *out,
+                        size_t in_frames, size_t out_frames);
     static std::pair<std::vector<int16_t>, bool> primeStream(Stream* stream, size_t max_samples);
 
     // Private unlocked versions of public methods (assumes locks are already held)

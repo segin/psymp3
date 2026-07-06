@@ -161,7 +161,12 @@ void Audio::setup() {
         if (obtained.format != desired.format) {
             Debug::log("audio", "WARNING: Audio format mismatch! Requested AUDIO_S16 but got format ", obtained.format);
         }
-        
+        if (obtained.samples != desired.samples) {
+            // Not fatal: the FFT path in callback() adapts to the negotiated
+            // buffer size rather than assuming 512 frames. Logged for visibility.
+            Debug::log("audio", "WARNING: Audio buffer size mismatch! Requested ", desired.samples, " sample frames but got ", obtained.samples);
+        }
+
         // Keep the stream format separate from the device format. The player
         // position math and stream reuse checks are based on decoded PCM, not
         // the backend's obtained device configuration.
@@ -477,9 +482,17 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     }
 
     // Perform FFT on the data we are sending to the sound card
-    if (bytes_copied > 0) { // FIXED: Always compute FFT, regardless of GUI state
+    if (bytes_copied > 0 && self->m_channels > 0) { // Always compute FFT, regardless of GUI state
         std::lock_guard<std::mutex> lock(self->m_fft_mutex);
-        toFloat(self->m_channels, reinterpret_cast<int16_t*>(buf), self->m_fft->getTimeDom());
+        // Convert only the frames SDL actually handed us (the whole `len`-byte
+        // buffer, data + silence), never the full FFT window — SDL may negotiate
+        // a device buffer smaller than the 512-frame window we requested, and
+        // reading the window blindly would run off the end of `buf`.
+        const size_t in_frames = static_cast<size_t>(len) /
+                                 (static_cast<size_t>(self->m_channels) * sizeof(int16_t));
+        toFloat(self->m_channels, reinterpret_cast<const int16_t*>(buf),
+                self->m_fft->getTimeDom(), in_frames,
+                static_cast<size_t>(self->m_fft->getFFTSize()));
         self->m_fft->doFFT();
     }
 
@@ -594,61 +607,72 @@ std::pair<std::vector<int16_t>, bool> Audio::primeStream(Stream* stream, size_t 
  * @param in A pointer to the buffer of 16-bit signed integer input samples.
  * @param out A pointer to the destination buffer for the converted float samples.
  */
-void Audio::toFloat(int channels, int16_t *in, float *out) {
+void Audio::toFloat(int channels, const int16_t *in, float *out,
+                    size_t in_frames, size_t out_frames) {
     const float scale_mono = 1.0f / 32768.0f;
     const float scale_stereo = 1.0f / 65536.0f;
-    
+
+    // Convert only as many frames as the callback actually delivered. `in` holds
+    // in_frames frames (SDL may negotiate a device buffer smaller than the FFT
+    // window), while the FFT window is out_frames. Reading the full window when
+    // in_frames < out_frames would run off the end of the SDL-owned buffer, so
+    // fill min(in_frames, out_frames) and zero the rest below.
+    size_t n = 0;
+    if (channels == 1 || channels == 2) {
+        n = (in_frames < out_frames) ? in_frames : out_frames;
+    }
+
     if (channels == 1) {
         // SIMD optimization for mono conversion
         #ifdef __SSE2__
-        constexpr int simd_batch = 8; // Process 8 samples at once with SSE2
-        int simd_end = (512 / simd_batch) * simd_batch;
-        
+        constexpr size_t simd_batch = 8; // Process 8 samples at once with SSE2
+        const size_t simd_end = (n / simd_batch) * simd_batch;
+
         __m128 scale_vec = _mm_set1_ps(scale_mono);
-        
-        for (int x = 0; x < simd_end; x += simd_batch) {
+
+        for (size_t x = 0; x < simd_end; x += simd_batch) {
             // Load 8 int16_t values (128 bits)
             __m128i int16_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x]));
-            
+
             // Convert to two sets of 4 int32_t values
             __m128i int32_lo = _mm_unpacklo_epi16(int16_vec, _mm_srai_epi16(int16_vec, 15));
             __m128i int32_hi = _mm_unpackhi_epi16(int16_vec, _mm_srai_epi16(int16_vec, 15));
-            
+
             // Convert to float and scale
             __m128 float_lo = _mm_mul_ps(_mm_cvtepi32_ps(int32_lo), scale_vec);
             __m128 float_hi = _mm_mul_ps(_mm_cvtepi32_ps(int32_hi), scale_vec);
-            
+
             // Store results
             _mm_storeu_ps(&out[x], float_lo);
             _mm_storeu_ps(&out[x + 4], float_hi);
         }
-        
+
         // Handle remaining samples with scalar code
-        for (int x = simd_end; x < 512; x++) {
+        for (size_t x = simd_end; x < n; x++) {
             out[x] = in[x] * scale_mono;
         }
         #else
         // Fallback scalar implementation
-        for (int x = 0; x < 512; x++) {
+        for (size_t x = 0; x < n; x++) {
             out[x] = in[x] * scale_mono;
         }
         #endif
     } else if (channels == 2) {
         // SIMD optimization for stereo to mono conversion
         #ifdef __SSE2__
-        constexpr int simd_batch = 4; // Process 4 stereo pairs at once
-        int simd_end = (512 / simd_batch) * simd_batch;
-        
+        constexpr size_t simd_batch = 4; // Process 4 stereo pairs at once
+        const size_t simd_end = (n / simd_batch) * simd_batch;
+
         __m128 scale_vec = _mm_set1_ps(scale_stereo);
-        
-        for (int x = 0; x < simd_end; x += simd_batch) {
+
+        for (size_t x = 0; x < simd_end; x += simd_batch) {
             // Load 8 int16_t values (4 stereo pairs, 128 bits)
             __m128i stereo_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x * 2]));
-            
+
             // Convert to int32_t with sign extension
             __m128i int32_lo = _mm_unpacklo_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
             __m128i int32_hi = _mm_unpackhi_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
-            
+
             // Convert to float: float_lo = [L0,R0,L1,R1], float_hi = [L2,R2,L3,R3]
             __m128 float_lo = _mm_cvtepi32_ps(int32_lo);
             __m128 float_hi = _mm_cvtepi32_ps(int32_hi);
@@ -664,16 +688,22 @@ void Audio::toFloat(int channels, int16_t *in, float *out) {
             __m128 result = _mm_mul_ps(sum, scale_vec);
             _mm_storeu_ps(&out[x], result);
         }
-        
+
         // Handle remaining samples with scalar code
-        for (int x = simd_end; x < 512; x++) {
+        for (size_t x = simd_end; x < n; x++) {
             out[x] = (static_cast<int32_t>(in[x * 2]) + in[(x * 2) + 1]) * scale_stereo;
         }
         #else
         // Fallback scalar implementation
-        for (int x = 0; x < 512; x++) {
+        for (size_t x = 0; x < n; x++) {
             out[x] = (static_cast<int32_t>(in[x * 2]) + in[(x * 2) + 1]) * scale_stereo;
         }
         #endif
+    }
+
+    // Zero the unfilled tail of the FFT window (short device buffer, or an
+    // unhandled channel count) so the transform never sees stale samples.
+    for (size_t x = n; x < out_frames; x++) {
+        out[x] = 0.0f;
     }
 }
