@@ -240,14 +240,27 @@ std::unique_ptr<Tag> TagFactory::createFromFile(const std::string& filepath) {
             // Read full ID3v2 tag
             size_t tag_size = ID3v2Tag::getTagSize(header.data());
             if (tag_size > 0) {
+                // The declared ID3v2 size (synchsafe, up to ~256 MB) comes from a
+                // 10-byte header. Clamp the allocation to the actual file size so
+                // a crafted header can't force a huge allocation for a tiny file
+                // (mirrors the clamp in parseMP3Tags()).
+                file.seekg(0, std::ios::end);
+                std::streamoff file_size = file.tellg();
+                if (file_size >= 0 && static_cast<std::streamoff>(tag_size) > file_size) {
+                    tag_size = static_cast<size_t>(file_size);
+                }
                 file.seekg(0);
-                std::vector<uint8_t> tag_data(tag_size);
-                file.read(reinterpret_cast<char*>(tag_data.data()), tag_size);
-                if (file) {
-                    auto tag = ID3v2Tag::parse(tag_data.data(), tag_size);
-                    if (tag) {
-                        return tag;
+                try {
+                    std::vector<uint8_t> tag_data(tag_size);
+                    file.read(reinterpret_cast<char*>(tag_data.data()), tag_size);
+                    if (file) {
+                        auto tag = ID3v2Tag::parse(tag_data.data(), tag_size);
+                        if (tag) {
+                            return tag;
+                        }
                     }
+                } catch (const std::bad_alloc&) {
+                    Debug::log("tag", "TagFactory::createFromFile: ID3v2 allocation failed (size ", tag_size, ")");
                 }
             }
             break;
