@@ -387,6 +387,16 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    // Restrict both the initial request and any followed redirect to HTTP/HTTPS,
+    // so a malicious 30x redirect can't reach file://, gopher://, etc. as an SSRF
+    // primitive. (CURLOPT_*_STR replaced the deprecated bitmask options in 7.85.)
+#if LIBCURL_VERSION_NUM >= 0x075500 /* 7.85.0: the bitmask options are deprecated */
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+#else
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+#endif
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "PsyMP3/3.0");
     
     // Accept encoding for compression
@@ -405,6 +415,14 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
 
     // Set custom headers with proper cleanup tracking
     for (const auto& header : headers) {
+        // Reject any name/value containing CR or LF: folding them into a raw
+        // "Name: value" line would otherwise permit header/request splitting if a
+        // value ever derives from untrusted input (playlist/redirect/metadata).
+        if (header.first.find_first_of("\r\n") != std::string::npos ||
+            header.second.find_first_of("\r\n") != std::string::npos) {
+            Debug::log("http", "HTTPClient::performRequest() - dropping header with embedded CR/LF: ", header.first);
+            continue;
+        }
         std::string headerStr = header.first + ": " + header.second;
         guard.headers = curl_slist_append(guard.headers, headerStr.c_str());
     }
