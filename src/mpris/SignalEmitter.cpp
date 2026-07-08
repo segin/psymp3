@@ -220,29 +220,54 @@ void SignalEmitter::resetStatistics_unlocked() { m_statistics = Statistics{}; }
 
 void SignalEmitter::signalWorkerLoop() {
   while (!m_shutdown_requested.load()) {
-    std::unique_lock<std::mutex> lock(m_mutex);
+    bool shutting_down = false;
+    {
+      std::unique_lock<std::mutex> lock(m_mutex);
 
-    // Wait for signals or timeout
-    m_signal_cv.wait_for(lock, WORKER_TIMEOUT, [this] {
-      return !m_signal_queue.empty() || m_shutdown_requested.load() ||
-             shouldFlushBatch_unlocked();
-    });
+      // Wait for signals or timeout
+      m_signal_cv.wait_for(lock, WORKER_TIMEOUT, [this] {
+        return !m_signal_queue.empty() || m_shutdown_requested.load() ||
+               shouldFlushBatch_unlocked();
+      });
 
-    if (m_shutdown_requested.load()) {
-      // Process remaining signals before shutdown
-      processSignalQueue_unlocked();
-      flushBatch_unlocked();
+      if (m_shutdown_requested.load()) {
+        // Process remaining signals before shutdown
+        processSignalQueue_unlocked();
+        flushBatch_unlocked();
+        shutting_down = true;
+      } else {
+        // Process queued signals
+        processSignalQueue_unlocked();
+
+        // Check if we need to flush batched signals
+        if (shouldFlushBatch_unlocked()) {
+          flushBatch_unlocked();
+        }
+      }
+    } // release m_mutex before the blocking flush below
+
+    // Push the queued messages to the socket outside the lock, so a blocked
+    // dbus-daemon stalls only this worker thread, never a main-thread caller.
+    flushConnection();
+
+    if (shutting_down) {
       break;
     }
-
-    // Process queued signals
-    processSignalQueue_unlocked();
-
-    // Check if we need to flush batched signals
-    if (shouldFlushBatch_unlocked()) {
-      flushBatch_unlocked();
-    }
   }
+}
+
+void SignalEmitter::flushConnection() {
+#ifdef HAVE_DBUS
+  if (!m_connection) {
+    return;
+  }
+  // m_connection (DBusConnectionManager) is internally thread-safe; the flush
+  // deliberately runs without m_mutex held.
+  DBusConnection *connection = m_connection->getConnection();
+  if (connection) {
+    dbus_connection_flush(connection);
+  }
+#endif
 }
 
 void SignalEmitter::processSignalQueue_unlocked() {
@@ -408,14 +433,14 @@ Result<void> SignalEmitter::sendSignalMessage_unlocked([[maybe_unused]] DBusMess
     return Result<void>::error("No D-Bus connection available");
   }
 
-  // Send the signal (non-blocking)
+  // Queue the signal (non-blocking). The blocking dbus_connection_flush() is
+  // done once per worker iteration in signalWorkerLoop() *without* m_mutex held,
+  // so a slow/blocked dbus-daemon can't stall main-thread callers of the public
+  // API (emitPropertiesChanged/emitSeeked/getStatistics/stop/...).
   dbus_uint32_t serial = 0;
   if (!dbus_connection_send(connection, message, &serial)) {
     return Result<void>::error("Failed to send D-Bus signal message");
   }
-
-  // Flush the connection to ensure message is sent
-  dbus_connection_flush(connection);
 
   return Result<void>::success();
 #endif

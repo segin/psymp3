@@ -130,6 +130,8 @@ private:
     
     // Internal signal processing
     void signalWorkerLoop();
+    // Blocking dbus_connection_flush() run without m_mutex held (see impl).
+    void flushConnection();
     void processSignalQueue_unlocked();
     bool processNextSignal_unlocked();
     void processBatchedSignals_unlocked();
