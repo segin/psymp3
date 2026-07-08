@@ -191,8 +191,11 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
 }
 
 size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
-    // Acquire HTTP-specific locks for this operation
-    std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+    // Exclusive lock: this path mutates m_buffer / m_buffer_offset /
+    // m_buffer_start_position via fillBuffer(), so it must not run under a
+    // shared (reader) lock. (The base class already serializes read/seek/close
+    // via m_operation_mutex, but keep this self-evidently correct on its own.)
+    std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
     
     if (!m_initialized.load()) {
         Debug::log("HTTPIOHandler", "Attempted read on uninitialized handler");
