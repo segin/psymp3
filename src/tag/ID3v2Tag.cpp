@@ -41,8 +41,14 @@ std::unique_ptr<ID3v2Tag> ID3v2Tag::parse(const uint8_t* data, size_t size) {
         return nullptr;
     }
     
-    // Get tag size from header
+    // Get tag size from header. getTagSize() returns 0 for an invalid or
+    // out-of-range declared size; anything below HEADER_SIZE would underflow
+    // the size_t subtractions in parseBody, so reject it here.
     size_t tag_size = getTagSize(data);
+    if (tag_size < HEADER_SIZE) {
+        Debug::log("tag", "ID3v2Tag::parse: Invalid tag size (", tag_size, ")");
+        return nullptr;
+    }
     if (tag_size > size) {
         Debug::log("tag", "ID3v2Tag::parse: Tag size (", tag_size, ") exceeds available data (", size, ")");
         return nullptr;
@@ -218,33 +224,37 @@ size_t ID3v2Tag::skipExtendedHeader(const uint8_t* data, size_t size) {
     uint32_t ext_header_size;
     
     if (m_major_version == 3) {
-        // ID3v2.3: 4-byte size (not synchsafe)
+        // ID3v2.3: 4-byte size (not synchsafe). The size field EXCLUDES the
+        // 4 size bytes themselves (it is 6 or 10), so the total bytes to skip
+        // is those 4 bytes plus ext_header_size.
         ext_header_size = (static_cast<uint32_t>(data[0]) << 24) |
                          (static_cast<uint32_t>(data[1]) << 16) |
                          (static_cast<uint32_t>(data[2]) << 8) |
                          static_cast<uint32_t>(data[3]);
-        
-        // Size includes the 4-byte size field itself
-        if (ext_header_size < 4 || ext_header_size > size) {
+
+        // Guard the (ext_header_size + 4) sum against overflow by comparing
+        // against (size - 4); size >= 4 is guaranteed above.
+        if (ext_header_size > size - 4) {
             Debug::log("tag", "ID3v2Tag::skipExtendedHeader: Invalid v2.3 extended header size: ", ext_header_size);
             return 0;
         }
-        
-        Debug::log("tag", "ID3v2Tag::skipExtendedHeader: Skipping v2.3 extended header (", ext_header_size, " bytes)");
-        return ext_header_size;
-        
+
+        Debug::log("tag", "ID3v2Tag::skipExtendedHeader: Skipping v2.3 extended header (", ext_header_size + 4, " bytes)");
+        return ext_header_size + 4; // Add 4 bytes for the size field
+
     } else if (m_major_version == 4) {
-        // ID3v2.4: 4-byte synchsafe size (excludes size field itself)
+        // ID3v2.4: 4-byte synchsafe size that INCLUDES the whole extended
+        // header (the 4 size bytes plus flags/data), so it is skipped as-is.
         ext_header_size = ID3v2Utils::decodeSynchsafeBytes(data);
-        
-        if (ext_header_size == 0 || ext_header_size + 4 > size) {
+
+        if (ext_header_size < 6 || ext_header_size > size) {
             Debug::log("tag", "ID3v2Tag::skipExtendedHeader: Invalid v2.4 extended header size: ", ext_header_size);
             return 0;
         }
-        
-        Debug::log("tag", "ID3v2Tag::skipExtendedHeader: Skipping v2.4 extended header (", ext_header_size + 4, " bytes)");
-        return ext_header_size + 4; // Add 4 bytes for the size field
-        
+
+        Debug::log("tag", "ID3v2Tag::skipExtendedHeader: Skipping v2.4 extended header (", ext_header_size, " bytes)");
+        return ext_header_size;
+
     } else {
         // ID3v2.2 doesn't support extended headers
         Debug::log("tag", "ID3v2Tag::skipExtendedHeader: Extended header flag set but not supported in v2.2");
@@ -604,26 +614,30 @@ std::pair<uint32_t, uint32_t> ID3v2Tag::parseNumberPair(const std::string& text)
     if (text.empty()) {
         return {0, 0};
     }
-    
+
+    // std::stoul silently wraps a leading '-' into a huge unsigned value and
+    // accepts trailing garbage; parse strictly into uint32_t instead.
+    auto parseU32 = [](const std::string& s) -> uint32_t {
+        try {
+            size_t consumed = 0;
+            unsigned long v = std::stoul(s, &consumed);
+            // Reject a negative sign, unconsumed trailing chars, or overflow.
+            if (s.find('-') != std::string::npos ||
+                consumed != s.size() ||
+                static_cast<unsigned long long>(v) > 0xFFFFFFFFull) {
+                return 0;
+            }
+            return static_cast<uint32_t>(v);
+        } catch (const std::exception&) {
+            return 0;
+        }
+    };
+
     size_t slash_pos = text.find('/');
     if (slash_pos == std::string::npos) {
-        // No slash - just a number
-        try {
-            uint32_t number = static_cast<uint32_t>(std::stoul(text));
-            return {number, 0};
-        } catch (const std::exception&) {
-            return {0, 0};
-        }
+        return {parseU32(text), 0};
     }
-    
-    // Parse "number/total" format
-    try {
-        uint32_t number = static_cast<uint32_t>(std::stoul(text.substr(0, slash_pos)));
-        uint32_t total = static_cast<uint32_t>(std::stoul(text.substr(slash_pos + 1)));
-        return {number, total};
-    } catch (const std::exception&) {
-        return {0, 0};
-    }
+    return {parseU32(text.substr(0, slash_pos)), parseU32(text.substr(slash_pos + 1))};
 }
 
 uint32_t ID3v2Tag::parseYear(const std::string& text) {
@@ -1019,13 +1033,7 @@ uint32_t ID3v2Tag::year() const {
     if (!date.empty()) {
         return parseYear(date);
     }
-    
-    // Try TDAT + TYER combination (v2.3)
-    std::string year_str = getTextFrame("TYER");
-    if (!year_str.empty()) {
-        return parseYear(year_str);
-    }
-    
+
     return 0;
 }
 
