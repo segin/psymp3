@@ -50,7 +50,7 @@ public:
      * @param url The HTTP/HTTPS URL to stream from
      * @param content_length Known content length in bytes
      */
-    HTTPIOHandler(const std::string& url, long content_length);
+    HTTPIOHandler(const std::string& url, int64_t content_length);
     
     /**
      * @brief Destructor - cleanup resources
@@ -71,7 +71,7 @@ public:
      * @brief Get the content length from HTTP headers
      * @return Content length in bytes, or -1 if unknown
      */
-    long getContentLength() const { return m_content_length; }
+    int64_t getContentLength() const { return m_content_length; }
     
     /**
      * @brief Get the MIME type from HTTP headers
@@ -126,7 +126,7 @@ private:
 private:
     // HTTP stream properties
     std::string m_url;                    // The HTTP URL
-    std::atomic<long> m_content_length{-1};           // Total content length (-1 if unknown) (thread-safe)
+    std::atomic<int64_t> m_content_length{-1};        // Total content length (-1 if unknown) (thread-safe)
     std::atomic<filesize_t> m_current_position{0};         // Current logical position in stream (thread-safe)
     std::string m_mime_type;              // Content-Type from HTTP headers
     std::atomic<bool> m_supports_ranges{false};       // Server supports range requests (thread-safe)
@@ -140,10 +140,13 @@ private:
     // Enhanced buffering system
     IOBufferPool::Buffer m_buffer;          // Primary data buffer (from pool)
     size_t m_buffer_offset = 0;           // Current offset within buffer
+    size_t m_buffer_valid_bytes = 0;      // Valid payload bytes (pool capacity >= this)
     filesize_t m_buffer_start_position = 0;    // Stream position of buffer start
-    
+    size_t m_last_reported_usage = 0;     // Last memory usage reported to the optimizer (per-instance)
+
     // Read-ahead buffering for performance
     IOBufferPool::Buffer m_read_ahead_buffer;    // Read-ahead buffer for sequential access (from pool)
+    size_t m_read_ahead_valid_bytes = 0;         // Valid payload bytes in read-ahead buffer
     filesize_t m_read_ahead_position = -1;          // Position of read-ahead buffer
     bool m_read_ahead_active = false;          // Read-ahead is active
     

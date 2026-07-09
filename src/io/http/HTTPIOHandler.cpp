@@ -33,7 +33,7 @@ HTTPIOHandler::HTTPIOHandler(const std::string& url)
     initialize();
 }
 
-HTTPIOHandler::HTTPIOHandler(const std::string& url, long content_length)
+HTTPIOHandler::HTTPIOHandler(const std::string& url, int64_t content_length)
     : m_url(url), m_content_length(content_length) {
     Debug::log("HTTPIOHandler", "Creating HTTP handler for URL: ", url, " (content length: ", content_length, ")");
     
@@ -95,11 +95,11 @@ void HTTPIOHandler::initialize() {
         Debug::log("HTTPIOHandler", "HEAD request successful (status: ", response.statusCode, ")");
         
         // Extract Content-Length header for total file size determination
-        auto content_length_it = response.headers.find("Content-Length");
-        if (content_length_it != response.headers.end()) {
+        std::string content_length_hdr = response.getHeader("Content-Length");
+        if (!content_length_hdr.empty()) {
             try {
-                long parsed_length = std::stol(content_length_it->second);
-                if (parsed_length >= 0 && parsed_length <= static_cast<long>(INT64_MAX)) {
+                long long parsed_length = std::stoll(content_length_hdr);
+                if (parsed_length >= 0 && parsed_length <= static_cast<long long>(INT64_MAX)) {
                     if (m_content_length == -1) {
                         m_content_length = parsed_length;
                     }
@@ -115,33 +115,34 @@ void HTTPIOHandler::initialize() {
         }
         
         // Parse Content-Type header and normalize MIME type information
-        auto content_type_it = response.headers.find("Content-Type");
-        if (content_type_it != response.headers.end()) {
-            m_mime_type = normalizeMimeType(content_type_it->second);
-            Debug::log("HTTPIOHandler", "Content-Type: ", content_type_it->second, " (normalized: ", m_mime_type, ")");
+        std::string content_type_hdr = response.getHeader("Content-Type");
+        if (!content_type_hdr.empty()) {
+            m_mime_type = normalizeMimeType(content_type_hdr);
+            Debug::log("HTTPIOHandler", "Content-Type: ", content_type_hdr, " (normalized: ", m_mime_type, ")");
         } else {
             Debug::log("HTTPIOHandler", "No Content-Type header found");
         }
-        
+
         // Detect Accept-Ranges header for range request capability
-        auto accept_ranges_it = response.headers.find("Accept-Ranges");
-        if (accept_ranges_it != response.headers.end()) {
-            std::string accept_ranges = accept_ranges_it->second;
+        std::string accept_ranges_hdr = response.getHeader("Accept-Ranges");
+        if (!accept_ranges_hdr.empty()) {
+            std::string accept_ranges = accept_ranges_hdr;
             // Convert to lowercase for comparison
-            std::transform(accept_ranges.begin(), accept_ranges.end(), 
+            std::transform(accept_ranges.begin(), accept_ranges.end(),
                           accept_ranges.begin(), ::tolower);
-            
+
             m_supports_ranges = (accept_ranges == "bytes");
-            Debug::log("HTTPIOHandler", "Accept-Ranges: ", accept_ranges_it->second, " (supports ranges: ", (m_supports_ranges ? "yes" : "no"), ")");
+            Debug::log("HTTPIOHandler", "Accept-Ranges: ", accept_ranges_hdr, " (supports ranges: ", (m_supports_ranges ? "yes" : "no"), ")");
         } else {
-            // Some servers support ranges without advertising it
-            // We'll try a small range request to test
+            // Some servers support ranges without advertising it, so probe with a
+            // single-byte range. Only a 206 (Partial Content) proves range support;
+            // a 200 means the server ignored the Range header and would stream the
+            // whole file on every "range" request, so treat it as unsupported.
             Debug::log("HTTPIOHandler", "No Accept-Ranges header, testing range support");
-            
+
             HTTPClient::Response range_test = HTTPClient::getRange(m_url, 0, 0);
-            m_supports_ranges = (range_test.success && 
-                               (range_test.statusCode == 206 || range_test.statusCode == 200));
-            
+            m_supports_ranges = (range_test.success && range_test.statusCode == 206);
+
             Debug::log("HTTPIOHandler", "Range test result: ", (m_supports_ranges ? "supported" : "not supported"), " (status: ", range_test.statusCode, ")");
         }
         
@@ -283,7 +284,7 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
     updatePosition(new_position);
     
     // Check for EOF condition
-    long content_length = m_content_length.load();
+    int64_t content_length = m_content_length.load();
     if (content_length > 0 && new_position >= content_length) {
         updateEofState(true);
     }
@@ -318,7 +319,7 @@ int HTTPIOHandler::seek_unlocked(filesize_t offset, int whence) {
     }
     
     off_t current_pos = m_current_position.load();
-    long content_length = m_content_length.load();
+    int64_t content_length = m_content_length.load();
     off_t new_position;
     
     switch (whence) {
@@ -400,10 +401,12 @@ int HTTPIOHandler::close_unlocked() {
     // Release buffers back to pool
     m_buffer = IOBufferPool::Buffer();
     m_read_ahead_buffer = IOBufferPool::Buffer();
-    
+    m_buffer_valid_bytes = 0;
+    m_read_ahead_valid_bytes = 0;
+
     // Update memory tracking
     updateMemoryUsage(0);
-    
+
     // Reset state
     m_read_ahead_active = false;
     m_read_ahead_position = -1;
@@ -452,7 +455,7 @@ bool HTTPIOHandler::fillBuffer(filesize_t position, size_t min_size) {
         [this, position, range_size]() {
             // Use range request if supported or if we're not at the beginning
             if (m_supports_ranges || position > 0) {
-                long end_byte = position + range_size - 1;
+                int64_t end_byte = static_cast<int64_t>(position) + static_cast<int64_t>(range_size) - 1;
                 Debug::log("HTTPIOHandler", "Making range request: bytes=", static_cast<long long>(position), "-", end_byte);
                 return HTTPClient::getRange(m_url, position, end_byte);
             } else {
@@ -503,6 +506,10 @@ bool HTTPIOHandler::fillBuffer(filesize_t position, size_t min_size) {
     
     std::memcpy(m_buffer.data(), response.body.data(), response.body.size());
     m_buffer_offset = 0;
+    // The pool rounds the allocation up to a power of two, so m_buffer.size()
+    // (capacity) exceeds the payload. Track the valid byte count separately;
+    // reads past it would return uninitialized/recycled pool memory.
+    m_buffer_valid_bytes = response.body.size();
     // A 206 body starts at the requested position; a 200 body is the entire
     // resource from byte 0 even when a range was requested (server ignored the
     // Range header). Labelling a 200 body as starting at `position` would make
@@ -555,15 +562,15 @@ size_t HTTPIOHandler::readFromBuffer(void* buffer, filesize_t position, size_t b
     // after a refill at an advanced position this would go negative and the
     // read would falsely report EOF.
     off_t buffer_relative_pos = position - m_buffer_start_position;
-    
-    if (buffer_relative_pos < 0 || 
-        static_cast<size_t>(buffer_relative_pos) >= m_buffer.size()) {
+
+    if (buffer_relative_pos < 0 ||
+        static_cast<size_t>(buffer_relative_pos) >= m_buffer_valid_bytes) {
         Debug::log("HTTPIOHandler", "Current position not in buffer");
         return 0;
     }
-    
+
     // Calculate how many bytes we can read from buffer
-    size_t available_bytes = m_buffer.size() - static_cast<size_t>(buffer_relative_pos);
+    size_t available_bytes = m_buffer_valid_bytes - static_cast<size_t>(buffer_relative_pos);
     size_t bytes_to_copy = std::min(bytes_to_read, available_bytes);
     
     // Copy data from buffer
@@ -581,7 +588,7 @@ bool HTTPIOHandler::isPositionBuffered(filesize_t position) const {
         return false;
     }
     
-    off_t buffer_end = m_buffer_start_position + static_cast<off_t>(m_buffer.size());
+    off_t buffer_end = m_buffer_start_position + static_cast<off_t>(m_buffer_valid_bytes);
     return (position >= m_buffer_start_position && position < buffer_end);
 }
 
@@ -676,7 +683,7 @@ bool HTTPIOHandler::performReadAhead(filesize_t current_position) {
     
     // Check if we already have this data in main buffer
     if (isPositionBuffered(read_ahead_start)) {
-        off_t buffer_end = m_buffer_start_position + static_cast<off_t>(m_buffer.size());
+        off_t buffer_end = m_buffer_start_position + static_cast<off_t>(m_buffer_valid_bytes);
         read_ahead_start = buffer_end; // Start read-ahead after current buffer
     }
     
@@ -699,7 +706,7 @@ bool HTTPIOHandler::performReadAhead(filesize_t current_position) {
     
     HTTPClient::Response response = retryNetworkOperation(
         [this, read_ahead_start, read_size]() {
-            long end_byte = read_ahead_start + read_size - 1;
+            int64_t end_byte = static_cast<int64_t>(read_ahead_start) + static_cast<int64_t>(read_size) - 1;
             return HTTPClient::getRange(m_url, read_ahead_start, end_byte);
         },
         "read-ahead",
@@ -722,6 +729,7 @@ bool HTTPIOHandler::performReadAhead(filesize_t current_position) {
         }
         
         std::memcpy(m_read_ahead_buffer.data(), response.body.data(), response.body.size());
+        m_read_ahead_valid_bytes = response.body.size();
         m_read_ahead_position = read_ahead_start;
         m_read_ahead_active = true;
         
@@ -742,7 +750,7 @@ bool HTTPIOHandler::isPositionInReadAhead(filesize_t position) const {
         return false;
     }
     
-    off_t read_ahead_end = m_read_ahead_position + static_cast<off_t>(m_read_ahead_buffer.size());
+    off_t read_ahead_end = m_read_ahead_position + static_cast<off_t>(m_read_ahead_valid_bytes);
     return (position >= m_read_ahead_position && position < read_ahead_end);
 }
 
@@ -752,7 +760,7 @@ size_t HTTPIOHandler::readFromReadAhead(void* buffer, filesize_t position, size_
     }
     
     off_t offset_in_buffer = position - m_read_ahead_position;
-    size_t available_bytes = m_read_ahead_buffer.size() - static_cast<size_t>(offset_in_buffer);
+    size_t available_bytes = m_read_ahead_valid_bytes - static_cast<size_t>(offset_in_buffer);
     size_t bytes_to_copy = std::min(bytes_requested, available_bytes);
     
     std::memcpy(buffer, m_read_ahead_buffer.data() + static_cast<size_t>(offset_in_buffer), bytes_to_copy);
@@ -848,16 +856,18 @@ void HTTPIOHandler::optimizeBufferPoolUsage() {
         current_memory_usage += m_read_ahead_buffer.size();
     }
     
-    // Update memory tracking
-    static size_t last_reported_usage = 0;
-    if (current_memory_usage != last_reported_usage) {
-        if (last_reported_usage > 0) {
-            optimizer.registerDeallocation(last_reported_usage, "http");
+    // Update memory tracking. This must be a per-instance counter, not a
+    // function-local static: a shared static is mutated by every handler under
+    // its own lock, racing and pairing one instance's allocation against
+    // another's deallocation, which underflows the optimizer's global total.
+    if (current_memory_usage != m_last_reported_usage) {
+        if (m_last_reported_usage > 0) {
+            optimizer.registerDeallocation(m_last_reported_usage, "http");
         }
         if (current_memory_usage > 0) {
             optimizer.registerAllocation(current_memory_usage, "http");
         }
-        last_reported_usage = current_memory_usage;
+        m_last_reported_usage = current_memory_usage;
     }
 }
 // Network error handling methods
@@ -1160,10 +1170,10 @@ HTTPClient::Response HTTPIOHandler::retryNetworkOperation(std::function<HTTPClie
         // Special handling for rate limiting (HTTP 429)
         if (response.statusCode == 429) {
             // Check for Retry-After header
-            auto retry_after_it = response.headers.find("Retry-After");
-            if (retry_after_it != response.headers.end()) {
+            std::string retry_after_hdr = response.getHeader("Retry-After");
+            if (!retry_after_hdr.empty()) {
                 try {
-                    int retry_after_seconds = std::stoi(retry_after_it->second);
+                    int retry_after_seconds = std::stoi(retry_after_hdr);
                     delay = std::min(retry_after_seconds * 1000, 60000); // Cap at 60 seconds
                     Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - Using Retry-After header: ", retry_after_seconds, " seconds");
                 } catch (const std::exception& e) {

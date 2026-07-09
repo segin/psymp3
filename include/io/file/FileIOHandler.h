@@ -139,6 +139,7 @@ private:
     
     // Performance optimization members
     IOBufferPool::Buffer m_read_buffer;     // Internal read buffer for performance (from pool)
+    size_t m_last_reported_usage = 0;       // Last memory usage reported to the optimizer (per-instance)
     size_t m_buffer_size = 64 * 1024;       // Default 64KB buffer size
     filesize_t m_buffer_file_position = -1;      // File position of buffer start
     size_t m_buffer_valid_bytes = 0;        // Number of valid bytes in buffer

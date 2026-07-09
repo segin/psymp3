@@ -93,7 +93,14 @@ void MemoryOptimizer::registerAllocation(size_t allocated_size, const std::strin
 void MemoryOptimizer::registerDeallocation(size_t deallocated_size, const std::string& component_name) {
     std::lock_guard<std::mutex> lock(m_mutex);
     
-    m_total_memory_usage -= deallocated_size;
+    // Guard against underflow the same way the component counter below does;
+    // an over-reported deallocation would otherwise wrap the total to ~2^64 and
+    // pin memory pressure at Critical forever.
+    if (m_total_memory_usage >= deallocated_size) {
+        m_total_memory_usage -= deallocated_size;
+    } else {
+        m_total_memory_usage = 0;
+    }
     if (m_component_memory_usage[component_name] >= deallocated_size) {
         m_component_memory_usage[component_name] -= deallocated_size;
     } else {

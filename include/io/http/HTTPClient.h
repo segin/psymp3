@@ -49,6 +49,22 @@ public:
         std::string body;
         bool success = false;
         bool connection_reused = false;
+
+        // Case-insensitive header lookup. HTTP header names are case-insensitive
+        // (RFC 7230 §3.2) and HTTP/2+ delivers them lowercased, so an exact-case
+        // std::map::find would miss them. Returns the value or an empty string.
+        std::string getHeader(const std::string& name) const {
+            for (const auto& kv : headers) {
+                if (kv.first.size() == name.size() &&
+                    std::equal(kv.first.begin(), kv.first.end(), name.begin(),
+                               [](unsigned char a, unsigned char b) {
+                                   return std::tolower(a) == std::tolower(b);
+                               })) {
+                    return kv.second;
+                }
+            }
+            return std::string();
+        }
     };
     
 
@@ -100,8 +116,8 @@ public:
      * @return HTTP response structure
      */
     static Response getRange(const std::string& url,
-                            long start_byte,
-                            long end_byte = -1,
+                            int64_t start_byte,
+                            int64_t end_byte = -1,
                             const std::map<std::string, std::string>& headers = {},
                             int timeoutSeconds = 30);
     

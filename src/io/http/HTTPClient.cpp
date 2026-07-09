@@ -275,8 +275,8 @@ HTTPClient::Response HTTPClient::head([[maybe_unused]] const std::string& url,
 }
 
 HTTPClient::Response HTTPClient::getRange([[maybe_unused]] const std::string& url,
-                                         [[maybe_unused]] long start_byte,
-                                         [[maybe_unused]] long end_byte,
+                                         [[maybe_unused]] int64_t start_byte,
+                                         [[maybe_unused]] int64_t end_byte,
                                          [[maybe_unused]] const std::map<std::string, std::string>& headers,
                                          [[maybe_unused]] int timeoutSeconds) {
 #ifndef HTTP_CLIENT_NO_CURL

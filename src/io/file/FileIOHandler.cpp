@@ -1427,16 +1427,17 @@ void FileIOHandler::optimizeBufferPoolUsage() {
         current_memory_usage += m_read_buffer.size();
     }
     
-    // Update memory tracking
-    static size_t last_reported_usage = 0;
-    if (current_memory_usage != last_reported_usage) {
-        if (last_reported_usage > 0) {
-            optimizer.registerDeallocation(last_reported_usage, "file");
+    // Update memory tracking. Per-instance, not a shared function-local static:
+    // a shared static races across handlers and pairs one instance's allocation
+    // against another's deallocation, underflowing the optimizer's total.
+    if (current_memory_usage != m_last_reported_usage) {
+        if (m_last_reported_usage > 0) {
+            optimizer.registerDeallocation(m_last_reported_usage, "file");
         }
         if (current_memory_usage > 0) {
             optimizer.registerAllocation(current_memory_usage, "file");
         }
-        last_reported_usage = current_memory_usage;
+        m_last_reported_usage = current_memory_usage;
     }
     
     // Periodic global memory optimization
