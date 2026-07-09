@@ -192,14 +192,20 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
     }
     
     
-    for (int i = 0; i < num_bands; ++i) {
+    // Defensive: never index m_precomputed_colors past its real length even if
+    // the caller-enforced invariant (colors.size() == spectrum.size(), set up in
+    // draw()) is ever violated. The bar layout above still uses the full
+    // num_bands. NOTE: m_spectrum_data/m_precomputed_colors are unsynchronized;
+    // updateSpectrum() and draw() must run on the same (UI) thread.
+    int draw_bands = std::min(num_bands, static_cast<int>(m_precomputed_colors.size()));
+    for (int i = 0; i < draw_bands; ++i) {
         float value = m_spectrum_data[i];
         // Calculate y position like the original: from amplitude down to bottom
         int y_start = static_cast<int>(height - (value * height));
         y_start = std::max(0, std::min(height - 1, y_start)); // Clamp to valid range
-        
+
         int x = spacing + i * (bar_width + spacing);
-        
+
         // Use precomputed color
         uint32_t color = m_precomputed_colors[i];
         
