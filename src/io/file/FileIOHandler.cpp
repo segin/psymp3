@@ -414,7 +414,11 @@ size_t FileIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
                         updateEofState(true);
                         Debug::log("io", "FileIOHandler::read() - Reached end of file during buffer fill");
                     } else {
-                        int file_error = ferror(m_file_handle.get());
+                        // ferror() only reports that the error indicator is set,
+                        // not an errno; use errno (set by the failed read) so the
+                        // reported code and strerror() message are meaningful.
+                        int file_error = errno ? errno : EIO;
+                        clearerr(m_file_handle.get());
                         updateErrorState(file_error, "Buffer fill failed");
                         Debug::log("io", "FileIOHandler::read() - Buffer fill failed: ", strerror(file_error));
                     }
@@ -1165,7 +1169,10 @@ bool FileIOHandler::fillBuffer(filesize_t file_position, size_t min_bytes) {
             updateEofState(true);
             Debug::log("io", "FileIOHandler::fillBuffer() - Reached EOF during buffer fill");
         } else {
-            int file_error = ferror(m_file_handle);
+            // errno is fresh here (set by the fread just above); ferror() only
+            // returns a set/clear flag, not an error code.
+            int file_error = errno ? errno : EIO;
+            clearerr(m_file_handle);
             updateErrorState(file_error, "Read error during buffer fill");
             Debug::log("io", "FileIOHandler::fillBuffer() - Read error during buffer fill: ", strerror(file_error));
             
@@ -1950,15 +1957,11 @@ void FileIOHandler::ensureSafeDestructorCleanup() noexcept {
     try {
         Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - Ensuring safe cleanup");
         
-        // Close file handle safely
+        // Close file handle safely. Use only the RAII wrapper's close(): calling
+        // fclose() first and then close() would fclose the same FILE* twice.
         if (m_file_handle) {
-            try {
-                fclose(m_file_handle);
-                Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - File handle closed");
-            } catch (...) {
-                // Ignore exceptions during cleanup
-            }
             m_file_handle.close();
+            Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - File handle closed");
         }
         
         // Release buffer safely

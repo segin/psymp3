@@ -164,7 +164,10 @@ std::map<std::string, size_t> BoundedBuffer::getStats() const {
 }
 
 bool BoundedBuffer::reallocate(size_t new_capacity) {
-    if (new_capacity > m_max_size) {
+    // m_max_size == 0 means "unlimited" (as resize/reserve/append treat it), so
+    // only enforce the cap when one is actually set. Without this a
+    // default-constructed BoundedBuffer could never allocate.
+    if (m_max_size != 0 && new_capacity > m_max_size) {
         return false;
     }
     

@@ -600,14 +600,33 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
     }
     
     std::string hostPort = url.substr(hostStart, pathStart - hostStart);
-    size_t portPos = hostPort.find(':');
-    if (portPos != std::string::npos) {
-        host = hostPort.substr(0, portPos);
+
+    // A bracketed IPv6 literal ("[::1]" or "[::1]:8080") contains colons that
+    // are part of the address, so scan for the port only after the closing ']'.
+    std::string portStr;
+    if (!hostPort.empty() && hostPort[0] == '[') {
+        size_t close = hostPort.find(']');
+        if (close == std::string::npos) return false;
+        host = hostPort.substr(1, close - 1); // address without brackets
+        if (close + 1 < hostPort.size()) {
+            if (hostPort[close + 1] != ':') return false;
+            portStr = hostPort.substr(close + 2);
+            if (portStr.empty()) return false;
+        }
+    } else {
+        size_t portPos = hostPort.find(':');
+        if (portPos != std::string::npos) {
+            host = hostPort.substr(0, portPos);
+            portStr = hostPort.substr(portPos + 1);
+            if (portStr.empty()) return false;
+        } else {
+            host = hostPort;
+        }
+    }
+
+    if (!portStr.empty()) {
         try {
             size_t pos = 0;
-            std::string portStr = hostPort.substr(portPos + 1);
-            if (portStr.empty()) return false;
-
             port = std::stoi(portStr, &pos);
             if (pos != portStr.length()) {
                 return false;
@@ -615,10 +634,8 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
         } catch (...) {
             return false;
         }
-    } else {
-        host = hostPort;
     }
-    
+
     return !host.empty();
 }
 
