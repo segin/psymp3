@@ -51,7 +51,7 @@ void Label::setBackgroundColor(SDL_Color background_color)
     // The LCD render path bakes the bg colour into each glyph's edge pixels,
     // so a bg change requires re-rendering the text — invalidate alone leaves
     // glyphs blended against the previous bg and shows colour fringing.
-    if (!m_text.isEmpty()) {
+    if (!m_text.isEmpty() && m_font) {
         m_text_surface = m_font->RenderLCD(m_text,
                                            m_color.r, m_color.g, m_color.b,
                                            m_background_color.r,
@@ -89,6 +89,12 @@ void Label::setText(const TagLib::String& text)
 
     m_text = text;
 
+    // A Label may be constructed with a null font; guard the render paths that
+    // dereference it rather than crash.
+    if (!m_font) {
+        return;
+    }
+
     // Use the ClearType (LCD subpixel) path so the rendered glyphs are
     // pre-blended against this label's background colour, avoiding the
     // single-alpha quality loss of compositing the text surface afterwards.
@@ -113,6 +119,9 @@ void Label::setText(const TagLib::String& text)
 
 void Label::BlitTo(Surface& target)
 {
+    if (!m_visible) {
+        return;
+    }
     blitWithBackgroundClear(target, m_pos);
 
     // Blit children (if any)
@@ -123,6 +132,9 @@ void Label::BlitTo(Surface& target)
 
 void Label::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
 {
+    if (!m_visible) {
+        return;
+    }
     Rect absolute_pos(parent_absolute_pos.x() + m_pos.x(),
                       parent_absolute_pos.y() + m_pos.y(),
                       m_pos.width(), m_pos.height());

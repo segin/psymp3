@@ -344,7 +344,15 @@ void TextInputWidget::rebuildSurface()
         if (!text_surface || text_surface->width() + 1 <= inner_width) {
             break;
         }
+        // Advance by one whole UTF-8 codepoint. Stepping a single byte could
+        // leave visible_start in the middle of a multi-byte sequence, so the
+        // next substr() would begin on a continuation byte that the strict
+        // UTF-8 decoder rejects (garbling the text and the caret offset).
         ++visible_start;
+        while (visible_start < full_utf8.size() &&
+               (static_cast<unsigned char>(full_utf8[visible_start]) & 0xC0) == 0x80) {
+            ++visible_start;
+        }
     }
 
     if (full_utf8.empty() && !m_placeholder.isEmpty() && !m_focused && m_font) {

@@ -311,21 +311,29 @@ void ApplicationWidget::updateWindows()
     
     // Check for toasts that need to be dismissed (preserving the crossfade-out
     // animation: start the fade on shouldDismiss(), erase once isFinished()).
-    // remove_if applies the predicate exactly once per element in order, so the
-    // beginDismiss() side effects match the previous loop.
+    // Move finished toasts out first; run their dismiss callbacks only after
+    // m_windows is stable, since a callback may re-enter and add/remove windows,
+    // which would invalidate this traversal.
+    std::vector<std::unique_ptr<Widget>> finished;
     m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
-        [](const std::unique_ptr<Widget>& window) {
+        [&finished](std::unique_ptr<Widget>& window) {
             if (auto* toast = dynamic_cast<ToastWidget*>(window.get())) {
                 if (toast->shouldDismiss()) {
                     toast->beginDismiss();
                 }
                 if (toast->isFinished()) {
-                    toast->dismiss(); // Call dismiss callback
+                    finished.push_back(std::move(window));
                     return true;      // remove from window list
                 }
             }
             return false;
         }), m_windows.end());
+
+    for (auto& window : finished) {
+        if (auto* toast = dynamic_cast<ToastWidget*>(window.get())) {
+            toast->dismiss(); // Call dismiss callback (m_windows is now stable)
+        }
+    }
 }
 
 void ApplicationWidget::removeAllToasts(int fade_out_ms)

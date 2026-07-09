@@ -231,25 +231,34 @@ void PlayerProgressBarWidget::drawRainbowFill(Surface& surface, double progress)
     // Widget fills the inner area perfectly: 220x10 at y=373
     double fill_width = progress * m_width; // Fill based on widget width (220 pixels)
     
+    // Clamp before narrowing: a float outside [0,255] converted to uint8_t is
+    // undefined behaviour (trips UBSan), and these expressions exceed 255 or go
+    // negative for wide bars.
+    auto to_u8 = [](double v) -> uint8_t {
+        if (v < 0.0) v = 0.0;
+        if (v > 255.0) v = 255.0;
+        return static_cast<uint8_t>(v);
+    };
+
     // Draw rainbow fill from left edge of widget
     for (int x = 0; x < static_cast<int>(fill_width); x++) {
         // Rainbow color calculation (exact original algorithm)
         uint8_t r, g, b;
-        
+
         if (x > 146) {
             // Zone 3: x > 146
-            r = static_cast<uint8_t>((x - 146) * 3.5);
+            r = to_u8((x - 146) * 3.5);
             g = 0;
             b = 255;
         } else if (x < 73) {
-            // Zone 1: x < 73  
+            // Zone 1: x < 73
             r = 128;
             g = 255;
-            b = static_cast<uint8_t>(x * 3.5);
+            b = to_u8(x * 3.5);
         } else {
             // Zone 2: 73 <= x <= 146
-            r = static_cast<uint8_t>(128 - ((x - 73) * 1.75));
-            g = static_cast<uint8_t>(255 - ((x - 73) * 3.5));
+            r = to_u8(128 - ((x - 73) * 1.75));
+            g = to_u8(255 - ((x - 73) * 3.5));
             b = 255;
         }
         
@@ -260,12 +269,13 @@ void PlayerProgressBarWidget::drawRainbowFill(Surface& surface, double progress)
 
 double PlayerProgressBarWidget::coordinateToProgress(int x) const
 {
-    // Convert x coordinate to progress (0.0 to 1.0)
-    // Use full 220-pixel width like original
+    // Convert x coordinate to progress (0.0 to 1.0) across the actual widget
+    // width, so a bar sized other than 220px still maps clicks correctly.
+    if (m_width <= 0) return 0.0;
     if (x < 0) return 0.0;
-    if (x >= 220) return 1.0;
-    
-    return static_cast<double>(x) / 220.0;
+    if (x >= m_width) return 1.0;
+
+    return static_cast<double>(x) / static_cast<double>(m_width);
 }
 
 } // namespace UI
