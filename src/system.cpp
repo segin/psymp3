@@ -701,23 +701,33 @@ TagLib::String to_string(int value) { return TagLib::String::number(value); }
 TagLib::String to_string(long value) { return TagLib::String::number(value); }
 
 /// @brief `std::to_string` overload returning a `TagLib::String` for `long long`.
+/// Formatted via ostringstream so values outside `long`'s range are not
+/// truncated (long is 32-bit on the i386/ARM32 build targets).
 TagLib::String to_string(long long value) {
-  return TagLib::String::number(static_cast<long>(value));
+  std::ostringstream oss;
+  oss << value;
+  return TagLib::String(oss.str());
 }
 
 /// @brief `std::to_string` overload returning a `TagLib::String` for `unsigned`.
 TagLib::String to_string(unsigned value) {
-  return TagLib::String::number(static_cast<int>(value));
+  std::ostringstream oss;
+  oss << value;
+  return TagLib::String(oss.str());
 }
 
 /// @brief `std::to_string` overload returning a `TagLib::String` for `unsigned long`.
 TagLib::String to_string(unsigned long value) {
-  return TagLib::String::number(static_cast<long>(value));
+  std::ostringstream oss;
+  oss << value;
+  return TagLib::String(oss.str());
 }
 
 /// @brief `std::to_string` overload returning a `TagLib::String` for `unsigned long long`.
 TagLib::String to_string(unsigned long long value) {
-  return TagLib::String::number(static_cast<long>(value));
+  std::ostringstream oss;
+  oss << value;
+  return TagLib::String(oss.str());
 }
 
 /// @brief `std::to_string` overload returning a `TagLib::String` for `float`.
