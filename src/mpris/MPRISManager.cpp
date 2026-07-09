@@ -347,6 +347,10 @@ void MPRISManager::updateShuffle_unlocked(bool shuffle) {
     }
 
     try {
+        // Store the new value before emitting: emitPropertyChanges_unlocked
+        // snapshots m_properties, so without this the signal reports the stale
+        // default and every MPRIS client shows a frozen shuffle state.
+        m_properties->updateShuffle(shuffle);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
         MPRISError error(
@@ -366,6 +370,9 @@ void MPRISManager::updateVolume_unlocked(double volume) {
     }
 
     try {
+        // Store the new value before emitting (see updateShuffle_unlocked):
+        // otherwise the PropertiesChanged signal carries the stale default.
+        m_properties->updateVolume(volume);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
         MPRISError error(
@@ -532,6 +539,17 @@ void MPRISManager::shutdownComponents_unlocked() {
     }
     
     if (m_methods) {
+        // Unregister the D-Bus object path before destroying the MethodHandler:
+        // the libdbus vtable holds m_methods.get(), so an incoming method call
+        // arriving after the handler is freed but before unregistration would
+        // dispatch into freed memory. shutdown_unlocked() unregisters first, but
+        // the error-driven component reset reaches here directly, so do it here
+        // too (idempotent; a second unregister is harmless).
+        if (m_connection) {
+            if (DBusConnection* conn = m_connection->getConnection()) {
+                dbus_connection_unregister_object_path(conn, DBUS_OBJECT_PATH);
+            }
+        }
         try {
             m_methods.reset();
         } catch (const std::exception& e) {

@@ -352,6 +352,9 @@ private:
     mutable std::mutex m_mutex;
     
     void setDegradationLevel_unlocked(DegradationLevel level);
+    // Assume m_mutex is held; used by setDegradationLevel_unlocked.
+    void disableFeature_unlocked(const std::string& feature);
+    void enableFeature_unlocked(const std::string& feature);
     void updateDegradationLevel();
     void cleanupOldErrors();
 };

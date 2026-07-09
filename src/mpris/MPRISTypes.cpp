@@ -833,26 +833,26 @@ void GracefulDegradationManager::setDegradationLevel_unlocked(
 
   case DegradationLevel::Limited:
     // Disable non-essential features
-    disableFeature("metadata_updates");
-    disableFeature("position_tracking");
+    disableFeature_unlocked("metadata_updates");
+    disableFeature_unlocked("position_tracking");
     break;
 
   case DegradationLevel::Minimal:
     // Only basic playback control
-    disableFeature("metadata_updates");
-    disableFeature("position_tracking");
-    disableFeature("seeking");
-    disableFeature("property_queries");
+    disableFeature_unlocked("metadata_updates");
+    disableFeature_unlocked("position_tracking");
+    disableFeature_unlocked("seeking");
+    disableFeature_unlocked("property_queries");
     break;
 
   case DegradationLevel::Disabled:
     // All features disabled
-    disableFeature("playback_control");
-    disableFeature("metadata_updates");
-    disableFeature("position_tracking");
-    disableFeature("seeking");
-    disableFeature("property_queries");
-    disableFeature("signal_emission");
+    disableFeature_unlocked("playback_control");
+    disableFeature_unlocked("metadata_updates");
+    disableFeature_unlocked("position_tracking");
+    disableFeature_unlocked("seeking");
+    disableFeature_unlocked("property_queries");
+    disableFeature_unlocked("signal_emission");
     break;
   }
 }
@@ -870,10 +870,20 @@ bool GracefulDegradationManager::isFeatureAvailable(
 }
 
 void GracefulDegradationManager::disableFeature(const std::string &feature) {
-  m_disabled_features.insert(feature);
+  std::lock_guard<std::mutex> lock(m_mutex);
+  disableFeature_unlocked(feature);
 }
 
 void GracefulDegradationManager::enableFeature(const std::string &feature) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  enableFeature_unlocked(feature);
+}
+
+void GracefulDegradationManager::disableFeature_unlocked(const std::string &feature) {
+  m_disabled_features.insert(feature);
+}
+
+void GracefulDegradationManager::enableFeature_unlocked(const std::string &feature) {
   m_disabled_features.erase(feature);
 }
 
