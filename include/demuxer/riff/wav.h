@@ -29,6 +29,14 @@ namespace Demuxer {
 namespace RIFF {
 
 // No direct includes - all includes should be in psymp3.h
+
+// DEPRECATED: WaveStream is the original standalone WAV/RIFF reader. It is no
+// longer instantiated by the shipped application — production WAV playback goes
+// through PsyMP3::Demuxer::RIFF::ChunkDemuxer (the RIFF chunk demuxer + PCM
+// codecs), which has the more complete hardening (division-by-zero guards,
+// chunk-bounds validation). This class is retained only for its unit tests
+// (tests/test_wav_stream.cpp, test_wav_g711.cpp). Do not wire it into new
+// production paths; extend ChunkDemuxer instead.
 class WaveStream : public Stream {
 public:
     explicit WaveStream(const TagLib::String& path);

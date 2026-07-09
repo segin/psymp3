@@ -188,6 +188,27 @@ void testSeek() {
      ASSERT_EQUALS((int16_t)0xBBAA, buffer[0], "Seek failed or data mismatch");
 }
 
+void testZeroChannelsRate() {
+    std::cout << "Testing Zero Channels/Rate (SIGFPE guard)..." << std::endl;
+    // A fmt chunk declaring 0 channels or a 0 sample rate would divide-by-zero
+    // in the length/seek math; it must be rejected as a recoverable format error,
+    // never crash the process with an uncatchable SIGFPE.
+    {
+        auto wavData = createWavData(1, 0, 44100, 16, std::vector<uint8_t>(64, 0));
+        auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+        bool thrown = false;
+        try { WaveStream stream(std::move(handler)); } catch (const std::exception&) { thrown = true; }
+        ASSERT_TRUE(thrown, "Should throw on zero channels, not SIGFPE");
+    }
+    {
+        auto wavData = createWavData(1, 2, 0, 16, std::vector<uint8_t>(64, 0));
+        auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+        bool thrown = false;
+        try { WaveStream stream(std::move(handler)); } catch (const std::exception&) { thrown = true; }
+        ASSERT_TRUE(thrown, "Should throw on zero sample rate, not SIGFPE");
+    }
+}
+
 int main() {
     try {
         testPCM16();
@@ -196,6 +217,7 @@ int main() {
         testALaw();
         testMuLaw();
         testInvalidHeader();
+        testZeroChannelsRate();
         testSeek();
 
         std::cout << "All tests passed!" << std::endl;

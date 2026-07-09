@@ -166,6 +166,13 @@ void WaveStream::parseHeaders() {
                     throw BadFormatException("Unsupported WAVE format.");
             }
             m_bytes_per_sample = m_bits_per_sample / 8;
+            // Guard the divisors used below (m_slength/m_length and the seek
+            // math): a crafted fmt chunk declaring zero channels or a zero
+            // sample rate would otherwise trigger an integer divide-by-zero
+            // (SIGFPE, uncatchable) rather than a recoverable format error.
+            if (m_channels == 0 || m_rate == 0 || m_bytes_per_sample == 0) {
+                throw BadFormatException("WAVE fmt chunk has zero channels, sample rate, or bit depth.");
+            }
             found_fmt = true;
         } else if (chunk_id == DATA_ID) {
             if (!found_fmt) throw BadFormatException("WAVE 'data' chunk found before 'fmt ' chunk.");
