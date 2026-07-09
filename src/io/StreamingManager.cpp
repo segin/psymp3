@@ -170,24 +170,29 @@ MediaChunk StreamingManager::readChunk() {
     // avoid racing with the background streaming thread and seekTo())
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_demuxer) {
+        // Re-check the queue under the lock before reading the demuxer: the
+        // streaming thread may have pushed a chunk (its read+push is atomic
+        // under m_mutex) between our earlier empty pop and acquiring this lock.
+        // Reading the demuxer directly here would skip that chunk and deliver
+        // the following one out of order.
+        if (!m_chunk_queue.tryPop(chunk) && m_demuxer) {
             chunk = m_demuxer->readChunk(m_stream_id);
-            
+
             // Update EOF status
             if (chunk.isEmpty() && m_demuxer->isEOF()) {
                 m_eof = true;
             }
-            
-            // Update position based on chunk timestamp
-            if (!chunk.isEmpty() && chunk.timestamp_samples > 0) {
-                StreamInfo info = m_demuxer->getStreamInfo(m_stream_id);
-                if (info.sample_rate > 0) {
-                    m_position_ms = (chunk.timestamp_samples * 1000) / info.sample_rate;
-                }
+        }
+
+        // Update position based on chunk timestamp
+        if (!chunk.isEmpty() && chunk.timestamp_samples > 0 && m_demuxer) {
+            StreamInfo info = m_demuxer->getStreamInfo(m_stream_id);
+            if (info.sample_rate > 0) {
+                m_position_ms = (chunk.timestamp_samples * 1000) / info.sample_rate;
             }
         }
     }
-    
+
     return chunk;
 }
 
@@ -256,12 +261,12 @@ void StreamingManager::streamingThreadFunc() {
         
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            
+
             // Check if we're at EOF
             if (m_demuxer && m_demuxer->isEOF()) {
                 m_eof = true;
             }
-            
+
             // If we're at EOF or buffer is full, wait for space
             if (m_eof || m_chunk_queue.size() >= m_max_chunks) {
                 buffer_full = true;
@@ -270,25 +275,26 @@ void StreamingManager::streamingThreadFunc() {
                 // Read a chunk from the demuxer
                 if (m_demuxer) {
                     chunk = m_demuxer->readChunk(m_stream_id);
-                    
+
                     // Check for EOF
                     if (chunk.isEmpty() && m_demuxer->isEOF()) {
                         m_eof = true;
                         m_buffering = false;
+                    } else if (!chunk.isEmpty()) {
+                        // Enqueue while still holding m_mutex so the read and the
+                        // push are atomic with respect to the consumer's direct
+                        // demuxer read below. Pushing outside the lock let the
+                        // consumer read and deliver the next chunk in between,
+                        // reordering playback.
+                        if (!m_chunk_queue.tryPush(std::move(chunk))) {
+                            buffer_full = true;
+                            m_buffering = false;
+                        }
                     }
                 }
             }
         }
-        
-        // If we have a valid chunk, add it to the buffer
-        if (!chunk.isEmpty()) {
-            if (!m_chunk_queue.tryPush(std::move(chunk))) {
-                // Buffer is full, wait for space
-                buffer_full = true;
-                m_buffering = false;
-            }
-        }
-        
+
         // If buffer is full or we're at EOF, wait for a signal
         if (buffer_full || m_eof) {
             std::unique_lock<std::mutex> lock(m_mutex);

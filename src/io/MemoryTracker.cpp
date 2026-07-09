@@ -207,14 +207,23 @@ int MemoryTracker::getMemoryPressureLevel() const {
 }
 
 int MemoryTracker::registerMemoryPressureCallback(std::function<void(int)> callback) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    
-    int id = m_next_callback_id++;
-    m_callbacks.push_back({id, callback});
-    
-    // Immediately notify with current pressure level
-    callback(m_memory_pressure_level);
-    
+    int id;
+    int level;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        id = m_next_callback_id++;
+        m_callbacks.push_back({id, callback});
+        level = m_memory_pressure_level;
+    }
+
+    // Notify with the current pressure level outside the lock, so a callback
+    // that re-enters the tracker cannot self-deadlock on the non-recursive mutex.
+    try {
+        callback(level);
+    } catch (...) {
+        // Ignore exceptions from callbacks
+    }
+
     return id;
 }
 
@@ -266,28 +275,36 @@ void MemoryTracker::stopAutoTracking() {
 }
 
 void MemoryTracker::requestMemoryCleanup(int urgency_level) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    
-    // Only allow cleanup requests at a reasonable interval
-    auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::seconds>(now - m_last_cleanup_request).count() < 10) {
-        return; // Too soon for another cleanup
+    std::vector<CallbackInfo> callbacks;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        // Only allow cleanup requests at a reasonable interval
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - m_last_cleanup_request).count() < 10) {
+            return; // Too soon for another cleanup
+        }
+
+        m_last_cleanup_request = now;
+        m_cleanup_requested = true;
+        m_cleanup_urgency = urgency_level;
+        callbacks = m_callbacks; // snapshot under the lock
     }
-    
-    m_last_cleanup_request = now;
-    m_cleanup_requested = true;
-    m_cleanup_urgency = urgency_level;
-    
-    // Notify all callbacks with the urgency level
-    for (const auto& info : m_callbacks) {
+
+    // Invoke callbacks WITHOUT holding m_mutex: a callback that re-enters the
+    // tracker (register/unregister/requestMemoryCleanup) would otherwise
+    // deadlock on the non-recursive mutex, and a slow callback would block all
+    // tracker operations.
+    for (const auto& info : callbacks) {
         try {
             info.callback(urgency_level);
         } catch (...) {
             // Ignore exceptions from callbacks
         }
     }
-    
+
     // Reset cleanup flag after notification
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_cleanup_requested = false;
 }
 
@@ -316,14 +333,21 @@ void MemoryTracker::autoTrackingThread() {
         // Update memory stats
         update();
         
-        // Check if we need to request cleanup
+        // Check if we need to request cleanup. Read the decision inputs under
+        // the lock, then release it before calling requestMemoryCleanup, which
+        // acquires the same non-recursive mutex itself (calling it while holding
+        // the lock would self-deadlock).
+        bool need_cleanup = false;
+        int urgency = 0;
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            
-            // Request cleanup if memory pressure is high
             if (m_memory_pressure_level > 80 && m_stats.memory_usage_trend > 0.1f) {
-                requestMemoryCleanup(m_memory_pressure_level);
+                need_cleanup = true;
+                urgency = m_memory_pressure_level;
             }
+        }
+        if (need_cleanup) {
+            requestMemoryCleanup(urgency);
         }
         
         // Sleep for the specified interval
