@@ -67,6 +67,10 @@ class Playlist
         TagLib::String prev();
         TagLib::String peekNext() const;
         std::optional<TrackInfo> getTrackInfo(long position) const;
+        // True if advancing forward by advance_count would run past the end of
+        // the current play order (sequential or shuffle) and wrap. Used to honor
+        // LoopMode::None in both orders.
+        bool advanceWouldWrap(size_t advance_count) const;
         void setShuffle(bool enabled);
         bool isShuffle() const;
         static std::vector<Entry> loadPlaylistEntries(TagLib::String path);

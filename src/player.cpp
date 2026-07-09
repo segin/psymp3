@@ -761,6 +761,19 @@ void Player::nextTrack(size_t advance_count) {
         return;
     }
 
+    // End-of-playlist handling applies to both shuffle and sequential order:
+    // unless we are looping the whole playlist, running past the end stops (or
+    // quits when unattended) instead of wrapping.
+    if (m_loop_mode != LoopMode::All && playlist->advanceWouldWrap(advance_count)) {
+        if (m_unattended_quit) {
+            synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
+            return;
+        }
+        stop();
+        updateInfo();
+        return;
+    }
+
     if (playlist->isShuffle()) {
         TagLib::String next_path;
         for (size_t i = 0; i < advance_count; ++i) {
@@ -776,18 +789,8 @@ void Player::nextTrack(size_t advance_count) {
         new_pos++;
     }
 
-    if (new_pos >= playlist->entries()) { // Reached or passed the end
-        if (m_loop_mode == LoopMode::All) {
-            new_pos = 0; // Wrap
-        } else { // LoopMode::None
-            if (m_unattended_quit) {
-                synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
-                return;
-            }
-            stop();
-            updateInfo();
-            return;
-        }
+    if (new_pos >= playlist->entries()) { // LoopMode::All: wrap to the start
+        new_pos = 0;
     }
 
     playlist->setPosition(new_pos);

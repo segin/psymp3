@@ -430,6 +430,23 @@ void Playlist::repopulateShuffleIndices()
  * @param position The zero-based index of the desired track.
  * @return A populated TrackInfo, or std::nullopt if the index is out of bounds.
  */
+bool Playlist::advanceWouldWrap(size_t advance_count) const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (tracks.empty()) {
+        return true;
+    }
+    if (m_shuffle) {
+        // If the shuffle order is stale, next() will repopulate it rather than
+        // wrap, so treat that as "won't wrap".
+        if (m_shuffled_indices.size() != tracks.size()) {
+            return false;
+        }
+        return static_cast<size_t>(m_shuffle_index) + advance_count >= m_shuffled_indices.size();
+    }
+    return static_cast<size_t>(m_position) + advance_count >= tracks.size();
+}
+
 std::optional<Playlist::TrackInfo> Playlist::getTrackInfo(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
