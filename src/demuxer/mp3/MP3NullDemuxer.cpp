@@ -33,6 +33,22 @@ static constexpr uint32_t s_bitrates_v2_l3[16] = {
     0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0
 };
 
+// MPEG 1 Layer I / Layer II bitrate tables (kbps)
+static constexpr uint32_t s_bitrates_v1_l1[16] = {
+    0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0
+};
+static constexpr uint32_t s_bitrates_v1_l2[16] = {
+    0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0
+};
+
+// MPEG 2/2.5 Layer I bitrate table (kbps). Layers II and III share s_bitrates_v2_l3.
+static constexpr uint32_t s_bitrates_v2_l1[16] = {
+    0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0
+};
+
+// The 2-bit layer field: 3 = Layer I, 2 = Layer II, 1 = Layer III (0 reserved).
+enum : uint8_t { MP3_LAYER_III = 1, MP3_LAYER_II = 2, MP3_LAYER_I = 3 };
+
 MP3NullDemuxer::MP3NullDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler)
     : Demuxer(std::move(handler)) {
 }
@@ -103,14 +119,14 @@ bool MP3NullDemuxer::parseContainer_unlocked() {
 
     // Check for ID3v1 tag at end of file (128 bytes)
     if (m_file_size > 128) {
-        m_handler->seek(static_cast<long>(m_file_size - 128), SEEK_SET);
+        m_handler->seek(static_cast<off_t>(m_file_size - 128), SEEK_SET);
         uint8_t tag_header[3] = {};
         m_handler->read(tag_header, 1, 3);
         if (tag_header[0] == 'T' && tag_header[1] == 'A' && tag_header[2] == 'G') {
             m_data_end_offset = m_file_size - 128;
         }
         // Restore position to data start
-        m_handler->seek(static_cast<long>(m_data_start_offset), SEEK_SET);
+        m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
     }
 
     // Find and parse first valid MP3 frame
@@ -149,20 +165,27 @@ bool MP3NullDemuxer::skipID3v2Tag_unlocked() {
                         (static_cast<uint32_t>(header[8] & 0x7F) << 7) |
                         (static_cast<uint32_t>(header[9] & 0x7F));
 
-    m_data_start_offset = 10 + tag_size;
+    m_data_start_offset = static_cast<uint64_t>(10) + tag_size;
 
     // Check for footer flag (adds 10 bytes)
     if (header[5] & 0x10) {
         m_data_start_offset += 10;
     }
 
+    // A declared tag larger than the file is malformed; clamp so the data start
+    // never points past EOF (parseFirstFrame then finds no frame and fails
+    // cleanly rather than seeking to a bogus offset).
+    if (m_data_start_offset > m_file_size) {
+        m_data_start_offset = m_file_size;
+    }
+
     Debug::log("mp3demux", "MP3NullDemuxer: Skipping ID3v2 tag, ", m_data_start_offset, " bytes");
-    m_handler->seek(static_cast<long>(m_data_start_offset), SEEK_SET);
+    m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
     return true;
 }
 
 bool MP3NullDemuxer::parseFirstFrame_unlocked() {
-    m_handler->seek(static_cast<long>(m_data_start_offset), SEEK_SET);
+    m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
 
     // Search for the first valid frame sync within reasonable range
     const uint64_t search_limit = std::min(m_data_start_offset + 65536, m_data_end_offset);
@@ -207,7 +230,7 @@ bool MP3NullDemuxer::parseFirstFrame_unlocked() {
         // Try to parse Xing/LAME VBR header from this frame
         if (frame_size > 4 && frame_size < 4096) {
             std::vector<uint8_t> frame_data(frame_size);
-            m_handler->seek(static_cast<long>(frame_offset), SEEK_SET);
+            m_handler->seek(static_cast<off_t>(frame_offset), SEEK_SET);
             if (m_handler->read(frame_data.data(), 1, frame_size) == frame_size) {
                 parseXingHeader_unlocked(frame_data, sample_rate, channels);
             }
@@ -231,7 +254,7 @@ bool MP3NullDemuxer::parseFirstFrame_unlocked() {
         }
 
         // Seek to actual data start for first readChunk
-        m_handler->seek(static_cast<long>(m_data_start_offset), SEEK_SET);
+        m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
         return true;
     }
 
@@ -453,17 +476,17 @@ bool MP3NullDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
         double file_percent = fa + frac * (fb - fa);
         uint64_t byte_offset = static_cast<uint64_t>((file_percent / 256.0) * m_total_bytes);
 
-        m_handler->seek(static_cast<long>(m_data_start_offset + byte_offset), SEEK_SET);
+        m_handler->seek(static_cast<off_t>(m_data_start_offset + byte_offset), SEEK_SET);
     } else {
         // CBR seeking: linear byte offset estimation
         double ratio = static_cast<double>(timestamp_ms) / m_duration_ms;
         uint64_t byte_offset = static_cast<uint64_t>(ratio * audio_data_size);
-        m_handler->seek(static_cast<long>(m_data_start_offset + byte_offset), SEEK_SET);
+        m_handler->seek(static_cast<off_t>(m_data_start_offset + byte_offset), SEEK_SET);
     }
 
     // Find next valid frame sync
     if (!findFrameSync_unlocked()) {
-        m_handler->seek(static_cast<long>(m_data_start_offset), SEEK_SET);
+        m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
     }
 
     // Update position tracking
@@ -510,13 +533,20 @@ uint16_t MP3NullDemuxer::getFrameChannels(const uint8_t header[4]) {
 
 uint32_t MP3NullDemuxer::getFrameBitrate(const uint8_t header[4]) {
     uint8_t version = (header[1] >> 3) & 0x03;
+    uint8_t layer = (header[1] >> 1) & 0x03;
     uint8_t bitrate_index = (header[2] >> 4) & 0x0F;
     bool is_mpeg1 = (version == 3);
 
     if (is_mpeg1) {
-        return s_bitrates_v1_l3[bitrate_index];
+        switch (layer) {
+            case MP3_LAYER_I:  return s_bitrates_v1_l1[bitrate_index];
+            case MP3_LAYER_II: return s_bitrates_v1_l2[bitrate_index];
+            default:           return s_bitrates_v1_l3[bitrate_index]; // Layer III
+        }
     } else {
-        return s_bitrates_v2_l3[bitrate_index];
+        // MPEG 2/2.5: Layer I has its own table; Layers II and III share one.
+        return (layer == MP3_LAYER_I) ? s_bitrates_v2_l1[bitrate_index]
+                                      : s_bitrates_v2_l3[bitrate_index];
     }
 }
 
@@ -525,22 +555,34 @@ uint32_t MP3NullDemuxer::getFrameSize(const uint8_t header[4]) {
     uint32_t sample_rate = getFrameSampleRate(header);
     if (bitrate == 0 || sample_rate == 0) return 0;
 
-    uint8_t version = (header[1] >> 3) & 0x03;
-    bool is_mpeg1 = (version == 3);
+    uint8_t layer = (header[1] >> 1) & 0x03;
     bool padding = (header[2] >> 1) & 0x01;
 
-    if (is_mpeg1) {
-        // MPEG 1 Layer III: frame_size = 144 * bitrate / sample_rate + padding
-        return (144 * bitrate / sample_rate) + (padding ? 1 : 0);
-    } else {
-        // MPEG 2/2.5 Layer III: frame_size = 72 * bitrate / sample_rate + padding
-        return (72 * bitrate / sample_rate) + (padding ? 1 : 0);
+    if (layer == MP3_LAYER_I) {
+        // Layer I: 384 samples/frame, 4-byte slots.
+        // frame_size = (12 * bitrate / sample_rate + padding) * 4
+        return ((12 * bitrate / sample_rate) + (padding ? 1 : 0)) * 4;
     }
+
+    // Layers II and III use 1-byte slots. The coefficient is samples-per-frame/8:
+    // 144 for 1152-sample frames (Layer II, and Layer III on MPEG 1), 72 for the
+    // 576-sample frames of Layer III on MPEG 2/2.5.
+    uint32_t coeff = (getFrameSamples(header) / 8);
+    return (coeff * bitrate / sample_rate) + (padding ? 1 : 0);
 }
 
 uint32_t MP3NullDemuxer::getFrameSamples(const uint8_t header[4]) {
     uint8_t version = (header[1] >> 3) & 0x03;
+    uint8_t layer = (header[1] >> 1) & 0x03;
     bool is_mpeg1 = (version == 3);
+
+    if (layer == MP3_LAYER_I) {
+        return 384;
+    }
+    if (layer == MP3_LAYER_II) {
+        return 1152;
+    }
+    // Layer III: 1152 samples on MPEG 1, 576 on MPEG 2/2.5.
     return is_mpeg1 ? 1152 : 576;
 }
 
