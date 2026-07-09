@@ -33,6 +33,17 @@ class Playlist
             long duration = 0;
         };
 
+        // Immutable snapshot of a track's metadata, copied out under the lock.
+        // Returned by value so callers never hold a pointer into the tracks
+        // vector, which the populator thread can reallocate via emplace_back.
+        struct TrackInfo {
+            TagLib::String artist;
+            TagLib::String title;
+            TagLib::String album;
+            TagLib::String path;
+            unsigned int length_seconds = 0;
+        };
+
         // Explicitly delete copy operations as std::vector<track> is non-copyable
         Playlist(const Playlist&) = delete;
         Playlist& operator=(const Playlist&) = delete; // Keep copy assignment deleted
@@ -55,7 +66,7 @@ class Playlist
         TagLib::String next();
         TagLib::String prev();
         TagLib::String peekNext() const;
-        const track* getTrackInfo(long position) const;
+        std::optional<TrackInfo> getTrackInfo(long position) const;
         void setShuffle(bool enabled);
         bool isShuffle() const;
         static std::vector<Entry> loadPlaylistEntries(TagLib::String path);

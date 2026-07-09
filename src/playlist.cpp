@@ -422,19 +422,23 @@ void Playlist::repopulateShuffleIndices()
 }
 
 /**
- * @brief Gets a pointer to the full track object at a specific index.
+ * @brief Gets a snapshot of the track metadata at a specific index.
  *
- * This provides access to all metadata (artist, title, length, etc.).
+ * Returns a copy by value rather than a pointer into the tracks vector: the
+ * playlist populator thread appends entries via emplace_back, which can
+ * reallocate the vector and leave any returned pointer dangling.
  * @param position The zero-based index of the desired track.
- * @return A const pointer to the `track` object, or `nullptr` if the index is out of bounds.
+ * @return A populated TrackInfo, or std::nullopt if the index is out of bounds.
  */
-const track* Playlist::getTrackInfo(long position) const
+std::optional<Playlist::TrackInfo> Playlist::getTrackInfo(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (position >= 0 && static_cast<size_t>(position) < tracks.size()) {
-        return &tracks[position];
+        const track& t = tracks[position];
+        return TrackInfo{ t.GetArtist(), t.GetTitle(), t.GetAlbum(),
+                          t.GetFilePath(), t.GetLen() };
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 /**

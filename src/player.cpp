@@ -1273,9 +1273,9 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
                 if (candidate_path.isEmpty()) break;
                 
                 // Use cached track metadata instead of blocking MediaFile::open()
-                const track* track_info = playlist->getTrackInfo(look_ahead_pos);
+                std::optional<Playlist::TrackInfo> track_info = playlist->getTrackInfo(look_ahead_pos);
                 if (track_info) {
-                    long track_length = track_info->GetLen() * 1000; // Convert seconds to milliseconds
+                    long track_length = static_cast<long>(track_info->length_seconds) * 1000; // Convert seconds to milliseconds
                     if (track_length > 0 && track_length < 10000) {
                         // Track is short, add to chain
                         short_track_chain.push_back(candidate_path);
