@@ -44,7 +44,7 @@ class FFT {
 	private:
 		std::vector<float> real, imag;
 		int size;
-		FFTMode m_current_fft_mode; // Changed from bool to enum
+		std::atomic<FFTMode> m_current_fft_mode; // atomic: written by the UI thread, read by the audio thread
 		std::vector<float> m_twiddle_cos; // Precomputed cosine factors
 		std::vector<float> m_twiddle_sin; // Precomputed sine factors
 

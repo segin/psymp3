@@ -65,7 +65,7 @@ FFTMode FFT::getFFTMode() const {
  * @return A std::string representing the current mode (e.g., "mat-og", "vibe-1").
  */
 std::string FFT::getFFTModeName() const {
-    switch (m_current_fft_mode) {
+    switch (m_current_fft_mode.load()) {
         case FFTMode::Original: return "mat-og";
         case FFTMode::Optimized: return "vibe-1";
         case FFTMode::NeomatIn: return "neomat-in";
@@ -312,7 +312,7 @@ unsigned int FFT::bitreverse(unsigned int in, int bits) {
  * @param input A pointer to the float array of time-domain input samples.
  */
 void FFT::fft(float *output, const float *input) {
-    switch (m_current_fft_mode) {
+    switch (m_current_fft_mode.load()) {
         case FFTMode::Original:
             original_fft_impl(output, input);
             break;
