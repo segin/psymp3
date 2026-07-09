@@ -2861,11 +2861,15 @@ OpusComments OpusComments::parseFromPacket(const std::vector<uint8_t>& packet_da
     // Basic parsing - this is primarily for demuxer use
     // For now, just validate the header structure
     if (packet_data.size() >= 12) {
-        // Vendor string length (little endian)
-        uint32_t vendor_length = packet_data[8] | (packet_data[9] << 8) | 
-                                (packet_data[10] << 16) | (packet_data[11] << 24);
-        
-        if (packet_data.size() >= 12 + vendor_length) {
+        // Vendor string length (little endian). Cast each byte to uint32_t
+        // before shifting (a plain byte << 24 is signed-overflow UB), and widen
+        // the bounds check to size_t so 12 + vendor_length cannot wrap.
+        uint32_t vendor_length = static_cast<uint32_t>(packet_data[8]) |
+                                (static_cast<uint32_t>(packet_data[9]) << 8) |
+                                (static_cast<uint32_t>(packet_data[10]) << 16) |
+                                (static_cast<uint32_t>(packet_data[11]) << 24);
+
+        if (packet_data.size() >= static_cast<size_t>(12) + vendor_length) {
             comments.vendor_string = std::string(
                 reinterpret_cast<const char*>(packet_data.data() + 12), 
                 vendor_length

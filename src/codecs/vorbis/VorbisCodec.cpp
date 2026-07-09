@@ -115,28 +115,35 @@ VorbisCommentInfo VorbisCommentInfo::parseFromPacket(const std::vector<uint8_t>&
     
     size_t offset = 7;
     
-    // Parse vendor string
+    // Read a 32-bit little-endian length. Cast each byte to uint32_t before
+    // shifting (byte << 24 is signed-overflow UB).
+    auto readLE32 = [&](size_t at) -> uint32_t {
+        return static_cast<uint32_t>(packet_data[at]) |
+               (static_cast<uint32_t>(packet_data[at + 1]) << 8) |
+               (static_cast<uint32_t>(packet_data[at + 2]) << 16) |
+               (static_cast<uint32_t>(packet_data[at + 3]) << 24);
+    };
+
+    // Parse vendor string. Bounds checks use uint64_t so offset + length cannot
+    // wrap on a 32-bit target where size_t is 32-bit.
     if (offset + 4 > packet_data.size()) return info;
-    uint32_t vendor_length = packet_data[offset] | (packet_data[offset + 1] << 8) |
-                             (packet_data[offset + 2] << 16) | (packet_data[offset + 3] << 24);
+    uint32_t vendor_length = readLE32(offset);
     offset += 4;
-    
-    if (offset + vendor_length > packet_data.size()) return info;
+
+    if (static_cast<uint64_t>(offset) + vendor_length > packet_data.size()) return info;
     info.vendor_string = std::string(reinterpret_cast<const char*>(&packet_data[offset]), vendor_length);
     offset += vendor_length;
-    
+
     // Parse user comments
     if (offset + 4 > packet_data.size()) return info;
-    uint32_t comment_count = packet_data[offset] | (packet_data[offset + 1] << 8) |
-                             (packet_data[offset + 2] << 16) | (packet_data[offset + 3] << 24);
+    uint32_t comment_count = readLE32(offset);
     offset += 4;
-    
+
     for (uint32_t i = 0; i < comment_count && offset + 4 <= packet_data.size(); i++) {
-        uint32_t comment_length = packet_data[offset] | (packet_data[offset + 1] << 8) |
-                                  (packet_data[offset + 2] << 16) | (packet_data[offset + 3] << 24);
+        uint32_t comment_length = readLE32(offset);
         offset += 4;
-        
-        if (offset + comment_length > packet_data.size()) break;
+
+        if (static_cast<uint64_t>(offset) + comment_length > packet_data.size()) break;
         
         std::string comment(reinterpret_cast<const char*>(&packet_data[offset]), comment_length);
         offset += comment_length;

@@ -195,7 +195,9 @@ bool SpeexCodec::initialize() {
                      speex_decoder_ctl(m_decoder_state, SPEEX_GET_FRAME_SIZE, &frame_size);
                      m_frame_size = frame_size;
                      m_sample_rate = header->rate;
-                     m_channels = header->nb_channels;
+                     // Speex is mono or stereo only; a header claiming more channels would
+                     // overrun the fixed decode buffer below, so treat anything but 2 as mono.
+                     m_channels = (header->nb_channels == 2) ? 2 : 1;
                      m_initialized_speex = true;
                 }
             }
@@ -235,7 +237,9 @@ AudioFrame SpeexCodec::decode(const MediaChunk& chunk) {
                          speex_decoder_ctl(m_decoder_state, SPEEX_GET_FRAME_SIZE, &frame_size);
                          m_frame_size = frame_size;
                          m_sample_rate = header->rate;
-                         m_channels = header->nb_channels;
+                         // Speex is mono or stereo only; a header claiming more channels would
+                     // overrun the fixed decode buffer below, so treat anything but 2 as mono.
+                     m_channels = (header->nb_channels == 2) ? 2 : 1;
                          m_initialized_speex = true;
                     }
                 }
@@ -284,8 +288,13 @@ AudioFrame SpeexCodec::decode(const MediaChunk& chunk) {
             speex_decode_stereo_int(output, m_frame_size, (SpeexStereoState*)m_stereo_state);
         }
 
-        // Append to samples
-        for (int i = 0; i < (int)m_frame_size * m_channels; ++i) {
+        // Append to samples. Clamp against the fixed output[] capacity so a
+        // bogus frame_size/channel combination can never read past the buffer.
+        size_t produced = static_cast<size_t>(m_frame_size) * m_channels;
+        if (produced > 2048) {
+            produced = 2048;
+        }
+        for (size_t i = 0; i < produced; ++i) {
             decoded_samples.push_back(output[i]);
         }
 

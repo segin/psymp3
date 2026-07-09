@@ -65,10 +65,12 @@ bool SubframeDecoder::decodeSubframe(int32_t *output, uint32_t block_size,
     return false;
   }
 
-  // Apply wasted bits padding if present (Requirement 20)
+  // Apply wasted bits padding if present (Requirement 20). Shift through an
+  // unsigned type: left-shifting a negative int32 sample is UB before C++20
+  // and trips UBSan.
   if (header.wasted_bits > 0) {
     for (uint32_t i = 0; i < block_size; i++) {
-      output[i] <<= header.wasted_bits;
+      output[i] = static_cast<int32_t>(static_cast<uint32_t>(output[i]) << header.wasted_bits);
     }
   }
 
