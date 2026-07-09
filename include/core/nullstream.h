@@ -32,11 +32,20 @@ class NullStream : public Stream
 {
     public:
         NullStream() { }
-        NullStream(TagLib::String name) { }
+        NullStream(TagLib::String name) : Stream(name) { }
         virtual ~NullStream() { }
-        virtual size_t getData(size_t len, void *buf) { return len; }
+        // Produce no audio. Previously this returned len while leaving buf
+        // untouched, so the caller played whatever stale bytes were in the
+        // decode buffer, and eof()==false made it an infinite non-advancing
+        // stream. Report silence + immediate EOF instead.
+        virtual size_t getData(size_t len, void *buf) {
+            if (buf && len) {
+                std::memset(buf, 0, len);
+            }
+            return 0;
+        }
         virtual void seekTo(unsigned long pos) { }
-        virtual bool eof() { return false; }
+        virtual bool eof() { return true; }
     protected:
     private:
 };

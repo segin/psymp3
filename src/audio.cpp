@@ -133,10 +133,13 @@ void Audio::setup() {
     Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: AUDIO_S16");
 
     // A stream reporting zero rate or channels is malformed; opening the device
-    // would let the audio callback divide by zero (SIGFPE).
+    // would let the audio callback divide by zero (SIGFPE). Throw so the caller
+    // (Player) surfaces the failure and skips the track, rather than proceeding
+    // into a silent, permanently-wedged "Playing" state.
     if (m_rate == 0 || m_channels == 0) {
-        Debug::log("audio", "Audio::setup: Refusing to open device with invalid rate=", m_rate, " channels=", static_cast<int>(m_channels));
-        return;
+        throw InvalidMediaException("Audio::setup: invalid stream format (rate=" +
+                                    std::to_string(m_rate) + ", channels=" +
+                                    std::to_string(m_channels) + ")");
     }
     desired.samples = 512; /* 512 sample frames for FFT / low-latency callback pacing */
     desired.callback = callback;
@@ -144,8 +147,10 @@ void Audio::setup() {
     
     m_device_id = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
     if (m_device_id == 0) {
-        Debug::log("audio", "Unable to open audio: ", SDL_GetError());
-        // throw;
+        // Surface the failure instead of leaving a half-built Audio whose
+        // callback never runs (silent, non-advancing "Playing" wedge). The
+        // Player construction sites catch this and skip the track.
+        throw InvalidMediaException(std::string("Unable to open audio device: ") + SDL_GetError());
     } else {
         // Log what SDL actually gave us
         Debug::log("audio", "Audio::setup: Obtained format - rate: ", obtained.freq, "Hz, channels: ", static_cast<int>(obtained.channels),
@@ -579,7 +584,7 @@ void Audio::resetBuffer_unlocked() {
  * @return Buffer latency in milliseconds
  */
 uint64_t Audio::getBufferLatencyMs_unlocked() const {
-    if (m_rate == 0) {
+    if (m_rate == 0 || m_channels == 0) {
         return 0;
     }
     size_t samples_in_buffer = m_buffer.size() / m_channels;
