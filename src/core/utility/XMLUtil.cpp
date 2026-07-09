@@ -264,7 +264,7 @@ std::map<std::string, std::string> XMLUtil::parseAttributes(const std::string& a
     
     while (pos < attributeString.length()) {
         // Skip whitespace
-        while (pos < attributeString.length() && std::isspace(attributeString[pos])) {
+        while (pos < attributeString.length() && std::isspace(static_cast<unsigned char>(attributeString[pos]))) {
             pos++;
         }
         
@@ -273,7 +273,7 @@ std::map<std::string, std::string> XMLUtil::parseAttributes(const std::string& a
         // Find attribute name
         size_t nameStart = pos;
         while (pos < attributeString.length() && attributeString[pos] != '=' && 
-               !std::isspace(attributeString[pos])) {
+               !std::isspace(static_cast<unsigned char>(attributeString[pos]))) {
             pos++;
         }
         
@@ -283,7 +283,7 @@ std::map<std::string, std::string> XMLUtil::parseAttributes(const std::string& a
         
         // Skip whitespace and '='
         while (pos < attributeString.length() && 
-               (std::isspace(attributeString[pos]) || attributeString[pos] == '=')) {
+               (std::isspace(static_cast<unsigned char>(attributeString[pos])) || attributeString[pos] == '=')) {
             pos++;
         }
         
@@ -307,7 +307,7 @@ std::map<std::string, std::string> XMLUtil::parseAttributes(const std::string& a
         } else {
             // Unquoted value (not recommended, but handle it)
             size_t valueStart = pos;
-            while (pos < attributeString.length() && !std::isspace(attributeString[pos])) {
+            while (pos < attributeString.length() && !std::isspace(static_cast<unsigned char>(attributeString[pos]))) {
                 pos++;
             }
             value = unescapeXML(attributeString.substr(valueStart, pos - valueStart));
