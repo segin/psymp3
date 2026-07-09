@@ -141,13 +141,26 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
             return widget.eraseAtCaret();
         case SDLK_LEFT:
             if (widget.m_caret_index > 0) {
-                --widget.m_caret_index;
+                // Step back over one whole UTF-8 codepoint: move off the byte
+                // before the caret, then skip any continuation bytes (10xxxxxx)
+                // back to the lead byte, so the caret never lands mid-character.
+                size_t idx = widget.m_caret_index - 1;
+                while (idx > 0 && (static_cast<unsigned char>(text[idx]) & 0xC0) == 0x80) {
+                    --idx;
+                }
+                widget.m_caret_index = idx;
                 widget.rebuildSurface();
             }
             return true;
         case SDLK_RIGHT:
             if (widget.m_caret_index < text.size()) {
-                ++widget.m_caret_index;
+                // Advance past one whole UTF-8 codepoint: the lead byte plus its
+                // continuation bytes.
+                size_t idx = widget.m_caret_index + 1;
+                while (idx < text.size() && (static_cast<unsigned char>(text[idx]) & 0xC0) == 0x80) {
+                    ++idx;
+                }
+                widget.m_caret_index = idx;
                 widget.rebuildSurface();
             }
             return true;
@@ -178,14 +191,20 @@ bool TextInputWidget::handleFocusedTextInput(const char* text)
     TextInputWidget& widget = *s_focused_widget;
     const std::string input(text);
 
-    bool changed = false;
+    // SDL delivers SDL_TEXTINPUT as UTF-8. Keep printable ASCII (0x20-0x7E) and
+    // every UTF-8 multi-byte byte (>= 0x80); drop only C0 controls and DEL.
+    // Insert the whole filtered sequence in one step so a multi-byte codepoint's
+    // bytes are never split across separate edits.
+    std::string filtered;
     for (unsigned char c : input) {
-        if (c >= 32 && c <= 126) {
-            changed = widget.insertCharacter(static_cast<char>(c)) || changed;
+        if (c >= 0x20 && c != 0x7F) {
+            filtered.push_back(static_cast<char>(c));
         }
     }
-
-    return changed;
+    if (filtered.empty()) {
+        return false;
+    }
+    return widget.insertString(filtered);
 }
 
 void TextInputWidget::focus()
@@ -234,6 +253,26 @@ bool TextInputWidget::insertCharacter(char c)
     return true;
 }
 
+bool TextInputWidget::insertString(const std::string& utf8)
+{
+    if (utf8.empty()) {
+        return false;
+    }
+    std::string text = narrowText(m_text);
+    if (m_caret_index > text.size()) {
+        m_caret_index = text.size();
+    }
+
+    text.insert(m_caret_index, utf8);
+    m_caret_index += utf8.size();
+    m_text = TagLib::String(text, TagLib::String::UTF8);
+    rebuildSurface();
+    if (m_on_change) {
+        m_on_change(m_text);
+    }
+    return true;
+}
+
 bool TextInputWidget::eraseBeforeCaret()
 {
     std::string text = narrowText(m_text);
@@ -241,8 +280,15 @@ bool TextInputWidget::eraseBeforeCaret()
         return true;
     }
 
-    text.erase(text.begin() + static_cast<std::ptrdiff_t>(m_caret_index - 1));
-    --m_caret_index;
+    // Erase the whole UTF-8 codepoint before the caret (its lead byte plus any
+    // continuation bytes), not just a single byte.
+    size_t start = m_caret_index - 1;
+    while (start > 0 && (static_cast<unsigned char>(text[start]) & 0xC0) == 0x80) {
+        --start;
+    }
+    text.erase(text.begin() + static_cast<std::ptrdiff_t>(start),
+               text.begin() + static_cast<std::ptrdiff_t>(m_caret_index));
+    m_caret_index = start;
     m_text = TagLib::String(text, TagLib::String::UTF8);
     rebuildSurface();
     if (m_on_change) {
@@ -258,7 +304,14 @@ bool TextInputWidget::eraseAtCaret()
         return true;
     }
 
-    text.erase(text.begin() + static_cast<std::ptrdiff_t>(m_caret_index));
+    // Erase the whole UTF-8 codepoint at the caret (its lead byte plus any
+    // continuation bytes).
+    size_t end = m_caret_index + 1;
+    while (end < text.size() && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) {
+        ++end;
+    }
+    text.erase(text.begin() + static_cast<std::ptrdiff_t>(m_caret_index),
+               text.begin() + static_cast<std::ptrdiff_t>(end));
     m_text = TagLib::String(text, TagLib::String::UTF8);
     rebuildSurface();
     if (m_on_change) {

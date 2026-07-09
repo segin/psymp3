@@ -38,6 +38,7 @@ private:
     void rebuildSurface();
     bool handlesPoint(int relative_x, int relative_y) const;
     bool insertCharacter(char c);
+    bool insertString(const std::string& utf8);
     bool eraseBeforeCaret();
     bool eraseAtCaret();
 
