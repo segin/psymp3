@@ -68,9 +68,10 @@ void Player::seekTo(unsigned long position_ms) {
     // Do nothing for testing
 }
 
-void Player::synthesizeUserEvent(int event_type, void* data1, void* data2) {
+bool Player::synthesizeUserEvent(int event_type, void* data1, void* data2) {
     (void)event_type; (void)data1; (void)data2; // Suppress unused parameter warnings
     // Do nothing for testing
+    return false;
 }
 
 void Player::setVolume(double volume) {
