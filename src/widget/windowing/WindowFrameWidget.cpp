@@ -219,7 +219,12 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                     m_double_click_pending = false;
                     m_system_menu_open = false;
                     if (m_on_close) {
-                        m_on_close();
+                        // Copy the callback to the stack before invoking: it may
+                        // destroy this widget (and thus the m_on_close member),
+                        // which would free the std::function mid-call. After the
+                        // call, `this` may be dangling, so touch no members.
+                        auto on_close = m_on_close;
+                        on_close();
                     }
                     return true;
                 } else {
@@ -248,7 +253,8 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             if (relative_x >= minimize_bounds.x() && relative_x < minimize_bounds.x() + minimize_bounds.width() &&
                 relative_y >= minimize_bounds.y() && relative_y < minimize_bounds.y() + minimize_bounds.height()) {
                 if (m_on_minimize) {
-                    m_on_minimize();
+                    auto on_minimize = m_on_minimize;
+                    on_minimize();
                 }
                 return true;
             }
@@ -258,7 +264,8 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             if (relative_x >= maximize_bounds.x() && relative_x < maximize_bounds.x() + maximize_bounds.width() &&
                 relative_y >= maximize_bounds.y() && relative_y < maximize_bounds.y() + maximize_bounds.height()) {
                 if (m_on_maximize) {
-                    m_on_maximize();
+                    auto on_maximize = m_on_maximize;
+                    on_maximize();
                 }
                 return true;
             }
@@ -451,9 +458,11 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
                 m_client_area->setSurface(std::move(client_surface));
             }
             
-            // Notify callback
+            // Notify callback (copy to the stack first; it may destroy this
+            // widget, after which no member may be touched).
             if (m_on_resize) {
-                m_on_resize(new_width, new_height);
+                auto on_resize = m_on_resize;
+                on_resize(new_width, new_height);
             }
         }
         

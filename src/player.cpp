@@ -2624,6 +2624,11 @@ void Player::createRandomWindows()
             auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
                                   [window_ptr](const auto& w) { return w.get() == window_ptr; });
             if (it != m_random_windows.end()) {
+                // Defer destruction rather than erase in place: this lambda is
+                // the window's own m_on_close, so destroying the widget here
+                // would run ~WindowFrameWidget while its handler is executing.
+                // The H and B test windows defer for the same reason.
+                deferWidgetDeletion(std::move(*it));
                 m_random_windows.erase(it);
             }
             m_random_window_counter--;
