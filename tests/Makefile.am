@@ -243,11 +243,11 @@ endif
 
 # Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_ogg_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encode_unit test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_stream_marker_with_logging test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_vorbis_field_name_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+EXTRA_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_ogg_codec_detection test_error_handling test_mulaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_stream_marker_with_logging test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_vorbis_field_name_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_ogg_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encode_unit test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_stream_marker_with_logging test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_vorbis_field_name_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+EXTRA_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_ogg_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_stream_marker_with_logging test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_vorbis_field_name_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 endif
 
 # ============================================================================
@@ -266,7 +266,7 @@ endif
 # ============================================================================
 
 if HAVE_OPUS
-noinst_PROGRAMS += opusout
+EXTRA_PROGRAMS += opusout
 
 opusout_SOURCES = opusout.cpp
 opusout_LDADD = \
@@ -537,7 +537,7 @@ test_opus_codec_property_LDADD = \
 	$(TAGLIB_LIBS) \
 	$(VORBIS_LIBS) \
 	$(FLAC_LIBS) \
-	$(FLAC_LIBS) \ \
+	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
 test_fixed_predictor_properties_SOURCES = test_fixed_predictor_properties.cpp
@@ -1492,7 +1492,7 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \ -lvorbis -lopus -logg \
+	$(top_builddir)/src/core/libpsymp3-core.a -lvorbis -lopus -logg \
 	$(AM_LDFLAGS)
 
 # Codec thread safety test
@@ -1647,8 +1647,15 @@ endif
 
 
 
+# test-harness is an EXTRA_PROGRAMS (so it is not built by `make all` / `make
+# install`); list it as a check-local prerequisite via this conditional variable
+# so `make check` still builds it before running.
+if BUILD_TEST_HARNESS
+CHECK_LOCAL_DEPS = test-harness
+endif
+
 # Test execution target
-check-local: $(check_PROGRAMS)
+check-local: $(check_PROGRAMS) $(CHECK_LOCAL_DEPS)
 if BUILD_TEST_HARNESS
 	./test-harness --verbose
 else
@@ -2890,7 +2897,7 @@ test_opus_codec_core_decoding_LDADD = \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
-	$(CODEC_LIBS) \ \
+	$(CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
 test_opus_codec_error_handling_SOURCES = test_opus_codec_error_handling.cpp
@@ -2921,7 +2928,7 @@ test_opus_codec_error_handling_LDADD = \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
-	$(CODEC_LIBS) \ \
+	$(CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
 test_opus_integration_SOURCES = test_opus_integration.cpp
@@ -2954,7 +2961,7 @@ test_opus_integration_LDADD = \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \ \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
 	$(AM_LDFLAGS)
 
 test_opus_compatibility_performance_SOURCES = test_opus_compatibility_performance.cpp
@@ -2987,7 +2994,7 @@ test_opus_compatibility_performance_LDADD = \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \ \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
 	$(AM_LDFLAGS)
 
 # MPRIS Mock Framework Tests
@@ -3175,7 +3182,7 @@ test_flac_streamable_subset_real_files_LDADD = \
 	$(AM_LDFLAGS)
 
 # Debug system test
-noinst_PROGRAMS += test_debug_system
+EXTRA_PROGRAMS += test_debug_system
 test_debug_system_SOURCES = test_debug_system.cpp
 test_debug_system_LDADD = \
 	$(top_builddir)/src/debug.o \
@@ -3392,7 +3399,7 @@ test_flac_strategy_priority_properties_LDADD =
 # ============================================================================
 
 if HAVE_FLAC
-noinst_PROGRAMS += flacout
+EXTRA_PROGRAMS += flacout
 
 flacout_SOURCES = flacout.cpp
 flacout_LDADD = \
@@ -3442,7 +3449,7 @@ endif
 # ============================================================================
 
 if HAVE_VORBIS
-noinst_PROGRAMS += vorbisout
+EXTRA_PROGRAMS += vorbisout
 
 vorbisout_SOURCES = vorbisout.cpp
 vorbisout_LDADD = \
@@ -3490,7 +3497,7 @@ endif
 #
 # ============================================================================
 
-noinst_PROGRAMS += mp3out
+EXTRA_PROGRAMS += mp3out
 
 mp3out_SOURCES = mp3out.cpp
 mp3out_LDADD = \
