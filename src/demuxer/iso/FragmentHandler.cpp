@@ -58,7 +58,7 @@ bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std:
     
     // If size is 0, read the box header to get the actual size
     if (size == 0) {
-        io->seek(static_cast<long>(offset), SEEK_SET);
+        io->seek(static_cast<off_t>(offset), SEEK_SET);
         
         uint8_t headerBytes[8];
         if (io->read(headerBytes, 1, 8) != 8) {
@@ -113,7 +113,7 @@ bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std:
     
     while (currentOffset < endOffset) {
         // Read box header
-        io->seek(static_cast<long>(currentOffset), SEEK_SET);
+        io->seek(static_cast<off_t>(currentOffset), SEEK_SET);
         
         uint8_t headerBytes[8];
         if (io->read(headerBytes, 1, 8) != 8) {
@@ -215,7 +215,7 @@ bool FragmentHandler::ParseTrackFragmentBox(uint64_t offset, uint64_t size, std:
     
     while (currentOffset < endOffset) {
         // Read box header
-        io->seek(static_cast<long>(currentOffset), SEEK_SET);
+        io->seek(static_cast<off_t>(currentOffset), SEEK_SET);
         
         uint8_t headerBytes[8];
         if (io->read(headerBytes, 1, 8) != 8) {
@@ -856,7 +856,7 @@ uint64_t FragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<
     uint64_t fileSize = static_cast<uint64_t>(io->tell());
     
     // Start searching after the moof box
-    io->seek(static_cast<long>(moofOffset), SEEK_SET);
+    io->seek(static_cast<off_t>(moofOffset), SEEK_SET);
     
     uint8_t headerBytes[8];
     if (io->read(headerBytes, 1, 8) != 8) {
@@ -893,7 +893,7 @@ uint64_t FragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<
     uint64_t currentOffset = moofOffset + moofSize;
     
     while (currentOffset + 8 <= fileSize) {
-        io->seek(static_cast<long>(currentOffset), SEEK_SET);
+        io->seek(static_cast<off_t>(currentOffset), SEEK_SET);
         
         if (io->read(headerBytes, 1, 8) != 8) {
             return 0;
@@ -952,7 +952,7 @@ uint64_t FragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<
 }
 
 uint32_t FragmentHandler::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     
     uint8_t bytes[4];
     if (io->read(bytes, 1, 4) != 4) {
@@ -966,7 +966,7 @@ uint32_t FragmentHandler::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t o
 }
 
 uint64_t FragmentHandler::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     
     uint8_t bytes[8];
     if (io->read(bytes, 1, 8) != 8) {
@@ -1002,28 +1002,41 @@ void FragmentHandler::FillMissingFragmentGaps() {
     // This is a simplified implementation - in practice, you might want to
     // handle missing fragments differently (e.g., request them from server)
     std::vector<MovieFragmentInfo> completeFragments;
-    
+
+    // Bound on placeholders synthesized for a single gap. mfhd sequence numbers
+    // are an attacker-controlled uint32, so an unbounded run (e.g. 1 then
+    // 0xFFFFFFFF) would push ~4 billion structs and exhaust memory / hang. A
+    // fragmented stream with a gap this large is malformed; give up filling it.
+    static constexpr uint32_t MAX_FRAGMENT_GAP = 100000;
+
     if (!fragments.empty()) {
         uint32_t expectedSequence = fragments[0].sequenceNumber;
-        
+
         for (const auto& fragment : fragments) {
             // Fill gaps with placeholder fragments
-            while (expectedSequence < fragment.sequenceNumber) {
-                MovieFragmentInfo placeholder;
-                placeholder.sequenceNumber = expectedSequence;
-                placeholder.moofOffset = 0;
-                placeholder.mdatOffset = 0;
-                placeholder.mdatSize = 0;
-                placeholder.isComplete = false;
-                completeFragments.push_back(placeholder);
-                expectedSequence++;
+            if (fragment.sequenceNumber > expectedSequence &&
+                fragment.sequenceNumber - expectedSequence > MAX_FRAGMENT_GAP) {
+                Debug::log("iso", "FragmentHandler: fragment gap of ",
+                           fragment.sequenceNumber - expectedSequence,
+                           " exceeds cap; not backfilling placeholders");
+            } else {
+                while (expectedSequence < fragment.sequenceNumber) {
+                    MovieFragmentInfo placeholder;
+                    placeholder.sequenceNumber = expectedSequence;
+                    placeholder.moofOffset = 0;
+                    placeholder.mdatOffset = 0;
+                    placeholder.mdatSize = 0;
+                    placeholder.isComplete = false;
+                    completeFragments.push_back(placeholder);
+                    expectedSequence++;
+                }
             }
-            
+
             completeFragments.push_back(fragment);
             expectedSequence = fragment.sequenceNumber + 1;
         }
     }
-    
+
     fragments = std::move(completeFragments);
 }
 } // namespace ISO

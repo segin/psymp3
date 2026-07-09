@@ -47,15 +47,22 @@ bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t off
         
         uint64_t boxDataOffset = currentOffset + 8;
         uint64_t boxDataSize = boxSize - 8;
-        
+        uint64_t actualBoxSize = boxSize;
+
         // Handle extended size
         if (boxSize == 1) {
             if (currentOffset + 16 > endOffset) {
                 break;
             }
             uint64_t extendedSize = ReadUInt64BE(io, currentOffset + 8);
+            // A 64-bit size below the 16-byte header is malformed; without this
+            // guard extendedSize - 16 underflows to ~2^64.
+            if (extendedSize < 16) {
+                break;
+            }
             boxDataOffset = currentOffset + 16;
             boxDataSize = extendedSize - 16;
+            actualBoxSize = extendedSize;
         }
         
         // Parse specific metadata boxes
@@ -74,7 +81,7 @@ bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t off
                 break;
         }
         
-        currentOffset += boxSize;
+        currentOffset += actualBoxSize;
     }
     
     return true;
@@ -215,7 +222,7 @@ std::string MetadataExtractor::ExtractTextMetadata(std::shared_ptr<IOHandler> io
         return "";
     }
     
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     std::vector<uint8_t> buffer(size);
     size_t bytesRead = io->read(buffer.data(), 1, size);
     
@@ -252,7 +259,7 @@ uint32_t MetadataExtractor::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t
         return 0;
     }
     
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     uint8_t bytes[4];
     if (io->read(bytes, 1, 4) != 4) {
         return 0;
@@ -269,7 +276,7 @@ uint64_t MetadataExtractor::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t
         return 0;
     }
     
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     uint8_t bytes[8];
     if (io->read(bytes, 1, 8) != 8) {
         return 0;

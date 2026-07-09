@@ -538,7 +538,7 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
             
             // Perform I/O with retry mechanism
             bool readSuccess = performIOWithRetry([this, sampleOffset, sampleSize, &chunk]() {
-                if (m_handler->seek(static_cast<long>(sampleOffset), SEEK_SET) != 0) return false;
+                if (m_handler->seek(static_cast<off_t>(sampleOffset), SEEK_SET) != 0) return false;
                 return m_handler->read(chunk.data.data(), 1, sampleSize) == sampleSize;
             }, "reading fragment sample data");
             
@@ -944,7 +944,7 @@ MediaChunk ISODemuxer::ExtractSampleData(uint32_t stream_id, const AudioTrackInf
     chunk.data.resize(sampleInfo.size);
     
     // Seek to sample location in mdat box
-    if (m_handler->seek(static_cast<long>(sampleInfo.offset), SEEK_SET) != 0) {
+    if (m_handler->seek(static_cast<off_t>(sampleInfo.offset), SEEK_SET) != 0) {
         chunk.data.clear();
         return chunk;
     }

@@ -100,7 +100,7 @@ BoxHeader BoxParser::ReadBoxHeader(uint64_t offset) {
     }
     
     // Seek to box position with error handling
-    if (io->seek(static_cast<long>(offset), SEEK_SET) != 0) {
+    if (io->seek(static_cast<off_t>(offset), SEEK_SET) != 0) {
         // I/O error during seek
         return header;
     }
@@ -340,7 +340,7 @@ uint32_t BoxParser::ReadUInt32BE(uint64_t offset) {
         return 0;
     }
     
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     
     uint8_t bytes[4];
     if (io->read(bytes, 1, 4) != 4) {
@@ -358,7 +358,7 @@ uint64_t BoxParser::ReadUInt64BE(uint64_t offset) {
         return 0;
     }
     
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     
     uint8_t bytes[8];
     if (io->read(bytes, 1, 8) != 8) {
@@ -1080,7 +1080,7 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
     }
 
     std::vector<uint8_t> esds(static_cast<size_t>(size));
-    io->seek(static_cast<long>(offset), SEEK_SET);
+    io->seek(static_cast<off_t>(offset), SEEK_SET);
     if (io->read(esds.data(), 1, esds.size()) != esds.size()) {
         Debug::log("iso", "ISODemuxerBoxParser: failed to read esds payload");
         return false;
@@ -1167,7 +1167,7 @@ bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrac
     
     try {
         // Read dfLa box header
-        io->seek(static_cast<long>(offset), SEEK_SET);
+        io->seek(static_cast<off_t>(offset), SEEK_SET);
         
         // dfLa box format:
         // - version (1 byte)

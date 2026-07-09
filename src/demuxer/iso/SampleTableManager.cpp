@@ -42,7 +42,7 @@ void SampleTableManager::LazyLoadedSampleSizes::LoadIfNeeded() const {
             variableSizes.resize(sampleCount);
             memoryOptimizer.registerAllocation(requiredMemory, "ISODemuxer_SampleSizes");
             
-            io->seek(static_cast<long>(tableOffset), SEEK_SET);
+            io->seek(static_cast<off_t>(tableOffset), SEEK_SET);
             
             // Batch read for better I/O performance
             constexpr size_t BATCH_SIZE = 1024; // Read 1024 entries at a time
@@ -116,7 +116,7 @@ void SampleTableManager::LazyLoadedSampleSizes::LoadChunk(size_t chunkIndex) con
     
     // Seek to chunk position in file
     uint64_t chunkOffset = tableOffset + (startSample * 4);
-    io->seek(static_cast<long>(chunkOffset), SEEK_SET);
+    io->seek(static_cast<off_t>(chunkOffset), SEEK_SET);
     
     // Read chunk data
     std::vector<uint8_t> buffer(samplesInChunk * 4);

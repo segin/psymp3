@@ -371,23 +371,20 @@ bool ErrorRecovery::ValidateTableConsistency(const SampleTableInfo& tables) {
         size_t totalChunks = tables.chunkOffsets.size();
         size_t totalSamples = 0;
         
-        // Calculate samples based on sample-to-chunk entries
+        // Calculate samples based on sample-to-chunk entries. stsc entries are
+        // sorted ascending by firstChunk, so the applicable entry for chunk i
+        // advances monotonically: walk a single forward cursor rather than
+        // reverse-scanning all entries per chunk. That turns an O(chunks*entries)
+        // loop (up to ~10^14 iterations for two 10M tables) into O(chunks+entries).
+        const auto& stsc = tables.sampleToChunkEntries;
+        size_t entryIdx = 0;
         for (size_t i = 0; i < totalChunks; i++) {
-            // Find applicable entry
-            const SampleToChunkEntry* entry = nullptr;
-            for (auto it = tables.sampleToChunkEntries.rbegin(); it != tables.sampleToChunkEntries.rend(); ++it) {
-                if (it->firstChunk <= i) {
-                    entry = &(*it);
-                    break;
-                }
+            while (entryIdx + 1 < stsc.size() && stsc[entryIdx + 1].firstChunk <= i) {
+                entryIdx++;
             }
-            
-            if (entry) {
-                totalSamples += entry->samplesPerChunk;
-            } else {
-                // No applicable entry, use first entry as fallback
-                totalSamples += tables.sampleToChunkEntries[0].samplesPerChunk;
-            }
+            // Matches the previous fallback to entry[0] when no entry qualifies
+            // (i < stsc[0].firstChunk), since the cursor is still at index 0.
+            totalSamples += stsc[entryIdx].samplesPerChunk;
         }
         
         sampleCountFromSizes = totalSamples;
