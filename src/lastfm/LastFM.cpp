@@ -19,6 +19,16 @@
 namespace PsyMP3 {
 namespace LastFM {
 
+// Strip a trailing carriage return so CRLF-terminated network responses parse
+// the same as LF-terminated ones; std::getline only consumes the '\n'.
+static inline std::string& chompCR(std::string& s)
+{
+    if (!s.empty() && s.back() == '\r') {
+        s.pop_back();
+    }
+    return s;
+}
+
 LastFM::LastFM() :
     m_config_file(System::getStoragePath().to8Bit(true) + "/lastfm.conf"),
     m_cache_file(System::getStoragePath().to8Bit(true) + "/scrobble_cache.xml")
@@ -136,7 +146,11 @@ void LastFM::writeConfig()
     
     config << "# Last.fm configuration\n";
     config << "username=" << m_username << "\n";
-    // password_hash is not persisted for security reasons
+    // Persist the MD5 password hash (never the plaintext). The file is written
+    // 0600. Without this, the destructor's writeConfig() erased the hash on the
+    // first clean shutdown, so isConfigured() went false on next launch and
+    // scrobbling silently died once the session key expired.
+    config << "password_hash=" << m_password_hash << "\n";
     config << "session_key=" << m_session_key << "\n";
     config << "now_playing_url=" << m_nowplaying_url << "\n";
     config << "submission_url=" << m_submission_url << "\n";
@@ -226,13 +240,17 @@ bool LastFM::performHandshake(int host_index)
     std::istringstream responseStream(response.body);
     std::string status;
     std::getline(responseStream, status);
-    
+    chompCR(status);
+
     if (status.substr(0, 2) == "OK") {
         std::string sessionKey, nowPlayingUrl, submissionUrl;
         std::getline(responseStream, sessionKey);
         std::getline(responseStream, nowPlayingUrl);
         std::getline(responseStream, submissionUrl);
-        
+        chompCR(sessionKey);
+        chompCR(nowPlayingUrl);
+        chompCR(submissionUrl);
+
         if (!sessionKey.empty() && !submissionUrl.empty()) {
             m_session_key = sessionKey;
             m_nowplaying_url = nowPlayingUrl;
@@ -315,7 +333,18 @@ void LastFM::saveScrobbles_unlocked()
     }
     
     System::createStoragePath();
+
+#ifndef _WIN32
+    // Listening history is private; create the cache 0600 like the config file.
+    mode_t old_mask = umask(0077);
+#endif
+
     std::ofstream cache(m_cache_file);
+
+#ifndef _WIN32
+    umask(old_mask);
+#endif
+
     if (!cache.is_open()) {
         DEBUG_LOG_LAZY("lastfm", "Failed to write cache file: ", m_cache_file);
         return;
@@ -560,7 +589,8 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
         std::istringstream responseStream(response.body);
         std::string status;
         std::getline(responseStream, status);
-        
+        chompCR(status);
+
         if (status == "OK") {
             DEBUG_LOG_LAZY("lastfm", "Scrobble submitted successfully: ", artist, " - ", title);
             return true;
@@ -695,7 +725,8 @@ bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
         std::istringstream responseStream(response.body);
         std::string status;
         std::getline(responseStream, status);
-        
+        chompCR(status);
+
         if (status == "OK") {
             if (request.is_clear) {
                 DEBUG_LOG_LAZY("lastfm", "Now playing status cleared successfully");
