@@ -235,11 +235,19 @@ bool Audio::isFinished() const
  * Thread-safe; acquires `m_buffer_mutex` internally.
  */
 void Audio::resetBuffer() {
-    std::lock_guard<std::mutex> lock(m_buffer_mutex);
+    // Lock acquisition order: m_stream_mutex before m_buffer_mutex.
+    std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
     resetBuffer_unlocked();
-    // Wake the decoder so it refills after a seek. Required now that the decode
-    // loop blocks on the high water mark even while paused: clearing the buffer
-    // alone would otherwise leave the decoder asleep until the next drain.
+    // A seek repositions the stream off EOF, so clear the EOF latch and wake the
+    // decoder's outer wait. Without this, a decoder that already hit EOF stays
+    // blocked on m_stream_cv (its predicate requires !m_stream_eof) and never
+    // refills: LoopMode::One would loop silently and a backward seek in a track's
+    // tail would end the track instead of replaying.
+    m_stream_eof = false;
+    m_stream_cv.notify_all();
+    // Also wake the decoder if it is parked on the high water mark: clearing the
+    // buffer alone would otherwise leave it asleep until the next drain.
     m_buffer_cv.notify_all();
 }
 
