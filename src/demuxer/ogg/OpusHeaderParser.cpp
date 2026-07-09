@@ -57,7 +57,7 @@ bool OpusHeaderParser::parseOpusTags(const unsigned char* data, size_t size) {
         return false;
     }
     uint32_t vendor_length = data[offset] | (data[offset+1] << 8) | 
-                             (data[offset+2] << 16) | (data[offset+3] << 24);
+                             (data[offset+2] << 16) | (static_cast<uint32_t>(data[offset+3]) << 24);
     offset += 4;
     
     // Resource limit check
@@ -81,7 +81,7 @@ bool OpusHeaderParser::parseOpusTags(const unsigned char* data, size_t size) {
         return false;
     }
     uint32_t comment_count = data[offset] | (data[offset+1] << 8) | 
-                             (data[offset+2] << 16) | (data[offset+3] << 24);
+                             (data[offset+2] << 16) | (static_cast<uint32_t>(data[offset+3]) << 24);
     offset += 4;
     
     // Resource limit check
@@ -100,7 +100,7 @@ bool OpusHeaderParser::parseOpusTags(const unsigned char* data, size_t size) {
         }
         
         uint32_t comment_length = data[offset] | (data[offset+1] << 8) | 
-                                  (data[offset+2] << 16) | (data[offset+3] << 24);
+                                  (data[offset+2] << 16) | (static_cast<uint32_t>(data[offset+3]) << 24);
         offset += 4;
         
         // Resource limit check

@@ -57,7 +57,7 @@ bool VorbisHeaderParser::parseVorbisComment(const unsigned char* data, size_t si
         return false;
     }
     uint32_t vendor_length = data[offset] | (data[offset+1] << 8) | 
-                             (data[offset+2] << 16) | (data[offset+3] << 24);
+                             (data[offset+2] << 16) | (static_cast<uint32_t>(data[offset+3]) << 24);
     offset += 4;
     
     // Resource limit check
@@ -81,7 +81,7 @@ bool VorbisHeaderParser::parseVorbisComment(const unsigned char* data, size_t si
         return false;
     }
     uint32_t comment_count = data[offset] | (data[offset+1] << 8) | 
-                             (data[offset+2] << 16) | (data[offset+3] << 24);
+                             (data[offset+2] << 16) | (static_cast<uint32_t>(data[offset+3]) << 24);
     offset += 4;
     
     // Resource limit check
@@ -100,7 +100,7 @@ bool VorbisHeaderParser::parseVorbisComment(const unsigned char* data, size_t si
         }
         
         uint32_t comment_length = data[offset] | (data[offset+1] << 8) | 
-                                  (data[offset+2] << 16) | (data[offset+3] << 24);
+                                  (data[offset+2] << 16) | (static_cast<uint32_t>(data[offset+3]) << 24);
         offset += 4;
         
         // Resource limit check
@@ -168,8 +168,10 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
             if (m_info.channels == 0) return false;
             
             // Sample Rate (byte 12-15) - Little Endian
-            m_info.rate = data[12] | (data[13] << 8) | (data[14] << 16) | (data[15] << 24);
-            if (m_info.rate == 0) return false;
+            m_info.rate = data[12] | (data[13] << 8) | (data[14] << 16) | (static_cast<uint32_t>(data[15]) << 24);
+            // Reject non-positive or implausibly large rates (a top-bit-set value
+            // could land negative in the signed field and pass an == 0 check).
+            if (m_info.rate <= 0 || m_info.rate > 384000) return false;
             
             // Framing flag (last byte of packet check? Or defined bit?)
             // Spec says "framing_flag" found at end of ID header?

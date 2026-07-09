@@ -1037,8 +1037,19 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 skipMetadataBlock_unlocked(block);
                 break;
         }
-        
+
         is_first_block = false;  // After processing any block, it's no longer the first
+
+        // Normalize the stream position to the exact end of this metadata block.
+        // The per-type parse/skip helpers can leave the position short of or past
+        // the boundary on malformed input (double-skipping the length, or reading
+        // an odd/truncated field), which would make the next header read start
+        // mid-block and desync the whole chain. The block end was validated
+        // against the file size above, so this seek stays in bounds.
+        if (m_handler->seek(static_cast<off_t>(block.data_offset + block.length), SEEK_SET) != 0) {
+            FLAC_DEBUG("[parseMetadataBlocks] Failed to seek to end of metadata block");
+            return false;
+        }
     }
     
     // Log if we skipped any corrupted blocks

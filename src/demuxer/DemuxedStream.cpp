@@ -304,8 +304,8 @@ AudioFrame DemuxedStream::getNextFrame() {
                     m_samples_consumed += frame.getSampleFrameCount();
                 }
             }
-            frame.timestamp_ms = (frame.timestamp_samples * 1000) / m_rate;
-            
+            frame.timestamp_ms = (m_rate > 0) ? (frame.timestamp_samples * 1000) / m_rate : 0;
+
             Debug::log("demux", "DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples. Timestamp: ", frame.timestamp_ms, "ms");
             return frame;
         } else {
