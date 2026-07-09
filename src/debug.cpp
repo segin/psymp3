@@ -26,6 +26,7 @@
 std::ofstream Debug::m_logfile;
 std::mutex Debug::m_mutex;
 bool Debug::m_log_to_file = false;
+std::atomic<bool> Debug::m_any_channel_enabled{false};
 
 // Construct-on-first-use accessor so the set is always constructed before any
 // use, regardless of static-initialization order across translation units.
@@ -63,6 +64,7 @@ void Debug::init(const std::string& logfile, const std::vector<std::string>& cha
         }
     }
     enabledChannels().insert(channels.begin(), channels.end());
+    m_any_channel_enabled.store(!enabledChannels().empty(), std::memory_order_relaxed);
 }
 
 /**
@@ -78,6 +80,7 @@ void Debug::shutdown() {
     }
     enabledChannels().clear();
     m_log_to_file = false;
+    m_any_channel_enabled.store(false, std::memory_order_relaxed);
 }
 
 /**
@@ -157,7 +160,14 @@ void Debug::write(const std::string& channel, const std::string& function, int l
     auto now = std::chrono::system_clock::now();
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
     auto timer = std::chrono::system_clock::to_time_t(now);
-    std::tm bt = *std::localtime(&timer);
+    // localtime() returns a pointer to a shared static tm and is not thread-safe;
+    // this runs from the main, decoder, loader, and audio threads.
+    std::tm bt{};
+#ifdef _WIN32
+    localtime_s(&bt, &timer);
+#else
+    localtime_r(&timer, &bt);
+#endif
 
     std::stringstream ss;
     ss << std::put_time(&bt, "%H:%M:%S") << '.' << std::dec << std::setfill('0') << std::setw(6) << us.count()

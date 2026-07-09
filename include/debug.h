@@ -17,6 +17,7 @@
 #include <vector>
 #include <unordered_set>
 #include <sstream>
+#include <atomic>
 
 class Debug {
 public:
@@ -26,9 +27,17 @@ public:
     // Check if a debug channel is enabled (O(1) lookup)
     static bool isChannelEnabled(const std::string& channel);
 
+    // Lock-free fast path: true only while at least one channel is enabled.
+    // Lets hot paths (e.g. the real-time audio callback) skip the mutex
+    // entirely when logging is off, which is the common case.
+    static std::atomic<bool> m_any_channel_enabled;
+
     // Basic logging without location info
     template<typename... Args>
     static inline void log(const std::string& channel, Args&&... args) {
+        if (!m_any_channel_enabled.load(std::memory_order_relaxed)) {
+            return;
+        }
         if (isChannelEnabled(channel)) {
             std::stringstream ss;
             if constexpr (sizeof...(args) > 0) {
@@ -41,6 +50,9 @@ public:
     // Logging with function and line number
     template<typename... Args>
     static inline void log(const std::string& channel, const char* function, int line, Args&&... args) {
+        if (!m_any_channel_enabled.load(std::memory_order_relaxed)) {
+            return;
+        }
         if (isChannelEnabled(channel)) {
             std::stringstream ss;
             if constexpr (sizeof...(args) > 0) {
