@@ -1604,24 +1604,6 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
         }
 
-        case SDLK_h:
-        {
-            toggleTestWindowH();
-            break;
-        }
-        
-        case SDLK_j:
-        {
-            createRandomWindows();
-            break;
-        }
-        
-        case SDLK_b:
-        {
-            toggleTestWindowB();
-            break;
-        }
-
         case SDLK_m:
         {
             if (keysym.mod & KMOD_SHIFT) {
