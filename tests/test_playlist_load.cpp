@@ -69,12 +69,12 @@ private:
         ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
         ASSERT_EQUALS(1, playlist->entries(), "Playlist should have 1 entry");
 
-        const track* t = playlist->getTrackInfo(0);
-        ASSERT_NOT_NULL(t, "Track info should not be null");
+        auto t = playlist->getTrackInfo(0);
+        ASSERT_TRUE(t.has_value(), "Track info should not be null");
 
-        ASSERT_EQUALS("Artist Name", t->GetArtist().to8Bit(true), "Artist should be parsed correctly");
-        ASSERT_EQUALS("Song Title", t->GetTitle().to8Bit(true), "Title should be parsed correctly");
-        ASSERT_EQUALS(123u, t->GetLen(), "Duration should be parsed correctly");
+        ASSERT_EQUALS("Artist Name", t->artist.to8Bit(true), "Artist should be parsed correctly");
+        ASSERT_EQUALS("Song Title", t->title.to8Bit(true), "Title should be parsed correctly");
+        ASSERT_EQUALS(123u, t->length_seconds, "Duration should be parsed correctly");
 
         std::remove(filename.c_str());
     }
@@ -186,10 +186,10 @@ private:
         ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
         ASSERT_EQUALS(1, playlist->entries(), "Playlist should have 1 entry");
 
-        const track* t = playlist->getTrackInfo(0);
-        ASSERT_NOT_NULL(t, "Track info should not be null");
+        auto t = playlist->getTrackInfo(0);
+        ASSERT_TRUE(t.has_value(), "Track info should not be null");
 
-        ASSERT_EQUALS(0u, t->GetLen(), "Duration should be 0 for invalid EXTINF duration");
+        ASSERT_EQUALS(0u, t->length_seconds, "Duration should be 0 for invalid EXTINF duration");
 
         std::remove(filename.c_str());
     }
