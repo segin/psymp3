@@ -28,6 +28,7 @@
 #include <vector>
 #include <complex>
 #include <string>
+#include <atomic>
 
 namespace PsyMP3 {
 namespace Core {
