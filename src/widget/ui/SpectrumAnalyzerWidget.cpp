@@ -66,9 +66,20 @@ void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_
             max_val = std::max(max_val, m_spectrum_data[i]);
         }
         
-        // Only redraw if data actually changed
-        if (data_changed) {
-            invalidate(); // Trigger redraw
+        // Keep redrawing until the fade animation has fully settled, not only
+        // when the data changes. The fade/decay is advanced inside draw(), so if
+        // we stopped invalidating the moment the input went quiet (e.g. a silent
+        // passage, where every frame is the same ~0), draw() would stop being
+        // called and the fade would freeze mid-decay ("stuck" graph). Any change
+        // or remaining energy re-arms a bounded tail of redraws long enough for
+        // the trail to darken to black; after that we go idle again.
+        static constexpr int FADE_SETTLE_FRAMES = 60;
+        if (data_changed || max_val > 0.001f) {
+            m_fade_settle_frames = FADE_SETTLE_FRAMES;
+        }
+        if (m_fade_settle_frames > 0) {
+            --m_fade_settle_frames;
+            invalidate(); // Trigger redraw (advances the fade in draw())
         }
     }
 }

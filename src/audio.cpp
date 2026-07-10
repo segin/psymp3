@@ -494,8 +494,12 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         SDL_memset(buf + bytes_copied, 0, len - bytes_copied);
     }
 
-    // Perform FFT on the data we are sending to the sound card
-    if (bytes_copied > 0 && self->m_channels > 0) { // Always compute FFT, regardless of GUI state
+    // Perform FFT on the data we are sending to the sound card. Run it even
+    // when bytes_copied == 0 (buffer underrun): `buf` has been silence-filled
+    // above, so the FFT sees real silence and the spectrum decays instead of
+    // freezing on the last frame. (The callback only runs while the device is
+    // unpaused, i.e. during active playback.)
+    if (self->m_channels > 0) { // Always compute FFT, regardless of GUI state
         std::lock_guard<std::mutex> lock(self->m_fft_mutex);
         // Convert only the frames SDL actually handed us (the whole `len`-byte
         // buffer, data + silence), never the full FFT window — SDL may negotiate
