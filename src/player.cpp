@@ -1604,6 +1604,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
         }
 
+        // The H, B, and J keys (test window H, test window B, random windows)
+        // are deliberately disabled: their handlers are intentionally omitted
+        // here. The toggleTestWindowH/toggleTestWindowB/createRandomWindows
+        // methods are kept so the feature can be re-wired quickly if needed.
+
         case SDLK_m:
         {
             if (keysym.mod & KMOD_SHIFT) {
@@ -2458,6 +2463,9 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
 
 /**
  * @brief Toggles the test window H with the Win3 control demo content.
+ *
+ * Deliberately unwired: the H key handler was removed in handleKeyPress. This
+ * is retained (not dead code) so the debug window can be re-enabled quickly.
  */
 void Player::toggleTestWindowH()
 {
@@ -2521,6 +2529,9 @@ void Player::toggleTestWindowH()
 
 /**
  * @brief Toggles the test window B (160x60 window).
+ *
+ * Deliberately unwired: the B key handler was removed in handleKeyPress. This
+ * is retained (not dead code) so the debug window can be re-enabled quickly.
  */
 void Player::toggleTestWindowB()
 {
@@ -2578,9 +2589,11 @@ void Player::toggleTestWindowB()
 /**
  * @brief Creates five randomly-placed, randomly-sized `WindowFrameWidget` test windows.
  *
- * Pressing `J` in the running player spawns a batch of five windows with
- * randomised positions and sizes. Each window has close and drag callbacks
- * set up to maintain the `m_random_windows` vector.
+ * The J key that spawned a batch of five windows with randomised positions and
+ * sizes is deliberately disabled (its handler was removed in handleKeyPress).
+ * This method is retained (not dead code) so the feature can be re-enabled
+ * quickly. Each window has close and drag callbacks set up to maintain the
+ * `m_random_windows` vector.
  */
 void Player::createRandomWindows()
 {
