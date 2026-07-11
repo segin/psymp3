@@ -83,14 +83,17 @@ EqualizerWindow::EqualizerWindow(Font* font,
         kPad, curve_y, W - 2 * kPad, kCurveH);
     m_curve->setGains(m_gains);
 
-    // One column per band: dB readout, fader, frequency label.
-    const SDL_Color black{0, 0, 0, 255};
+    // One column per band: dB readout, fader, frequency label. Labels paint
+    // black text on the window's face grey (their default background is opaque
+    // black, which would otherwise show as a black bar).
+    const SDL_Color label_fg{0, 0, 0, 255};
+    const SDL_Color label_bg{192, 192, 192, 255};
     for (int i = 0; i < m_num; ++i) {
         const int col_x = kPad + i * kCol;
         const int sx = col_x + (kCol - kSliderW) / 2;
 
         Label* vlabel = addChildAt(
-            std::make_unique<Label>(m_font, Rect(0, 0, kCol, kLabelH), fmtDb(m_gains[i]), black),
+            std::make_unique<Label>(m_font, Rect(0, 0, kCol, kLabelH), fmtDb(m_gains[i]), label_fg, label_bg),
             col_x, vlabel_y, kCol, kLabelH);
         m_value_labels.push_back(vlabel);
 
@@ -109,7 +112,7 @@ EqualizerWindow::EqualizerWindow(Font* font,
         m_sliders.push_back(sp);
 
         addChildAt(std::make_unique<Label>(m_font, Rect(0, 0, kCol, kLabelH),
-                                           TagLib::String(m_labels[i], TagLib::String::UTF8), black),
+                                           TagLib::String(m_labels[i], TagLib::String::UTF8), label_fg, label_bg),
                    col_x, flabel_y, kCol, kLabelH);
     }
 
