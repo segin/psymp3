@@ -183,6 +183,13 @@ class Player
         // current track without modifying the playlist (forgotten on next change).
         void openTemporaryTrackDialog();
 #endif
+#ifdef _WIN32
+        // Native Win32 menu bar (Windows build only). File / Settings menus
+        // mirroring the I, L, F, ZXC and 1-4 keys.
+        void installWin32Menu();
+        void handleWin32MenuCommand(unsigned int cmd_id);
+        void syncWin32MenuState(); // reflect current fft mode / delay / intensity as radio checks
+#endif
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
         void handleMouseMotion(const SDL_MouseMotionEvent& event);
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
@@ -239,7 +246,14 @@ class Player
         struct atdata ATdata;
         int scalefactor = 2;
         float decayfactor = 1.0f;
-        
+#ifdef _WIN32
+        // HMENU handles for the three Settings submenus (kept as void* so the
+        // header needn't pull in <windows.h>); used to update the radio checks.
+        void* m_win32_fft_menu = nullptr;
+        void* m_win32_delay_menu = nullptr;
+        void* m_win32_intensity_menu = nullptr;
+#endif
+
         // Last.fm scrobbling
         std::unique_ptr<LastFM> m_lastfm;
         Uint32 m_track_start_time = 0;  // SDL ticks when current track started

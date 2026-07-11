@@ -113,6 +113,17 @@ void Display::setLogicalScale(int scale)
     }
 }
 
+void Display::reapplyWindowSize()
+{
+    if (m_window) {
+        // SDL's Windows backend accounts for a present menu when it adjusts the
+        // window rect, so re-setting the client size after SetMenu grows the
+        // window to keep the drawable area at the logical size.
+        SDL_SetWindowSize(m_window, LOGICAL_WIDTH * m_logical_scale, LOGICAL_HEIGHT * m_logical_scale);
+        refreshWindowSurface();
+    }
+}
+
 void Display::refreshWindowSurface()
 {
     if (!m_window) {

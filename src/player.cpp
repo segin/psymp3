@@ -73,6 +73,19 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
     }
     return std::make_unique<Font>(nullptr, 0, ptsize); // invalid, but non-null
 }
+
+// Win32 menu command IDs. Ranges are contiguous so CheckMenuRadioItem can mark
+// the active entry per submenu.
+namespace {
+enum Win32MenuId : unsigned int {
+    IDM_FILE_INSERT     = 0xE100,
+    IDM_FILE_TEMPLOAD   = 0xE101,
+    IDM_FILE_EXIT       = 0xE102,
+    IDM_FFT_FIRST       = 0xE110, // 4 modes: Original, Optimized, NeomatIn, NeomatOut
+    IDM_DELAY_FIRST     = 0xE120, // 3 delays: 0.5, 1.0, 2.0 (Z, X, C)
+    IDM_INTENSITY_FIRST = 0xE130, // 4 levels: scalefactor 1..4
+};
+} // namespace
 #endif // _WIN32
 
 bool canReuseAudioForStream(const Audio* audio, Stream* stream)
@@ -883,6 +896,131 @@ void Player::openTemporaryTrackDialog()
 }
 #endif // HAVE_FILEDIALOG
 
+#ifdef _WIN32
+void Player::installWin32Menu()
+{
+    SDL_Window* win = screen ? screen->getWindowHandle() : nullptr;
+    if (!win) {
+        return;
+    }
+    SDL_SysWMinfo wmi;
+    SDL_VERSION(&wmi.version);
+    if (!SDL_GetWindowWMInfo(win, &wmi) || wmi.subsystem != SDL_SYSWM_WINDOWS) {
+        return;
+    }
+    HWND hwnd = wmi.info.win.window;
+
+    HMENU bar = CreateMenu();
+
+    HMENU file = CreatePopupMenu();
+    AppendMenuA(file, MF_STRING, IDM_FILE_INSERT,   "&Insert Track(s)\tI");
+    AppendMenuA(file, MF_STRING, IDM_FILE_TEMPLOAD, "&Temp Load Track\tL");
+    AppendMenuA(file, MF_SEPARATOR, 0, nullptr);
+    AppendMenuA(file, MF_STRING, IDM_FILE_EXIT,     "E&xit");
+    AppendMenuA(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(file), "&File");
+
+    HMENU settings = CreatePopupMenu();
+
+    HMENU fft_menu = CreatePopupMenu();
+    AppendMenuA(fft_menu, MF_STRING, IDM_FFT_FIRST + 0, "mat-og");
+    AppendMenuA(fft_menu, MF_STRING, IDM_FFT_FIRST + 1, "vibe-1");
+    AppendMenuA(fft_menu, MF_STRING, IDM_FFT_FIRST + 2, "neomat-in");
+    AppendMenuA(fft_menu, MF_STRING, IDM_FFT_FIRST + 3, "neomat-out");
+    AppendMenuA(settings, MF_POPUP, reinterpret_cast<UINT_PTR>(fft_menu), "FFT &Mode");
+
+    HMENU delay_menu = CreatePopupMenu();
+    AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 0, "Short (Z)");
+    AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 1, "Normal (X)");
+    AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 2, "Long (C)");
+    AppendMenuA(settings, MF_POPUP, reinterpret_cast<UINT_PTR>(delay_menu), "&Delay");
+
+    HMENU intensity_menu = CreatePopupMenu();
+    AppendMenuA(intensity_menu, MF_STRING, IDM_INTENSITY_FIRST + 0, "1");
+    AppendMenuA(intensity_menu, MF_STRING, IDM_INTENSITY_FIRST + 1, "2");
+    AppendMenuA(intensity_menu, MF_STRING, IDM_INTENSITY_FIRST + 2, "3");
+    AppendMenuA(intensity_menu, MF_STRING, IDM_INTENSITY_FIRST + 3, "4");
+    AppendMenuA(settings, MF_POPUP, reinterpret_cast<UINT_PTR>(intensity_menu), "&Intensity");
+
+    AppendMenuA(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(settings), "&Settings");
+
+    m_win32_fft_menu = fft_menu;
+    m_win32_delay_menu = delay_menu;
+    m_win32_intensity_menu = intensity_menu;
+
+    SetMenu(hwnd, bar);
+    // Route native window messages (WM_COMMAND) to us via SDL, and re-assert the
+    // client size so the menu bar doesn't eat into the visualization area.
+    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+    screen->reapplyWindowSize();
+    syncWin32MenuState();
+}
+
+void Player::handleWin32MenuCommand(unsigned int id)
+{
+    switch (id) {
+        case IDM_FILE_INSERT:
+#ifdef HAVE_FILEDIALOG
+            openInsertDialog();
+#endif
+            break;
+        case IDM_FILE_TEMPLOAD:
+#ifdef HAVE_FILEDIALOG
+            openTemporaryTrackDialog();
+#endif
+            break;
+        case IDM_FILE_EXIT:
+            synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
+            break;
+        default:
+            if (id >= IDM_FFT_FIRST && id < IDM_FFT_FIRST + 4) {
+                static const FFTMode modes[] = { FFTMode::Original, FFTMode::Optimized,
+                                                 FFTMode::NeomatIn, FFTMode::NeomatOut };
+                fft->setFFTMode(modes[id - IDM_FFT_FIRST]);
+                showToast("FFT Mode: " + fft->getFFTModeName());
+                updateInfo();
+            } else if (id >= IDM_DELAY_FIRST && id < IDM_DELAY_FIRST + 3) {
+                static const float delays[] = { 0.5f, 1.0f, 2.0f };
+                decayfactor = delays[id - IDM_DELAY_FIRST];
+                updateInfo();
+            } else if (id >= IDM_INTENSITY_FIRST && id < IDM_INTENSITY_FIRST + 4) {
+                scalefactor = static_cast<int>(id - IDM_INTENSITY_FIRST) + 1;
+                updateInfo();
+            }
+            break;
+    }
+    syncWin32MenuState();
+}
+
+void Player::syncWin32MenuState()
+{
+    if (m_win32_fft_menu && fft) {
+        unsigned int idx = 0;
+        switch (fft->getFFTMode()) {
+            case FFTMode::Original:  idx = 0; break;
+            case FFTMode::Optimized: idx = 1; break;
+            case FFTMode::NeomatIn:  idx = 2; break;
+            case FFTMode::NeomatOut: idx = 3; break;
+            default:                 idx = 0; break;
+        }
+        CheckMenuRadioItem(static_cast<HMENU>(m_win32_fft_menu),
+                           IDM_FFT_FIRST, IDM_FFT_FIRST + 3, IDM_FFT_FIRST + idx, MF_BYCOMMAND);
+    }
+    if (m_win32_delay_menu) {
+        unsigned int idx = (decayfactor <= 0.75f) ? 0 : (decayfactor >= 1.5f ? 2 : 1);
+        CheckMenuRadioItem(static_cast<HMENU>(m_win32_delay_menu),
+                           IDM_DELAY_FIRST, IDM_DELAY_FIRST + 2, IDM_DELAY_FIRST + idx, MF_BYCOMMAND);
+    }
+    if (m_win32_intensity_menu) {
+        int idx = scalefactor - 1;
+        if (idx < 0) idx = 0;
+        if (idx > 3) idx = 3;
+        CheckMenuRadioItem(static_cast<HMENU>(m_win32_intensity_menu),
+                           IDM_INTENSITY_FIRST, IDM_INTENSITY_FIRST + 3,
+                           IDM_INTENSITY_FIRST + static_cast<unsigned int>(idx), MF_BYCOMMAND);
+    }
+}
+#endif // _WIN32
+
 /**
  * @brief Returns whether the "Previous" navigation action is possible.
  *
@@ -1179,6 +1317,12 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
     m_labels.at("scale")->setText("log scale = " + std::to_string(scalefactor));
     m_labels.at("decay")->setText("decay = " + std::to_string(decayfactor));
     m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
+
+#ifdef _WIN32
+    // Keep the native menu's radio checks in sync with keyboard-driven changes
+    // (F, Z/X/C, 1-4 all route through updateInfo()).
+    syncWin32MenuState();
+#endif
 }
 
 
@@ -1896,6 +2040,12 @@ bool Player::Initialize(const PlayerOptions& options) {
     // Set FFT mode after FFT object is created
     fft->setFFTMode(options.fft_mode);
 
+#ifdef _WIN32
+    // Attach the native Win32 menu bar now that the window, fft, and settings
+    // exist (Windows build only).
+    installWin32Menu();
+#endif
+
     // Initialize the ApplicationWidget as the root of the widget tree
     ApplicationWidget& app_widget = ApplicationWidget::getInstance(*screen);
     m_ui_root = &app_widget; // Reference to singleton - not owned
@@ -2041,6 +2191,19 @@ void Player::EventLoop() {
             case SDL_QUIT:
                 done = true;
                 break;
+
+#ifdef _WIN32
+            case SDL_SYSWMEVENT:
+                // Native menu bar clicks arrive as WM_COMMAND (HIWORD(wParam)==0
+                // for menus, 1 for accelerators).
+                if (event.syswm.msg && event.syswm.msg->subsystem == SDL_SYSWM_WINDOWS) {
+                    const auto& w = event.syswm.msg->msg.win;
+                    if (w.msg == WM_COMMAND && HIWORD(w.wParam) == 0) {
+                        handleWin32MenuCommand(LOWORD(w.wParam));
+                    }
+                }
+                break;
+#endif
 
                 // check for keypresses
             case SDL_KEYDOWN:

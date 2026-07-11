@@ -44,6 +44,9 @@ class Display : public Surface
 
         int getLogicalScale() const { return m_logical_scale; }
         void setLogicalScale(int scale);
+        // Re-assert the client-area size at the current scale. Call after the
+        // native window gains/loses a menu bar so the drawable stays logical.
+        void reapplyWindowSize();
 
     private:
         SDL_Window* m_window = nullptr;
