@@ -333,6 +333,7 @@ using PsyMP3::Core::SDLException;
 using PsyMP3::Core::WrongFormatException;
 using PsyMP3::Core::Rect;
 #include "surface.h"
+#include "core/BezierCurve.h"
 #include "display.h"
 #include "font.h"
 #include "truetype.h"
@@ -371,6 +372,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 #include "widget/ui/TextInputWidget.h"
 #include "widget/ui/ScrollbarWidget.h"
 #include "widget/ui/SliderWidget.h"
+#include "widget/ui/EqualizerCurveWidget.h"
 #include "widget/ui/MenuBarWidget.h"
 
 using PsyMP3::Widget::Foundation::Widget;
@@ -389,6 +391,7 @@ using PsyMP3::Widget::UI::ButtonSymbol;
 using PsyMP3::Widget::UI::ScrollbarOrientation;
 using PsyMP3::Widget::UI::ScrollbarWidget;
 using PsyMP3::Widget::UI::SliderWidget;
+using PsyMP3::Widget::UI::EqualizerCurveWidget;
 using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;
 using PsyMP3::Widget::UI::PlayerProgressBarWidget;
 using PsyMP3::Widget::UI::ProgressBarFrameWidget;

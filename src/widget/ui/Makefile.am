@@ -46,6 +46,7 @@ libpsymp3_widget_ui_a_SOURCES = \
 	TextInputWidget.cpp \
 	ScrollbarWidget.cpp \
 	SliderWidget.cpp \
+	EqualizerCurveWidget.cpp \
 	ToastWidget.cpp
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
