@@ -124,16 +124,27 @@ EqualizerWindow::EqualizerWindow(Font* font,
     auto menu = std::make_unique<MenuBarWidget>(getPos().width(), getPos().height(), m_font);
     m_menu = menu.get();
     using MI = MenuBarWidget::Item;
-    m_menu->addMenu("&File", {
-        MI::leaf("&Load...", [this] { if (m_on_load) m_on_load(); }),
-        MI::leaf("&Save...", [this] { if (m_on_save) m_on_save(); }),
-    });
+
+    // Built-in presets.
     std::vector<MI> preset_items;
     for (const auto& p : kPresets) {
         std::vector<double> gains(p.g, p.g + 7);
         preset_items.push_back(MI::leaf(p.name, [this, gains] { applyGains(gains); }));
     }
     m_menu->addMenu("&Presets", std::move(preset_items));
+
+    // User presets: slots 1..N load directly; the Save submenu stores into a slot.
+    std::vector<MI> user_items;
+    std::vector<MI> save_items;
+    for (int slot = 1; slot <= kUserPresets; ++slot) {
+        std::string name = "User preset " + std::to_string(slot);
+        user_items.push_back(MI::leaf(name, [this, slot] { loadUserPreset(slot); }));
+        save_items.push_back(MI::leaf(name, [this, slot] { saveUserPreset(slot); }));
+    }
+    user_items.push_back(MI::sep());
+    user_items.push_back(MI::sub("&Save", std::move(save_items)));
+    m_menu->addMenu("&User Presets", std::move(user_items));
+
     addChildAt(std::move(menu), 0, 0, getPos().width(), getPos().height());
 }
 
@@ -182,6 +193,30 @@ bool EqualizerWindow::loadFromFile(const std::string& path)
     if (gains.empty()) return false;
     applyGains(gains);
     return true;
+}
+
+std::string EqualizerWindow::userPresetPath(int slot)
+{
+    System::createStoragePath();
+    return System::getStoragePath().to8Bit(true) + "/eq-user-" + std::to_string(slot) + ".psymp3eq";
+}
+
+void EqualizerWindow::saveUserPreset(int slot)
+{
+    if (slot < 1 || slot > kUserPresets) return;
+    const bool ok = saveToFile(userPresetPath(slot));
+    if (m_on_status)
+        m_on_status(ok ? "Saved user preset " + std::to_string(slot)
+                       : "Failed to save user preset " + std::to_string(slot));
+}
+
+void EqualizerWindow::loadUserPreset(int slot)
+{
+    if (slot < 1 || slot > kUserPresets) return;
+    const bool ok = loadFromFile(userPresetPath(slot));
+    if (m_on_status)
+        m_on_status(ok ? "Loaded user preset " + std::to_string(slot)
+                       : "User preset " + std::to_string(slot) + " is empty");
 }
 
 } // namespace UI

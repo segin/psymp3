@@ -22,13 +22,14 @@ using PsyMP3::Widget::Foundation::LayoutWidget;
 // one vertical fader per band with a live dB readout and a frequency label, a
 // smoothed response-curve preview, and an on/off checkbox.
 //
-// The widget owns the UI, the built-in presets, and the .psymp3eq file format.
-// It delegates path selection and DSP application to the owner via callbacks:
+// The widget owns the UI, the built-in presets, the five on-disk user preset
+// slots, and the .psymp3eq file format. It applies DSP changes via callbacks:
 //   - onBandChanged(band, dB) / onEnabledChanged(on): apply to the audio engine.
-//   - onLoadRequested / onSaveRequested: pick a path (File dialog / prompt) and
-//     call loadFromFile()/saveToFile().
+//   - onStatus(msg): optional; surfaced by the owner (e.g. as a toast).
 class EqualizerWindow : public LayoutWidget {
 public:
+    static constexpr int kUserPresets = 5;
+
     EqualizerWindow(Font* font,
                     const std::vector<std::string>& band_labels,
                     double min_db, double max_db,
@@ -37,8 +38,7 @@ public:
 
     void setOnBandChanged(std::function<void(int, double)> cb) { m_on_band = std::move(cb); }
     void setOnEnabledChanged(std::function<void(bool)> cb)     { m_on_enabled = std::move(cb); }
-    void setOnLoadRequested(std::function<void()> cb)          { m_on_load = std::move(cb); }
-    void setOnSaveRequested(std::function<void()> cb)          { m_on_save = std::move(cb); }
+    void setOnStatus(std::function<void(const std::string&)> cb) { m_on_status = std::move(cb); }
 
     // Snap every slider to `gains` (propagates through the normal change path,
     // so the curve, readouts and onBandChanged all update).
@@ -47,6 +47,12 @@ public:
 
     bool loadFromFile(const std::string& path);        // parse + applyGains
     bool saveToFile(const std::string& path) const;    // write .psymp3eq
+
+    // User preset slots (1..kUserPresets), stored as .psymp3eq files in the
+    // config directory.
+    void loadUserPreset(int slot);
+    void saveUserPreset(int slot);
+    static std::string userPresetPath(int slot);
 
     static int preferredWidth(int num_bands);
     static int preferredHeight();
@@ -65,10 +71,9 @@ private:
     MenuBarWidget*             m_menu = nullptr;
     CheckboxWidget*            m_enable = nullptr;
 
-    std::function<void(int, double)> m_on_band;
-    std::function<void(bool)>        m_on_enabled;
-    std::function<void()>            m_on_load;
-    std::function<void()>            m_on_save;
+    std::function<void(int, double)>        m_on_band;
+    std::function<void(bool)>               m_on_enabled;
+    std::function<void(const std::string&)> m_on_status;
 };
 
 } // namespace UI
