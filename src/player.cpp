@@ -929,9 +929,11 @@ void Player::installWin32Menu()
     AppendMenuA(settings, MF_POPUP, reinterpret_cast<UINT_PTR>(fft_menu), "FFT &Mode");
 
     HMENU delay_menu = CreatePopupMenu();
-    AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 0, "Short (Z)");
+    // Lower decayfactor = slower fade = longer trail. Z=0.5 is the LONG delay,
+    // C=2.0 is the SHORT one.
+    AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 0, "Long (Z)");
     AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 1, "Normal (X)");
-    AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 2, "Long (C)");
+    AppendMenuA(delay_menu, MF_STRING, IDM_DELAY_FIRST + 2, "Short (C)");
     AppendMenuA(settings, MF_POPUP, reinterpret_cast<UINT_PTR>(delay_menu), "&Delay");
 
     HMENU intensity_menu = CreatePopupMenu();
@@ -1766,23 +1768,6 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                     showToast("Mouse: Legacy handling");
                 }
             }
-            break;
-        }
-
-        case SDLK_d:
-        {
-            // Toggle widget blitting debug output
-            // This is a temporary mechanism. A proper debug console or UI will replace this.
-            static bool widget_debug_on = false;
-            widget_debug_on = !widget_debug_on;
-            std::vector<std::string> channels;
-            if (widget_debug_on) {
-                channels.push_back("widget");
-                showToast("Debug: Widget blitting enabled");
-            } else {
-                showToast("Debug: Widget blitting disabled");
-            }
-            Debug::init("", channels); // Re-init to update channels
             break;
         }
 
