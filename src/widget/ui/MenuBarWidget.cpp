@@ -372,6 +372,156 @@ bool MenuBarWidget::handleMouseMotion(const SDL_MouseMotionEvent&, int x, int y)
     return true;
 }
 
+// ---- Keyboard -----------------------------------------------------------
+
+int MenuBarWidget::mnemonicChar(const std::string& label)
+{
+    for (size_t i = 0; i + 1 < label.size(); ++i) {
+        if (label[i] == '&') {
+            if (label[i + 1] == '&') { ++i; continue; }   // literal "&&"
+            unsigned char c = static_cast<unsigned char>(label[i + 1]);
+            if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
+            return c;
+        }
+    }
+    return 0;
+}
+
+int MenuBarWidget::firstSelectable(const std::vector<Item>& items)
+{
+    for (int i = 0; i < static_cast<int>(items.size()); ++i)
+        if (!items[i].separator) return i;
+    return -1;
+}
+
+int MenuBarWidget::stepSelectable(const std::vector<Item>& items, int from, int dir)
+{
+    int n = static_cast<int>(items.size());
+    if (n == 0) return -1;
+    for (int k = 0; k < n; ++k) {
+        from = (from + dir % n + n) % n;
+        if (!items[from].separator) return from;
+    }
+    return -1;
+}
+
+void MenuBarWidget::openMenu(int idx)
+{
+    if (idx < 0 || idx >= static_cast<int>(m_menus.size())) return;
+    m_open = idx;
+    m_hover = firstSelectable(m_menus[idx].items);
+    m_open_sub = -1;
+    m_hover_sub = -1;
+    rebuild();
+}
+
+bool MenuBarWidget::handleKey(const SDL_keysym& keysym)
+{
+    // --- closed: Alt+<mnemonic> opens the matching menu ---
+    if (m_open < 0) {
+        if ((keysym.mod & (KMOD_LALT | KMOD_RALT))
+            && keysym.sym >= 'a' && keysym.sym <= 'z') {
+            for (int i = 0; i < static_cast<int>(m_menus.size()); ++i) {
+                if (mnemonicChar(m_menus[i].name) == static_cast<int>(keysym.sym)) {
+                    openMenu(i);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // --- open: the menu is modal for the keyboard ---
+    Menu& m = m_menus[m_open];
+    bool in_sub = (m_open_sub >= 0 && m_hover_sub >= 0
+                   && !m.items[m_open_sub].submenu.empty());
+    std::vector<Item>& list = in_sub ? m.items[m_open_sub].submenu : m.items;
+    int& sel = in_sub ? m_hover_sub : m_hover;
+
+    switch (keysym.sym) {
+        case SDLK_ESCAPE:
+            if (in_sub) { m_open_sub = -1; m_hover_sub = -1; rebuild(); }
+            else closeMenu();
+            return true;
+
+        case SDLK_DOWN:
+            sel = stepSelectable(list, sel, +1);
+            rebuild();
+            return true;
+
+        case SDLK_UP:
+            sel = stepSelectable(list, sel, -1);
+            rebuild();
+            return true;
+
+        case SDLK_RIGHT:
+            // Enter a submenu if the selection has one; otherwise move to the
+            // next top-level menu.
+            if (!in_sub && m_hover >= 0 && !m.items[m_hover].submenu.empty()) {
+                m_open_sub = m_hover;
+                m_hover_sub = firstSelectable(m.items[m_hover].submenu);
+                rebuild();
+            } else {
+                openMenu((m_open + 1) % static_cast<int>(m_menus.size()));
+            }
+            return true;
+
+        case SDLK_LEFT:
+            // Leave a submenu, or move to the previous top-level menu.
+            if (in_sub) { m_open_sub = -1; m_hover_sub = -1; rebuild(); }
+            else {
+                int n = static_cast<int>(m_menus.size());
+                openMenu((m_open - 1 + n) % n);
+            }
+            return true;
+
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+        case SDLK_SPACE: {
+            if (sel < 0 || sel >= static_cast<int>(list.size())) return true;
+            Item& it = list[sel];
+            if (!it.submenu.empty()) {
+                if (!in_sub) {
+                    m_open_sub = sel;
+                    m_hover_sub = firstSelectable(it.submenu);
+                    rebuild();
+                }
+                return true;
+            }
+            auto act = it.action;
+            closeMenu();
+            if (act) act();
+            return true;
+        }
+
+        default: break;
+    }
+
+    // Bare mnemonic letter: jump to (and activate/expand) the matching item.
+    if (keysym.sym >= 'a' && keysym.sym <= 'z') {
+        for (int i = 0; i < static_cast<int>(list.size()); ++i) {
+            if (list[i].separator) continue;
+            if (mnemonicChar(list[i].label) != static_cast<int>(keysym.sym)) continue;
+            sel = i;
+            Item& it = list[i];
+            if (!it.submenu.empty()) {
+                if (!in_sub) {
+                    m_open_sub = i;
+                    m_hover_sub = firstSelectable(it.submenu);
+                }
+                rebuild();
+            } else {
+                auto act = it.action;
+                closeMenu();
+                if (act) act();
+            }
+            return true;
+        }
+    }
+
+    return true; // consume everything while a menu is open
+}
+
 } // namespace UI
 } // namespace Widget
 } // namespace PsyMP3

@@ -59,6 +59,14 @@ public:
     bool isOpen() const { return m_open >= 0; }
     void closeMenu();
 
+    // Keyboard driver. When no menu is open, Alt+<mnemonic> opens the matching
+    // top-level menu (returns true if it did). When a menu is open, arrows move
+    // the selection, Left/Right switch menus / enter-exit submenus, Enter/Space
+    // activate, Esc backs out, and a bare mnemonic letter jumps to/activates an
+    // item; every key is consumed while open so it cannot leak to global
+    // shortcuts. Returns true when the key was handled.
+    bool handleKey(const SDL_keysym& keysym);
+
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
 
@@ -83,6 +91,13 @@ private:
     // to the pixel x-offset (within the rendered string) of the underlined
     // glyph and *mn_w to its width, or *mn_off = -1 when there is no mnemonic.
     std::string parseMnemonic(const std::string& label, int* mn_off, int* mn_w) const;
+    // Lowercased mnemonic character of a label (char after a single '&'), or 0.
+    static int mnemonicChar(const std::string& label);
+    // First non-separator item index, or -1 if none.
+    static int firstSelectable(const std::vector<Item>& items);
+    // Next non-separator item from `from` stepping by `dir` (+1/-1), wrapping.
+    static int stepSelectable(const std::vector<Item>& items, int from, int dir);
+    void openMenu(int idx);   // open top-level menu `idx`, select its first item
     // Draw a label (with mnemonic underline) vertically centred in a row.
     void drawLabel(Surface& surf, const std::string& label, int x, int row_y,
                    int row_h, SDL_Color fg, SDL_Color bg);
