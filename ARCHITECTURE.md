@@ -11,6 +11,7 @@ This file is the compact architectural map. Detailed subsystem notes, policy-lev
 ├── src/
 │   ├── codecs/      # Audio decoders
 │   ├── demuxer/     # Container parsers / stream assembly
+│   ├── dsp/         # Real-time DSP (equalizer)
 │   ├── io/          # File and HTTP I/O
 │   ├── widget/      # UI/widget system
 │   ├── lastfm/      # Last.fm integration
@@ -57,6 +58,7 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - MP3 is handled by bundled `minimp3` via `MiniMP3Codec` and `MP3NullDemuxer`; no external MP3 runtime dependency remains.
 - `src/io/`: Provide the file/HTTP abstraction and the large-file-safe offset contract used across the pipeline.
 - `src/audio.cpp`: Own the SDL audio device, decode thread, PCM queue, and FFT feed.
+- `src/dsp/Equalizer.cpp`: Real-time 7-band biquad equalizer applied to the output PCM (see below).
 - `src/widget/`: Render the software UI, manage event routing, z-order, floating windows, and overlays.
 - `src/core/display.cpp` and `src/core/surface.cpp`: Present the software-rendered UI through SDL surfaces.
 - `src/core/font.cpp`: Render all UI text through the FreeType-based font layer into PsyMP3-owned surfaces.
@@ -74,8 +76,18 @@ The menu bar is a single widget, `MenuBarWidget` (namespace `PsyMP3::Widget::UI`
 - **Immediate-mode paint.** `rebuild()` repaints the entire overlay from current state on every change: transparent fill, opaque bar, then the open dropdown and any expanded submenu. Text is drawn with the FreeType LCD/ClearType path (`Font::RenderLCD`); `&` in a label marks a mnemonic drawn underlined, and `shortcut` renders right-aligned in its own reserved column.
 - **Self-contained hit-testing.** Because there are no child widgets, `handleMouseDown` / `handleMouseMotion` do the geometry directly via shared pure helpers (`barHitTest`, `dropdownRect`, `submenuRect`, `itemAt`, `popupWidth/Height`) so draw and hit-test never disagree. A leaf click closes the menu and invokes its `action`; returning `false` when closed lets input fall through.
 - **Keeps the UI live.** Since the bar is painted and dispatched by the normal widget/event loop rather than a native OS menu, the visualizer keeps animating while a menu is open (no modal message pump). Menu actions call the same player methods as the corresponding keys; `checked` predicates reflect live state.
-- **Player wiring.** `src/player.cpp` assembles the `Item` trees (File, Playback, Settings → FFT Mode / Delay / Intensity) and calls `addMenu()`; each leaf mirrors an existing keyboard shortcut.
+- **Player wiring.** `src/player.cpp` assembles the `Item` trees (File; Playback → Pause / Prev / Next / Volume / Equalizer; Settings → FFT Mode / Delay / Intensity / 2x Zoom) and calls `addMenu()`. Each key-mirroring leaf calls a named `Player` action method (`volumeUp`, `setIntensity`, `toggleZoom`, …) that the keyboard switch calls too — menus invoke the real action directly rather than injecting synthetic key events.
 - **Keyboard driver.** `MenuBarWidget::handleKey(SDL_keysym)` is the single entry point, called first from `Player::handleKeyPress`. When no menu is open it claims only **Alt+&lt;mnemonic&gt;** (from the `&` in each menu name — Alt+F/P/S) and opens that menu; otherwise it returns `false` so global shortcuts run. While a menu is open it is *modal for the keyboard*: Up/Down move the selection (skipping separators, wrapping via `stepSelectable`), Right enters a submenu or advances to the next top-level menu, Left backs out of a submenu or moves to the previous menu, Enter/Space activate (opening a submenu or running the leaf `action`), Esc backs out one level then closes, and a bare mnemonic letter jumps to/activates the matching item. Every key is consumed while open so none leak to the global shortcut table. Submenu-vs-dropdown focus is derived from the existing `m_open_sub`/`m_hover_sub` state — no new focus fields.
+
+## Equalizer
+
+A 7-band graphic equalizer, opened from **Playback → Equalizer…**.
+
+- **DSP (`src/dsp/Equalizer.cpp`).** A cascade of seven RBJ peaking biquads (60/150/400/1k/2.4k/6k/15k Hz), one filter state per channel, applied in place to the output PCM inside the SDL audio callback — after the silence-fill, before the FFT tap, so the spectrum reflects the EQ. It is real-time-safe like `Audio::m_volume`: the UI thread pushes band gains via atomics and bumps a dirty counter; the audio thread owns the coefficients and history and recomputes lazily. Filter history is zeroed on seek/track-change via an atomic reset flag. `Audio` owns one `Equalizer` and exposes thin `setEq*`/`getEq*` forwarders; the EQ is disabled by default (a no-op).
+- **State ownership.** `Player` holds the canonical band gains + enabled flag and re-applies them to each new `Audio` (mirroring volume), so settings persist across track changes.
+- **UI (`src/widget/ui/EqualizerWindow.cpp`).** A draggable in-app window (a `WindowFrameWidget` hosted in `m_random_windows`) whose client is a `LayoutWidget` of one `SliderWidget` fader per band (live dB readout + frequency label), an `EqualizerCurveWidget` preview, an enable checkbox, and an embedded `MenuBarWidget` with **Presets** (built-ins) and **User Presets** (five `.psymp3eq` slots in the config dir; a *Save* submenu stores into a slot). Moving a fader routes through one change path that updates the curve, the readout, and the DSP.
+- **Curve preview.** `EqualizerCurveWidget` (a `DrawableWidget`) plots the band gains as a smooth curve using `core/BezierCurve.h` — a Catmull-Rom spline through the control points expressed as cubic Bézier segments.
+- **New toolkit pieces.** `SliderWidget` (vertical/horizontal fader), `EqualizerCurveWidget` (curve canvas), and `core/BezierCurve.h` (reusable Bézier/smoothing helpers) were added for this feature and are usable elsewhere.
 
 ## Key Runtime Rules
 
