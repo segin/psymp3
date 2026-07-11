@@ -2114,7 +2114,7 @@ bool Player::Initialize(const PlayerOptions& options) {
         file_items.push_back(MI::leaf("Temp Load Track  (L)", [this]{ openTemporaryTrackDialog(); }));
         file_items.push_back(MI::sep());
 #endif
-        file_items.push_back(MI::leaf("Exit", [this]{ synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
+        file_items.push_back(MI::leaf("Exit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
         menu_bar->addMenu("File", std::move(file_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
