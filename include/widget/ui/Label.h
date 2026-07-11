@@ -33,12 +33,16 @@ namespace UI {
 class Label : public Widget
 {
     public:
+        // Horizontal justification of the text within the label's width.
+        enum class Align { Left, Center, Right };
+
         Label(Font* font, const Rect& position, const TagLib::String& initial_text = "",
               SDL_Color color = {255, 255, 255, 255}, SDL_Color background_color = {0, 0, 0, 255});
         virtual ~Label() = default;
 
         void setText(const TagLib::String& text);
         void setBackgroundColor(SDL_Color background_color);
+        void setAlignment(Align align);
         void setMarqueeEnabled(bool enabled);
         void BlitTo(Surface& target) override;
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
@@ -55,6 +59,7 @@ class Label : public Widget
         TagLib::String m_text;
         SDL_Color m_color;
         SDL_Color m_background_color;
+        Align m_align{Align::Left};
         std::unique_ptr<Surface> m_text_surface;
         int m_last_drawn_width{0};
         int m_last_drawn_height{0};

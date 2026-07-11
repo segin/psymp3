@@ -70,6 +70,15 @@ void Label::setBackgroundColor(SDL_Color background_color)
     invalidate();
 }
 
+void Label::setAlignment(Align align)
+{
+    if (m_align == align) {
+        return;
+    }
+    m_align = align;
+    invalidate();
+}
+
 void Label::setMarqueeEnabled(bool enabled)
 {
     if (m_marquee_enabled == enabled) {
@@ -176,8 +185,17 @@ void Label::blitWithBackgroundClear(Surface& target, const Rect& absolute_pos)
                         Rect(absolute_pos.x(), absolute_pos.y(), viewport_width, viewport_height));
         }
     } else {
+        // Justify the text horizontally within the label's width. A text
+        // surface wider than the viewport falls back to left alignment so it
+        // never renders to the left of the label's origin.
+        int off_x = 0;
+        const int slack = viewport_width - m_text_surface->width();
+        if (slack > 0) {
+            if (m_align == Align::Center) off_x = slack / 2;
+            else if (m_align == Align::Right) off_x = slack;
+        }
         target.Blit(*m_text_surface,
-                    Rect(absolute_pos.x(), absolute_pos.y(),
+                    Rect(absolute_pos.x() + off_x, absolute_pos.y(),
                          m_text_surface->width(), m_text_surface->height()));
     }
 
