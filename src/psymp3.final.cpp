@@ -218,6 +218,7 @@
 #include "widget/ui/ProgressBarBracketWidget.cpp"
 #include "widget/ui/ProgressBarFrameWidget.cpp"
 #include "widget/ui/ScrollbarWidget.cpp"
+#include "widget/ui/SliderWidget.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
 #include "widget/ui/TextInputWidget.cpp"
 #include "widget/ui/ToastWidget.cpp"
