@@ -1356,8 +1356,16 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
         m_pause_indicator->BlitTo(*graph);
     }
     
-    // Render floating windows (test windows)
+    // Render floating windows (test windows, equalizer)
     renderWindows();
+
+    // The in-app menu bar belongs above those floating windows. It is drawn in
+    // the m_ui_root pass (before renderWindows), so re-blit its top-most overlay
+    // here — otherwise an open dropdown would be hidden behind a window such as
+    // the equalizer.
+    if (m_menu_bar) {
+        m_menu_bar->BlitTo(*graph);
+    }
 }
 
 /**
@@ -2294,8 +2302,13 @@ void Player::EventLoop() {
             }
             case SDL_MOUSEBUTTONDOWN:
             {
-                handleWindowMouseEvents(event);
-                
+                // While a menu is open its dropdown sits above the floating
+                // windows; let the widget tree (menu) claim the click first so
+                // a window beneath does not also react (e.g. start dragging).
+                if (!(m_menu_bar && m_menu_bar->isOpen())) {
+                    handleWindowMouseEvents(event);
+                }
+
                 if (m_use_widget_mouse_handling) {
                     // Try widget tree first
                     bool handled = false;
@@ -2315,8 +2328,10 @@ void Player::EventLoop() {
             }
             case SDL_MOUSEMOTION:
             {
-                handleWindowMouseEvents(event);
-                
+                if (!(m_menu_bar && m_menu_bar->isOpen())) {
+                    handleWindowMouseEvents(event);
+                }
+
                 if (m_use_widget_mouse_handling) {
                     // Try widget tree first
                     bool handled = false;
@@ -2336,8 +2351,10 @@ void Player::EventLoop() {
             }
             case SDL_MOUSEBUTTONUP:
             {
-                handleWindowMouseEvents(event);
-                
+                if (!(m_menu_bar && m_menu_bar->isOpen())) {
+                    handleWindowMouseEvents(event);
+                }
+
                 if (m_use_widget_mouse_handling) {
                     // Try widget tree first
                     bool handled = false;
