@@ -408,6 +408,11 @@ using PsyMP3::Widget::UI::TextInputWidget;
 
 using PsyMP3::Widget::UI::Label;
 
+// EqualizerWindow references MenuBarWidget/Label/Checkbox/Slider by pointer, so
+// it must be included after all of them.
+#include "widget/ui/EqualizerWindow.h"
+using PsyMP3::Widget::UI::EqualizerWindow;
+
 #include "ZOrder.h"
 
 // I/O and utility components (needed by other components)

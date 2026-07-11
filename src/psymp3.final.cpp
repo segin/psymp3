@@ -220,6 +220,7 @@
 #include "widget/ui/ScrollbarWidget.cpp"
 #include "widget/ui/SliderWidget.cpp"
 #include "widget/ui/EqualizerCurveWidget.cpp"
+#include "widget/ui/EqualizerWindow.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
 #include "widget/ui/TextInputWidget.cpp"
 #include "widget/ui/ToastWidget.cpp"
