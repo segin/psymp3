@@ -2110,22 +2110,34 @@ bool Player::Initialize(const PlayerOptions& options) {
 
         std::vector<MI> file_items;
 #ifdef HAVE_FILEDIALOG
-        file_items.push_back(MI::leaf("Insert Track(s)  (I)", [this]{ openInsertDialog(); }));
-        file_items.push_back(MI::leaf("Temp Load Track  (L)", [this]{ openTemporaryTrackDialog(); }));
+        file_items.push_back(MI::leaf("&Insert Track(s)", [this]{ openInsertDialog(); }, nullptr, "I"));
+        file_items.push_back(MI::leaf("Temp &Load Track", [this]{ openTemporaryTrackDialog(); }, nullptr, "L"));
         file_items.push_back(MI::sep());
 #endif
-        file_items.push_back(MI::leaf("Exit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
-        menu_bar->addMenu("File", std::move(file_items));
+        file_items.push_back(MI::leaf("E&xit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
+        menu_bar->addMenu("&File", std::move(file_items));
+
+        // Playback: mirrors Space (pause), P/N (prev/next), Up/Down (volume).
+        std::vector<MI> playback_items;
+        playback_items.push_back(MI::leaf("&Pause", [this]{ playPause(); },
+            [this]{ return state == PlayerState::Paused; }, "Space"));
+        playback_items.push_back(MI::sep());
+        playback_items.push_back(MI::leaf("Pre&vious Track", [this]{ prevTrack(); }, nullptr, "P"));
+        playback_items.push_back(MI::leaf("&Next Track", [this]{ nextTrack(); }, nullptr, "N"));
+        playback_items.push_back(MI::sep());
+        playback_items.push_back(MI::leaf("Volume &Up", [this]{ setVolume(getVolume() + 0.05); }, nullptr, "Up"));
+        playback_items.push_back(MI::leaf("Volume &Down", [this]{ setVolume(getVolume() - 0.05); }, nullptr, "Dn"));
+        menu_bar->addMenu("&Playback", std::move(playback_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
             return MI::leaf(label,
                 [this, mode]{ fft->setFFTMode(mode); showToast("FFT Mode: " + fft->getFFTModeName()); updateInfo(); },
                 [this, mode]{ return fft->getFFTMode() == mode; });
         };
-        auto delay_item = [this](const char* label, float value) {
+        auto delay_item = [this](const char* label, float value, const char* sc = "") {
             return MI::leaf(label,
                 [this, value]{ decayfactor = value; updateInfo(); },
-                [this, value]{ return decayfactor == value; });
+                [this, value]{ return decayfactor == value; }, sc);
         };
         auto intensity_item = [this](const char* label, int value) {
             return MI::leaf(label,
@@ -2141,15 +2153,15 @@ bool Player::Initialize(const PlayerOptions& options) {
             fft_mode_item("neomat-out", FFTMode::NeomatOut),
         }));
         settings_items.push_back(MI::sub("Delay", {
-            delay_item("Long (Z)", 0.5f),
-            delay_item("Normal (X)", 1.0f),
-            delay_item("Short (C)", 2.0f),
+            delay_item("&Long", 0.5f, "Z"),
+            delay_item("&Normal", 1.0f, "X"),
+            delay_item("&Short", 2.0f, "C"),
         }));
         settings_items.push_back(MI::sub("Intensity", {
             intensity_item("1", 1), intensity_item("2", 2),
             intensity_item("3", 3), intensity_item("4", 4),
         }));
-        menu_bar->addMenu("Settings", std::move(settings_items));
+        menu_bar->addMenu("&Settings", std::move(settings_items));
 
         menu_bar->setZOrder(ZOrder::MAX); // sort above toasts
         app_widget.addWindow(std::move(menu_bar), ZOrder::MAX);
