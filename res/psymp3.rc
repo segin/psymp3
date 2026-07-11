@@ -19,8 +19,8 @@ FileIcon ICON DISCARDABLE "music.ico"
 IDR_VERA_TTF RCDATA "vera.ttf"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 2,0,0,871
-PRODUCTVERSION 2,0,0,871
+FILEVERSION 2,0,0,872
+PRODUCTVERSION 2,0,0,872
 FILEOS 0x00040004
 FILETYPE 0x00000001
 BEGIN
@@ -31,7 +31,7 @@ BEGIN
       VALUE "Comments", "This is PsyMP3 version 2-CURRENT\0"
       VALUE "CompanyName", "None\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
-      VALUE "FileVersion", "2, 0, 0, 871\0"
+      VALUE "FileVersion", "2, 0, 0, 872\0"
       VALUE "InternalName", "PsyMP3\0"
       VALUE "LegalCopyright", "ISC License\0"
       VALUE "OriginalFilename", "psymp3.exe\0"

@@ -2163,6 +2163,17 @@ bool Player::Initialize(const PlayerOptions& options) {
             intensity_item("1", 1), intensity_item("2", 2),
             intensity_item("3", 3), intensity_item("4", 4),
         }));
+        settings_items.push_back(MI::sep());
+        // Mirrors the G key: toggle 1x/2x pixel-doubled scaling.
+        settings_items.push_back(MI::leaf("2x &Zoom",
+            [this]{
+                if (screen) {
+                    const int next = (screen->getLogicalScale() == 1) ? 2 : 1;
+                    screen->setLogicalScale(next);
+                    showToast(next == 1 ? "Scale: 1x" : "Scale: 2x (pixel-doubled)");
+                }
+            },
+            [this]{ return screen && screen->getLogicalScale() == 2; }, "G"));
         menu_bar->addMenu("&Settings", std::move(settings_items));
 
         menu_bar->setZOrder(ZOrder::MAX); // sort above toasts
