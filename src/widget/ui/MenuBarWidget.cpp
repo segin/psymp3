@@ -36,19 +36,20 @@ int MenuBarWidget::textWidth(const std::string& s) const
     auto it = m_text_w.find(s);
     if (it != m_text_w.end()) return it->second;
     int w = 0;
-    if (m_font) {
-        if (auto surf = m_font->Render(TagLib::String(s, TagLib::String::UTF8), 0, 0, 0)) {
-            w = surf->width();
-        }
+    // Measure with the same (LCD) render path used for drawing so the measured
+    // width matches; the background colour is irrelevant to the advance width.
+    if (auto surf = renderText(s, kText, kFace)) {
+        w = surf->width();
     }
     m_text_w[s] = w;
     return w;
 }
 
-std::unique_ptr<Surface> MenuBarWidget::renderText(const std::string& s, uint8_t r, uint8_t g, uint8_t b) const
+std::unique_ptr<Surface> MenuBarWidget::renderText(const std::string& s, SDL_Color fg, SDL_Color bg) const
 {
     if (!m_font || s.empty()) return nullptr;
-    return m_font->Render(TagLib::String(s, TagLib::String::UTF8), r, g, b);
+    return m_font->RenderLCD(TagLib::String(s, TagLib::String::UTF8),
+                             fg.r, fg.g, fg.b, bg.r, bg.g, bg.b);
 }
 
 void MenuBarWidget::addMenu(std::string name, std::vector<Item> items)
@@ -179,7 +180,8 @@ void MenuBarWidget::rebuild()
         if (open)
             surf->box(m.bar_x, 0, m.bar_x + m.bar_w - 1, BAR_H - 2, kHiBg.r, kHiBg.g, kHiBg.b, 255);
         SDL_Color tc = open ? kHiText : kText;
-        if (auto t = renderText(m.name, tc.r, tc.g, tc.b)) {
+        SDL_Color bg = open ? kHiBg : kBar;
+        if (auto t = renderText(m.name, tc, bg)) {
             int ty = (BAR_H - t->height()) / 2;
             surf->Blit(*t, Rect(m.bar_x + BAR_PAD, ty, t->width(), t->height()));
         }
@@ -203,12 +205,13 @@ void MenuBarWidget::rebuild()
                 surf->box(box.x() + 1, ry, box.x() + box.width() - 2, ry + ITEM_H - 1,
                           kHiBg.r, kHiBg.g, kHiBg.b, 255);
             SDL_Color tc = hi ? kHiText : kText;
+            SDL_Color bg = hi ? kHiBg : kFace;
             // radio dot
             if (it.checked && it.checked()) {
                 int cx = box.x() + 5, cyd = ry + ITEM_H / 2 - 2;
                 surf->box(cx, cyd, cx + 3, cyd + 3, tc.r, tc.g, tc.b, 255);
             }
-            if (auto t = renderText(it.label, tc.r, tc.g, tc.b)) {
+            if (auto t = renderText(it.label, tc, bg)) {
                 int ty = ry + (ITEM_H - t->height()) / 2;
                 surf->Blit(*t, Rect(box.x() + CHECK_COL, ty, t->width(), t->height()));
             }

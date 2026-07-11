@@ -67,7 +67,9 @@ private:
     };
 
     void rebuild();                 // repaint the overlay surface from state
-    std::unique_ptr<Surface> renderText(const std::string& s, uint8_t r, uint8_t g, uint8_t b) const;
+    // ClearType (LCD) text, pre-blended against bg; the same bg must be painted
+    // underneath before the returned (opaque) surface is blitted.
+    std::unique_ptr<Surface> renderText(const std::string& s, SDL_Color fg, SDL_Color bg) const;
     int  textWidth(const std::string& s) const;   // cached pixel width
     mutable std::unordered_map<std::string, int> m_text_w;
 
