@@ -63,6 +63,18 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - `src/player.cpp`: Coordinate playback state, loading, preloading, GUI updates, and integration points.
   The startup playlist populator runs on a background thread and expands command-line `.m3u` / `.m3u8` files inline so mixed file-and-playlist argument lists preserve user order.
 - `src/core/FileDialog.cpp`: Native "open file" chooser (`PsyMP3::Core::FileDialog`) backed by a build-time-selected toolkit (Qt 6/5/4/3, GTK+ 4/3/2, or Win32 comdlg32). Isolated in its own `libpsymp3-filedialog.a` convenience library so the GUI-toolkit headers/flags reach no other translation unit; compiled out entirely (and the I/L keys left unbound) when `configure` finds no toolkit.
+- `src/widget/ui/MenuBarWidget.cpp`: In-app, software-drawn menu bar (see below).
+
+## In-App Menu Bar
+
+The menu bar is a single widget, `MenuBarWidget` (namespace `PsyMP3::Widget::UI`), not a tree of per-menu / per-item widgets. Menus and items are plain data structs it paints and hit-tests itself.
+
+- **One overlay widget.** `MenuBarWidget` spans the whole logical surface (640×400) and is added as a top-most window at `ZOrder::MAX` — above all UI including toasts (`ApplicationWidget::getWindowZOrder` special-cases it). Its `Surface` is transparent everywhere except the top bar and any open dropdown/submenu, so clicks and hover pass through to the widgets beneath when nothing is open.
+- **Data, not widgets.** A private `Menu` struct (name + cached bar x/width) holds a `std::vector<Item>`. The public `Item` struct is a tagged-by-convention row — a *leaf* (`action`, optional `checked` predicate for a radio dot, optional right-aligned `shortcut` hint), a *separator*, or a *submenu* (self-nesting `std::vector<Item>`). Built via the `leaf()` / `sep()` / `sub()` factories.
+- **Immediate-mode paint.** `rebuild()` repaints the entire overlay from current state on every change: transparent fill, opaque bar, then the open dropdown and any expanded submenu. Text is drawn with the FreeType LCD/ClearType path (`Font::RenderLCD`); `&` in a label marks a mnemonic drawn underlined, and `shortcut` renders right-aligned in its own reserved column.
+- **Self-contained hit-testing.** Because there are no child widgets, `handleMouseDown` / `handleMouseMotion` do the geometry directly via shared pure helpers (`barHitTest`, `dropdownRect`, `submenuRect`, `itemAt`, `popupWidth/Height`) so draw and hit-test never disagree. A leaf click closes the menu and invokes its `action`; returning `false` when closed lets input fall through.
+- **Keeps the UI live.** Since the bar is painted and dispatched by the normal widget/event loop rather than a native OS menu, the visualizer keeps animating while a menu is open (no modal message pump). Menu actions call the same player methods as the corresponding keys; `checked` predicates reflect live state.
+- **Player wiring.** `src/player.cpp` assembles the `Item` trees (File, Playback, Settings → FFT Mode / Delay / Intensity) and calls `addMenu()`; each leaf mirrors an existing keyboard shortcut.
 
 ## Key Runtime Rules
 
@@ -97,4 +109,4 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 - Project: PsyMP3
 - Repository: `https://github.com/segin/psymp3`
 - Maintainer: Kirn Gill II `<segin2005@gmail.com>`
-- Last updated: 2026-04-06
+- Last updated: 2026-07-11
