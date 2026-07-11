@@ -592,6 +592,7 @@ void Player::handleTrackSeamlessSwapEvent() {
                                             std::move(m_next_stream_primed_samples),
                                             m_next_stream_primed_eof);
             audio->setVolume(m_volume);
+            applyEqStateToAudio();
         } else {
             // Same audio format, can seamlessly switch streams
             Debug::log("audio", "Performing seamless stream transition.");
@@ -2141,6 +2142,8 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
         playback_items.push_back(MI::leaf("Volume &Down", [this]{ volumeDown(); }, nullptr, "Dn"));
+        playback_items.push_back(MI::sep());
+        playback_items.push_back(MI::leaf("&Equalizer...", [this]{ toggleEqualizerWindow(); }));
         menu_bar->addMenu("&Playback", std::move(playback_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
@@ -2782,6 +2785,81 @@ void Player::toggleTestWindowH()
     }
 }
 
+void Player::applyEqStateToAudio()
+{
+    if (!audio) return;
+    for (int i = 0; i < Equalizer::kNumBands; ++i)
+        audio->setEqBandGain(i, m_eq_gains[i]);
+    audio->setEqEnabled(m_eq_enabled);
+}
+
+void Player::toggleEqualizerWindow()
+{
+    if (m_eq_window) {
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [this](const auto& w) { return w.get() == m_eq_window; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_eq_window = nullptr;
+        m_eq_client = nullptr;
+        showToast("Equalizer: Closed");
+        return;
+    }
+
+    std::vector<std::string> labels;
+    std::vector<double> gains;
+    for (int i = 0; i < Equalizer::kNumBands; ++i) {
+        labels.emplace_back(Equalizer::bandLabel(i));
+        gains.push_back(m_eq_gains[i]);
+    }
+
+    auto client = std::make_unique<EqualizerWindow>(
+        font.get(), labels, Equalizer::kMinGainDb, Equalizer::kMaxGainDb, gains, m_eq_enabled);
+    m_eq_client = client.get();
+    client->setOnBandChanged([this](int band, double db) {
+        if (band >= 0 && band < static_cast<int>(m_eq_gains.size()))
+            m_eq_gains[band] = static_cast<float>(db);
+        if (audio) audio->setEqBandGain(band, static_cast<float>(db));
+    });
+    client->setOnEnabledChanged([this](bool on) {
+        m_eq_enabled = on;
+        if (audio) audio->setEqEnabled(on);
+    });
+    client->setOnStatus([this](const std::string& msg) { showToast(msg); });
+
+    const int cw = client->getPos().width();
+    const int ch = client->getPos().height();
+    auto frame = std::make_unique<WindowFrameWidget>(cw, ch, "Equalizer", font.get());
+    frame->setMinimizable(false);
+    frame->setMaximizable(false);
+    frame->setClientArea(std::move(client));
+    frame->refresh();
+    Rect sz = frame->getPos();
+    frame->setPos(Rect(40, 40, sz.width(), sz.height()));
+
+    WindowFrameWidget* fp = frame.get();
+    m_eq_window = fp;
+    frame->setOnDrag([fp](int dx, int dy) {
+        Rect p = fp->getPos(); p.x(p.x() + dx); p.y(p.y() + dy); fp->setPos(p);
+    });
+    frame->setOnDragStart([fp] { fp->bringToFront(); });
+    frame->setOnClose([this, fp] {
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [fp](const auto& w) { return w.get() == fp; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_eq_window = nullptr;
+        m_eq_client = nullptr;
+        showToast("Equalizer: Closed");
+    });
+    m_random_windows.push_back(std::move(frame));
+    showToast("Equalizer: Opened");
+}
+
 /**
  * @brief Toggles the test window B (160x60 window).
  *
@@ -3110,6 +3188,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
                                             std::move(primed_samples),
                                             primed_eof);
             audio->setVolume(m_volume);
+            applyEqStateToAudio();
         } else {
             Debug::log("audio", "Track load reusing existing Audio device.");
             audio->setStream(std::move(owned_new_stream), std::move(primed_samples), primed_eof);

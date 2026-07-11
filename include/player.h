@@ -330,6 +330,16 @@ class Player
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
+
+        // Equalizer window (hosted in m_random_windows so it reuses the frame
+        // render/mouse machinery; these are non-owning back-pointers) plus the
+        // canonical EQ state, re-applied to each Audio like m_volume.
+        WindowFrameWidget* m_eq_window = nullptr;
+        EqualizerWindow*   m_eq_client = nullptr;
+        std::array<float, 7> m_eq_gains{};
+        bool m_eq_enabled = false;
+        void toggleEqualizerWindow();
+        void applyEqStateToAudio();
         int m_random_window_counter = 0;
 
         // Deferred widget deletion
