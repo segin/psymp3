@@ -1598,9 +1598,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
-    // Esc closes an open menu instead of quitting the app.
-    if (m_menu_bar && m_menu_bar->isOpen() && keysym.sym == SDLK_ESCAPE) {
-        m_menu_bar->closeMenu();
+    // Route keys through the menu bar first. When closed it only claims
+    // Alt+<mnemonic> (to open a menu); while open it captures all navigation
+    // keys (arrows/Enter/Esc/mnemonics) so they don't fall through to the
+    // global shortcuts below.
+    if (m_menu_bar && m_menu_bar->handleKey(keysym)) {
         return false;
     }
 
