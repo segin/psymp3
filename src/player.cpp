@@ -1598,6 +1598,12 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
+    // Esc closes an open menu instead of quitting the app.
+    if (m_menu_bar && m_menu_bar->isOpen() && keysym.sym == SDLK_ESCAPE) {
+        m_menu_bar->closeMenu();
+        return false;
+    }
+
     switch (keysym.sym) {
         case SDLK_ESCAPE: // NOLINT(bugprone-branch-clone)
         case SDLK_q:
@@ -2025,11 +2031,9 @@ bool Player::Initialize(const PlayerOptions& options) {
     // Set FFT mode after FFT object is created
     fft->setFFTMode(options.fft_mode);
 
-#ifdef _WIN32
-    // Attach the native Win32 menu bar now that the window, fft, and settings
-    // exist (Windows build only).
-    installWin32Menu();
-#endif
+    // NOTE (branch inapp-menu): the native Win32 menu (installWin32Menu) is
+    // intentionally NOT used here; this branch uses the cross-platform in-app
+    // MenuBarWidget built below, after the widget tree exists.
 
     // Initialize the ApplicationWidget as the root of the widget tree
     ApplicationWidget& app_widget = ApplicationWidget::getInstance(*screen);
@@ -2090,11 +2094,78 @@ bool Player::Initialize(const PlayerOptions& options) {
     add_label(*hud_panel_ptr, "album",    Rect(1, 34, 350, 16), true);
     add_label(*hud_panel_ptr, "playlist", Rect(270, 4, 120, 16));
     add_label(*hud_panel_ptr, "position", Rect(400, 3, 150, 16));
-    add_label(app_widget,     "scale",    Rect(545, 0, 95, 16));
-    add_label(app_widget,     "decay",    Rect(545, 15, 95, 16));
-    add_label(app_widget,     "fft_mode", Rect(545, 30, 95, 16));
+    // Shifted down by the menu-bar height so the in-app menu bar doesn't cover them.
+    add_label(app_widget,     "scale",    Rect(545, MenuBarWidget::BAR_H + 0, 95, 16));
+    add_label(app_widget,     "decay",    Rect(545, MenuBarWidget::BAR_H + 15, 95, 16));
+    add_label(app_widget,     "fft_mode", Rect(545, MenuBarWidget::BAR_H + 30, 95, 16));
 
     app_widget.addChild(std::move(hud_panel));
+
+    // In-app menu bar (cross-platform, top-most overlay). Mirrors the I, L, F,
+    // Z/X/C and 1-4 keys; items call the same actions the keys do.
+    {
+        using MI = MenuBarWidget::Item;
+        auto menu_bar = std::make_unique<MenuBarWidget>(640, 400, font.get());
+        m_menu_bar = menu_bar.get();
+
+        std::vector<MI> file_items;
+#ifdef HAVE_FILEDIALOG
+        file_items.push_back(MI::leaf("&Insert Track(s)", [this]{ openInsertDialog(); }, nullptr, "I"));
+        file_items.push_back(MI::leaf("Temp &Load Track", [this]{ openTemporaryTrackDialog(); }, nullptr, "L"));
+        file_items.push_back(MI::sep());
+#endif
+        file_items.push_back(MI::leaf("E&xit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
+        menu_bar->addMenu("&File", std::move(file_items));
+
+        // Playback: mirrors Space (pause), P/N (prev/next), Up/Down (volume).
+        std::vector<MI> playback_items;
+        playback_items.push_back(MI::leaf("&Pause", [this]{ playPause(); },
+            [this]{ return state == PlayerState::Paused; }, "Space"));
+        playback_items.push_back(MI::sep());
+        playback_items.push_back(MI::leaf("Pre&vious Track", [this]{ prevTrack(); }, nullptr, "P"));
+        playback_items.push_back(MI::leaf("&Next Track", [this]{ nextTrack(); }, nullptr, "N"));
+        playback_items.push_back(MI::sep());
+        playback_items.push_back(MI::leaf("Volume &Up", [this]{ setVolume(getVolume() + 0.05); }, nullptr, "Up"));
+        playback_items.push_back(MI::leaf("Volume &Down", [this]{ setVolume(getVolume() - 0.05); }, nullptr, "Dn"));
+        menu_bar->addMenu("&Playback", std::move(playback_items));
+
+        auto fft_mode_item = [this](const char* label, FFTMode mode) {
+            return MI::leaf(label,
+                [this, mode]{ fft->setFFTMode(mode); showToast("FFT Mode: " + fft->getFFTModeName()); updateInfo(); },
+                [this, mode]{ return fft->getFFTMode() == mode; });
+        };
+        auto delay_item = [this](const char* label, float value, const char* sc = "") {
+            return MI::leaf(label,
+                [this, value]{ decayfactor = value; updateInfo(); },
+                [this, value]{ return decayfactor == value; }, sc);
+        };
+        auto intensity_item = [this](const char* label, int value) {
+            return MI::leaf(label,
+                [this, value]{ scalefactor = value; updateInfo(); },
+                [this, value]{ return scalefactor == value; });
+        };
+
+        std::vector<MI> settings_items;
+        settings_items.push_back(MI::sub("FFT Mode", {
+            fft_mode_item("mat-og", FFTMode::Original),
+            fft_mode_item("vibe-1", FFTMode::Optimized),
+            fft_mode_item("neomat-in", FFTMode::NeomatIn),
+            fft_mode_item("neomat-out", FFTMode::NeomatOut),
+        }));
+        settings_items.push_back(MI::sub("Delay", {
+            delay_item("&Long", 0.5f, "Z"),
+            delay_item("&Normal", 1.0f, "X"),
+            delay_item("&Short", 2.0f, "C"),
+        }));
+        settings_items.push_back(MI::sub("Intensity", {
+            intensity_item("1", 1), intensity_item("2", 2),
+            intensity_item("3", 3), intensity_item("4", 4),
+        }));
+        menu_bar->addMenu("&Settings", std::move(settings_items));
+
+        menu_bar->setZOrder(ZOrder::MAX); // sort above toasts
+        app_widget.addWindow(std::move(menu_bar), ZOrder::MAX);
+    }
     m_loop_mode = LoopMode::None; // Default loop mode on startup
 
     // Initialize lyrics widget and add to application window system

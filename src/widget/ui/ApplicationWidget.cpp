@@ -38,6 +38,11 @@ int getWindowZOrder(const Widget* window)
     if (auto* transparent_window = dynamic_cast<const TransparentWindowWidget*>(window)) {
         return transparent_window->getZOrder();
     }
+    // The in-app menu bar is a plain Widget but must sort above everything
+    // (including toasts); honor its own z-order.
+    if (auto* menu = dynamic_cast<const MenuBarWidget*>(window)) {
+        return menu->getZOrder();
+    }
     return ZOrder::NORMAL;
 }
 

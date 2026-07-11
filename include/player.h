@@ -275,6 +275,7 @@ class Player
         
         // Spectrum analyzer widget (non-owning pointer - owned by ApplicationWidget)
         SpectrumAnalyzerWidget* m_spectrum_widget;
+        MenuBarWidget* m_menu_bar = nullptr; // in-app menu bar (non-owning; owned by ApplicationWidget)
         
         // Progress bar widget (non-owning pointer - owned by progress frame widget which is owned by ApplicationWidget)
         PlayerProgressBarWidget* m_progress_widget;
