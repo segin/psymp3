@@ -1844,6 +1844,25 @@ bool Player::Initialize(const PlayerOptions& options) {
 
     // Initialize UI and essential components first to show the window quickly.
     screen = std::make_unique<Display>();
+#ifndef _WIN32
+    // Set the SDL window/taskbar icon from the raw RGBA blob shipped in the data
+    // dir (best-effort; a missing icon is non-fatal). Windows uses the icon
+    // compiled into the exe via res/psymp3.rc, so this is Unix-only.
+    {
+        constexpr int icon_w = 128, icon_h = 128;
+        constexpr size_t icon_bytes = static_cast<size_t>(icon_w) * icon_h * 4;
+        for (const char* path : { PSYMP3_DATADIR "/psymp3.rgba", "./res/psymp3.rgba" }) {
+            std::ifstream f(path, std::ios::binary);
+            if (!f) continue;
+            std::vector<uint8_t> rgba(icon_bytes);
+            if (f.read(reinterpret_cast<char*>(rgba.data()), icon_bytes) &&
+                static_cast<size_t>(f.gcount()) == icon_bytes) {
+                screen->setWindowIcon(rgba.data(), icon_w, icon_h);
+                break;
+            }
+        }
+    }
+#endif
     system = std::make_unique<System>();
 #ifdef _WIN32
     System::setMainWindow(screen->getWindowHandle());

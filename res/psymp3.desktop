@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=PsyMP3
+GenericName=Music Player
+Comment=Audio player with FFT visualization
+Exec=psymp3 %U
+TryExec=psymp3
+Icon=psymp3
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+MimeType=audio/mpeg;audio/mp4;audio/x-m4a;audio/flac;audio/x-flac;audio/ogg;audio/x-vorbis+ogg;audio/x-opus+ogg;audio/x-wav;audio/x-ms-wma;application/ogg;audio/x-mpegurl;audio/x-scpls;
+StartupNotify=true
+Keywords=music;audio;player;mp3;flac;ogg;spectrum;fft;

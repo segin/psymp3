@@ -35,6 +35,9 @@ class Display : public Surface
         Display();
         ~Display() override;
         void SetCaption(TagLib::String, TagLib::String);
+        // Set the window/taskbar icon from a tightly-packed RGBA8888 buffer
+        // (byte order R,G,B,A). Best-effort; a null/invalid buffer is ignored.
+        void setWindowIcon(const uint8_t* rgba, int width, int height);
         void Flip() override;
         SDL_Window* getWindowHandle() const;
         bool handleWindowEvent(const SDL_WindowEvent& event);

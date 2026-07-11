@@ -52,6 +52,24 @@ Display::~Display()
     }
 }
 
+void Display::setWindowIcon(const uint8_t* rgba, int width, int height)
+{
+    if (!m_window || !rgba || width <= 0 || height <= 0) {
+        return;
+    }
+    // SDL_PIXELFORMAT_RGBA32 gives R,G,B,A byte order regardless of endianness,
+    // matching the raw blob. SDL_SetWindowIcon copies the pixels, so the
+    // temporary surface (and the caller's buffer) can be released afterwards.
+    SDL_Surface* icon = SDL_CreateRGBSurfaceWithFormatFrom(
+        const_cast<uint8_t*>(rgba), width, height, 32, width * 4,
+        SDL_PIXELFORMAT_RGBA32);
+    if (icon) {
+        SDL_SetWindowIcon(m_window, icon);
+        SDL_FreeSurface(icon);
+        Debug::log("display", "Display::setWindowIcon: set ", width, "x", height, " window icon");
+    }
+}
+
 void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
     (void)icon_title;
