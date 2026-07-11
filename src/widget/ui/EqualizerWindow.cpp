@@ -95,6 +95,7 @@ EqualizerWindow::EqualizerWindow(Font* font,
         Label* vlabel = addChildAt(
             std::make_unique<Label>(m_font, Rect(0, 0, kCol, kLabelH), fmtDb(m_gains[i]), label_fg, label_bg),
             col_x, vlabel_y, kCol, kLabelH);
+        vlabel->setAlignment(Label::Align::Center);
         m_value_labels.push_back(vlabel);
 
         auto slider = std::make_unique<SliderWidget>(kSliderW, kSliderH, m_min_db, m_max_db,
@@ -111,9 +112,10 @@ EqualizerWindow::EqualizerWindow(Font* font,
         addChildAt(std::move(slider), sx, slider_y, kSliderW, kSliderH);
         m_sliders.push_back(sp);
 
-        addChildAt(std::make_unique<Label>(m_font, Rect(0, 0, kCol, kLabelH),
+        Label* flabel = addChildAt(std::make_unique<Label>(m_font, Rect(0, 0, kCol, kLabelH),
                                            TagLib::String(m_labels[i], TagLib::String::UTF8), label_fg, label_bg),
                    col_x, flabel_y, kCol, kLabelH);
+        flabel->setAlignment(Label::Align::Center);
     }
 
     // Enable checkbox.
