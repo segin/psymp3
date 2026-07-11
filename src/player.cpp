@@ -1586,6 +1586,63 @@ bool Player::updateGUI()
     return audio ? audio->isFinished() : false;
 }
 
+// ---- Named player actions (shared by key shortcuts and the menu bar) -------
+
+void Player::volumeUp()   { setVolume(getVolume() + 0.05); }
+void Player::volumeDown() { setVolume(getVolume() - 0.05); }
+
+void Player::setIntensity(int factor)
+{
+    scalefactor = factor;
+    updateInfo();
+}
+
+void Player::setDelay(float factor)
+{
+    decayfactor = factor;
+    updateInfo();
+}
+
+void Player::setFFTMode(FFTMode mode)
+{
+    fft->setFFTMode(mode);
+    showToast("FFT Mode: " + fft->getFFTModeName());
+    updateInfo();
+}
+
+void Player::cycleFFTMode()
+{
+    FFTMode next_mode;
+    switch (fft->getFFTMode()) {
+        case FFTMode::Original:  next_mode = FFTMode::Optimized; break;
+        case FFTMode::Optimized: next_mode = FFTMode::NeomatIn;  break;
+        case FFTMode::NeomatIn:  next_mode = FFTMode::NeomatOut; break;
+        case FFTMode::NeomatOut: next_mode = FFTMode::Original;  break;
+        default:                 next_mode = FFTMode::Original;  break; // Should not happen
+    }
+    setFFTMode(next_mode);
+}
+
+void Player::cycleLoopMode()
+{
+    LoopMode next_mode;
+    switch (m_loop_mode) {
+        case LoopMode::None: next_mode = LoopMode::One;  break;
+        case LoopMode::One:  next_mode = LoopMode::All;  break;
+        case LoopMode::All:  next_mode = LoopMode::None; break;
+        default:             next_mode = LoopMode::None; break;
+    }
+    setLoopMode(next_mode);
+}
+
+void Player::toggleZoom()
+{
+    if (!screen) return;
+    const int next = (screen->getLogicalScale() == 1) ? 2 : 1;
+    screen->setLogicalScale(next);
+    showToast(next == 1 ? "Scale: 1x" : "Scale: 2x (pixel-doubled)");
+}
+
 /**
  * @brief Handles key press events.
  * This function contains the main logic for all keyboard shortcuts.
@@ -1636,37 +1693,22 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 #endif
 
         case SDLK_UP:
-            setVolume(getVolume() + 0.05);
+            volumeUp();
             break;
 
         case SDLK_DOWN:
-            setVolume(getVolume() - 0.05);
+            volumeDown();
             break;
 
-        case SDLK_0:
-            scalefactor = 0;
-            updateInfo();
-            break;
-        case SDLK_1:
-            scalefactor = 1;
-            updateInfo();
-            break;
-        case SDLK_2:
-            scalefactor = 2;
-            updateInfo();
-            break;
-        case SDLK_3:
-            scalefactor = 3;
-            updateInfo();
-            break;
-        case SDLK_4:
-            scalefactor = 4;
-            updateInfo();
-            break;
+        case SDLK_0: setIntensity(0); break;
+        case SDLK_1: setIntensity(1); break;
+        case SDLK_2: setIntensity(2); break;
+        case SDLK_3: setIntensity(3); break;
+        case SDLK_4: setIntensity(4); break;
 
-        case SDLK_z: decayfactor = 0.5f; updateInfo(); break;
-        case SDLK_x: decayfactor = 1.0f; updateInfo(); break;
-        case SDLK_c: decayfactor = 2.0f; updateInfo(); break;
+        case SDLK_z: setDelay(0.5f); break;
+        case SDLK_x: setDelay(1.0f); break;
+        case SDLK_c: setDelay(2.0f); break;
 
         case SDLK_LEFT:
             // On the initial key press, capture the current position to seek from.
@@ -1717,46 +1759,16 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_e:
-        {
-            LoopMode next_mode = LoopMode::None;
-            switch (m_loop_mode) {
-                case LoopMode::None: next_mode = LoopMode::One; break;
-                case LoopMode::One:  next_mode = LoopMode::All; break;
-                case LoopMode::All:  next_mode = LoopMode::None; break;
-                default: next_mode = LoopMode::None; break;
-            }
-            setLoopMode(next_mode);
-            // Persist this setting for the next session
+            cycleLoopMode();
             break;
-        }
 
         case SDLK_f:
-        {
-            // Cycle through FFT modes
-            FFTMode current_mode = fft->getFFTMode();
-            FFTMode next_mode;
-            switch (current_mode) {
-                case FFTMode::Original:  next_mode = FFTMode::Optimized; break;
-                case FFTMode::Optimized: next_mode = FFTMode::NeomatIn;  break;
-                case FFTMode::NeomatIn:  next_mode = FFTMode::NeomatOut; break;
-                case FFTMode::NeomatOut: next_mode = FFTMode::Original;  break;
-                default:                 next_mode = FFTMode::Original;  break; // Should not happen
-            }
-            fft->setFFTMode(next_mode);
-            showToast("FFT Mode: " + fft->getFFTModeName());
-            updateInfo();
+            cycleFFTMode();
             break;
-        }
-        
+
         case SDLK_g:
-        {
-            if (screen) {
-                const int next = (screen->getLogicalScale() == 1) ? 2 : 1;
-                screen->setLogicalScale(next);
-                showToast(next == 1 ? "Scale: 1x" : "Scale: 2x (pixel-doubled)");
-            }
+            toggleZoom();
             break;
-        }
 
         // The H, B, and J keys (test window H, test window B, random windows)
         // are deliberately disabled: their handlers are intentionally omitted
@@ -2127,23 +2139,23 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::leaf("Pre&vious Track", [this]{ prevTrack(); }, nullptr, "P"));
         playback_items.push_back(MI::leaf("&Next Track", [this]{ nextTrack(); }, nullptr, "N"));
         playback_items.push_back(MI::sep());
-        playback_items.push_back(MI::leaf("Volume &Up", [this]{ setVolume(getVolume() + 0.05); }, nullptr, "Up"));
-        playback_items.push_back(MI::leaf("Volume &Down", [this]{ setVolume(getVolume() - 0.05); }, nullptr, "Dn"));
+        playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
+        playback_items.push_back(MI::leaf("Volume &Down", [this]{ volumeDown(); }, nullptr, "Dn"));
         menu_bar->addMenu("&Playback", std::move(playback_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
             return MI::leaf(label,
-                [this, mode]{ fft->setFFTMode(mode); showToast("FFT Mode: " + fft->getFFTModeName()); updateInfo(); },
+                [this, mode]{ setFFTMode(mode); },
                 [this, mode]{ return fft->getFFTMode() == mode; });
         };
         auto delay_item = [this](const char* label, float value, const char* sc = "") {
             return MI::leaf(label,
-                [this, value]{ decayfactor = value; updateInfo(); },
+                [this, value]{ setDelay(value); },
                 [this, value]{ return decayfactor == value; }, sc);
         };
         auto intensity_item = [this](const char* label, int value) {
             return MI::leaf(label,
-                [this, value]{ scalefactor = value; updateInfo(); },
+                [this, value]{ setIntensity(value); },
                 [this, value]{ return scalefactor == value; });
         };
 
@@ -2164,15 +2176,7 @@ bool Player::Initialize(const PlayerOptions& options) {
             intensity_item("3", 3), intensity_item("4", 4),
         }));
         settings_items.push_back(MI::sep());
-        // Mirrors the G key: toggle 1x/2x pixel-doubled scaling.
-        settings_items.push_back(MI::leaf("2x &Zoom",
-            [this]{
-                if (screen) {
-                    const int next = (screen->getLogicalScale() == 1) ? 2 : 1;
-                    screen->setLogicalScale(next);
-                    showToast(next == 1 ? "Scale: 1x" : "Scale: 2x (pixel-doubled)");
-                }
-            },
+        settings_items.push_back(MI::leaf("2x &Zoom", [this]{ toggleZoom(); },
             [this]{ return screen && screen->getLogicalScale() == 2; }, "G"));
         menu_bar->addMenu("&Settings", std::move(settings_items));
 

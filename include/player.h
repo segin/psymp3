@@ -162,6 +162,18 @@ class Player
         void setShuffle(bool shuffle);
         bool getShuffle() const;
 
+        // Named player actions shared by the keyboard shortcuts and the menu
+        // bar. Each corresponds to a former inline case in handleKeyPress; the
+        // menu invokes these directly rather than injecting synthetic key events.
+        void volumeUp();                    // +5% (Up / Playback>Volume Up)
+        void volumeDown();                  // -5% (Down / Playback>Volume Down)
+        void setIntensity(int factor);      // spectrum scale factor (1-4 keys)
+        void setDelay(float factor);        // spectrum decay factor (Z/X/C)
+        void setFFTMode(FFTMode mode);      // set + toast + refresh
+        void cycleFFTMode();                // F key: advance to the next mode
+        void cycleLoopMode();               // E key: None -> One -> All -> None
+        void toggleZoom();                  // G key: 1x <-> 2x pixel doubling
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
