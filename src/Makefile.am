@@ -116,6 +116,7 @@ else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
  audio.cpp \
+ dsp/Equalizer.cpp \
  debug.cpp core/display.cpp \
  core/font.cpp \
  main.cpp mediafile.cpp \

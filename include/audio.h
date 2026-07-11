@@ -52,6 +52,12 @@ public:
     void setVolume(float volume);
     float getVolume() const;
 
+    // Equalizer controls (thin, RT-safe forwarders; state lives in m_eq).
+    void  setEqEnabled(bool on)            { m_eq.setEnabled(on); }
+    bool  getEqEnabled() const             { return m_eq.isEnabled(); }
+    void  setEqBandGain(int band, float db) { m_eq.setBandGain(band, db); }
+    float getEqBandGain(int band) const    { return m_eq.getBandGain(band); }
+
     std::mutex& getFFTMutex() const { return m_fft_mutex; }
 
 private:
@@ -97,6 +103,8 @@ private:
     std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};
     std::atomic<bool> m_stream_eof{false};
+
+    PsyMP3::DSP::Equalizer m_eq; // applied to the output PCM in callback()
 };
 
 #endif // AUDIO_H

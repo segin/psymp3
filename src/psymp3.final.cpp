@@ -15,6 +15,7 @@
 // Core Application
 // ============================================================================
 #include "audio.cpp"
+#include "dsp/Equalizer.cpp"
 #include "core/about.cpp"
 #include "core/fft.cpp"
 #include "core/fft_draw.cpp"

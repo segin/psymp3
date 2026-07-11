@@ -178,6 +178,10 @@ void Audio::setup() {
         m_device_rate = obtained.freq;
         m_device_channels = obtained.channels;
     }
+
+    // The equalizer processes decoded PCM at the stream's own rate/channels
+    // (the callback's `buf` is pre-device-conversion), so key it off those.
+    m_eq.configure(m_rate, m_channels);
 }
 
 /**
@@ -494,6 +498,14 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         SDL_memset(buf + bytes_copied, 0, len - bytes_copied);
     }
 
+    // Apply the equalizer to the real data region (not the silence tail) before
+    // the FFT tap below, so the spectrum reflects the EQ'd signal. RT-safe: the
+    // Equalizer neither locks nor allocates in process().
+    if (bytes_copied > 0 && self->m_channels > 0) {
+        size_t eq_frames = (bytes_copied / sizeof(int16_t)) / static_cast<size_t>(self->m_channels);
+        self->m_eq.process(reinterpret_cast<int16_t*>(buf), eq_frames, self->m_channels);
+    }
+
     // Perform FFT on the data we are sending to the sound card. Run it even
     // when bytes_copied == 0 (buffer underrun): `buf` has been silence-filled
     // above, so the FFT sees real silence and the spectrum decays instead of
@@ -569,6 +581,7 @@ std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_st
     m_current_stream_raw_ptr.store(m_owned_stream.get());
     m_samples_played = 0;
     m_stream_eof = primed_eof;
+    m_eq.requestReset(); // new track: clear filter history so it doesn't bleed
 
     // Notify the decoder thread that a new stream is available.
     m_stream_cv.notify_one();
@@ -581,6 +594,7 @@ std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_st
 void Audio::resetBuffer_unlocked() {
     m_buffer.clear();
     m_samples_played = 0;
+    m_eq.requestReset(); // seek: clear filter history to avoid a transient
 }
 
 /**

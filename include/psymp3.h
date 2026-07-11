@@ -590,6 +590,8 @@ using PsyMP3::Core::FFT;
 using PsyMP3::Core::FFTMode;
 #include "core/fft_draw.h"
 using PsyMP3::Core::FastFourier;
+#include "dsp/Equalizer.h"
+using PsyMP3::DSP::Equalizer;
 #include "audio.h"
 #include "core/about.h"
 using PsyMP3::Core::about_console;
