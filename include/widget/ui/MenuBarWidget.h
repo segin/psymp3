@@ -29,16 +29,22 @@ public:
     // One menu entry. A leaf has an action (and optionally a `checked` predicate
     // that draws a radio dot); a separator draws a divider; a submenu holds
     // child items and ignores `action`.
+    // `label` may carry a Win32-style '&' mnemonic marker: the character after
+    // '&' is drawn underlined (an accelerator hint); "&&" is a literal '&'.
+    // `shortcut` is a right-aligned key hint (e.g. "Z") — display only; the
+    // actual key is handled globally by the player.
     struct Item {
         std::string label;
         std::function<void()> action;    // invoked on click for leaf items
         std::function<bool()> checked;    // optional; draws a radio dot when true
         std::vector<Item> submenu;        // non-empty => submenu
+        std::string shortcut;             // right-aligned accelerator hint
         bool separator = false;
 
         static Item leaf(std::string l, std::function<void()> a,
-                         std::function<bool()> c = nullptr) {
-            Item i; i.label = std::move(l); i.action = std::move(a); i.checked = std::move(c); return i;
+                         std::function<bool()> c = nullptr, std::string sc = "") {
+            Item i; i.label = std::move(l); i.action = std::move(a);
+            i.checked = std::move(c); i.shortcut = std::move(sc); return i;
         }
         static Item sep() { Item i; i.separator = true; return i; }
         static Item sub(std::string l, std::vector<Item> items) {
@@ -73,6 +79,14 @@ private:
     int  textWidth(const std::string& s) const;   // cached pixel width
     mutable std::unordered_map<std::string, int> m_text_w;
 
+    // Strip the '&' mnemonic marker, returning the display string. Sets *mn_off
+    // to the pixel x-offset (within the rendered string) of the underlined
+    // glyph and *mn_w to its width, or *mn_off = -1 when there is no mnemonic.
+    std::string parseMnemonic(const std::string& label, int* mn_off, int* mn_w) const;
+    // Draw a label (with mnemonic underline) vertically centred in a row.
+    void drawLabel(Surface& surf, const std::string& label, int x, int row_y,
+                   int row_h, SDL_Color fg, SDL_Color bg);
+
     // Layout / hit-testing (shared by draw and event handling).
     int  barHitTest(int x, int y) const;                  // top-level index or -1
     Rect dropdownRect(const Menu& m) const;               // popup box
@@ -94,6 +108,7 @@ private:
     static constexpr int CHECK_COL = 16; // left column for the radio dot
     static constexpr int ARROW_COL = 14; // right column for the submenu arrow
     static constexpr int BAR_PAD = 7;    // horizontal padding per bar item
+    static constexpr int SHORTCUT_PAD = 16; // gap between label and shortcut col
 };
 
 } // namespace UI

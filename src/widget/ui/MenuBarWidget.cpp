@@ -52,6 +52,48 @@ std::unique_ptr<Surface> MenuBarWidget::renderText(const std::string& s, SDL_Col
                              fg.r, fg.g, fg.b, bg.r, bg.g, bg.b);
 }
 
+std::string MenuBarWidget::parseMnemonic(const std::string& label, int* mn_off, int* mn_w) const
+{
+    if (mn_off) *mn_off = -1;
+    if (mn_w) *mn_w = 0;
+
+    std::string clean;
+    clean.reserve(label.size());
+    int mn_index = -1; // byte index of the mnemonic char within `clean`
+    for (size_t i = 0; i < label.size(); ++i) {
+        if (label[i] == '&') {
+            if (i + 1 < label.size() && label[i + 1] == '&') { clean += '&'; ++i; continue; }
+            if (i + 1 < label.size() && mn_index < 0) { mn_index = static_cast<int>(clean.size()); continue; }
+            continue; // trailing '&' - ignore
+        }
+        clean += label[i];
+    }
+
+    if (mn_index >= 0) {
+        // Span the whole UTF-8 codepoint at the mnemonic position.
+        size_t end = static_cast<size_t>(mn_index) + 1;
+        while (end < clean.size() && (static_cast<unsigned char>(clean[end]) & 0xC0) == 0x80) ++end;
+        if (mn_off) *mn_off = textWidth(clean.substr(0, mn_index));
+        if (mn_w) *mn_w = textWidth(clean.substr(mn_index, end - mn_index));
+    }
+    return clean;
+}
+
+void MenuBarWidget::drawLabel(Surface& surf, const std::string& label, int x, int row_y,
+                              int row_h, SDL_Color fg, SDL_Color bg)
+{
+    int mn_off = -1, mn_w = 0;
+    std::string clean = parseMnemonic(label, &mn_off, &mn_w);
+    auto t = renderText(clean, fg, bg);
+    if (!t) return;
+    int ty = row_y + (row_h - t->height()) / 2;
+    surf.Blit(*t, Rect(x, ty, t->width(), t->height()));
+    if (mn_off >= 0 && mn_w > 0) {
+        int uy = ty + t->height() - 2; // just under the glyph baseline
+        surf.hline(x + mn_off, x + mn_off + mn_w - 1, uy, fg.r, fg.g, fg.b, 255);
+    }
+}
+
 void MenuBarWidget::addMenu(std::string name, std::vector<Item> items)
 {
     Menu m;
@@ -60,7 +102,7 @@ void MenuBarWidget::addMenu(std::string name, std::vector<Item> items)
     int x = 0;
     for (const auto& e : m_menus) x = e.bar_x + e.bar_w;
     m.bar_x = x;
-    m.bar_w = textWidth(m.name) + BAR_PAD * 2;
+    m.bar_w = textWidth(parseMnemonic(m.name, nullptr, nullptr)) + BAR_PAD * 2;
     m_menus.push_back(std::move(m));
     rebuild();
 }
@@ -93,12 +135,14 @@ int MenuBarWidget::popupHeight(const std::vector<Item>& items) const
 
 int MenuBarWidget::popupWidth(const std::vector<Item>& items) const
 {
-    int maxw = 0;
+    int maxw = 0, maxsc = 0;
     for (const auto& it : items) {
         if (it.separator) continue;
-        maxw = std::max(maxw, textWidth(it.label));
+        maxw = std::max(maxw, textWidth(parseMnemonic(it.label, nullptr, nullptr)));
+        if (!it.shortcut.empty()) maxsc = std::max(maxsc, textWidth(it.shortcut));
     }
-    return CHECK_COL + maxw + ARROW_COL + 4;
+    int sc_col = maxsc > 0 ? maxsc + SHORTCUT_PAD : 0;
+    return CHECK_COL + maxw + sc_col + ARROW_COL + 4;
 }
 
 Rect MenuBarWidget::dropdownRect(const Menu& m) const
@@ -181,10 +225,7 @@ void MenuBarWidget::rebuild()
             surf->box(m.bar_x, 0, m.bar_x + m.bar_w - 1, BAR_H - 2, kHiBg.r, kHiBg.g, kHiBg.b, 255);
         SDL_Color tc = open ? kHiText : kText;
         SDL_Color bg = open ? kHiBg : kBar;
-        if (auto t = renderText(m.name, tc, bg)) {
-            int ty = (BAR_H - t->height()) / 2;
-            surf->Blit(*t, Rect(m.bar_x + BAR_PAD, ty, t->width(), t->height()));
-        }
+        drawLabel(*surf, m.name, m.bar_x + BAR_PAD, 0, BAR_H, tc, bg);
     }
 
     // --- a dropdown popup ---
@@ -211,9 +252,14 @@ void MenuBarWidget::rebuild()
                 int cx = box.x() + 5, cyd = ry + ITEM_H / 2 - 2;
                 surf->box(cx, cyd, cx + 3, cyd + 3, tc.r, tc.g, tc.b, 255);
             }
-            if (auto t = renderText(it.label, tc, bg)) {
-                int ty = ry + (ITEM_H - t->height()) / 2;
-                surf->Blit(*t, Rect(box.x() + CHECK_COL, ty, t->width(), t->height()));
+            drawLabel(*surf, it.label, box.x() + CHECK_COL, ry, ITEM_H, tc, bg);
+            // right-aligned keyboard-shortcut hint
+            if (!it.shortcut.empty()) {
+                if (auto st = renderText(it.shortcut, tc, bg)) {
+                    int sx = box.x() + box.width() - ARROW_COL - st->width() - 2;
+                    int sy = ry + (ITEM_H - st->height()) / 2;
+                    surf->Blit(*st, Rect(sx, sy, st->width(), st->height()));
+                }
             }
             // submenu arrow
             if (!it.submenu.empty()) {
