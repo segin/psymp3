@@ -34,11 +34,17 @@ public:
                     const std::vector<std::string>& band_labels,
                     double min_db, double max_db,
                     const std::vector<double>& initial_gains,
-                    bool enabled);
+                    bool enabled,
+                    double initial_volume);
 
     void setOnBandChanged(std::function<void(int, double)> cb) { m_on_band = std::move(cb); }
     void setOnEnabledChanged(std::function<void(bool)> cb)     { m_on_enabled = std::move(cb); }
+    void setOnVolumeChanged(std::function<void(double)> cb)    { m_on_volume = std::move(cb); }
     void setOnStatus(std::function<void(const std::string&)> cb) { m_on_status = std::move(cb); }
+
+    // Reflect an externally-driven volume change (keyboard Up/Down) on the
+    // slider/readout without echoing it back through onVolumeChanged.
+    void setVolume(double volume01);
 
     // Snap every slider to `gains` (propagates through the normal change path,
     // so the curve, readouts and onBandChanged all update).
@@ -70,9 +76,13 @@ private:
     EqualizerCurveWidget*      m_curve = nullptr;
     MenuBarWidget*             m_menu = nullptr;
     CheckboxWidget*            m_enable = nullptr;
+    SliderWidget*              m_volume_slider = nullptr;
+    Label*                     m_volume_value = nullptr;
+    bool                       m_suppress_volume_cb = false;
 
     std::function<void(int, double)>        m_on_band;
     std::function<void(bool)>               m_on_enabled;
+    std::function<void(double)>             m_on_volume;
     std::function<void(const std::string&)> m_on_status;
 };
 

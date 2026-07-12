@@ -280,7 +280,7 @@ Player::Player() : m_rng(std::random_device{}()) {
     m_track_start_time = 0;
     m_track_scrobbled = false;
     m_volume = 1.0f;
-    
+
 #ifdef HAVE_DBUS
     m_mpris_manager = std::make_unique<PsyMP3::MPRIS::MPRISManager>(this);
     auto init_result = m_mpris_manager->initialize();
@@ -2872,8 +2872,10 @@ void Player::toggleEqualizerWindow()
     }
 
     auto client = std::make_unique<EqualizerWindow>(
-        font.get(), labels, Equalizer::kMinGainDb, Equalizer::kMaxGainDb, gains, m_eq_enabled);
+        font.get(), labels, Equalizer::kMinGainDb, Equalizer::kMaxGainDb, gains, m_eq_enabled,
+        getVolume());
     m_eq_client = client.get();
+    client->setOnVolumeChanged([this](double v) { setVolume(v); });
     client->setOnBandChanged([this](int band, double db) {
         if (band >= 0 && band < static_cast<int>(m_eq_gains.size()))
             m_eq_gains[band] = static_cast<float>(db);
@@ -3127,6 +3129,12 @@ void Player::setVolume(double volume) {
     // Show toast with new volume percentage
     int percentage = static_cast<int>(m_volume * 100 + 0.5f); // Round to nearest integer
     showToast("Volume: " + std::to_string(percentage) + "%");
+
+    // Reflect the change on the equalizer window's volume slider (no echo:
+    // setVolume() there suppresses its onVolumeChanged callback).
+    if (m_eq_client) {
+        m_eq_client->setVolume(static_cast<double>(m_volume));
+    }
 
 #ifdef HAVE_DBUS
     if (m_mpris_manager) {

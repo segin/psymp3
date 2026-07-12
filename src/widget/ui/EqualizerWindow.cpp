@@ -48,20 +48,26 @@ std::string fmtDb(double db)
     if (v > 0) return "+" + std::to_string(v);
     return std::to_string(v);
 }
+
+std::string fmtPct(double volume01)
+{
+    return std::to_string(std::lround(volume01 * 100.0)) + "%";
+}
 } // namespace
 
 int EqualizerWindow::preferredWidth(int num_bands)  { return 2 * kPad + num_bands * kCol; }
 int EqualizerWindow::preferredHeight()
 {
-    // menu + curve + value labels + sliders + freq labels + enable row
-    return kMenuH + 6 + kCurveH + 4 + kLabelH + 2 + kSliderH + 2 + kLabelH + 6 + 16 + kPad;
+    // menu + curve + value labels + sliders + freq labels + enable + volume rows
+    return kMenuH + 6 + kCurveH + 4 + kLabelH + 2 + kSliderH + 2 + kLabelH + 6 + 16 + 6 + 16 + kPad;
 }
 
 EqualizerWindow::EqualizerWindow(Font* font,
                                  const std::vector<std::string>& band_labels,
                                  double min_db, double max_db,
                                  const std::vector<double>& initial_gains,
-                                 bool enabled)
+                                 bool enabled,
+                                 double initial_volume)
     : LayoutWidget(preferredWidth(static_cast<int>(band_labels.size())), preferredHeight(), false)
     , m_font(font)
     , m_num(static_cast<int>(band_labels.size()))
@@ -81,6 +87,7 @@ EqualizerWindow::EqualizerWindow(Font* font,
     const int slider_y = vlabel_y + kLabelH + 2;
     const int flabel_y = slider_y + kSliderH + 2;
     const int enable_y = flabel_y + kLabelH + 6;
+    const int volume_y = enable_y + 16 + 6;
 
     // Curve preview.
     m_curve = addChildAt(
@@ -89,10 +96,10 @@ EqualizerWindow::EqualizerWindow(Font* font,
     m_curve->setGains(m_gains);
 
     // One column per band: dB readout, fader, frequency label. Labels paint
-    // black text on the window's face grey (their default background is opaque
-    // black, which would otherwise show as a black bar).
+    // black text on white (a Label's background is opaque, so an explicit
+    // colour is required either way; white matches the checkbox).
     const SDL_Color label_fg{0, 0, 0, 255};
-    const SDL_Color label_bg{192, 192, 192, 255};
+    const SDL_Color label_bg{255, 255, 255, 255};
     for (int i = 0; i < m_num; ++i) {
         const int col_x = kPad + i * kCol;
         const int sx = col_x + (kCol - kSliderW) / 2;
@@ -130,6 +137,33 @@ EqualizerWindow::EqualizerWindow(Font* font,
                           kPad, enable_y, W - 2 * kPad, 16);
     m_enable->setOnToggle([this](bool on) { if (m_on_enabled) m_on_enabled(on); });
 
+    // Volume row: label, horizontal slider (0..1), percentage readout.
+    {
+        const int name_w = 44;
+        const int pct_w = 32;
+        const int vs_x = kPad + name_w + 4;
+        const int vs_w = W - kPad - pct_w - 4 - vs_x;
+
+        addChildAt(std::make_unique<Label>(m_font, Rect(0, 0, name_w, kLabelH),
+                                           TagLib::String("Volume", TagLib::String::UTF8),
+                                           label_fg, label_bg),
+                   kPad, volume_y + 2, name_w, kLabelH);
+
+        auto vslider = std::make_unique<SliderWidget>(vs_w, 16, 0.0, 1.0, initial_volume,
+                                                      SliderOrientation::Horizontal);
+        m_volume_slider = vslider.get();
+        m_volume_slider->setOnChange([this](double v) {
+            if (m_volume_value) m_volume_value->setText(fmtPct(v));
+            if (!m_suppress_volume_cb && m_on_volume) m_on_volume(v);
+        });
+        addChildAt(std::move(vslider), vs_x, volume_y, vs_w, 16);
+
+        m_volume_value = addChildAt(std::make_unique<Label>(m_font, Rect(0, 0, pct_w, kLabelH),
+                                                            fmtPct(initial_volume), label_fg, label_bg),
+                                    W - kPad - pct_w, volume_y + 2, pct_w, kLabelH);
+        m_volume_value->setAlignment(Label::Align::Right);
+    }
+
     // Menu bar on top (full-surface pass-through overlay; added last => topmost).
     auto menu = std::make_unique<MenuBarWidget>(getPos().width(), getPos().height(), m_font);
     m_menu = menu.get();
@@ -159,6 +193,16 @@ EqualizerWindow::EqualizerWindow(Font* font,
     m_menu->addMenu("User Presets", std::move(user_items));
 
     addChildAt(std::move(menu), 0, 0, getPos().width(), getPos().height());
+}
+
+void EqualizerWindow::setVolume(double volume01)
+{
+    if (!m_volume_slider) return;
+    // Reflect only: the change came from outside (keyboard/MPRIS), so don't
+    // echo it back through onVolumeChanged.
+    m_suppress_volume_cb = true;
+    m_volume_slider->setValue(volume01);
+    m_suppress_volume_cb = false;
 }
 
 void EqualizerWindow::applyGains(const std::vector<double>& gains)
