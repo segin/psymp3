@@ -2372,11 +2372,20 @@ void Player::EventLoop() {
                     break;
                 }
 
-                // Menus act on mouse-down only, so no menu step here; the
-                // window pass still runs first (capture routing included) so a
-                // drag release inside a window can never leak to the handlers
-                // beneath it.
-                bool handled = handleWindowMouseEvents(event);
+                // The menu bar sees the release first (unless a window-owned
+                // capture is active): leaf items activate on mouse-up, so a
+                // press-drag-release gesture selects the item under the cursor.
+                bool handled = false;
+                if (windowOwnsMouseCapture()) {
+                    handled = handleWindowMouseEvents(event);
+                } else {
+                    if (m_menu_bar && m_menu_bar->handleMouseUp(event.button, event.button.x, event.button.y)) {
+                        handled = true;
+                    }
+                    if (!handled) {
+                        handled = handleWindowMouseEvents(event);
+                    }
+                }
                 if (!handled) {
                     if (m_use_widget_mouse_handling && m_ui_root) {
                         handled = m_ui_root->handleMouseUp(event.button, event.button.x, event.button.y);

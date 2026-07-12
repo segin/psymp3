@@ -69,6 +69,10 @@ public:
 
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
+    // Leaf items activate on RELEASE (classic menu protocol): press on a bar
+    // title, drag into the dropdown, release on an item selects it in one
+    // gesture, and a press on an item can slide away to cancel.
+    bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
 
     static constexpr int BAR_H = 16; // menu bar height (logical px)
 

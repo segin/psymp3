@@ -305,14 +305,15 @@ bool MenuBarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int x, in
     if (m_open >= 0) {
         const Menu& m = m_menus[m_open];
         Rect dd = dropdownRect(m);
+        // Leaf items are only HIGHLIGHTED on press; activation happens on
+        // release (handleMouseUp), so a press can slide away to cancel and a
+        // press-drag-release gesture from the bar selects in one motion.
         // submenu first (it overlaps to the right)
         if (m_open_sub >= 0 && !m.items[m_open_sub].submenu.empty()) {
             Rect sr = submenuRect(m, m_open_sub);
             int si = itemAt(m.items[m_open_sub].submenu, sr, x, y);
             if (si >= 0) {
-                auto act = m.items[m_open_sub].submenu[si].action;
-                closeMenu();
-                if (act) act();
+                if (m_hover_sub != si) { m_hover_sub = si; rebuild(); }
                 return true;
             }
         }
@@ -325,9 +326,7 @@ bool MenuBarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int x, in
                 rebuild();
                 return true;
             }
-            auto act = it.action;
-            closeMenu();
-            if (act) act();
+            if (m_hover != di) { m_hover = di; rebuild(); }
             return true;
         }
         // click outside any popup -> dismiss (and consume this click)
@@ -336,6 +335,39 @@ bool MenuBarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int x, in
     }
 
     return false; // nothing open, click not on the bar -> pass through
+}
+
+bool MenuBarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int x, int y)
+{
+    if (event.button != SDL_BUTTON_LEFT || m_open < 0) {
+        return false;
+    }
+
+    const Menu& m = m_menus[m_open];
+
+    // Submenu first (it overlaps the dropdown).
+    if (m_open_sub >= 0 && !m.items[m_open_sub].submenu.empty()) {
+        int si = itemAt(m.items[m_open_sub].submenu, submenuRect(m, m_open_sub), x, y);
+        if (si >= 0) {
+            auto act = m.items[m_open_sub].submenu[si].action;
+            closeMenu();
+            if (act) act();
+            return true;
+        }
+    }
+
+    int di = itemAt(m.items, dropdownRect(m), x, y);
+    if (di >= 0 && m.items[di].submenu.empty()) {
+        auto act = m.items[di].action;
+        closeMenu();
+        if (act) act();
+        return true;
+    }
+
+    // Release anywhere else (a bar title, a submenu parent, a separator, or
+    // off the popups after a drag) keeps the menu open — this is what lets a
+    // simple click on the title open the menu. Consume the release while open.
+    return true;
 }
 
 bool MenuBarWidget::handleMouseMotion(const SDL_MouseMotionEvent&, int x, int y)
