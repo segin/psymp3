@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([PsyMP3],[2-CURRENT],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
+AC_INIT([PsyMP3],[1.99.10-RELEASE],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
 AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([1.10 subdir-objects])
 
