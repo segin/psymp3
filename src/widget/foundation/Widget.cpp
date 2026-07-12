@@ -212,9 +212,26 @@ Surface& Widget::getSurface() {
 
 bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    // If a widget has mouse capture, forward directly to it
-    if (s_mouse_captured_widget && s_mouse_captured_widget != this) {
-        return false; // Let the captured widget handle it
+    // If a widget has mouse capture, forward directly to it regardless of
+    // position — mirroring handleMouseMotion/handleMouseUp. (Previously
+    // mouse-downs were dropped tree-wide during capture, so e.g. a second
+    // button pressed mid-drag was silently swallowed.)
+    if (s_mouse_captured_widget) {
+        if (s_mouse_captured_widget == this) {
+            return true; // Will be handled by the specific widget's override
+        }
+
+        int captured_relative_x = 0;
+        int captured_relative_y = 0;
+        if (translateToDescendant(*this, *s_mouse_captured_widget,
+                                  relative_x, relative_y,
+                                  captured_relative_x, captured_relative_y)) {
+            return s_mouse_captured_widget->handleMouseDown(
+                event, captured_relative_x, captured_relative_y);
+        }
+
+        // Not our captured widget, don't handle
+        return false;
     }
 
     // Forward to children in reverse order (front to back for event handling)
