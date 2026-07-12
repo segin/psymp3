@@ -135,7 +135,9 @@ void CheckboxWidget::rebuildSurface()
     }
 
     if (m_font && !m_text.isEmpty()) {
-        auto text_surface = m_font->Render(m_text, isEnabled() ? 0 : 128, isEnabled() ? 0 : 128, isEnabled() ? 0 : 128);
+        // ClearType/LCD, pre-blended against the checkbox's white background.
+        const uint8_t c = isEnabled() ? 0 : 128;
+        auto text_surface = m_font->RenderLCD(m_text, c, c, c, 255, 255, 255);
         if (text_surface) {
             const int text_x = 18;
             const int text_y = std::max(0, (pos.height() - text_surface->height()) / 2);
