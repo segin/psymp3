@@ -230,7 +230,8 @@ class Player
 
         // Window management methods
         void renderWindows();
-        void handleWindowMouseEvents(const SDL_Event& event);
+        bool handleWindowMouseEvents(const SDL_Event& event);
+        bool windowOwnsMouseCapture() const;
         void toggleTestWindowH();
         void toggleTestWindowB();
         void createRandomWindows();

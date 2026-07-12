@@ -2300,73 +2300,88 @@ void Player::EventLoop() {
             }
             case SDL_MOUSEBUTTONDOWN:
             {
-                // While a menu is open its dropdown sits above the floating
-                // windows; let the widget tree (menu) claim the click first so
-                // a window beneath does not also react (e.g. start dragging).
-                if (!(m_menu_bar && m_menu_bar->isOpen())) {
-                    handleWindowMouseEvents(event);
-                }
+                TextInputWidget::clearFocusedWidget();
 
-                if (m_use_widget_mouse_handling) {
-                    // Try widget tree first
-                    bool handled = false;
-                    if (m_ui_root) {
+                // Dispatch by visual priority: a window-owned mouse capture is
+                // authoritative (routed even while a menu is open, so a drag's
+                // release is never lost); otherwise the menu bar (topmost) gets
+                // first claim, then the floating windows (which consume all
+                // in-bounds clicks), then the main widget tree, then the legacy
+                // handlers.
+                bool handled = false;
+                if (windowOwnsMouseCapture()) {
+                    handled = handleWindowMouseEvents(event);
+                } else {
+                    if (m_menu_bar && m_menu_bar->handleMouseDown(event.button, event.button.x, event.button.y)) {
+                        handled = true;
+                    }
+                    if (!handled) {
+                        handled = handleWindowMouseEvents(event);
+                    }
+                }
+                if (!handled) {
+                    if (m_use_widget_mouse_handling && m_ui_root) {
                         handled = m_ui_root->handleMouseDown(event.button, event.button.x, event.button.y);
                     }
-                    
-                    // Fall back to old handler if widget tree didn't handle it
+                    // Fall back to old handler if the widget tree didn't handle it
                     if (!handled) {
                         handleMouseButtonDown(event.button);
                     }
-                } else {
-                    // Legacy mode: use only old handlers
-                    handleMouseButtonDown(event.button);
                 }
                 break;
             }
             case SDL_MOUSEMOTION:
             {
-                if (!(m_menu_bar && m_menu_bar->isOpen())) {
-                    handleWindowMouseEvents(event);
+                // The legacy seek drag holds no widget capture; keep feeding it
+                // directly so moving over a window mid-drag doesn't freeze it.
+                if (m_is_dragging && !Widget::getMouseCapturedWidget()) {
+                    handleMouseMotion(event.motion);
+                    break;
                 }
 
-                if (m_use_widget_mouse_handling) {
-                    // Try widget tree first
-                    bool handled = false;
-                    if (m_ui_root) {
+                bool handled = false;
+                if (windowOwnsMouseCapture()) {
+                    handled = handleWindowMouseEvents(event);
+                } else {
+                    if (m_menu_bar && m_menu_bar->handleMouseMotion(event.motion, event.motion.x, event.motion.y)) {
+                        handled = true; // an open menu owns hover
+                    }
+                    if (!handled) {
+                        handled = handleWindowMouseEvents(event);
+                    }
+                }
+                if (!handled) {
+                    if (m_use_widget_mouse_handling && m_ui_root) {
                         handled = m_ui_root->handleMouseMotion(event.motion, event.motion.x, event.motion.y);
                     }
-                    
-                    // Fall back to old handler if widget tree didn't handle it
+                    // Fall back to old handler if the widget tree didn't handle it
                     if (!handled) {
                         handleMouseMotion(event.motion);
                     }
-                } else {
-                    // Legacy mode: use only old handlers
-                    handleMouseMotion(event.motion);
                 }
                 break;
             }
             case SDL_MOUSEBUTTONUP:
             {
-                if (!(m_menu_bar && m_menu_bar->isOpen())) {
-                    handleWindowMouseEvents(event);
+                // Complete a legacy seek drag no matter what is under the cursor.
+                if (m_is_dragging && !Widget::getMouseCapturedWidget()) {
+                    handleMouseButtonUp(event.button);
+                    break;
                 }
 
-                if (m_use_widget_mouse_handling) {
-                    // Try widget tree first
-                    bool handled = false;
-                    if (m_ui_root) {
+                // Menus act on mouse-down only, so no menu step here; the
+                // window pass still runs first (capture routing included) so a
+                // drag release inside a window can never leak to the handlers
+                // beneath it.
+                bool handled = handleWindowMouseEvents(event);
+                if (!handled) {
+                    if (m_use_widget_mouse_handling && m_ui_root) {
                         handled = m_ui_root->handleMouseUp(event.button, event.button.x, event.button.y);
                     }
-                    
-                    // Fall back to old handler if widget tree didn't handle it
+                    // Fall back to old handler if the widget tree didn't handle it
                     if (!handled) {
                         handleMouseButtonUp(event.button);
                     }
-                } else {
-                    // Legacy mode: use only old handlers
-                    handleMouseButtonUp(event.button);
                 }
                 break;
             }
@@ -2649,13 +2664,13 @@ void Player::renderWindows()
 /**
  * @brief Handles mouse events for windows.
  * @param event The SDL event to handle
+ * @return true when a window consumed the event (it was dispatched to a window
+ *         that holds the mouse capture, or it landed within a window's bounds —
+ *         windows occlude whatever is beneath them, so an in-bounds event is
+ *         consumed even if no inner widget claimed it).
  */
-void Player::handleWindowMouseEvents(const SDL_Event& event)
+bool Player::handleWindowMouseEvents(const SDL_Event& event)
 {
-    if (event.type == SDL_MOUSEBUTTONDOWN) {
-        TextInputWidget::clearFocusedWidget();
-    }
-
     // Create list of windows sorted by z-order (highest first for event handling)
     std::vector<WindowFrameWidget*> sorted_windows;
     
@@ -2684,14 +2699,15 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
               });
     
     bool handled_any_window = false;
+    Widget* captured = Widget::getMouseCapturedWidget();
 
     // Handle events for windows (front to back)
     for (auto* window : sorted_windows) {
         if (!window) continue;
-        
+
         Rect window_rect = window->getPos();
         int mouse_x = 0, mouse_y = 0;
-        
+
         // Get mouse coordinates based on event type
         if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
             mouse_x = event.button.x;
@@ -2702,36 +2718,61 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
         } else {
             continue;
         }
-        
+
         // Check if this window has mouse capture or if mouse is within window bounds
-        bool has_capture = widgetBelongsToWindow(Widget::getMouseCapturedWidget(), window);
+        bool has_capture = widgetBelongsToWindow(captured, window);
+
+        // A capture held OUTSIDE the window system (e.g. the main UI's progress
+        // bar mid-drag) must keep receiving events; windows must not occlude it.
+        if (captured && !has_capture) {
+            continue;
+        }
+
         bool in_bounds = (mouse_x >= window_rect.x() && mouse_x < window_rect.x() + window_rect.width() &&
                          mouse_y >= window_rect.y() && mouse_y < window_rect.y() + window_rect.height());
-        
+
         if (has_capture || in_bounds) {
             int relative_x = mouse_x - window_rect.x();
             int relative_y = mouse_y - window_rect.y();
-            
-            bool handled = false;
-            
+
             if (event.type == SDL_MOUSEBUTTONDOWN) {
-                handled = window->handleMouseDown(event.button, relative_x, relative_y);
+                window->handleMouseDown(event.button, relative_x, relative_y);
             } else if (event.type == SDL_MOUSEMOTION) {
-                handled = window->handleMouseMotion(event.motion, relative_x, relative_y);
+                window->handleMouseMotion(event.motion, relative_x, relative_y);
             } else if (event.type == SDL_MOUSEBUTTONUP) {
-                handled = window->handleMouseUp(event.button, relative_x, relative_y);
+                window->handleMouseUp(event.button, relative_x, relative_y);
             }
-            
-            if (handled) {
-                handled_any_window = true;
-                break; // Event consumed by this window
-            }
+
+            // Consume regardless of whether an inner widget claimed it: the
+            // topmost window at this point occludes everything beneath, so the
+            // event must not fall through to lower windows, the main UI, or the
+            // legacy handlers (e.g. the seek-bar hitbox).
+            handled_any_window = true;
+            break;
         }
     }
 
-    if (event.type == SDL_MOUSEMOTION && !handled_any_window && Widget::getMouseCapturedWidget() == nullptr) {
+    if (event.type == SDL_MOUSEMOTION && !handled_any_window && captured == nullptr) {
         WindowFrameWidget::restoreDefaultCursor();
     }
+
+    return handled_any_window;
+}
+
+/**
+ * @brief Whether the widget currently holding the mouse capture lives inside
+ *        one of the Player-managed floating windows.
+ */
+bool Player::windowOwnsMouseCapture() const
+{
+    Widget* captured = Widget::getMouseCapturedWidget();
+    if (!captured) return false;
+    if (m_test_window_h && widgetBelongsToWindow(captured, m_test_window_h.get())) return true;
+    if (m_test_window_b && widgetBelongsToWindow(captured, m_test_window_b.get())) return true;
+    for (const auto& window : m_random_windows) {
+        if (widgetBelongsToWindow(captured, window.get())) return true;
+    }
+    return false;
 }
 
 /**
