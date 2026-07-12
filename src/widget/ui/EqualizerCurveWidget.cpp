@@ -85,10 +85,20 @@ void EqualizerCurveWidget::draw(Surface& surface)
         pts.push_back({ static_cast<double>(bandX(i)),
                         static_cast<double>(dbToY(m_gains[i], plot_top, plot_h)) });
 
+    // Catmull-Rom overshoots between control points (by up to |p2-p0|/6), so
+    // clamp every sample to the plot rectangle — otherwise the curve paints
+    // over the bezel/margins for gain patterns like 0,+12,+12,0.
     std::vector<PsyMP3::Core::CurvePoint> poly = PsyMP3::Core::smoothCurve(pts, 20);
+    auto clampPt = [&](PsyMP3::Core::CurvePoint p) {
+        p.x = std::clamp(p.x, static_cast<double>(plot_x), static_cast<double>(plot_x + plot_w - 1));
+        p.y = std::clamp(p.y, static_cast<double>(plot_top), static_cast<double>(plot_top + plot_h - 1));
+        return p;
+    };
     for (size_t i = 1; i < poly.size(); ++i) {
-        surface.line(static_cast<Sint16>(poly[i - 1].x), static_cast<Sint16>(poly[i - 1].y),
-                     static_cast<Sint16>(poly[i].x),     static_cast<Sint16>(poly[i].y),
+        const auto a = clampPt(poly[i - 1]);
+        const auto b = clampPt(poly[i]);
+        surface.line(static_cast<Sint16>(a.x), static_cast<Sint16>(a.y),
+                     static_cast<Sint16>(b.x), static_cast<Sint16>(b.y),
                      0, 224, 96, 255);
     }
 
