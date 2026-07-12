@@ -9,11 +9,26 @@
 
 #include "psymp3.h"
 
+#include <filesystem>
+
 namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
 namespace {
+// Build a filesystem path from a UTF-8 string with correct Windows Unicode
+// semantics: narrow fstream paths go through the ANSI codepage there, which
+// breaks non-ASCII %APPDATA% (the directory itself is created wide via
+// CreateDirectoryW). Mirrors the FileIOHandler wide-path pattern.
+std::filesystem::path fsPathFromUtf8(const std::string& utf8)
+{
+#ifdef _WIN32
+    return std::filesystem::path(TagLib::String(utf8, TagLib::String::UTF8).toWString());
+#else
+    return std::filesystem::path(utf8);
+#endif
+}
+
 // --- Layout geometry (logical px) ---
 constexpr int kMenuH   = 16;   // MenuBarWidget::BAR_H
 constexpr int kPad     = 10;
@@ -163,7 +178,7 @@ void EqualizerWindow::applyGains(const std::vector<double>& gains)
 
 bool EqualizerWindow::saveToFile(const std::string& path) const
 {
-    std::ofstream f(path, std::ios::out | std::ios::trunc);
+    std::ofstream f(fsPathFromUtf8(path), std::ios::out | std::ios::trunc);
     if (!f) return false;
     f << "# PsyMP3 Equalizer preset\n";
     f << "# <band>\t<gain dB>\n";
@@ -175,7 +190,7 @@ bool EqualizerWindow::saveToFile(const std::string& path) const
 
 bool EqualizerWindow::loadFromFile(const std::string& path)
 {
-    std::ifstream f(path);
+    std::ifstream f(fsPathFromUtf8(path));
     if (!f) return false;
     std::vector<double> gains;
     std::string line;
