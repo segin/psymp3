@@ -498,14 +498,6 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         SDL_memset(buf + bytes_copied, 0, len - bytes_copied);
     }
 
-    // Apply the equalizer to the real data region (not the silence tail) before
-    // the FFT tap below, so the spectrum reflects the EQ'd signal. RT-safe: the
-    // Equalizer neither locks nor allocates in process().
-    if (bytes_copied > 0 && self->m_channels > 0) {
-        size_t eq_frames = (bytes_copied / sizeof(int16_t)) / static_cast<size_t>(self->m_channels);
-        self->m_eq.process(reinterpret_cast<int16_t*>(buf), eq_frames, self->m_channels);
-    }
-
     // Perform FFT on the data we are sending to the sound card. Run it even
     // when bytes_copied == 0 (buffer underrun): `buf` has been silence-filled
     // above, so the FFT sees real silence and the spectrum decays instead of
@@ -533,6 +525,17 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         for (size_t i = 0; i < count; ++i) {
             samples[i] = static_cast<int16_t>(samples[i] * volume);
         }
+    }
+
+    // Apply the equalizer LAST, after volume scaling: at volumes below 100% the
+    // attenuation leaves headroom, so positive EQ band gains are far less likely
+    // to clip already-loud (e.g. heavily compressed) material. RT-safe: the
+    // Equalizer neither locks nor allocates in process(). Note the FFT tap above
+    // therefore sees the raw pre-EQ signal (the spectrum stays volume- and
+    // EQ-independent, as it was before the equalizer existed).
+    if (bytes_copied > 0 && self->m_channels > 0) {
+        size_t eq_frames = (bytes_copied / sizeof(int16_t)) / static_cast<size_t>(self->m_channels);
+        self->m_eq.process(reinterpret_cast<int16_t*>(buf), eq_frames, self->m_channels);
     }
 }
 
