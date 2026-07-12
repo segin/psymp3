@@ -39,6 +39,10 @@ constexpr int kCurveH  = 64;
 constexpr int kLabelH  = 12;
 
 // --- Built-in presets (dB per band, 7-band layout) ---
+// The table is written for exactly the DSP's band layout; if the band count
+// ever changes, these curves must be redrawn, not silently truncated/padded.
+static_assert(PsyMP3::DSP::Equalizer::kNumBands == 7,
+              "built-in EQ presets are authored for 7 bands");
 struct Preset { const char* name; double g[7]; };
 constexpr Preset kPresets[] = {
     { "Flat",         {  0,  0,  0,  0,  0,  0,  0 } },

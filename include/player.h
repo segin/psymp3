@@ -337,7 +337,7 @@ class Player
         // canonical EQ state, re-applied to each Audio like m_volume.
         WindowFrameWidget* m_eq_window = nullptr;
         EqualizerWindow*   m_eq_client = nullptr;
-        std::array<float, 7> m_eq_gains{};
+        std::array<float, Equalizer::kNumBands> m_eq_gains{};
         bool m_eq_enabled = false;
         void toggleEqualizerWindow();
         void applyEqStateToAudio();
