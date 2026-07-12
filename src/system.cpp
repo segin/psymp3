@@ -531,6 +531,14 @@ bool System::createStoragePath() {
 #endif
 }
 
+std::filesystem::path System::pathFromUtf8(const std::string& utf8) {
+#ifdef _WIN32
+  return std::filesystem::path(TagLib::String(utf8, TagLib::String::UTF8).toWString());
+#else
+  return std::filesystem::path(utf8);
+#endif
+}
+
 #ifdef _WIN32
 /**
  * @brief Returns the Win32 `HWND` of the SDL application window (Windows only).

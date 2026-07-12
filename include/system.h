@@ -222,6 +222,16 @@ class System
         static TagLib::String getHome();
         static TagLib::String getStoragePath();
         static bool createStoragePath(); // directory name is implicit.
+
+        /**
+         * @brief Build a std::filesystem::path from a UTF-8 string with correct
+         *        Windows Unicode semantics.
+         *
+         * Narrow fstream/remove paths go through the ANSI codepage on Windows,
+         * which breaks non-ASCII %APPDATA%; construct from the wide string
+         * there and from the UTF-8 bytes elsewhere (the POSIX native encoding).
+         */
+        static std::filesystem::path pathFromUtf8(const std::string& utf8);
         enum class ThreadPriority {
             Low,
             Normal,

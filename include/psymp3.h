@@ -99,6 +99,7 @@ inline std::ostream& operator<<(std::ostream& os, LoopMode mode) {
 #include <condition_variable>
 #include <deque>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iomanip>

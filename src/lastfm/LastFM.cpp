@@ -10,7 +10,6 @@
 #include "psymp3.h"
 #include <openssl/crypto.h>
 #include <openssl/crypto.h>
-#include <filesystem>
 
 #ifndef _WIN32
 #include <sys/types.h>
@@ -28,19 +27,6 @@ static inline std::string& chompCR(std::string& s)
         s.pop_back();
     }
     return s;
-}
-
-// Build a filesystem path from a UTF-8 string with correct Windows Unicode
-// semantics: narrow fstream/remove paths go through the ANSI codepage there,
-// which breaks non-ASCII %APPDATA% (the config dir itself is created wide via
-// CreateDirectoryW). Mirrors the FileIOHandler wide-path pattern.
-static std::filesystem::path fsPathFromUtf8(const std::string& utf8)
-{
-#ifdef _WIN32
-    return std::filesystem::path(TagLib::String(utf8, TagLib::String::UTF8).toWString());
-#else
-    return std::filesystem::path(utf8);
-#endif
 }
 
 LastFM::LastFM() :
@@ -88,7 +74,7 @@ LastFM::~LastFM()
 void LastFM::readConfig()
 {
     DEBUG_LOG_LAZY("lastfm", "Reading configuration from ", m_config_file);
-    std::ifstream config(fsPathFromUtf8(m_config_file));
+    std::ifstream config(System::pathFromUtf8(m_config_file));
     if (!config.is_open()) {
         DEBUG_LOG_LAZY("lastfm", "Config file not found - Last.fm not configured");
         return;
@@ -147,7 +133,7 @@ void LastFM::writeConfig()
     mode_t old_mask = umask(0077);
 #endif
 
-    std::ofstream config(fsPathFromUtf8(m_config_file));
+    std::ofstream config(System::pathFromUtf8(m_config_file));
 
 #ifndef _WIN32
     umask(old_mask);
@@ -285,7 +271,7 @@ bool LastFM::performHandshake(int host_index)
 
 void LastFM::loadScrobbles()
 {
-    std::ifstream cache(fsPathFromUtf8(m_cache_file));
+    std::ifstream cache(System::pathFromUtf8(m_cache_file));
     if (!cache.is_open()) {
         return;
     }
@@ -343,7 +329,7 @@ void LastFM::saveScrobbles_unlocked()
     if (m_scrobbles.empty()) {
         // Remove cache file if no scrobbles
         std::error_code remove_ec;
-        std::filesystem::remove(fsPathFromUtf8(m_cache_file), remove_ec);
+        std::filesystem::remove(System::pathFromUtf8(m_cache_file), remove_ec);
         return;
     }
     
@@ -354,7 +340,7 @@ void LastFM::saveScrobbles_unlocked()
     mode_t old_mask = umask(0077);
 #endif
 
-    std::ofstream cache(fsPathFromUtf8(m_cache_file));
+    std::ofstream cache(System::pathFromUtf8(m_cache_file));
 
 #ifndef _WIN32
     umask(old_mask);
