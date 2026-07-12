@@ -40,10 +40,16 @@ Equalizer::Equalizer()
 float       Equalizer::bandFrequency(int band) { return (band >= 0 && band < kNumBands) ? kBandFreq[band]  : 0.0f; }
 const char* Equalizer::bandLabel(int band)     { return (band >= 0 && band < kNumBands) ? kBandLabel[band] : ""; }
 
-void Equalizer::configure(int sample_rate, int /*channels*/)
+void Equalizer::configure(int sample_rate, int channels)
 {
     if (sample_rate > 0)
         m_sample_rate.store(sample_rate, std::memory_order_relaxed);
+    // process() safely refuses streams wider than its per-channel state, but
+    // silently: the UI would show a live, enabled EQ that does nothing. Log it.
+    if (channels > kMaxChannels) {
+        Debug::log("dsp", "Equalizer: stream has ", channels, " channels (max ",
+                   kMaxChannels, "); the equalizer will be bypassed for this stream");
+    }
     m_dirty.fetch_add(1, std::memory_order_release);
     requestReset();
 }
