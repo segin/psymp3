@@ -306,6 +306,24 @@ void ApplicationWidget::BlitTo(Surface& target)
     }
 }
 
+void ApplicationWidget::blitTopWindows(Surface& target)
+{
+    // Collect the always-on-top windows and re-blit them in ascending z-order
+    // (toasts below the menu bar) so a caller's later render pass cannot bury
+    // them.
+    std::vector<Widget*> tops;
+    for (const auto& window : m_windows) {
+        if (isAlwaysOnTopWindow(window.get())) {
+            tops.push_back(window.get());
+        }
+    }
+    std::stable_sort(tops.begin(), tops.end(),
+        [](const Widget* a, const Widget* b) { return getWindowZOrder(a) < getWindowZOrder(b); });
+    for (auto* window : tops) {
+        window->BlitTo(target);
+    }
+}
+
 void ApplicationWidget::updateWindows()
 {
     // Process scheduled window removals first

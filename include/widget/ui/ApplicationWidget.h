@@ -147,6 +147,15 @@ public:
      */
     virtual void BlitTo(Surface& target) override;
 
+    /**
+     * @brief Re-blit the always-on-top windows (toasts, menu bar) to `target`.
+     *
+     * Callers that draw their own floating windows in a second pass after
+     * BlitTo() (e.g. Player::renderWindows) use this to keep toasts and the
+     * menu bar above those windows. Blitted in ascending z-order.
+     */
+    void blitTopWindows(Surface& target);
+
 private:
     /**
      * @brief Private constructor for singleton pattern.
