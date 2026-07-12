@@ -155,7 +155,10 @@ EqualizerWindow::EqualizerWindow(Font* font,
         std::vector<double> gains(p.g, p.g + 7);
         preset_items.push_back(MI::leaf(p.name, [this, gains] { applyGains(gains); }));
     }
-    m_menu->addMenu("&Presets", std::move(preset_items));
+    // Note: no '&' mnemonics here — the keyboard driver (handleKey) is only
+    // wired to the player's main menu bar, so underlined accelerators in this
+    // window would advertise keys that do nothing.
+    m_menu->addMenu("Presets", std::move(preset_items));
 
     // User presets: slots 1..N load directly; the Save submenu stores into a slot.
     std::vector<MI> user_items;
@@ -166,8 +169,8 @@ EqualizerWindow::EqualizerWindow(Font* font,
         save_items.push_back(MI::leaf(name, [this, slot] { saveUserPreset(slot); }));
     }
     user_items.push_back(MI::sep());
-    user_items.push_back(MI::sub("&Save", std::move(save_items)));
-    m_menu->addMenu("&User Presets", std::move(user_items));
+    user_items.push_back(MI::sub("Save", std::move(save_items)));
+    m_menu->addMenu("User Presets", std::move(user_items));
 
     addChildAt(std::move(menu), 0, 0, getPos().width(), getPos().height());
 }
@@ -209,7 +212,15 @@ bool EqualizerWindow::loadFromFile(const std::string& path)
         while (iss >> tok) last = tok;
         if (last.empty()) continue;
         try {
-            gains.push_back(std::stod(last));
+            // Require the whole token to be numeric: std::stod alone parses a
+            // numeric prefix, so a hand-edited line holding only a band label
+            // ("2.4k", "60") would be swallowed as a gain and shift every
+            // following band by one.
+            size_t consumed = 0;
+            double v = std::stod(last, &consumed);
+            if (consumed == last.size()) {
+                gains.push_back(v);
+            }
         } catch (const std::exception&) {
             // Skip unparseable lines rather than failing the whole load.
         }
