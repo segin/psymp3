@@ -1359,13 +1359,11 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
     // Render floating windows (test windows, equalizer)
     renderWindows();
 
-    // The in-app menu bar belongs above those floating windows. It is drawn in
-    // the m_ui_root pass (before renderWindows), so re-blit its top-most overlay
-    // here — otherwise an open dropdown would be hidden behind a window such as
+    // Always-on-top windows (toasts and the menu bar) are drawn in the
+    // m_ui_root pass (before renderWindows), so re-blit them here — otherwise a
+    // toast or an open dropdown would be hidden behind a floating window such as
     // the equalizer.
-    if (m_menu_bar) {
-        m_menu_bar->BlitTo(*graph);
-    }
+    ApplicationWidget::getInstance().blitTopWindows(*graph);
 }
 
 /**
