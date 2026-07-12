@@ -677,9 +677,11 @@ void WindowFrameWidget::rebuildSurface()
         frame_surface->hline(inner_x2, outer_x2, bottom_notch_y, 0, 0, 0, 255);
     }
     
-    // Render title text
+    // Render title text (ClearType/LCD, pre-blended against the titlebar colour)
     if (m_font && !m_title.empty()) {
-        auto text_surface = m_font->Render(TagLib::String(m_title, TagLib::String::UTF8), 255, 255, 255);
+        auto text_surface = m_font->RenderLCD(TagLib::String(m_title, TagLib::String::UTF8),
+                                              255, 255, 255,
+                                              title_r, title_g, title_b);
         if (text_surface) {
             // Center horizontally in the titlebar area
             int text_x = content_x + (content_width - text_surface->width()) / 2;
