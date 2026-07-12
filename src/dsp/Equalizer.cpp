@@ -61,7 +61,16 @@ float Equalizer::getBandGain(int band) const
     return m_gain_db[band].load(std::memory_order_relaxed);
 }
 
-void Equalizer::setEnabled(bool on) { m_enabled.store(on, std::memory_order_relaxed); }
+void Equalizer::setEnabled(bool on)
+{
+    // process() early-returns while disabled, freezing z1/z2 with whatever was
+    // playing at the disable instant; resuming the cascade with that stale
+    // state would emit an audible click. Reset on the off->on edge.
+    const bool was = m_enabled.exchange(on, std::memory_order_relaxed);
+    if (on && !was) {
+        requestReset();
+    }
+}
 bool Equalizer::isEnabled() const   { return m_enabled.load(std::memory_order_relaxed); }
 
 void Equalizer::requestReset() { m_reset_pending.store(true, std::memory_order_release); }
