@@ -86,9 +86,16 @@ void Equalizer::recompute()
         double gain_db = m_gain_db[b].load(std::memory_order_relaxed);
 
         // A band above (or near) Nyquist, or one sitting at unity gain, becomes
-        // an identity filter so it neither rings nor wastes cycles.
+        // an identity filter so it neither rings nor wastes cycles. Its history
+        // must be zeroed too: TDF-II would otherwise flush the stale z1/z2 into
+        // the next two output samples (an audible click after a large boost).
+        // recompute() runs on the audio thread, which owns the history — safe.
         if (gain_db == 0.0 || f0 >= 0.45 * sr) {
             q = Biquad{};
+            for (int c = 0; c < kMaxChannels; ++c) {
+                m_z1[c][b] = 0.0;
+                m_z2[c][b] = 0.0;
+            }
             continue;
         }
 
