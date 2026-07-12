@@ -75,6 +75,13 @@ bool Equalizer::isEnabled() const   { return m_enabled.load(std::memory_order_re
 
 void Equalizer::requestReset() { m_reset_pending.store(true, std::memory_order_release); }
 
+void Equalizer::latchReset()
+{
+    if (m_reset_pending.exchange(false, std::memory_order_acquire)) {
+        m_reset_latched = true;
+    }
+}
+
 void Equalizer::recompute()
 {
     int sr = m_sample_rate.load(std::memory_order_relaxed);
@@ -121,7 +128,11 @@ void Equalizer::process(int16_t* samples, size_t frame_count, int channels)
     if (!m_enabled.load(std::memory_order_relaxed)) return;
     if (!samples || channels <= 0 || channels > kMaxChannels) return;
 
-    if (m_reset_pending.exchange(false, std::memory_order_acquire)) {
+    // Consume only the flag latched under the producers' lock (latchReset());
+    // reading m_reset_pending here directly would let a reset armed after this
+    // buffer was drained apply to the pre-reset data it was not meant for.
+    if (m_reset_latched) {
+        m_reset_latched = false;
         for (int c = 0; c < kMaxChannels; ++c)
             for (int b = 0; b < kNumBands; ++b) { m_z1[c][b] = 0.0; m_z2[c][b] = 0.0; }
     }

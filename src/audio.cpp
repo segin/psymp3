@@ -461,7 +461,12 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         std::lock_guard<std::mutex> lock(self->m_buffer_mutex);
         // Non-blocking: take whatever data is available immediately
         // Never block in the audio callback - causes stuttering
-        
+
+        // Latch any pending EQ history reset while holding the same mutex the
+        // resetters (seek/track-swap) hold: a reset armed after this drain then
+        // applies to the NEXT buffer, not retroactively to this one.
+        self->m_eq.latchReset();
+
         if (!self->m_buffer.empty() && self->m_active && self->m_playing) {
             size_t bytes_to_copy = len;
             size_t bytes_available = self->m_buffer.size() * sizeof(int16_t);

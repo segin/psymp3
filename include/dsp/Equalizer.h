@@ -49,6 +49,13 @@ public:
     // samples in place. RT-safe. A no-op when disabled.
     void process(int16_t* samples, size_t frame_count, int channels);
 
+    // Audio thread, and it MUST be called while holding the same lock the
+    // producers hold when they requestReset() (the PCM buffer mutex): moves a
+    // pending reset into the latched flag process() consumes. Sampling under
+    // the producers' lock ties each reset to the data queued after it — a reset
+    // armed after this buffer was drained cannot fire one buffer early.
+    void latchReset();
+
     // Any thread: zero the filter history before the next process() (seek/track
     // change), so filter transients do not bleed across discontinuities.
     void requestReset();
@@ -73,6 +80,7 @@ private:
     // Audio-thread-only working state.
     Biquad   m_coeff[kNumBands];
     uint32_t m_last_dirty = 0;
+    bool     m_reset_latched = false; // set by latchReset(), consumed by process()
     double   m_z1[kMaxChannels][kNumBands] = {};
     double   m_z2[kMaxChannels][kNumBands] = {};
 };
