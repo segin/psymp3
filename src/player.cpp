@@ -280,6 +280,7 @@ Player::Player() : m_rng(std::random_device{}()) {
     m_track_start_time = 0;
     m_track_scrobbled = false;
     m_volume = 1.0f;
+    loadSettings(); // volume + EQ state from psymp3.conf (applied to each Audio on creation)
 
 #ifdef HAVE_DBUS
     m_mpris_manager = std::make_unique<PsyMP3::MPRIS::MPRISManager>(this);
@@ -302,6 +303,8 @@ Player::Player() : m_rng(std::random_device{}()) {
  * now-playing status.
  */
 Player::~Player() {
+    saveSettings(); // persist volume + EQ state before teardown
+
     // Stop audio first to join decoder threads before deleting other members
     audio.reset();
 
@@ -2847,6 +2850,81 @@ void Player::applyEqStateToAudio()
     for (int i = 0; i < Equalizer::kNumBands; ++i)
         audio->setEqBandGain(i, m_eq_gains[i]);
     audio->setEqEnabled(m_eq_enabled);
+}
+
+namespace {
+std::string settingsFilePath()
+{
+    return System::getStoragePath().to8Bit(true) + "/psymp3.conf";
+}
+
+// Parse a full numeric token; rejects prefix garbage the way the .psymp3eq
+// loader does.
+bool parseSettingDouble(const std::string& s, double& out)
+{
+    try {
+        size_t used = 0;
+        double v = std::stod(s, &used);
+        if (used == s.size()) { out = v; return true; }
+    } catch (const std::exception&) {}
+    return false;
+}
+} // namespace
+
+void Player::loadSettings()
+{
+    std::ifstream f(System::pathFromUtf8(settingsFilePath()));
+    if (!f) {
+        return; // first run: keep defaults
+    }
+
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        size_t eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        std::string key = line.substr(0, eq);
+        std::string value = line.substr(eq + 1);
+        if (!value.empty() && value.back() == '\r') value.pop_back();
+
+        double v = 0.0;
+        if (key == "volume") {
+            if (parseSettingDouble(value, v))
+                m_volume = static_cast<float>(std::clamp(v, 0.0, 1.0));
+        } else if (key == "eq_enabled") {
+            m_eq_enabled = (value == "1" || value == "true");
+        } else if (key.rfind("eq_band_", 0) == 0) {
+            try {
+                size_t used = 0;
+                int band = std::stoi(key.substr(8), &used);
+                if (used == key.size() - 8 && band >= 0 &&
+                    band < static_cast<int>(m_eq_gains.size()) &&
+                    parseSettingDouble(value, v)) {
+                    m_eq_gains[band] = static_cast<float>(std::clamp(
+                        v, static_cast<double>(Equalizer::kMinGainDb),
+                           static_cast<double>(Equalizer::kMaxGainDb)));
+                }
+            } catch (const std::exception&) {
+                // Malformed band index: skip the line.
+            }
+        }
+    }
+    Debug::log("player", "Settings loaded: volume=", m_volume, ", eq_enabled=", m_eq_enabled);
+}
+
+void Player::saveSettings() const
+{
+    System::createStoragePath();
+    std::ofstream f(System::pathFromUtf8(settingsFilePath()), std::ios::out | std::ios::trunc);
+    if (!f) {
+        Debug::log("player", "Failed to write settings file: ", settingsFilePath());
+        return;
+    }
+    f << "# PsyMP3 settings\n";
+    f << "volume=" << m_volume << "\n";
+    f << "eq_enabled=" << (m_eq_enabled ? 1 : 0) << "\n";
+    for (size_t i = 0; i < m_eq_gains.size(); ++i)
+        f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
 }
 
 void Player::toggleEqualizerWindow()

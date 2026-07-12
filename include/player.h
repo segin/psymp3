@@ -341,6 +341,11 @@ class Player
         bool m_eq_enabled = false;
         void toggleEqualizerWindow();
         void applyEqStateToAudio();
+
+        // Persistent user settings (volume, EQ gains/enabled) in psymp3.conf
+        // under the config dir; loaded at construction, saved at shutdown.
+        void loadSettings();
+        void saveSettings() const;
         int m_random_window_counter = 0;
 
         // Deferred widget deletion
