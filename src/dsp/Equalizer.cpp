@@ -145,6 +145,18 @@ void Equalizer::process(int16_t* samples, size_t frame_count, int channels)
             samples[f * channels + c] = static_cast<int16_t>(std::lround(s));
         }
     }
+
+    // Snap decayed filter state to true zero once per buffer. During in-track
+    // digital silence the IIR history decays geometrically into the double
+    // denormal range, where x86 multiplies can cost 50-150x normal cycles —
+    // a CPU spike inside this TimeCritical callback. 1e-20 is ~120 dB below
+    // one LSB, far past audibility, and well above the denormal threshold.
+    for (int c = 0; c < channels; ++c) {
+        for (int b = 0; b < kNumBands; ++b) {
+            if (std::fabs(m_z1[c][b]) < 1e-20) m_z1[c][b] = 0.0;
+            if (std::fabs(m_z2[c][b]) < 1e-20) m_z2[c][b] = 0.0;
+        }
+    }
 }
 
 } // namespace DSP
