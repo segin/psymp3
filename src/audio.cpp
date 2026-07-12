@@ -410,8 +410,19 @@ void Audio::decoderThreadLoop() {
 
             if (bytes_read > 0) {
                 size_t samples_read = bytes_read / sizeof(int16_t);
+                // Keep the queue frame-aligned: a decoder returning a byte
+                // count that is not a multiple of the frame size would
+                // channel-rotate every subsequent buffer, corrupting the EQ's
+                // per-channel state and the FFT's L/R pairing. Trim (and
+                // report) rather than propagate the misalignment.
+                if (m_channels > 0 && samples_read % static_cast<size_t>(m_channels) != 0) {
+                    size_t trimmed = samples_read % static_cast<size_t>(m_channels);
+                    samples_read -= trimmed;
+                    Debug::log("audio", "Audio decoder thread: stream returned a partial frame; trimmed ",
+                               trimmed, " sample(s) to keep the queue frame-aligned");
+                }
                 m_buffer.insert(m_buffer.end(), decode_chunk.begin(), decode_chunk.begin() + samples_read);
-                
+
                 Debug::log("audio", "Audio decoder thread: Added ", samples_read, " samples to buffer, new buffer size=", m_buffer.size());
             } else {
                 Debug::log("audio", "Audio decoder thread: Got 0 bytes from stream, eof=", eof);
@@ -584,6 +595,18 @@ bool Audio::isFinished_unlocked() const {
 std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_stream,
                                                   std::vector<int16_t> primed_samples,
                                                   bool primed_eof) {
+    // Invariant guard: the device (and the EQ coefficients) were configured
+    // for m_rate/m_channels; callers must only swap in a matching stream (the
+    // Player's canReuseAudioForStream() enforces this). A mismatch here means
+    // wrong-speed playback and a wrong-rate EQ — make it loud instead of silent.
+    if (new_stream && (static_cast<int>(new_stream->getRate()) != m_rate ||
+                       static_cast<int>(new_stream->getChannels()) != m_channels)) {
+        Debug::log("audio", "Audio::setStream_unlocked: STREAM FORMAT MISMATCH - device is ",
+                   m_rate, "Hz/", m_channels, "ch but new stream is ",
+                   new_stream->getRate(), "Hz/", new_stream->getChannels(),
+                   "ch; playback and EQ will be incorrect (caller bug)");
+    }
+
     m_buffer = std::move(primed_samples);
     m_owned_stream = std::shared_ptr<Stream>(std::move(new_stream));
     m_current_stream_raw_ptr.store(m_owned_stream.get());
@@ -631,7 +654,16 @@ std::pair<std::vector<int16_t>, bool> Audio::primeStream(Stream* stream, size_t 
 
     std::vector<int16_t> primed_samples(max_samples);
     const size_t bytes_read = stream->getData(max_samples * sizeof(int16_t), primed_samples.data());
-    primed_samples.resize(bytes_read / sizeof(int16_t));
+    size_t samples_read = bytes_read / sizeof(int16_t);
+    // Keep the primed data frame-aligned for the same reason as the decoder
+    // loop: a partial trailing frame would channel-rotate everything after it.
+    const size_t channels = static_cast<size_t>(stream->getChannels());
+    if (channels > 0 && samples_read % channels != 0) {
+        Debug::log("audio", "primeStream: stream returned a partial frame; trimmed ",
+                   samples_read % channels, " sample(s)");
+        samples_read -= samples_read % channels;
+    }
+    primed_samples.resize(samples_read);
     return {std::move(primed_samples), stream->eof()};
 }
 
