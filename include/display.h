@@ -30,7 +30,7 @@ class Display : public Surface
 {
     public:
         static constexpr int LOGICAL_WIDTH = 640;
-        static constexpr int LOGICAL_HEIGHT = 420;
+        static constexpr int LOGICAL_HEIGHT = 414;
 
         Display();
         ~Display() override;
