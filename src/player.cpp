@@ -2140,7 +2140,7 @@ bool Player::Initialize(const PlayerOptions& options) {
 #endif // _WIN32
     Debug::log("font", "font->isValid(): ", font->isValid());
     
-    graph = std::make_unique<Surface>(640, 414);
+    graph = std::make_unique<Surface>(640, 404);
     // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
     // destination for other alpha-blended surfaces (like the fade effect, toasts, etc.).
     graph->SetAlpha(255);
@@ -2173,8 +2173,8 @@ bool Player::Initialize(const PlayerOptions& options) {
 
     // Group the lower HUD under a solid black panel so the entire strip is
     // cleared together before any labels or progress elements repaint.
-    auto hud_panel = std::make_unique<LayoutWidget>(640, 60, false);
-    hud_panel->setPos(Rect(0, 354, 640, 60));
+    auto hud_panel = std::make_unique<LayoutWidget>(640, 50, false);
+    hud_panel->setPos(Rect(0, 354, 640, 50));
     hud_panel->setBackgroundColor(0, 0, 0);
     auto* hud_panel_ptr = hud_panel.get();
     
