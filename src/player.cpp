@@ -2140,7 +2140,7 @@ bool Player::Initialize(const PlayerOptions& options) {
 #endif // _WIN32
     Debug::log("font", "font->isValid(): ", font->isValid());
     
-    graph = std::make_unique<Surface>(640, 404);
+    graph = std::make_unique<Surface>(640, 412);
     // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
     // destination for other alpha-blended surfaces (like the fade effect, toasts, etc.).
     graph->SetAlpha(255);
