@@ -25,9 +25,12 @@ FLACDemuxer::FLACDemuxer(std::unique_ptr<IOHandler> handler)
 {
     FLAC_DEBUG("Constructor called");
     
-    // Get file size if available
+    // Get file size if available. getFileSize() returns filesize_t (>= 64-bit);
+    // capturing it in a plain `long` truncates to 32 bits on LLP64 targets
+    // (Windows), zeroing m_file_size for 2-4 GB files (which disables every
+    // size-bounds guard) or wrapping >4 GB files to a bogus small value.
     if (m_handler) {
-        long size = m_handler->getFileSize();
+        PsyMP3::IO::filesize_t size = m_handler->getFileSize();
         m_file_size = (size > 0) ? static_cast<uint64_t>(size) : 0;
         FLAC_DEBUG("File size: ", m_file_size, " bytes");
     }
