@@ -82,7 +82,34 @@ EqualizerWindow::EqualizerWindow(Font* font,
     setBackgroundColor(192, 192, 192, 255); // Win9x face grey
 
     const int W = getPos().width();
-    const int curve_y = kMenuH + 6;
+    using MI = MenuBarWidget::Item;
+
+    // Build the menu bar first: its titles flow to the window width and wrap to
+    // extra rows when narrow, so its height must be known before the content
+    // below it is positioned. It is added to the tree LAST (topmost pass-through
+    // overlay), once it and the window have their final size.
+    auto menu = std::make_unique<MenuBarWidget>(W, getPos().height(), m_font);
+    m_menu = menu.get();
+
+    std::vector<MI> preset_items;
+    for (const auto& p : kPresets) {
+        std::vector<double> gains(p.g, p.g + 7);
+        preset_items.push_back(MI::leaf(p.name, [this, gains] { applyGains(gains); }));
+    }
+    m_menu->addMenu("&Presets", std::move(preset_items));
+
+    std::vector<MI> user_items;
+    std::vector<MI> save_items;
+    for (int slot = 1; slot <= kUserPresets; ++slot) {
+        std::string name = "User preset " + std::to_string(slot);
+        user_items.push_back(MI::leaf(name, [this, slot] { loadUserPreset(slot); }));
+        save_items.push_back(MI::leaf(name, [this, slot] { saveUserPreset(slot); }));
+    }
+    user_items.push_back(MI::sep());
+    user_items.push_back(MI::sub("&Save", std::move(save_items)));
+    m_menu->addMenu("&User Presets", std::move(user_items));
+
+    const int curve_y = m_menu->barHeight() + 6;
     const int vlabel_y = curve_y + kCurveH + 4;
     const int slider_y = vlabel_y + kLabelH + 2;
     const int flabel_y = slider_y + kSliderH + 2;
@@ -164,35 +191,18 @@ EqualizerWindow::EqualizerWindow(Font* font,
         m_volume_value->setAlignment(Label::Align::Right);
     }
 
-    // Menu bar on top (full-surface pass-through overlay; added last => topmost).
-    auto menu = std::make_unique<MenuBarWidget>(getPos().width(), getPos().height(), m_font);
-    m_menu = menu.get();
-    using MI = MenuBarWidget::Item;
+    // Finalise the window height for the actual (possibly multi-row) menu, then
+    // add the menu overlay on top, sized to the whole window so dropdowns have
+    // room to draw.
+    const int total_h = volume_y + 16 + kPad;
+    setPos(Rect(0, 0, W, total_h));
+    m_menu->resize(W, total_h);
+    addChildAt(std::move(menu), 0, 0, W, total_h);
+}
 
-    // Built-in presets.
-    std::vector<MI> preset_items;
-    for (const auto& p : kPresets) {
-        std::vector<double> gains(p.g, p.g + 7);
-        preset_items.push_back(MI::leaf(p.name, [this, gains] { applyGains(gains); }));
-    }
-    // Note: no '&' mnemonics here — the keyboard driver (handleKey) is only
-    // wired to the player's main menu bar, so underlined accelerators in this
-    // window would advertise keys that do nothing.
-    m_menu->addMenu("Presets", std::move(preset_items));
-
-    // User presets: slots 1..N load directly; the Save submenu stores into a slot.
-    std::vector<MI> user_items;
-    std::vector<MI> save_items;
-    for (int slot = 1; slot <= kUserPresets; ++slot) {
-        std::string name = "User preset " + std::to_string(slot);
-        user_items.push_back(MI::leaf(name, [this, slot] { loadUserPreset(slot); }));
-        save_items.push_back(MI::leaf(name, [this, slot] { saveUserPreset(slot); }));
-    }
-    user_items.push_back(MI::sep());
-    user_items.push_back(MI::sub("Save", std::move(save_items)));
-    m_menu->addMenu("User Presets", std::move(user_items));
-
-    addChildAt(std::move(menu), 0, 0, getPos().width(), getPos().height());
+bool EqualizerWindow::handleMenuKey(const SDL_keysym& keysym)
+{
+    return m_menu && m_menu->handleKey(keysym);
 }
 
 void EqualizerWindow::setVolume(double volume01)

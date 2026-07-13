@@ -94,16 +94,39 @@ void MenuBarWidget::drawLabel(Surface& surf, const std::string& label, int x, in
     }
 }
 
+void MenuBarWidget::layoutBar()
+{
+    // Flow the titles left-to-right; wrap to the next row when the next title
+    // would exceed the widget width. Each row is BAR_H tall.
+    const int W = getPos().width();
+    int x = 0, row = 0;
+    for (Menu& m : m_menus) {
+        m.bar_w = textWidth(parseMnemonic(m.name, nullptr, nullptr)) + BAR_PAD * 2;
+        if (x > 0 && x + m.bar_w > W) { // doesn't fit on this row -> wrap
+            row++;
+            x = 0;
+        }
+        m.bar_x = x;
+        m.bar_y = row * BAR_H;
+        x += m.bar_w;
+    }
+    m_rows = row + 1;
+}
+
 void MenuBarWidget::addMenu(std::string name, std::vector<Item> items)
 {
     Menu m;
     m.name = std::move(name);
     m.items = std::move(items);
-    int x = 0;
-    for (const auto& e : m_menus) x = e.bar_x + e.bar_w;
-    m.bar_x = x;
-    m.bar_w = textWidth(parseMnemonic(m.name, nullptr, nullptr)) + BAR_PAD * 2;
     m_menus.push_back(std::move(m));
+    layoutBar();
+    rebuild();
+}
+
+void MenuBarWidget::resize(int width, int height)
+{
+    setPos(Rect(0, 0, width, height));
+    layoutBar();
     rebuild();
 }
 
@@ -152,7 +175,7 @@ Rect MenuBarWidget::dropdownRect(const Menu& m) const
     int x = m.bar_x;
     if (x + w > getPos().width()) x = getPos().width() - w; // keep on-screen
     if (x < 0) x = 0;
-    return Rect(x, BAR_H, w, h);
+    return Rect(x, m.bar_y + BAR_H, w, h); // drop below this menu's row
 }
 
 Rect MenuBarWidget::submenuRect(const Menu& m, int item_index) const
@@ -172,10 +195,11 @@ Rect MenuBarWidget::submenuRect(const Menu& m, int item_index) const
 
 int MenuBarWidget::barHitTest(int x, int y) const
 {
-    if (y < 0 || y >= BAR_H) return -1;
+    if (y < 0 || y >= m_rows * BAR_H) return -1;
     for (int i = 0; i < static_cast<int>(m_menus.size()); ++i) {
         const Menu& m = m_menus[i];
-        if (x >= m.bar_x && x < m.bar_x + m.bar_w) return i;
+        if (x >= m.bar_x && x < m.bar_x + m.bar_w &&
+            y >= m.bar_y && y < m.bar_y + BAR_H) return i;
     }
     return -1;
 }
@@ -215,17 +239,19 @@ void MenuBarWidget::rebuild()
     auto surf = std::make_unique<Surface>(W, H, true);
     surf->FillRect(surf->MapRGBA(0, 0, 0, 0)); // transparent everywhere
 
-    // --- the bar ---
-    surf->box(0, 0, W - 1, BAR_H - 1, kBar.r, kBar.g, kBar.b, 255);
-    surf->hline(0, W - 1, BAR_H - 1, kShadow.r, kShadow.g, kShadow.b, 255);
+    // --- the bar (one or more rows) ---
+    const int bar_h = m_rows * BAR_H;
+    surf->box(0, 0, W - 1, bar_h - 1, kBar.r, kBar.g, kBar.b, 255);
+    surf->hline(0, W - 1, bar_h - 1, kShadow.r, kShadow.g, kShadow.b, 255);
     for (int i = 0; i < static_cast<int>(m_menus.size()); ++i) {
         const Menu& m = m_menus[i];
         bool open = (i == m_open);
         if (open)
-            surf->box(m.bar_x, 0, m.bar_x + m.bar_w - 1, BAR_H - 2, kHiBg.r, kHiBg.g, kHiBg.b, 255);
+            surf->box(m.bar_x, m.bar_y, m.bar_x + m.bar_w - 1, m.bar_y + BAR_H - 2,
+                      kHiBg.r, kHiBg.g, kHiBg.b, 255);
         SDL_Color tc = open ? kHiText : kText;
         SDL_Color bg = open ? kHiBg : kBar;
-        drawLabel(*surf, m.name, m.bar_x + BAR_PAD, 0, BAR_H, tc, bg);
+        drawLabel(*surf, m.name, m.bar_x + BAR_PAD, m.bar_y, BAR_H, tc, bg);
     }
 
     // --- a dropdown popup ---

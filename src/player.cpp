@@ -1729,6 +1729,15 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
+    // While the equalizer window is open, offer keys to its menu first so its
+    // Alt+<mnemonic> accelerators and open-menu navigation work. m_eq_client is
+    // non-null only while that window is open; its menu returns false unless it
+    // claims the key (its own Alt+mnemonic, or navigation while open), so global
+    // shortcuts still work when its menu is closed.
+    if (m_eq_client && m_eq_client->handleMenuKey(keysym)) {
+        return false;
+    }
+
     // Route keys through the menu bar first. When closed it only claims
     // Alt+<mnemonic> (to open a menu); while open it captures all navigation
     // keys (arrows/Enter/Esc/mnemonics) so they don't fall through to the

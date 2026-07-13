@@ -56,6 +56,14 @@ public:
 
     void addMenu(std::string name, std::vector<Item> items);
 
+    // Resize the overlay: re-flows the bar for the new width (wrapping titles to
+    // more rows if they don't fit) and repaints at the new surface size.
+    void resize(int width, int height);
+
+    // Total height of the (possibly multi-row) bar, in px. Callers that place
+    // content below the bar should offset by this, not by BAR_H.
+    int barHeight() const { return m_rows * BAR_H; }
+
     bool isOpen() const { return m_open >= 0; }
     void closeMenu();
 
@@ -80,10 +88,12 @@ private:
     struct Menu {
         std::string name;
         std::vector<Item> items;
-        int bar_x = 0;   // computed on addMenu
+        int bar_x = 0;   // computed by layoutBar()
+        int bar_y = 0;   // top of this menu's row
         int bar_w = 0;
     };
 
+    void layoutBar();               // (re)flow the bar titles into rows for the width
     void rebuild();                 // repaint the overlay surface from state
     // ClearType (LCD) text, pre-blended against bg; the same bg must be painted
     // underneath before the returned (opaque) surface is blitted.
@@ -117,6 +127,7 @@ private:
 
     Font* m_font;               // non-owning
     std::vector<Menu> m_menus;
+    int m_rows = 1;            // number of bar rows after wrapping
     int m_open = -1;            // open top-level menu, or -1
     int m_hover = -1;          // hovered item index in the open dropdown
     int m_open_sub = -1;       // submenu item index that is expanded, or -1

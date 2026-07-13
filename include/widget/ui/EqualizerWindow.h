@@ -54,6 +54,10 @@ public:
     bool loadFromFile(const std::string& path);        // parse + applyGains
     bool saveToFile(const std::string& path) const;    // write .psymp3eq
 
+    // Offer a key to this window's menu bar (Alt+mnemonic to open; arrows/Enter/
+    // Esc/mnemonics to navigate while open). Returns true if the menu consumed it.
+    bool handleMenuKey(const SDL_keysym& keysym);
+
     // User preset slots (1..kUserPresets), stored as .psymp3eq files in the
     // config directory.
     void loadUserPreset(int slot);
