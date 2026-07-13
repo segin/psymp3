@@ -1194,13 +1194,22 @@ bool FileIOHandler::fillBuffer(filesize_t file_position, size_t min_bytes) {
     // Update memory usage tracking
     updateMemoryUsage(bytes_read);
     
-    // Optimize buffer pool usage based on access patterns
+    // Optimize buffer pool usage based on access patterns.
+    // optimizeBufferPoolUsage() re-acquires m_buffer_mutex, so it MUST NOT run
+    // while this unique_lock is held — that would be a recursive lock on a
+    // non-recursive shared_mutex (EDEADLK -> std::system_error -> terminate),
+    // which aborted every read that hit this branch (e.g. FLAC decode). The
+    // enclosing IOHandler::read() holds m_operation_mutex exclusively, so no
+    // other thread can touch the buffer while it is briefly released here; the
+    // other caller (read_unlocked) also invokes optimize without this lock.
     static size_t read_counter = 0;
     read_counter++;
     if (read_counter % 20 == 0) { // Optimize every 20 reads to avoid overhead
+        buffer_lock.unlock();
         optimizeBufferPoolUsage();
+        buffer_lock.lock();
     }
-    
+
     // Update buffer state
     m_buffer_file_position = file_position;
     m_buffer_valid_bytes = bytes_read;
