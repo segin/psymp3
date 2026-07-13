@@ -74,7 +74,7 @@ public:
     // gesture, and a press on an item can slide away to cancel.
     bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
 
-    static constexpr int BAR_H = 16; // menu bar height (logical px)
+    static constexpr int BAR_H = 20; // menu bar height (logical px; text + 2px top/bottom)
 
 private:
     struct Menu {

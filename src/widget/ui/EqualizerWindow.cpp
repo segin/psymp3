@@ -16,7 +16,7 @@ namespace UI {
 namespace {
 
 // --- Layout geometry (logical px) ---
-constexpr int kMenuH   = 16;   // MenuBarWidget::BAR_H
+constexpr int kMenuH   = MenuBarWidget::BAR_H;
 constexpr int kPad     = 10;
 constexpr int kCol     = 34;   // per-band column width
 constexpr int kSliderW = 18;

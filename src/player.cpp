@@ -1415,10 +1415,10 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
     
     // Render the pause indicator if we're paused
     if (state == PlayerState::Paused && m_pause_indicator) {
-        // Center the pause indicator in the FFT area (0,0 to 640,350)
+        // Center the pause indicator in the FFT area (0,0 to 640,354)
         Rect pos = m_pause_indicator->getPos();
         pos.x((640 - pos.width()) / 2);
-        pos.y((350 - pos.height()) / 2);
+        pos.y((354 - pos.height()) / 2);
         m_pause_indicator->setPos(pos);
         m_pause_indicator->BlitTo(*graph);
     }
@@ -1804,7 +1804,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 auto fading_widget = std::make_unique<FadingWidget>();
                 m_seek_left_indicator = fading_widget.get();
                 fading_widget->setSurface(std::move(sfc));
-                fading_widget->setPos(Rect(380, 374, 11, 7));
+                fading_widget->setPos(Rect(380, 378, 11, 7));
                 ApplicationWidget::getInstance().addWindow(std::move(fading_widget), ZOrder::UI);
             }
             m_seek_left_indicator->fadeIn();
@@ -1824,7 +1824,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 auto fading_widget = std::make_unique<FadingWidget>();
                 m_seek_right_indicator = fading_widget.get();
                 fading_widget->setSurface(std::move(sfc));
-                fading_widget->setPos(Rect(628, 374, 11, 7));
+                fading_widget->setPos(Rect(628, 378, 11, 7));
                 ApplicationWidget::getInstance().addWindow(std::move(fading_widget), ZOrder::UI);
             }
             m_seek_right_indicator->fadeIn();
@@ -1897,7 +1897,7 @@ void Player::showToast(const std::string& message, Uint32 duration_ms)
     // Position toast at center-bottom of screen
     Rect toast_pos = toast->getPos();
     toast_pos.x((640 - toast_pos.width()) / 2);  // Center horizontally
-    toast_pos.y(350 - toast_pos.height() - 40);   // 40px above bottom of FFT area
+    toast_pos.y(354 - toast_pos.height() - 40);   // 40px above bottom of FFT area
     toast->setPos(toast_pos);
     
     // Add to the dedicated toast band so notifications stay above ordinary
@@ -1914,7 +1914,7 @@ void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
 {
     if (event.button == SDL_BUTTON_LEFT) {
         if (event.x >= 400 && event.x <= 620 &&
-            event.y >= 370 && event.y <= 385) {
+            event.y >= 374 && event.y <= 389) {
             if (stream) {
                 m_is_dragging = true;
                 // Don't seek here, just update the visual position and start the drag.
@@ -2114,7 +2114,7 @@ bool Player::Initialize(const PlayerOptions& options) {
 #endif // _WIN32
     Debug::log("font", "font->isValid(): ", font->isValid());
     
-    graph = std::make_unique<Surface>(640, 400);
+    graph = std::make_unique<Surface>(640, 404);
     // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
     // destination for other alpha-blended surfaces (like the fade effect, toasts, etc.).
     graph->SetAlpha(255);
@@ -2140,15 +2140,15 @@ bool Player::Initialize(const PlayerOptions& options) {
     // Add UI elements directly to ApplicationWidget (acts as the desktop/background)
     
     // Create a spectrum analyzer widget and add it to ApplicationWidget
-    auto spectrum_widget = std::make_unique<SpectrumAnalyzerWidget>(640, 350);
-    spectrum_widget->setPos(Rect(0, 0, 640, 350));
+    auto spectrum_widget = std::make_unique<SpectrumAnalyzerWidget>(640, 354);
+    spectrum_widget->setPos(Rect(0, 0, 640, 354));
     m_spectrum_widget = spectrum_widget.get(); // Keep raw pointer for updates
     app_widget.addChild(std::move(spectrum_widget)); // ApplicationWidget takes ownership
 
     // Group the lower HUD under a solid black panel so the entire strip is
     // cleared together before any labels or progress elements repaint.
     auto hud_panel = std::make_unique<LayoutWidget>(640, 50, false);
-    hud_panel->setPos(Rect(0, 350, 640, 50));
+    hud_panel->setPos(Rect(0, 354, 640, 50));
     hud_panel->setBackgroundColor(0, 0, 0);
     auto* hud_panel_ptr = hud_panel.get();
     
