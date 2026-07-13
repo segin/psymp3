@@ -182,9 +182,12 @@ bool FrameParser::parseFrameHeader(FrameHeader &header) {
     return false;
   }
 
-  // Update CRC with first byte after sync
-  uint8_t byte1 =
-      (blocking_strategy << 7) | (block_size_bits << 4) | sample_rate_bits;
+  // Update CRC with the first byte after the sync word. That byte is exactly
+  // [block_size_bits(4) | sample_rate_bits(4)]; the blocking-strategy bit lives
+  // in the sync word's LSB and was already fed to the CRC at line ~157 — do NOT
+  // re-add it here (doing so flipped bit 7 for variable-blocksize frames whose
+  // block-size code is < 8, corrupting the header CRC-8 and rejecting the frame).
+  uint8_t byte1 = (block_size_bits << 4) | sample_rate_bits;
   m_crc->updateCRC8(byte1);
 
   // Read channel assignment (4 bits)
