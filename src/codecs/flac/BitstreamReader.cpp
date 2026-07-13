@@ -482,6 +482,12 @@ bool BitstreamReader::readRiceCode(int32_t &value, uint32_t rice_param) {
   // 2. Binary-coded remainder (r) using rice_param bits
   // Result: value = (q << rice_param) | r
 
+  // rice_param 31 is the escape marker; >= 32 would make the shift below UB.
+  // Valid Rice parameters are <= 30, so reject anything larger.
+  if (rice_param >= 32) {
+    return false;
+  }
+
   // Read unary quotient
   uint32_t quotient;
   if (!readUnary(quotient)) {
@@ -494,11 +500,15 @@ bool BitstreamReader::readRiceCode(int32_t &value, uint32_t rice_param) {
     return false;
   }
 
-  // Combine quotient and remainder
-  uint32_t folded = (quotient << rice_param) | remainder;
+  // Combine quotient and remainder in 64-bit; a folded value that doesn't fit
+  // in 32 bits can't be a valid residual (see ResidualDecoder::decodeRiceCode).
+  uint64_t folded64 = (static_cast<uint64_t>(quotient) << rice_param) | remainder;
+  if (folded64 > 0xFFFFFFFFull) {
+    return false;
+  }
 
   // Apply zigzag decoding to get signed value
-  value = unfoldSigned(folded);
+  value = unfoldSigned(static_cast<uint32_t>(folded64));
 
   return true;
 }

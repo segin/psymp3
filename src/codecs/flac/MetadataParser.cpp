@@ -810,10 +810,20 @@ bool MetadataParser::readString(std::string& str, uint32_t length) {
     if (!m_reader) {
         return false;
     }
-    
+
+    // A length field comes straight from the (untrusted) file; an attacker can
+    // set it to ~4 GB. reserve() would then attempt a huge allocation before a
+    // single byte is read. Cap it — no legitimate FLAC string field is this
+    // large. (This class is currently unused; the live demuxer path caps its
+    // own reads. Guard here so it can never become a live liability.)
+    static constexpr uint32_t kMaxStringLength = 16 * 1024 * 1024;
+    if (length > kMaxStringLength) {
+        return false;
+    }
+
     str.clear();
     str.reserve(length);
-    
+
     for (uint32_t i = 0; i < length; i++) {
         uint32_t byte;
         if (!m_reader->readBits(byte, 8)) {

@@ -161,7 +161,15 @@ bool FLACDemuxer::parseContainer_unlocked()
         
         // Total size = header (10 bytes) + tag size
         size_t total_id3_size = 10 + id3_size;
-        
+
+        // A tag that claims to run to/past EOF is malformed; reject rather than
+        // seek past the end (the subsequent marker read would fail anyway, but
+        // this states the intent and avoids a pointless seek).
+        if (m_file_size > 0 && total_id3_size >= m_file_size) {
+            FLAC_DEBUG("ID3v2 tag size ", total_id3_size, " >= file size ", m_file_size, "; malformed");
+            return false;
+        }
+
         FLAC_DEBUG("Found ID3v2 tag at file start, size: ", total_id3_size, " bytes");
         FLAC_DEBUG("Skipping ID3 tag to find FLAC stream marker");
         
