@@ -2073,6 +2073,10 @@ bool Player::Initialize(const PlayerOptions& options) {
 
     // Initialize UI and essential components first to show the window quickly.
     screen = std::make_unique<Display>();
+    // Apply the persisted zoom level (loadSettings ran before the Display existed).
+    if (screen && m_pending_scale != 1) {
+        screen->setLogicalScale(m_pending_scale);
+    }
 #ifndef _WIN32
     // Set the SDL window/taskbar icon from the raw RGBA blob shipped in the data
     // dir (best-effort; a missing icon is non-fatal). Windows uses the icon
@@ -2977,6 +2981,10 @@ void Player::loadSettings()
                 m_volume = static_cast<float>(std::clamp(v, 0.0, 1.0));
         } else if (key == "eq_enabled") {
             m_eq_enabled = (value == "1" || value == "true");
+        } else if (key == "zoom") {
+            if (parseSettingDouble(value, v)) {
+                m_pending_scale = (static_cast<int>(v) >= 2) ? 2 : 1;
+            }
         } else if (key.rfind("eq_band_", 0) == 0) {
             try {
                 size_t used = 0;
@@ -3007,6 +3015,7 @@ void Player::saveSettings() const
     f << "# PsyMP3 settings\n";
     f << "volume=" << m_volume << "\n";
     f << "eq_enabled=" << (m_eq_enabled ? 1 : 0) << "\n";
+    f << "zoom=" << (screen ? screen->getLogicalScale() : m_pending_scale) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
 }

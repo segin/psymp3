@@ -344,6 +344,9 @@ class Player
         EqualizerWindow*   m_eq_client = nullptr;
         std::array<float, Equalizer::kNumBands> m_eq_gains{};
         bool m_eq_enabled = false;
+        // Display logical scale (1x/2x) loaded from psymp3.conf; applied to the
+        // Display once it is created (loadSettings runs before that).
+        int  m_pending_scale = 1;
         void toggleEqualizerWindow();
         void applyEqStateToAudio();
 
