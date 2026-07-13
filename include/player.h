@@ -191,12 +191,17 @@ class Player
         // Ctrl+O: multi-select native chooser; REPLACE the playlist with the
         // chosen tracks and play from the first one.
         void openTracksReplacingPlaylist();
-        // "I": multi-select native chooser; insert at the current playlist index
-        // and jump to the first inserted track.
-        void openInsertDialog();
+        // "I": queue the chosen track(s) to play right after the current track.
+        void queueTracksNext();
+        // Queue the chosen track(s) at the end of the playlist.
+        void queueTracksEnd();
         // "L": single-select native chooser; play the chosen file in place of the
         // current track without modifying the playlist (forgotten on next change).
         void openTemporaryTrackDialog();
+        // Shared chooser for the queue actions: insert the chosen (playlist-
+        // expanded) tracks at `insert_at`; if nothing is playing, start with the
+        // first queued track, otherwise leave the current track playing.
+        void queueTracks(long insert_at, const char* dialog_title);
 #endif
         // Empty the playlist and stop playback.
         void clearPlaylist();

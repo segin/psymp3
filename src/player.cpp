@@ -901,18 +901,18 @@ void Player::openTracksReplacingPlaylist()
 }
 
 /**
- * @brief "I" key: open a multi-select native chooser and insert the chosen
- *        track(s) at the current playlist index, then start playing the first
- *        inserted track. The track that was current shifts down by N and plays
- *        after the inserts.
+ * @brief Open a multi-select native chooser and queue the chosen (playlist-
+ *        expanded) track(s) at `insert_at`, without interrupting the current
+ *        track. If nothing is playing, playback starts at the first queued
+ *        track. Backs "Queue Track Next..." and "Queue Track...".
  */
-void Player::openInsertDialog()
+void Player::queueTracks(long insert_at, const char* dialog_title)
 {
     if (!playlist) {
         return;
     }
     std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
-        true, "Insert track(s)", chooserExtensions());
+        true, dialog_title, chooserExtensions());
     if (paths.empty()) {
         return;
     }
@@ -922,15 +922,32 @@ void Player::openInsertDialog()
         return; // e.g. only empty/invalid playlist files were chosen
     }
 
-    long pos = playlist->getPosition();
-    if (pos < 0) {
-        pos = 0;
+    const long size = playlist->entries();
+    if (insert_at < 0 || insert_at > size) {
+        insert_at = size;
     }
-    playlist->insertEntries(pos, entries);
-    // Jump to the first inserted track now (it now lives at `pos`).
-    playlist->setPosition(pos);
-    m_skip_attempts = 0;
-    requestTrackLoad(playlist->getTrack(pos));
+    playlist->insertEntries(insert_at, entries);
+
+    // If nothing is playing, start with the first queued track; otherwise the
+    // current track keeps playing and the queued tracks follow it in order.
+    if (state == PlayerState::Stopped || !stream) {
+        playlist->setPosition(insert_at);
+        m_skip_attempts = 0;
+        requestTrackLoad(playlist->getTrack(insert_at));
+    }
+}
+
+// "I": queue after the current track (plays next).
+void Player::queueTracksNext()
+{
+    const long pos = playlist ? playlist->getPosition() : 0;
+    queueTracks(pos < 0 ? 0 : pos + 1, "Queue track(s) next");
+}
+
+// Queue at the end of the playlist.
+void Player::queueTracksEnd()
+{
+    queueTracks(playlist ? playlist->entries() : 0, "Queue track(s)");
 }
 
 /**
@@ -1773,7 +1790,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_i:
-            openInsertDialog();
+            queueTracksNext();
             break;
 
         case SDLK_l:
@@ -2222,8 +2239,9 @@ bool Player::Initialize(const PlayerOptions& options) {
         file_items.push_back(MI::leaf("&Clear Playlist", [this]{ clearPlaylist(); }));
         file_items.push_back(MI::sep());
 #ifdef HAVE_FILEDIALOG
-        file_items.push_back(MI::leaf("&Insert Track(s)", [this]{ openInsertDialog(); }, nullptr, "I"));
-        file_items.push_back(MI::leaf("Temp &Load Track", [this]{ openTemporaryTrackDialog(); }, nullptr, "L"));
+        file_items.push_back(MI::leaf("Queue Track &Next...", [this]{ queueTracksNext(); }, nullptr, "I"));
+        file_items.push_back(MI::leaf("&Queue Track...", [this]{ queueTracksEnd(); }));
+        file_items.push_back(MI::leaf("&Play Now...", [this]{ openTemporaryTrackDialog(); }, nullptr, "L"));
         file_items.push_back(MI::sep());
 #endif
         file_items.push_back(MI::leaf("E&xit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
@@ -2235,6 +2253,7 @@ bool Player::Initialize(const PlayerOptions& options) {
             [this]{ return state == PlayerState::Paused; }, "Space"));
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Pre&vious Track", [this]{ prevTrack(); }, nullptr, "P"));
+        playback_items.push_back(MI::leaf("&Restart Track", [this]{ seekTo(0); }, nullptr, "R"));
         playback_items.push_back(MI::leaf("&Next Track", [this]{ nextTrack(); }, nullptr, "N"));
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
