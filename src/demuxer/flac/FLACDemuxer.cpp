@@ -4246,9 +4246,22 @@ bool FLACDemuxer::seekWithSeekTable_unlocked(uint64_t target_sample)
     FLAC_DEBUG("[seekWithSeekTable] Found seek point: sample=", best->sample_number,
                ", offset=", best->stream_offset, ", frame_samples=", best->frame_samples);
     
+    // best->stream_offset is read verbatim from the (untrusted) SEEKTABLE.
+    // Reject an offset that overflows the addition or lands at/past EOF before
+    // trusting it, so a crafted seektable can't wrap to a bogus in-range offset
+    // or seek far past the data. Fall back to the caller's other strategies.
+    if (best->stream_offset > UINT64_MAX - m_audio_data_offset) {
+        FLAC_DEBUG("[seekWithSeekTable] Rejecting overflowing stream_offset ", best->stream_offset);
+        return false;
+    }
     // Requirement 22.8: Add byte offset to first frame header position
     uint64_t seek_offset = m_audio_data_offset + best->stream_offset;
-    
+    if (m_file_size > 0 && seek_offset >= m_file_size) {
+        FLAC_DEBUG("[seekWithSeekTable] Rejecting out-of-range seek offset ", seek_offset,
+                   " (file size ", m_file_size, ")");
+        return false;
+    }
+
     FLAC_DEBUG("[seekWithSeekTable] Seeking to file offset ", seek_offset,
                " (audio_data_offset=", m_audio_data_offset, " + stream_offset=", best->stream_offset, ")");
     
