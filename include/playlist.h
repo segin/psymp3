@@ -56,6 +56,8 @@ class Playlist
         // Insert entries at the given index, shifting existing tracks (and the
         // current-position cursor and shuffle order) down. Used by the "I" key.
         bool insertEntries(long position, const std::vector<Entry>& entries);
+        // Remove every track and reset the position/shuffle state to empty.
+        void clear();
         ~Playlist() = default;
         bool addFile(TagLib::String path);
         long getPosition() const;

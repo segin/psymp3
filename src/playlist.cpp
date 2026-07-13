@@ -175,6 +175,14 @@ bool Playlist::addEntry(const Entry& entry)
     return addFile(entry.path, entry.artist, entry.title, entry.duration);
 }
 
+void Playlist::clear()
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    tracks.clear();
+    m_position = 0;
+    m_shuffled_indices.clear();
+}
+
 bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);

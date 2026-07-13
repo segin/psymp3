@@ -188,6 +188,9 @@ class Player
         bool handleWindowEvent(const SDL_WindowEvent& event);
         bool handleKeyPress(const SDL_keysym& keysym);
 #ifdef HAVE_FILEDIALOG
+        // Ctrl+O: multi-select native chooser; REPLACE the playlist with the
+        // chosen tracks and play from the first one.
+        void openTracksReplacingPlaylist();
         // "I": multi-select native chooser; insert at the current playlist index
         // and jump to the first inserted track.
         void openInsertDialog();
@@ -195,6 +198,8 @@ class Player
         // current track without modifying the playlist (forgotten on next change).
         void openTemporaryTrackDialog();
 #endif
+        // Empty the playlist and stop playback.
+        void clearPlaylist();
 #ifdef _WIN32
         // Native Win32 menu bar (Windows build only). File / Settings menus
         // mirroring the I, L, F, ZXC and 1-4 keys.

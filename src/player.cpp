@@ -848,6 +848,36 @@ void Player::prevTrack(void) {
 
 #ifdef HAVE_FILEDIALOG
 /**
+ * @brief Ctrl+O: open a multi-select native chooser and REPLACE the running
+ *        playlist with the chosen track(s), then start playing the first one.
+ *        Cancelling the dialog leaves the current playlist untouched.
+ */
+void Player::openTracksReplacingPlaylist()
+{
+    if (!playlist) {
+        return;
+    }
+    std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
+        true, "Open track(s)", MediaFile::getSupportedExtensions());
+    if (paths.empty()) {
+        return; // cancelled: keep the existing playlist and playback
+    }
+
+    std::vector<Playlist::Entry> entries;
+    entries.reserve(paths.size());
+    for (const std::string& p : paths) {
+        entries.push_back(Playlist::Entry{
+            TagLib::String(p, TagLib::String::UTF8), TagLib::String(), TagLib::String(), 0});
+    }
+
+    playlist->clear();
+    playlist->insertEntries(0, entries);
+    playlist->setPosition(0);
+    m_skip_attempts = 0;
+    requestTrackLoad(playlist->getTrack(0));
+}
+
+/**
  * @brief "I" key: open a multi-select native chooser and insert the chosen
  *        track(s) at the current playlist index, then start playing the first
  *        inserted track. The track that was current shifts down by N and plays
@@ -899,6 +929,19 @@ void Player::openTemporaryTrackDialog()
     requestTrackLoad(TagLib::String(paths.front(), TagLib::String::UTF8));
 }
 #endif // HAVE_FILEDIALOG
+
+/**
+ * @brief Empty the playlist and stop playback (nothing left to play).
+ */
+void Player::clearPlaylist()
+{
+    if (!playlist) {
+        return;
+    }
+    playlist->clear();
+    stop();
+    updateInfo();
+}
 
 #ifdef _WIN32
 void Player::installWin32Menu()
@@ -1693,6 +1736,12 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
 #ifdef HAVE_FILEDIALOG
+        case SDLK_o:
+            if (keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) {
+                openTracksReplacingPlaylist();
+            }
+            break;
+
         case SDLK_i:
             openInsertDialog();
             break;
@@ -2133,6 +2182,11 @@ bool Player::Initialize(const PlayerOptions& options) {
         m_menu_bar = menu_bar.get();
 
         std::vector<MI> file_items;
+#ifdef HAVE_FILEDIALOG
+        file_items.push_back(MI::leaf("&Open Tracks...", [this]{ openTracksReplacingPlaylist(); }, nullptr, "Ctrl+O"));
+#endif
+        file_items.push_back(MI::leaf("&Clear Playlist", [this]{ clearPlaylist(); }));
+        file_items.push_back(MI::sep());
 #ifdef HAVE_FILEDIALOG
         file_items.push_back(MI::leaf("&Insert Track(s)", [this]{ openInsertDialog(); }, nullptr, "I"));
         file_items.push_back(MI::leaf("Temp &Load Track", [this]{ openTemporaryTrackDialog(); }, nullptr, "L"));
