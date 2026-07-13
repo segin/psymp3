@@ -19,8 +19,8 @@ FileIcon ICON DISCARDABLE "music.ico"
 IDR_VERA_TTF RCDATA "vera.ttf"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,99,11,922
-PRODUCTVERSION 1,99,11,922
+FILEVERSION 2,0,0,923
+PRODUCTVERSION 2,0,0,923
 FILEOS 0x00040004
 FILETYPE 0x00000001
 BEGIN
@@ -28,15 +28,15 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "Comments", "This is PsyMP3 version 1.99.11-RELEASE\0"
+      VALUE "Comments", "This is PsyMP3 version 2-CURRENT\0"
       VALUE "CompanyName", "None\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
-      VALUE "FileVersion", "1, 99, 11, 922\0"
+      VALUE "FileVersion", "2, 0, 0, 923\0"
       VALUE "InternalName", "PsyMP3\0"
       VALUE "LegalCopyright", "ISC License\0"
       VALUE "OriginalFilename", "psymp3.exe\0"
       VALUE "ProductName", "PsyMP3 Audio Player\0"
-      VALUE "ProductVersion", "1.99.11-RELEASE\0"
+      VALUE "ProductVersion", "2-CURRENT\0"
       VALUE "LegalTrademarks", "Main program is � 2008-2026 Kirn Gill II. MD5 library is Copyright � 2002 Aladdin Enterprises, � 1999, 2000 artofcode LLC. libdir is Copyright � 2009-2010 Mattis Michel.\0"
     END
   END
