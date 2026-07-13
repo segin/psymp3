@@ -193,11 +193,22 @@ psymp3_LDADD += $(DBUS_LIBS)
 endif
 
 # Native open-file dialog backend (I/L keys). The toolkit code is isolated in
-# core/libpsymp3-filedialog.a (built by the src/core SUBDIR in both regular and
-# final builds); $(DIALOG_LIBS) resolves its Qt/GTK/Win32 symbols. Listed after
-# the object that references it and before the toolkit libs (left-to-right ld).
+# core/libpsymp3-filedialog.a; $(DIALOG_LIBS) resolves its Qt/GTK/Win32
+# symbols. Listed after the object that references it and before the toolkit
+# libs (left-to-right ld). In regular builds the src/core SUBDIR builds the
+# library; in final builds SUBDIRS is empty (everything lives in the unity TU)
+# EXCEPT this library, which must stay a separate TU because the GUI-toolkit
+# headers/flags are deliberately kept out of every other compilation unit —
+# so recurse for just this one target.
 if HAVE_FILEDIALOG
 psymp3_LDADD += core/libpsymp3-filedialog.a $(DIALOG_LIBS)
+if FINAL_BUILD
+core/libpsymp3-filedialog.a: filedialog-lib
+	@: # built by the recursive make below; this rule orders the dependency
+.PHONY: filedialog-lib
+filedialog-lib:
+	cd core && $(MAKE) $(AM_MAKEFLAGS) libpsymp3-filedialog.a
+endif
 endif
 
 # Windows resource file support
