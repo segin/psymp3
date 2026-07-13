@@ -241,10 +241,11 @@ size_t MD5Validator::writeSampleLittleEndian(int32_t sample,
     // For non-byte-aligned bit depths, sign-extend to next byte boundary
     // This is done by shifting left to align MSB, then arithmetic shift right
     if (bit_depth % 8 != 0) {
-        // Shift left to align MSB to bit 31
+        // Shift left to align MSB to bit 31 (through uint32_t: left-shifting a
+        // negative signed value is UB and decoded samples are often negative).
         int32_t shift_left = 32 - bit_depth;
-        sample = sample << shift_left;
-        
+        sample = static_cast<int32_t>(static_cast<uint32_t>(sample) << shift_left);
+
         // Arithmetic shift right to sign-extend to byte boundary
         int32_t shift_right = 32 - (bytes_per_sample * 8);
         sample = sample >> shift_right;

@@ -18,8 +18,10 @@ SampleReconstructor::SampleReconstructor() {}
 SampleReconstructor::~SampleReconstructor() {}
 
 int32_t SampleReconstructor::upscale8To16(int32_t sample) {
-  // Requirement 9.2: Left-shift by 8 bits to scale to 16-bit range
-  return sample << 8;
+  // Requirement 9.2: Left-shift by 8 bits to scale to 16-bit range.
+  // Shift through uint32_t: left-shifting a negative signed value is UB, and
+  // decoded samples are routinely negative. The bit pattern is identical.
+  return static_cast<int32_t>(static_cast<uint32_t>(sample) << 8);
 }
 
 int32_t SampleReconstructor::downscale24To16(int32_t sample) {
@@ -49,7 +51,8 @@ int32_t SampleReconstructor::upscaleTo16(int32_t sample,
   // Requirement 9.5: Left-shift to 16-bit range with proper scaling
   // For bit depths 4-12, left-shift to fill 16-bit range
   uint32_t shift_amount = 16 - source_bit_depth;
-  return sample << shift_amount;
+  // Shift through uint32_t (negative-left-shift is UB; see upscale8To16).
+  return static_cast<int32_t>(static_cast<uint32_t>(sample) << shift_amount);
 }
 
 int16_t SampleReconstructor::validateAndClip(int32_t sample) {

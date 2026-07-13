@@ -243,8 +243,16 @@ bool ResidualDecoder::decodeRiceCode(int32_t &value, uint32_t rice_param) {
     }
   }
 
-  // Compute folded unsigned value
-  uint32_t folded = (quotient << rice_param) | remainder;
+  // Compute folded unsigned value in 64-bit: quotient (up to 1024) shifted by
+  // rice_param (up to 30) can exceed 32 bits, which would wrap silently and
+  // yield a garbage residual. A folded value that doesn't fit in 32 bits can't
+  // be a valid residual, so reject it as corrupt.
+  uint64_t folded64 = (static_cast<uint64_t>(quotient) << rice_param) | remainder;
+  if (folded64 > 0xFFFFFFFFull) {
+    m_last_error = "Rice code folded value out of range";
+    return false;
+  }
+  uint32_t folded = static_cast<uint32_t>(folded64);
 
   // Unfold to signed value using zigzag encoding
   value = unfoldSigned(folded);

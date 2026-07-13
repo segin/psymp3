@@ -98,7 +98,10 @@ void ChannelDecorrelator::decorrelateLeftSide(int32_t* left, int32_t* side, uint
         // Note: side buffer is modified in-place to become right channel
         int32_t left_sample = left[i];
         int32_t side_sample = side[i];
-        side[i] = left_sample - side_sample;  // side buffer now contains right channel
+        // Widen the subtraction: for valid streams the result fits in int32, but
+        // a crafted subframe can place near-extreme int32 values here, and a
+        // plain int32 subtraction would then be signed-overflow UB.
+        side[i] = static_cast<int32_t>(static_cast<int64_t>(left_sample) - side_sample);
     }
     
     // After this operation:
@@ -116,7 +119,8 @@ void ChannelDecorrelator::decorrelateRightSide(int32_t* side, int32_t* right, ui
         // Note: side buffer is modified in-place to become left channel
         int32_t right_sample = right[i];
         int32_t side_sample = side[i];
-        side[i] = right_sample + side_sample;  // side buffer now contains left channel
+        // Widen the addition (see decorrelateLeftSide: avoid int32 overflow UB).
+        side[i] = static_cast<int32_t>(static_cast<int64_t>(right_sample) + side_sample);
     }
     
     // After this operation:
@@ -150,9 +154,11 @@ void ChannelDecorrelator::decorrelateMidSide(int32_t* mid, int32_t* side, uint32
             (static_cast<uint32_t>(mid[i]) << 1) |
             (static_cast<uint32_t>(side_sample) & 1u));
 
-        // Store results (in-place modification)
-        mid[i]  = (mid_sample + side_sample) >> 1; // mid buffer now holds left
-        side[i] = (mid_sample - side_sample) >> 1; // side buffer now holds right
+        // Store results (in-place modification). Widen the +/- to int64 before
+        // the >>1: mid_sample ± side_sample can exceed int32 for crafted input,
+        // which would be signed-overflow UB in plain int32 arithmetic.
+        mid[i]  = static_cast<int32_t>((static_cast<int64_t>(mid_sample) + side_sample) >> 1); // -> left
+        side[i] = static_cast<int32_t>((static_cast<int64_t>(mid_sample) - side_sample) >> 1); // -> right
     }
     
     // After this operation:

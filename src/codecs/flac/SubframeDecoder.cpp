@@ -492,9 +492,10 @@ void SubframeDecoder::applyLPCPredictor(int32_t *samples,
     // Apply quantization level shift (arithmetic right shift)
     int64_t prediction = sum >> shift;
 
-    // Add residual to get reconstructed sample
-    // Cast back to 32-bit (should be safe after shift)
-    samples[sample_idx] = static_cast<int32_t>(prediction) + residuals[i];
+    // Add residual to get reconstructed sample. Add in 64-bit and narrow once
+    // (like the FIXED path): narrowing prediction to int32 first and then adding
+    // residuals[i] in int32 could be signed-overflow UB for crafted input.
+    samples[sample_idx] = static_cast<int32_t>(prediction + residuals[i]);
   }
 }
 
