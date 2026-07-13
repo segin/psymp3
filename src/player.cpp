@@ -847,6 +847,31 @@ void Player::prevTrack(void) {
 }
 
 #ifdef HAVE_FILEDIALOG
+namespace {
+// Extensions offered by the open/insert choosers: every demuxable media format
+// plus the playlist containers, so .m3u/.m3u8 files are selectable too.
+std::vector<std::string> chooserExtensions()
+{
+    std::vector<std::string> exts = MediaFile::getSupportedExtensions();
+    exts.push_back("m3u");
+    exts.push_back("m3u8");
+    return exts;
+}
+
+// Turn chosen file paths into playlist entries, expanding any selected playlist
+// files (.m3u/.m3u8) into their constituent tracks — the same expansion the
+// command-line/startup path uses. A plain media file resolves to one entry.
+std::vector<Playlist::Entry> expandChosenPaths(const std::vector<std::string>& paths)
+{
+    std::vector<TagLib::String> sources;
+    sources.reserve(paths.size());
+    for (const std::string& p : paths) {
+        sources.emplace_back(p, TagLib::String::UTF8);
+    }
+    return Playlist::resolveInlineSources(sources);
+}
+} // namespace
+
 /**
  * @brief Ctrl+O: open a multi-select native chooser and REPLACE the running
  *        playlist with the chosen track(s), then start playing the first one.
@@ -858,16 +883,14 @@ void Player::openTracksReplacingPlaylist()
         return;
     }
     std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
-        true, "Open track(s)", MediaFile::getSupportedExtensions());
+        true, "Open track(s)", chooserExtensions());
     if (paths.empty()) {
         return; // cancelled: keep the existing playlist and playback
     }
 
-    std::vector<Playlist::Entry> entries;
-    entries.reserve(paths.size());
-    for (const std::string& p : paths) {
-        entries.push_back(Playlist::Entry{
-            TagLib::String(p, TagLib::String::UTF8), TagLib::String(), TagLib::String(), 0});
+    std::vector<Playlist::Entry> entries = expandChosenPaths(paths);
+    if (entries.empty()) {
+        return; // e.g. only empty/invalid playlist files were chosen
     }
 
     playlist->clear();
@@ -889,16 +912,14 @@ void Player::openInsertDialog()
         return;
     }
     std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
-        true, "Insert track(s)", MediaFile::getSupportedExtensions());
+        true, "Insert track(s)", chooserExtensions());
     if (paths.empty()) {
         return;
     }
 
-    std::vector<Playlist::Entry> entries;
-    entries.reserve(paths.size());
-    for (const std::string& p : paths) {
-        entries.push_back(Playlist::Entry{
-            TagLib::String(p, TagLib::String::UTF8), TagLib::String(), TagLib::String(), 0});
+    std::vector<Playlist::Entry> entries = expandChosenPaths(paths);
+    if (entries.empty()) {
+        return; // e.g. only empty/invalid playlist files were chosen
     }
 
     long pos = playlist->getPosition();
