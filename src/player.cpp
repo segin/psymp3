@@ -1047,7 +1047,7 @@ void Player::handleWin32MenuCommand(unsigned int id)
     switch (id) {
         case IDM_FILE_INSERT:
 #ifdef HAVE_FILEDIALOG
-            openInsertDialog();
+            queueTracksNext();
 #endif
             break;
         case IDM_FILE_TEMPLOAD:
