@@ -158,6 +158,17 @@ DEFINE_GUID_(IID_ITaskbarList4,0xc43dc798,0x95d1,0x4bea,0x90,0x30,0xbb,0x99,0xe2
 #define WINAMP_BUTTON4 40047 // Stop
 #define WINAMP_BUTTON5 40048 // Next
 
+// Windows 7+ taskbar thumbnail-toolbar (window-preview) transport buttons.
+// A click arrives as WM_COMMAND with HIWORD(wParam)==THBN_CLICKED and
+// LOWORD(wParam)==the button's iId below. IDs sit above the Winamp block so
+// they never collide with it or the native menu's IDM_* range.
+#ifndef THBN_CLICKED
+#define THBN_CLICKED 0x1800
+#endif
+#define PSYMP3_THUMB_PREV      41000
+#define PSYMP3_THUMB_PLAYPAUSE 41001
+#define PSYMP3_THUMB_NEXT      41002
+
 // KVIrc custom interface constants
 #define KVIRC_WM_USER 63112
 #define KVIRC_WM_USER_CHECK 13123
@@ -246,6 +257,16 @@ class System
         static HWND getHwnd();
         void updateProgress(ULONGLONG now, ULONGLONG max);
         void progressState(TBPFLAG status);
+        // Windows 7+ taskbar thumbnail-toolbar transport controls (Prev /
+        // Play-Pause / Next on the window-preview flyout). setupThumbBar() must
+        // be (re)called after the shell sends the TaskbarButtonCreated message;
+        // it adds the buttons the first time and refreshes them thereafter.
+        void setupThumbBar();
+        void updateThumbBarPlayState(bool playing);
+        // The registered "TaskbarButtonCreated" window message (cached). The
+        // shell posts it to the main window once its taskbar button exists and
+        // again if Explorer restarts -- the only valid time to add thumb buttons.
+        static UINT taskbarButtonCreatedMessage();
         #endif
     private:
     #if defined(_WIN32)
@@ -258,6 +279,15 @@ class System
         // Microsoft::WRL::ComPtr<ITaskbarList3> m_taskbar;
         ITaskbarList3 *m_taskbar; // Keeping original for now, but ComPtr is recommended.
         HWND m_ipc_hwnd = nullptr;
+        // Thumbnail-toolbar transport buttons: runtime-drawn glyph icons (no
+        // external assets, so the exe stays self-contained) and a latch marking
+        // whether ThumbBarAddButtons has run (so later calls use Update, not Add).
+        HICON m_thumb_icon_prev = nullptr;
+        HICON m_thumb_icon_play = nullptr;
+        HICON m_thumb_icon_pause = nullptr;
+        HICON m_thumb_icon_next = nullptr;
+        bool m_thumb_added = false;
+        void fillThumbButtons(THUMBBUTTON* out, bool playing);
     #endif
 
 };

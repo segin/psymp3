@@ -98,6 +98,10 @@ System::~System() {
     m_taskbar->Release();
     m_taskbar = nullptr;
   }
+  if (m_thumb_icon_prev)  DestroyIcon(m_thumb_icon_prev);
+  if (m_thumb_icon_play)  DestroyIcon(m_thumb_icon_play);
+  if (m_thumb_icon_pause) DestroyIcon(m_thumb_icon_pause);
+  if (m_thumb_icon_next)  DestroyIcon(m_thumb_icon_next);
 #endif
 }
 
@@ -375,7 +379,12 @@ LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
  * `HrInit()` to initialise it. Does nothing if `WIN_OPTIONAL` is not defined.
  */
 void System::InitializeTaskbar() {
-#if defined(_WIN32) && defined(WIN_OPTIONAL)
+#if defined(_WIN32)
+  // SDL's video init already puts the main thread into an STA, but request it
+  // defensively -- CoCreateInstance needs an initialized apartment. A benign
+  // RPC_E_CHANGED_MODE just means SDL got there first, which is fine.
+  CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
   HRESULT hr =
       CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
                        IID_ITaskbarList3, reinterpret_cast<void **>(&m_taskbar));
@@ -579,6 +588,210 @@ void System::progressState(TBPFLAG status) {
     m_taskbar->SetProgressState(getHwnd(), status);
   else
     Debug::log("system", "System::updateProgress(): No ITaskbarList3 OLE interface!");
+}
+
+// --- Windows 7+ taskbar thumbnail-toolbar (window-preview) transport buttons --
+//
+// libseven (libs/libseven) wrapped ITaskbarList3 but never finished the thumb
+// buttons -- it allocated a THUMBBUTTON array yet never set the count, assigned
+// no icons/IDs, and, crucially, never called ThumbBarAddButtons, so no buttons
+// ever appeared. This implements the piece it was missing, against the
+// ITaskbarList3 the System object already owns.
+//
+// The buttons need HICONs. Rather than ship .ico assets (which would break the
+// single-file exe), the Prev / Play / Pause / Next glyphs are rasterized at
+// runtime into a 32-bit BGRA top-down DIB and wrapped as an alpha icon. The
+// shapes (a filled rectangle and a filled triangle) are filled by hand so every
+// pixel's alpha is set explicitly -- no reliance on GDI's alpha behaviour.
+//
+// Named (not anonymous) namespace so the helper symbols stay unique in the
+// --enable-final unity TU, where this file is #included alongside every other.
+namespace psymp3_win_thumbbar {
+
+enum GlyphKind { GLYPH_PREV, GLYPH_PLAY, GLYPH_PAUSE, GLYPH_NEXT };
+
+static inline void putPixel(uint8_t* bgra, int W, int x, int y) {
+    uint8_t* p = bgra + (static_cast<size_t>(y) * W + x) * 4;
+    p[0] = 255; p[1] = 255; p[2] = 255; p[3] = 255; // opaque white, BGRA
+}
+
+static void fillRect(uint8_t* bgra, int W, int H, int x0, int y0, int x1, int y1) {
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > W) x1 = W;
+    if (y1 > H) y1 = H;
+    for (int y = y0; y < y1; ++y)
+        for (int x = x0; x < x1; ++x)
+            putPixel(bgra, W, x, y);
+}
+
+// Fill triangle (ax,ay)-(bx,by)-(cx,cy) via a bounding-box half-plane test.
+// Trivial cost at icon sizes (<= a few hundred pixels).
+static void fillTriangle(uint8_t* bgra, int W, int H,
+                         float ax, float ay, float bx, float by, float cx, float cy) {
+    float lo = ax < bx ? ax : bx; if (cx < lo) lo = cx;
+    float hi = ax > bx ? ax : bx; if (cx > hi) hi = cx;
+    float to = ay < by ? ay : by; if (cy < to) to = cy;
+    float bo = ay > by ? ay : by; if (cy > bo) bo = cy;
+    int minx = (int)lo,      maxx = (int)hi + 1;
+    int miny = (int)to,      maxy = (int)bo + 1;
+    if (minx < 0) minx = 0;
+    if (miny < 0) miny = 0;
+    if (maxx > W) maxx = W;
+    if (maxy > H) maxy = H;
+    auto edge = [](float x0, float y0, float x1, float y1, float px, float py) {
+        return (px - x0) * (y1 - y0) - (py - y0) * (x1 - x0);
+    };
+    for (int y = miny; y < maxy; ++y) {
+        for (int x = minx; x < maxx; ++x) {
+            float px = x + 0.5f, py = y + 0.5f;
+            float w0 = edge(ax, ay, bx, by, px, py);
+            float w1 = edge(bx, by, cx, cy, px, py);
+            float w2 = edge(cx, cy, ax, ay, px, py);
+            if ((w0 <= 0 && w1 <= 0 && w2 <= 0) || (w0 >= 0 && w1 >= 0 && w2 >= 0))
+                putPixel(bgra, W, x, y);
+        }
+    }
+}
+
+static HICON makeGlyphIcon(GlyphKind kind) {
+    int sz = GetSystemMetrics(SM_CXSMICON);
+    const int W = sz > 0 ? sz : 16;
+    const int H = W;
+
+    BITMAPINFO bi;
+    std::memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = W;
+    bi.bmiHeader.biHeight = -H; // top-down
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = nullptr;
+    HDC hdc = GetDC(nullptr);
+    HBITMAP color = CreateDIBSection(hdc, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    ReleaseDC(nullptr, hdc);
+    if (!color || !bits) {
+        if (color) DeleteObject(color);
+        return nullptr;
+    }
+
+    uint8_t* buf = static_cast<uint8_t*>(bits);
+    std::memset(buf, 0, static_cast<size_t>(W) * H * 4); // fully transparent
+
+    const float pad   = W * 0.22f;
+    const float bar   = (W * 0.16f < 2.0f) ? 2.0f : W * 0.16f; // vertical-bar width
+    const float top   = pad;
+    const float bot   = H - pad;
+    const float left  = pad;
+    const float right = W - pad;
+    const float midY  = H * 0.5f;
+
+    switch (kind) {
+        case GLYPH_PLAY:
+            fillTriangle(buf, W, H, left, top, left, bot, right, midY);
+            break;
+        case GLYPH_PAUSE:
+            fillRect(buf, W, H, (int)left, (int)top, (int)(left + bar), (int)bot);
+            fillRect(buf, W, H, (int)(right - bar), (int)top, (int)right, (int)bot);
+            break;
+        case GLYPH_PREV:
+            fillRect(buf, W, H, (int)left, (int)top, (int)(left + bar), (int)bot);
+            fillTriangle(buf, W, H, right, top, right, bot, left + bar, midY);
+            break;
+        case GLYPH_NEXT:
+            fillTriangle(buf, W, H, left, top, left, bot, right - bar, midY);
+            fillRect(buf, W, H, (int)(right - bar), (int)top, (int)right, (int)bot);
+            break;
+    }
+
+    // Monochrome AND mask, explicitly zeroed: transparency comes from the color
+    // bitmap's per-pixel alpha, so the mask must be all 0 (draw color anywhere).
+    int mask_stride = ((W + 15) / 16) * 2; // 1bpp scanlines are WORD-aligned
+    std::vector<uint8_t> mask_bits(static_cast<size_t>(mask_stride) * H, 0);
+    HBITMAP mask = CreateBitmap(W, H, 1, 1, mask_bits.data());
+
+    ICONINFO ii;
+    std::memset(&ii, 0, sizeof(ii));
+    ii.fIcon = TRUE;
+    ii.hbmColor = color;
+    ii.hbmMask = mask;
+    HICON icon = CreateIconIndirect(&ii);
+
+    DeleteObject(color);
+    if (mask) DeleteObject(mask);
+    return icon;
+}
+
+} // namespace psymp3_win_thumbbar
+
+void System::fillThumbButtons(THUMBBUTTON* out, bool playing) {
+    std::memset(out, 0, sizeof(THUMBBUTTON) * 3);
+
+    out[0].dwMask  = (THUMBBUTTONMASK)(THB_ICON | THB_TOOLTIP | THB_FLAGS);
+    out[0].iId     = PSYMP3_THUMB_PREV;
+    out[0].hIcon   = m_thumb_icon_prev;
+    out[0].dwFlags = THBF_ENABLED;
+    lstrcpynW(out[0].szTip, L"Previous", 260);
+
+    out[1].dwMask  = (THUMBBUTTONMASK)(THB_ICON | THB_TOOLTIP | THB_FLAGS);
+    out[1].iId     = PSYMP3_THUMB_PLAYPAUSE;
+    out[1].hIcon   = playing ? m_thumb_icon_pause : m_thumb_icon_play;
+    out[1].dwFlags = THBF_ENABLED;
+    lstrcpynW(out[1].szTip, playing ? L"Pause" : L"Play", 260);
+
+    out[2].dwMask  = (THUMBBUTTONMASK)(THB_ICON | THB_TOOLTIP | THB_FLAGS);
+    out[2].iId     = PSYMP3_THUMB_NEXT;
+    out[2].hIcon   = m_thumb_icon_next;
+    out[2].dwFlags = THBF_ENABLED;
+    lstrcpynW(out[2].szTip, L"Next", 260);
+}
+
+void System::setupThumbBar() {
+    if (!m_taskbar)
+        return;
+    HWND hwnd = getHwnd();
+    if (!hwnd)
+        return;
+
+    using namespace psymp3_win_thumbbar;
+    if (!m_thumb_icon_prev)  m_thumb_icon_prev  = makeGlyphIcon(GLYPH_PREV);
+    if (!m_thumb_icon_play)  m_thumb_icon_play  = makeGlyphIcon(GLYPH_PLAY);
+    if (!m_thumb_icon_pause) m_thumb_icon_pause = makeGlyphIcon(GLYPH_PAUSE);
+    if (!m_thumb_icon_next)  m_thumb_icon_next  = makeGlyphIcon(GLYPH_NEXT);
+
+    THUMBBUTTON btns[3];
+    fillThumbButtons(btns, /*playing=*/false);
+
+    HRESULT hr;
+    if (!m_thumb_added) {
+        hr = m_taskbar->ThumbBarAddButtons(hwnd, 3, btns);
+        if (SUCCEEDED(hr))
+            m_thumb_added = true;
+    } else {
+        hr = m_taskbar->ThumbBarUpdateButtons(hwnd, 3, btns);
+    }
+    Debug::log("system", "System::setupThumbBar(): added=", m_thumb_added,
+               " hr=0x", std::hex, static_cast<unsigned>(hr));
+}
+
+void System::updateThumbBarPlayState(bool playing) {
+    if (!m_taskbar || !m_thumb_added)
+        return;
+    HWND hwnd = getHwnd();
+    if (!hwnd)
+        return;
+    THUMBBUTTON btns[3];
+    fillThumbButtons(btns, playing);
+    m_taskbar->ThumbBarUpdateButtons(hwnd, 3, btns);
+}
+
+UINT System::taskbarButtonCreatedMessage() {
+    // Registered once by the shell name; the same value process-wide. Thread-safe
+    // static init means concurrent callers get one consistent message id.
+    static const UINT msg = RegisterWindowMessageW(L"TaskbarButtonCreated");
+    return msg;
 }
 
 #endif

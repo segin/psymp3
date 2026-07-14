@@ -981,6 +981,15 @@ void Player::clearPlaylist()
     updateInfo();
 }
 
+void Player::updateTaskbarPlayState()
+{
+#ifdef _WIN32
+    if (system) {
+        system->updateThumbBarPlayState(state == PlayerState::Playing);
+    }
+#endif
+}
+
 #ifdef _WIN32
 void Player::installWin32Menu()
 {
@@ -1163,6 +1172,7 @@ bool Player::canGoNext() const {
  */
 bool Player::stop(void) {
     state = PlayerState::Stopped;
+    updateTaskbarPlayState();
     m_pause_indicator.reset();
     // Safely signal to the audio thread that the stream is gone before we destroy it.
     if (audio) {
@@ -1205,6 +1215,7 @@ bool Player::pause(void) {
         // dereference a null audio.
         if (audio) audio->play(false);
         state = PlayerState::Paused;
+        updateTaskbarPlayState();
 #ifdef HAVE_DBUS
         if (m_mpris_manager) {
             m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Paused);
@@ -1241,6 +1252,7 @@ bool Player::play(void) {
         m_pause_indicator.reset();
         if (audio) audio->play(true);
         state = PlayerState::Playing;
+        updateTaskbarPlayState();
 #ifdef HAVE_DBUS
         if (m_mpris_manager) {
             m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
@@ -2127,6 +2139,13 @@ bool Player::Initialize(const PlayerOptions& options) {
     System::setMainWindow(screen->getWindowHandle());
     Debug::log("system", "System::getHwnd: ", std::hex, System::getHwnd());
     system->InitializeIPC(this);
+    // Route native window messages (WM_COMMAND from the taskbar thumb buttons,
+    // and the shell's TaskbarButtonCreated) to us through SDL. The native menu
+    // bar isn't installed on this branch, so enable it here rather than there.
+    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+    // Try once now; if the taskbar button doesn't exist yet the shell will send
+    // TaskbarButtonCreated later and the SYSWMEVENT handler retries.
+    system->setupThumbBar();
 #endif
 #if defined(_WIN32)
     // Font is embedded in the exe (see loadUiFont); no external vera.ttf needed.
@@ -2387,10 +2406,24 @@ void Player::EventLoop() {
 #ifdef _WIN32
             case SDL_SYSWMEVENT:
                 // Native menu bar clicks arrive as WM_COMMAND (HIWORD(wParam)==0
-                // for menus, 1 for accelerators).
+                // for menus, 1 for accelerators). Taskbar thumbnail-toolbar
+                // clicks also arrive as WM_COMMAND but with HIWORD==THBN_CLICKED.
                 if (event.syswm.msg && event.syswm.msg->subsystem == SDL_SYSWM_WINDOWS) {
                     const auto& w = event.syswm.msg->msg.win;
-                    if (w.msg == WM_COMMAND && HIWORD(w.wParam) == 0) {
+                    if (w.msg == System::taskbarButtonCreatedMessage()) {
+                        // The taskbar button now exists (first show, or Explorer
+                        // restarted) -- (re)add the transport thumb buttons.
+                        if (system) {
+                            system->setupThumbBar();
+                            system->updateThumbBarPlayState(state == PlayerState::Playing);
+                        }
+                    } else if (w.msg == WM_COMMAND && HIWORD(w.wParam) == THBN_CLICKED) {
+                        switch (LOWORD(w.wParam)) {
+                            case PSYMP3_THUMB_PREV:      prevTrack(); break;
+                            case PSYMP3_THUMB_PLAYPAUSE: playPause(); break;
+                            case PSYMP3_THUMB_NEXT:      nextTrack(); break;
+                        }
+                    } else if (w.msg == WM_COMMAND && HIWORD(w.wParam) == 0) {
                         handleWin32MenuCommand(LOWORD(w.wParam));
                     }
                 }
@@ -3488,6 +3521,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     // Ensure audio is unpaused after everything is set up
     if (audio) audio->play(true);
     state = PlayerState::Playing;
+    updateTaskbarPlayState();
 
     // Start scrobbling for the new track
     startTrackScrobbling();

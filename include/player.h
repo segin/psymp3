@@ -212,6 +212,10 @@ class Player
         void handleWin32MenuCommand(unsigned int cmd_id);
         void syncWin32MenuState(); // reflect current fft mode / delay / intensity as radio checks
 #endif
+        // Reflect Playing vs. not on the Windows taskbar thumbnail-toolbar
+        // play/pause button. Compiles to a no-op off Windows, so call sites need
+        // no #ifdef. Cheap and safe to call on every play-state transition.
+        void updateTaskbarPlayState();
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
         void handleMouseMotion(const SDL_MouseMotionEvent& event);
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
