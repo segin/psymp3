@@ -294,6 +294,13 @@ private:
     };
     
     InitializationPhase m_initialization_phase{InitializationPhase::None};
+
+    // True only while the D-Bus object path is registered with libdbus. Guards
+    // the two unregister sites (unregisterDBusService_unlocked and
+    // shutdownComponents_unlocked) so the path is never unregistered twice, nor
+    // unregistered when registration never happened -- either case makes libdbus
+    // warn "Attempted to unregister path ... which isn't registered".
+    bool m_object_path_registered{false};
 };
 
 } // namespace MPRIS

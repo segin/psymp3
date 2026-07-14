@@ -544,10 +544,13 @@ void MPRISManager::shutdownComponents_unlocked() {
         // arriving after the handler is freed but before unregistration would
         // dispatch into freed memory. shutdown_unlocked() unregisters first, but
         // the error-driven component reset reaches here directly, so do it here
-        // too (idempotent; a second unregister is harmless).
-        if (m_connection) {
+        // too. Guarded by m_object_path_registered so we never unregister a path
+        // that shutdown_unlocked() already removed, nor one that a failed init
+        // never registered -- libdbus warns on unregistering an unregistered path.
+        if (m_object_path_registered && m_connection) {
             if (DBusConnection* conn = m_connection->getConnection()) {
                 dbus_connection_unregister_object_path(conn, DBUS_OBJECT_PATH);
+                m_object_path_registered = false;
             }
         }
         try {
@@ -643,6 +646,7 @@ Result<void> MPRISManager::registerDBusService_unlocked() {
     if (!dbus_connection_register_object_path(conn, DBUS_OBJECT_PATH, &vtable, m_methods.get())) {
         return Result<void>::error("Failed to register D-Bus object path");
     }
+    m_object_path_registered = true;
 
     logInfo_unlocked("D-Bus service registered successfully");
     return Result<void>::success();
@@ -659,9 +663,13 @@ void MPRISManager::unregisterDBusService_unlocked() {
     }
     
     try {
-        // Unregister object path
-        dbus_connection_unregister_object_path(conn, DBUS_OBJECT_PATH);
-        
+        // Unregister object path (only if it is actually registered, so a later
+        // shutdownComponents_unlocked() doesn't double-unregister and warn).
+        if (m_object_path_registered) {
+            dbus_connection_unregister_object_path(conn, DBUS_OBJECT_PATH);
+            m_object_path_registered = false;
+        }
+
         // Release service name
         DBusError error;
         dbus_error_init(&error);
