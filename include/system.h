@@ -262,9 +262,13 @@ class System
             Playback   // SDL audio-callback thread
         };
         // Pin the CALLING thread to a core dedicated to its role, keeping the
-        // decoder and playback threads off the (CPU-hungry) GUI core. Only acts
-        // when there are >= 3 logical cores; otherwise it leaves scheduling to
-        // the OS. Windows and Linux only; a no-op elsewhere.
+        // decoder and playback threads off each other and (with >= 3 cores) off
+        // the CPU-hungry GUI core. Core budget:
+        //   >= 3 cores: GUI 0, decoder 1, playback 2.
+        //   == 2 cores: decoder 0, playback 1; the GUI floats across both.
+        //   <  2 cores: no-op (leave it to the OS).
+        // Implemented on Windows, Linux, FreeBSD/DragonFly and NetBSD; a no-op
+        // on other platforms.
         static void pinThreadToRole(CpuRole role);
         #if defined(_WIN32) // This block is for static methods
         static HWND getHwnd();

@@ -27,11 +27,19 @@
 #include <cstring>
 #include <cerrno>
 #endif
+// CPU affinity headers (see pinThreadToRole). Each OS has its own API:
+//   Linux         : cpu_set_t / CPU_SET / pthread_setaffinity_np (behind
+//                   _GNU_SOURCE, which g++/clang++ define by default on glibc).
+//   FreeBSD/DFly  : cpuset_t (sys/cpuset.h) + pthread_setaffinity_np (pthread_np.h).
+//   NetBSD        : opaque cpuset_t via cpuset_create()/cpuset_set() in sched.h.
 #if defined(__linux__)
-// CPU affinity (cpu_set_t / CPU_SET / pthread_setaffinity_np). These live behind
-// _GNU_SOURCE, which g++/clang++ define by default for C++ on glibc; assert it
-// here so a stripped-down toolchain fails loudly rather than silently dropping
-// the pinning.
+#include <sched.h>
+#include <pthread.h>
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+#include <sys/param.h>
+#include <sys/cpuset.h>
+#include <pthread_np.h>
+#elif defined(__NetBSD__)
 #include <sched.h>
 #include <pthread.h>
 #endif
@@ -904,42 +912,72 @@ void System::setThreadPriority(ThreadPriority priority) {
  * Core indices are logical CPUs; on SMT parts two "cores" may share a physical
  * core, which is still fine for isolation from the GUI. Windows + Linux only.
  */
+#if defined(_WIN32) || defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__) || defined(__NetBSD__)
+#define PSYMP3_HAVE_AFFINITY 1
+#endif
+
 void System::pinThreadToRole([[maybe_unused]] CpuRole role) {
-#if defined(_WIN32) || defined(__linux__)
+#if defined(PSYMP3_HAVE_AFFINITY)
   unsigned ncpu = std::thread::hardware_concurrency();
-  if (ncpu < 3) {
-    return; // not enough cores to dedicate; let the OS schedule freely
+
+  // Core assignment by available-core count:
+  //   >= 3 cores: a dedicated core each -- GUI 0, decoder 1, playback 2.
+  //   == 2 cores: pin only the two audio threads (decoder 0, playback 1) and
+  //               let the less latency-sensitive GUI float across both.
+  //   <  2 cores: nothing to gain; leave scheduling to the OS.
+  int core = -1;
+  if (ncpu >= 3) {
+    switch (role) {
+    case CpuRole::Gui:      core = 0; break;
+    case CpuRole::Decoder:  core = 1; break;
+    case CpuRole::Playback: core = 2; break;
+    }
+  } else if (ncpu == 2) {
+    switch (role) {
+    case CpuRole::Gui:      core = -1; break; // float
+    case CpuRole::Decoder:  core = 0;  break;
+    case CpuRole::Playback: core = 1;  break;
+    }
+  }
+  if (core < 0) {
+    return;
   }
 
-  unsigned core;
-  const char* role_name;
-  switch (role) {
-  case CpuRole::Gui:      core = 0; role_name = "gui";      break;
-  case CpuRole::Decoder:  core = 1; role_name = "decoder";  break;
-  case CpuRole::Playback: core = 2; role_name = "playback"; break;
-  default: return;
-  }
+  const char* role_name = role == CpuRole::Gui ? "gui"
+                        : role == CpuRole::Decoder ? "decoder" : "playback";
+  bool ok = false;
 
 #if defined(_WIN32)
-  DWORD_PTR mask = static_cast<DWORD_PTR>(1) << core;
-  if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
-    Debug::log("system", "pinThreadToRole(", role_name, "): SetThreadAffinityMask failed, err=",
-               GetLastError());
-  } else {
-    Debug::log("system", "pinThreadToRole(", role_name, "): pinned to core ", core, " of ", ncpu);
-  }
-#else // __linux__
+  ok = SetThreadAffinityMask(GetCurrentThread(),
+                             static_cast<DWORD_PTR>(1) << core) != 0;
+#elif defined(__linux__)
   cpu_set_t set;
   CPU_ZERO(&set);
   CPU_SET(core, &set);
-  int rc = pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
-  if (rc != 0) {
-    Debug::log("system", "pinThreadToRole(", role_name, "): pthread_setaffinity_np failed, rc=", rc);
-  } else {
-    Debug::log("system", "pinThreadToRole(", role_name, "): pinned to core ", core, " of ", ncpu);
+  ok = pthread_setaffinity_np(pthread_self(), sizeof(set), &set) == 0;
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+  cpuset_t set;
+  CPU_ZERO(&set);
+  CPU_SET(core, &set);
+  ok = pthread_setaffinity_np(pthread_self(), sizeof(set), &set) == 0;
+#elif defined(__NetBSD__)
+  // NetBSD's cpuset_t is opaque: build it through the cpuset_* helpers.
+  cpuset_t* set = cpuset_create();
+  if (set != nullptr) {
+    cpuset_zero(set);
+    if (cpuset_set(core, set) == 0) {
+      ok = pthread_setaffinity_np(pthread_self(), cpuset_size(set), set) == 0;
+    }
+    cpuset_destroy(set);
   }
 #endif
-#endif // _WIN32 || __linux__
+
+  if (ok) {
+    Debug::log("system", "pinThreadToRole(", role_name, "): pinned to core ", core, " of ", ncpu);
+  } else {
+    Debug::log("system", "pinThreadToRole(", role_name, "): failed to pin to core ", core);
+  }
+#endif // PSYMP3_HAVE_AFFINITY
 }
 
 /**
