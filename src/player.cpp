@@ -28,6 +28,7 @@
 
 
 std::atomic<bool> Player::guiRunning{false};
+std::atomic<Uint32> Player::s_app_loop_interval_ms{33}; // 33ms ~= 30 FPS default
 
 namespace {
 
@@ -383,7 +384,10 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     else
         Debug::log("timer", "skipped");
 
-    return interval;
+    // Return the current period rather than the one we were called with, so a
+    // Target-FPS change takes effect on the very next tick.
+    (void)interval;
+    return Player::s_app_loop_interval_ms.load(std::memory_order_relaxed);
 }
 
 /**
@@ -1681,6 +1685,25 @@ bool Player::updateGUI()
     // finally, update the screen :)
     screen->Flip();
 
+    // Measured redraw rate: tally flips and recompute once per second. Only the
+    // GUI thread runs updateGUI, so plain statics are race-free here.
+    {
+        static Uint32 fps_window_start = 0;
+        static int    fps_frame_count = 0;
+        Uint32 now = SDL_GetTicks();
+        if (fps_window_start == 0) fps_window_start = now;
+        ++fps_frame_count;
+        Uint32 elapsed = now - fps_window_start;
+        if (elapsed >= 1000) {
+            int fps = static_cast<int>(fps_frame_count * 1000.0 / elapsed + 0.5);
+            auto it = m_labels.find("fps");
+            if (it != m_labels.end())
+                it->second->setText("FPS: " + std::to_string(fps));
+            fps_window_start = now;
+            fps_frame_count = 0;
+        }
+    }
+
     // and if end of stream...
     // Do not signal end-of-track if we are in the middle of loading a new one.
     if (m_loading_track || m_preloading_track) {
@@ -1711,6 +1734,19 @@ void Player::setFFTMode(FFTMode mode)
     fft->setFFTMode(mode);
     showToast("FFT Mode: " + fft->getFFTModeName());
     updateInfo();
+}
+
+void Player::setTargetFps(int fps)
+{
+    if (fps < 1) fps = 1;
+    if (fps > 1000) fps = 1000;
+    m_target_fps = fps;
+    // Round the period so e.g. 60 FPS -> 17ms (16.67 rounded), 120 -> 8ms.
+    Uint32 period = static_cast<Uint32>((1000 + fps / 2) / fps);
+    if (period < 1) period = 1;
+    s_app_loop_interval_ms.store(period, std::memory_order_relaxed);
+    showToast("Target FPS: " + std::to_string(fps));
+    saveSettings();
 }
 
 void Player::cycleFFTMode()
@@ -2241,6 +2277,7 @@ bool Player::Initialize(const PlayerOptions& options) {
     add_label(app_widget,     "scale",    Rect(545, MenuBarWidget::BAR_H + 0, 95, 16));
     add_label(app_widget,     "decay",    Rect(545, MenuBarWidget::BAR_H + 15, 95, 16));
     add_label(app_widget,     "fft_mode", Rect(545, MenuBarWidget::BAR_H + 30, 95, 16));
+    add_label(app_widget,     "fps",      Rect(545, MenuBarWidget::BAR_H + 45, 95, 16));
 
     app_widget.addChild(std::move(hud_panel));
 
@@ -2296,6 +2333,11 @@ bool Player::Initialize(const PlayerOptions& options) {
                 [this, value]{ setIntensity(value); },
                 [this, value]{ return scalefactor == value; });
         };
+        auto fps_item = [this](const char* label, int fps) {
+            return MI::leaf(label,
+                [this, fps]{ setTargetFps(fps); },
+                [this, fps]{ return m_target_fps == fps; });
+        };
 
         std::vector<MI> settings_items;
         settings_items.push_back(MI::sub("FFT Mode", {
@@ -2312,6 +2354,11 @@ bool Player::Initialize(const PlayerOptions& options) {
         settings_items.push_back(MI::sub("Intensity", {
             intensity_item("1", 1), intensity_item("2", 2),
             intensity_item("3", 3), intensity_item("4", 4),
+        }));
+        settings_items.push_back(MI::sub("Target FPS", {
+            fps_item("30", 30),
+            fps_item("60", 60),
+            fps_item("120", 120),
         }));
         settings_items.push_back(MI::sep());
         settings_items.push_back(MI::leaf("2x &Zoom", [this]{ toggleZoom(); },
@@ -2348,7 +2395,7 @@ bool Player::Initialize(const PlayerOptions& options) {
     if (m_automated_test_mode) {
         Debug::log("test", "Automated test mode enabled.");
     }
-    m_app_loop_timer_id = SDL_AddTimer(33, Player::AppLoopTimer, nullptr);
+    m_app_loop_timer_id = SDL_AddTimer(s_app_loop_interval_ms.load(), Player::AppLoopTimer, nullptr);
     if (m_automated_test_mode) {
         m_automated_test_timer_id = SDL_AddTimer(1000, Player::AutomatedTestTimer, this);
     }
@@ -3051,6 +3098,14 @@ void Player::loadSettings()
             if (parseSettingDouble(value, v)) {
                 m_pending_scale = (static_cast<int>(v) >= 2) ? 2 : 1;
             }
+        } else if (key == "target_fps") {
+            if (parseSettingDouble(value, v)) {
+                int fps = std::clamp(static_cast<int>(v), 1, 1000);
+                m_target_fps = fps;
+                Uint32 period = static_cast<Uint32>((1000 + fps / 2) / fps);
+                if (period < 1) period = 1;
+                s_app_loop_interval_ms.store(period, std::memory_order_relaxed);
+            }
         } else if (key.rfind("eq_band_", 0) == 0) {
             try {
                 size_t used = 0;
@@ -3082,6 +3137,7 @@ void Player::saveSettings() const
     f << "volume=" << m_volume << "\n";
     f << "eq_enabled=" << (m_eq_enabled ? 1 : 0) << "\n";
     f << "zoom=" << (screen ? screen->getLogicalScale() : m_pending_scale) << "\n";
+    f << "target_fps=" << m_target_fps << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
 }

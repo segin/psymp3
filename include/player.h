@@ -134,6 +134,9 @@ class Player
         void seekTo(unsigned long pos);
         bool canSeek() const;
         static std::atomic<bool> guiRunning;
+        // App-loop timer period in ms, returned by AppLoopTimer so the redraw
+        // cadence (target FPS) can be changed live. 33ms ~= 30 FPS by default.
+        static std::atomic<Uint32> s_app_loop_interval_ms;
         
         // MPRIS Error Notification
         void toggleMPRISErrorNotifications();
@@ -170,6 +173,7 @@ class Player
         void setIntensity(int factor);      // spectrum scale factor (1-4 keys)
         void setDelay(float factor);        // spectrum decay factor (Z/X/C)
         void setFFTMode(FFTMode mode);      // set + toast + refresh
+        void setTargetFps(int fps);         // redraw cadence: 30/60/120 + persist
         void cycleFFTMode();                // F key: advance to the next mode
         void cycleLoopMode();               // E key: None -> One -> All -> None
         void toggleZoom();                  // G key: 1x <-> 2x pixel doubling
@@ -356,6 +360,7 @@ class Player
         // Display logical scale (1x/2x) loaded from psymp3.conf; applied to the
         // Display once it is created (loadSettings runs before that).
         int  m_pending_scale = 1;
+        int  m_target_fps = 30;   // redraw cadence; persisted in psymp3.conf
         void toggleEqualizerWindow();
         void applyEqStateToAudio();
 
