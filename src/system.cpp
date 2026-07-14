@@ -27,6 +27,14 @@
 #include <cstring>
 #include <cerrno>
 #endif
+#if defined(__linux__)
+// CPU affinity (cpu_set_t / CPU_SET / pthread_setaffinity_np). These live behind
+// _GNU_SOURCE, which g++/clang++ define by default for C++ on glibc; assert it
+// here so a stripped-down toolchain fails loudly rather than silently dropping
+// the pinning.
+#include <sched.h>
+#include <pthread.h>
+#endif
 
 #ifdef _WIN32
 // For setting thread name in the Visual Studio debugger
@@ -883,6 +891,55 @@ void System::setThreadPriority(ThreadPriority priority) {
   } else {
     Debug::log("system", "Thread priority set successfully");
   }
+}
+
+/**
+ * @brief Pin the calling thread to a CPU core dedicated to its role.
+ *
+ * Layout: GUI -> core 0, decoder -> core 1, playback -> core 2. This keeps the
+ * two audio threads off the GUI core (which does the FFT and rendering and is
+ * the main CPU hog) and off each other, cutting scheduler-induced audio jitter.
+ * Only takes effect with >= 3 logical cores; below that, pinning would just
+ * oversubscribe a core or starve the GUI, so the OS scheduler is left alone.
+ * Core indices are logical CPUs; on SMT parts two "cores" may share a physical
+ * core, which is still fine for isolation from the GUI. Windows + Linux only.
+ */
+void System::pinThreadToRole([[maybe_unused]] CpuRole role) {
+#if defined(_WIN32) || defined(__linux__)
+  unsigned ncpu = std::thread::hardware_concurrency();
+  if (ncpu < 3) {
+    return; // not enough cores to dedicate; let the OS schedule freely
+  }
+
+  unsigned core;
+  const char* role_name;
+  switch (role) {
+  case CpuRole::Gui:      core = 0; role_name = "gui";      break;
+  case CpuRole::Decoder:  core = 1; role_name = "decoder";  break;
+  case CpuRole::Playback: core = 2; role_name = "playback"; break;
+  default: return;
+  }
+
+#if defined(_WIN32)
+  DWORD_PTR mask = static_cast<DWORD_PTR>(1) << core;
+  if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
+    Debug::log("system", "pinThreadToRole(", role_name, "): SetThreadAffinityMask failed, err=",
+               GetLastError());
+  } else {
+    Debug::log("system", "pinThreadToRole(", role_name, "): pinned to core ", core, " of ", ncpu);
+  }
+#else // __linux__
+  cpu_set_t set;
+  CPU_ZERO(&set);
+  CPU_SET(core, &set);
+  int rc = pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
+  if (rc != 0) {
+    Debug::log("system", "pinThreadToRole(", role_name, "): pthread_setaffinity_np failed, rc=", rc);
+  } else {
+    Debug::log("system", "pinThreadToRole(", role_name, "): pinned to core ", core, " of ", ncpu);
+  }
+#endif
+#endif // _WIN32 || __linux__
 }
 
 /**

@@ -307,6 +307,7 @@ uint64_t Audio::getBufferLatencyMs() const {
 void Audio::decoderThreadLoop() {
     System::setThisThreadName("audio-decoder");
     System::setThreadPriority(System::ThreadPriority::High);
+    System::pinThreadToRole(System::CpuRole::Decoder);
     std::vector<int16_t> decode_chunk(4096); // Decode in 8KB chunks
     // The high water mark prevents the decoder from reading too far ahead,
     // which is important for responsive seeking and track changes. It defines
@@ -462,6 +463,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     if (!thread_name_set) {
         System::setThisThreadName("sdl-audio");
         System::setThreadPriority(System::ThreadPriority::TimeCritical);
+        System::pinThreadToRole(System::CpuRole::Playback);
         thread_name_set = true;
     }
 

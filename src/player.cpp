@@ -2364,6 +2364,11 @@ bool Player::Initialize(const PlayerOptions& options) {
  * handlers. Calls `processDeferredDeletions()` after each event.
  */
 void Player::EventLoop() {
+    // Keep the GUI thread (FFT + rendering) on its own core so the decoder and
+    // playback threads, pinned to other cores, don't fight it for CPU. No-op
+    // below 3 cores or off Windows/Linux.
+    System::pinThreadToRole(System::CpuRole::Gui);
+
     bool done = false;
     while (!done) {
         // message processing loop

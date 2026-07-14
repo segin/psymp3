@@ -253,6 +253,19 @@ class System
         static void setThisThreadName(const std::string& name);
         static void setThreadPriority(ThreadPriority priority);
         static bool lockMemory();
+
+        // The three latency-sensitive roles that get a dedicated CPU core when
+        // the machine has enough of them (see pinThreadToRole).
+        enum class CpuRole {
+            Gui,       // main/event-loop thread (FFT + rendering)
+            Decoder,   // Audio::decoderThreadLoop
+            Playback   // SDL audio-callback thread
+        };
+        // Pin the CALLING thread to a core dedicated to its role, keeping the
+        // decoder and playback threads off the (CPU-hungry) GUI core. Only acts
+        // when there are >= 3 logical cores; otherwise it leaves scheduling to
+        // the OS. Windows and Linux only; a no-op elsewhere.
+        static void pinThreadToRole(CpuRole role);
         #if defined(_WIN32) // This block is for static methods
         static HWND getHwnd();
         void updateProgress(ULONGLONG now, ULONGLONG max);
