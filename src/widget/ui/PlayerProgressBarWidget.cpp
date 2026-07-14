@@ -54,7 +54,11 @@ bool PlayerProgressBarWidget::handleMouseDown(const SDL_MouseButtonEvent& event,
             relative_y >= 0 && relative_y < m_height) {
             
             m_is_dragging = true;
-            
+            // Grab the mouse so motion/up are delivered here even when the
+            // cursor leaves the bar; without this, releasing off the bar never
+            // reaches handleMouseUp and the indicator tracks the mouse forever.
+            captureMouse();
+
             // Convert coordinates to progress value
             double progress = coordinateToProgress(relative_x);
             m_drag_progress = progress;
@@ -104,7 +108,8 @@ bool PlayerProgressBarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, i
 {
     if (event.button == SDL_BUTTON_LEFT && m_is_dragging) {
         m_is_dragging = false;
-        
+        releaseMouse();
+
         // Finalize the seek
         double final_progress = m_drag_progress;
         
