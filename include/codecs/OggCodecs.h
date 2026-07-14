@@ -27,6 +27,17 @@
 // No direct includes - all includes should be in psymp3.h
 #include <memory>
 
+// clang's -Wunused-private-field warns on the Speex stub fields below, so they
+// need [[maybe_unused]]; but GCC (through at least GCC 10, e.g. NetBSD's base
+// compiler) rejects that attribute on a non-static data member with
+// -Werror=attributes ("attribute ignored"). GCC has no such warning, so it
+// simply needs nothing there. Apply the attribute only on clang.
+#if defined(__clang__)
+#define PSYMP3_UNUSED_FIELD [[maybe_unused]]
+#else
+#define PSYMP3_UNUSED_FIELD
+#endif
+
 // Forward declarations for namespaced codec types
 namespace PsyMP3 {
 namespace Codec {
@@ -123,17 +134,19 @@ public:
 private:
     // Speex decoder state (stub fields; [[maybe_unused]] until the decoder is
     // implemented — clang's -Wunused-private-field flags them otherwise).
-    [[maybe_unused]] void* m_decoder_state = nullptr;
-    [[maybe_unused]] void* m_bits = nullptr;        // SpeexBits*
-    [[maybe_unused]] void* m_stereo_state = nullptr; // SpeexStereoState*
+    PSYMP3_UNUSED_FIELD void* m_decoder_state = nullptr;
+    PSYMP3_UNUSED_FIELD void* m_bits = nullptr;        // SpeexBits*
+    PSYMP3_UNUSED_FIELD void* m_stereo_state = nullptr; // SpeexStereoState*
 
     // Config
     uint32_t m_sample_rate = 0;
     uint16_t m_channels = 0;
-    [[maybe_unused]] uint32_t m_frame_size = 160;  // Default Speex frame size (nb_samples)
+    PSYMP3_UNUSED_FIELD uint32_t m_frame_size = 160;  // Default Speex frame size (nb_samples)
 
     // Initialization state
-    [[maybe_unused]] bool m_initialized_speex = false;
+    PSYMP3_UNUSED_FIELD bool m_initialized_speex = false;
 };
+
+#undef PSYMP3_UNUSED_FIELD
 
 #endif // OGGCODECS_H
