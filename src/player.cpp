@@ -280,7 +280,7 @@ Player::Player() : m_rng(std::random_device{}()) {
     m_lastfm = std::make_unique<LastFM>();
     m_track_start_time = 0;
     m_track_scrobbled = false;
-    m_volume = 1.0f;
+    m_volume = 0.75f; // default 75%; loadSettings() overrides from psymp3.conf if present
     loadSettings(); // volume + EQ state from psymp3.conf (applied to each Audio on creation)
 
 #ifdef HAVE_DBUS

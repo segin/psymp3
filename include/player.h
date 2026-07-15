@@ -331,7 +331,7 @@ class Player
         std::atomic<LoopMode> m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;
-        float m_volume = 1.0f;
+        float m_volume = 0.75f;   // default 75%; overridden by psymp3.conf if present
 
         // Automated testing members
         bool m_automated_test_mode;
