@@ -1571,8 +1571,13 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
             std::lock_guard<std::mutex> fft_lock(audio->getFFTMutex());
             float *spectrum = fft->getFFT();
             // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
-            // Pass live scalefactor and decayfactor values so keypress changes propagate
-            m_spectrum_widget->updateSpectrum(spectrum, PsyMP3::Core::SpectrumConfig::NumBands, scalefactor, decayfactor);
+            // Pass live scalefactor and decayfactor values so keypress changes propagate.
+            // The fade is applied once per rendered frame, so at higher redraw
+            // rates it would decay faster in real time. Scale its strength by
+            // 30/target_fps (full at 30 FPS, half at 60, quarter at 120) so the
+            // trail decays at the same wall-clock rate regardless of Target FPS.
+            float fade_decay = decayfactor * (30.0f / static_cast<float>(m_target_fps));
+            m_spectrum_widget->updateSpectrum(spectrum, PsyMP3::Core::SpectrumConfig::NumBands, scalefactor, fade_decay);
         }
 
     }
