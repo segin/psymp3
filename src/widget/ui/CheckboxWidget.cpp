@@ -124,13 +124,15 @@ void CheckboxWidget::rebuildSurface()
     drawWin31SunkenFrame(*surface, 0, box_y, box_size, box_size);
 
     if (m_checked) {
-        for (int i = 0; i < 7; ++i) {
-            surface->pixel(3 + i, box_y + 6 + i / 2, 0, 0, 0, 255);
-            surface->pixel(3 + i, box_y + 7 + i / 2, 0, 0, 0, 255);
+        // A proper checkmark: a short arm descending into the vertex at (5,8),
+        // then a longer arm rising to the upper right. Each arm is 2px thick.
+        for (int i = 0; i < 4; ++i) { // short arm: (2,5) -> vertex (5,8)
+            surface->pixel(2 + i, box_y + 5 + i, 0, 0, 0, 255);
+            surface->pixel(2 + i, box_y + 6 + i, 0, 0, 0, 255);
         }
-        for (int i = 0; i < 4; ++i) {
-            surface->pixel(8 + i, box_y + 8 - i, 0, 0, 0, 255);
-            surface->pixel(8 + i, box_y + 9 - i, 0, 0, 0, 255);
+        for (int i = 0; i < 6; ++i) { // long arm: vertex (5,8) -> (10,3)
+            surface->pixel(5 + i, box_y + 8 - i, 0, 0, 0, 255);
+            surface->pixel(5 + i, box_y + 9 - i, 0, 0, 0, 255);
         }
     }
 
