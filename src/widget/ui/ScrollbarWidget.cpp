@@ -15,6 +15,11 @@ namespace UI {
 
 namespace {
 
+// Track press-and-hold auto-repeat timing, and the page step per repeat.
+constexpr Uint32 kRepeatInitialMs = 300;  // delay before the first auto-repeat
+constexpr Uint32 kRepeatIntervalMs = 60;  // between subsequent repeats
+constexpr double kPageStep = 0.2;
+
 void drawWin31Button(::Surface& surface, const Rect& rect, bool pressed)
 {
     surface.box(rect.x(), rect.y(), rect.x() + rect.width() - 1, rect.y() + rect.height() - 1, 192, 192, 192, 255);
@@ -103,10 +108,17 @@ bool ScrollbarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rel
             setValue(m_value + 0.08);
             break;
         case ScrollbarPart::TrackBeforeThumb:
-            setValue(m_value - 0.2);
-            break;
         case ScrollbarPart::TrackAfterThumb:
-            setValue(m_value + 0.2);
+            // Begin a press-and-hold paging gesture: capture the mouse, page once
+            // now, then auto-repeat toward the cursor (after an initial delay)
+            // until the thumb reaches it. Capturing keeps the pressed-track
+            // indicator and the repeat alive even if the cursor drifts off.
+            m_track_repeating = true;
+            m_track_x = relative_x;
+            m_track_y = relative_y;
+            captureMouse();
+            m_next_repeat_ms = SDL_GetTicks() + kRepeatInitialMs;
+            pageTowardCursor();
             break;
         case ScrollbarPart::Thumb:
         {
@@ -129,6 +141,14 @@ bool ScrollbarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rel
 bool ScrollbarWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
     (void)event;
+
+    if (m_track_repeating) {
+        // Follow the cursor: paging continues toward its new position and stops
+        // once the thumb catches up to it.
+        m_track_x = relative_x;
+        m_track_y = relative_y;
+        return true;
+    }
 
     if (!m_dragging_thumb) {
         return hitTest(relative_x, relative_y);
@@ -161,12 +181,13 @@ bool ScrollbarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relat
         return false;
     }
 
-    if (m_dragging_thumb) {
+    if (m_dragging_thumb || m_track_repeating) {
         releaseMouse();
     }
 
     m_pressed = false;
     m_dragging_thumb = false;
+    m_track_repeating = false;
     m_pressed_part = ScrollbarPart::None;
     rebuildSurface();
     return true;
@@ -197,6 +218,55 @@ void ScrollbarWidget::setValue(double value)
     m_value = clamped;
     rebuildSurface();
     notifyChange();
+}
+
+double ScrollbarWidget::valueAtCoordinate(int relative_x, int relative_y) const
+{
+    Rect pos = getPos();
+    const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
+    const int arrow_extent = vert ? pos.width() : pos.height();
+    const int thumb_extent = vert ? std::max(pos.width() - 2, 12) : std::max(pos.height() - 2, 12);
+    const int travel = (vert ? pos.height() : pos.width()) - (2 * arrow_extent) - thumb_extent;
+    if (travel <= 0) {
+        return m_value;
+    }
+    const int coord = vert ? relative_y : relative_x;
+    // Value that centres the thumb under the cursor.
+    return clampValue(static_cast<double>(coord - arrow_extent - thumb_extent / 2) /
+                      static_cast<double>(travel));
+}
+
+void ScrollbarWidget::pageTowardCursor()
+{
+    const double target = valueAtCoordinate(m_track_x, m_track_y);
+    if (m_pressed_part == ScrollbarPart::TrackAfterThumb) {
+        if (target > m_value + 1e-4) {
+            setValue(std::min(m_value + kPageStep, target)); // never past the cursor
+        }
+    } else if (m_pressed_part == ScrollbarPart::TrackBeforeThumb) {
+        if (target < m_value - 1e-4) {
+            setValue(std::max(m_value - kPageStep, target));
+        }
+    }
+}
+
+void ScrollbarWidget::tickAutoRepeat()
+{
+    if (!m_track_repeating) {
+        return;
+    }
+    const Uint32 now = SDL_GetTicks();
+    if (now < m_next_repeat_ms) {
+        return;
+    }
+    m_next_repeat_ms = now + kRepeatIntervalMs;
+    pageTowardCursor();
+}
+
+void ScrollbarWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    tickAutoRepeat(); // advance the hold-to-page gesture once per frame
+    Widget::recursiveBlitTo(target, parent_absolute_pos);
 }
 
 ScrollbarWidget::ScrollbarPart ScrollbarWidget::hitTestPart(int relative_x, int relative_y) const
@@ -287,6 +357,35 @@ void ScrollbarWidget::rebuildSurface()
         surface->box(1, dec_arrow.height(), pos.width() - 2, inc_arrow.y() - 1, track, track, track, 255);
     } else {
         surface->box(dec_arrow.width(), 1, inc_arrow.x() - 1, pos.height() - 2, track, track, track, 255);
+    }
+
+    // Press-and-hold indicator: dither the track segment between the pressed
+    // arrow and the thumb so a held track-page gesture is visible. The segment
+    // shrinks as the thumb pages toward the cursor.
+    if (enabled && m_pressed &&
+        (m_pressed_part == ScrollbarPart::TrackBeforeThumb ||
+         m_pressed_part == ScrollbarPart::TrackAfterThumb)) {
+        int x1, y1, x2, y2;
+        if (m_orientation == ScrollbarOrientation::Vertical) {
+            x1 = 1; x2 = pos.width() - 2;
+            if (m_pressed_part == ScrollbarPart::TrackBeforeThumb) {
+                y1 = dec_arrow.height(); y2 = thumb.y() - 1;
+            } else {
+                y1 = thumb.y() + thumb.height(); y2 = inc_arrow.y() - 1;
+            }
+        } else {
+            y1 = 1; y2 = pos.height() - 2;
+            if (m_pressed_part == ScrollbarPart::TrackBeforeThumb) {
+                x1 = dec_arrow.width(); x2 = thumb.x() - 1;
+            } else {
+                x1 = thumb.x() + thumb.width(); x2 = inc_arrow.x() - 1;
+            }
+        }
+        for (int y = y1; y <= y2; ++y) {
+            for (int x = x1; x <= x2; ++x) {
+                if (((x + y) & 1) == 0) surface->pixel(x, y, 128, 128, 128, 255);
+            }
+        }
     }
 
     // Disabled scrollbars have no thumb and grey (not black) arrow glyphs — the

@@ -27,6 +27,9 @@ public:
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
     bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
+    // Overridden to drive track-hold auto-repeat: it fires once per rendered
+    // frame (like the fading widgets), paging toward the held cursor on a timer.
+    void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
 
     void setValue(double value);
     double getValue() const { return m_value; }
@@ -56,6 +59,13 @@ private:
     Rect getThumbRect() const;
     void notifyChange();
     double clampValue(double value) const;
+    // The value that would centre the thumb under (relative_x, relative_y).
+    double valueAtCoordinate(int relative_x, int relative_y) const;
+    // Page one step toward the held cursor, clamped so the thumb never moves
+    // past it (this is what makes paging stop once the thumb reaches the cursor).
+    void pageTowardCursor();
+    // Called each frame while a track hold is active; pages on the repeat timer.
+    void tickAutoRepeat();
 
     ScrollbarOrientation m_orientation;
     double m_value;
@@ -64,6 +74,12 @@ private:
     ScrollbarPart m_pressed_part;
     int m_drag_offset;
     std::function<void(double)> m_on_change;
+
+    // Track press-and-hold auto-repeat state.
+    bool m_track_repeating = false;   // holding on the track, paging toward cursor
+    int m_track_x = 0;                // last known cursor position (widget-relative)
+    int m_track_y = 0;
+    Uint32 m_next_repeat_ms = 0;      // SDL_GetTicks() time of the next page step
 };
 
 } // namespace UI
