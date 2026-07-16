@@ -261,6 +261,8 @@ public:
                                                      height - 2 * MARGIN - BUTTON_H - BUTTON_GAP, font);
         m_list = list.get();
         m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
+        // Double-click a row to jump playback to that track.
+        m_list->setOnActivate([this](int i) { m_player->playlistManagerJumpTo(i); });
         addChild(std::move(list));
 
         // Delete / Move Up / Move Down operate on the current selection; Add Next /
@@ -289,6 +291,25 @@ public:
         m_buttons[3]->setEnabled(m_player->hasFileDialog());
         m_buttons[4]->setEnabled(m_player->hasFileDialog());
 
+        // File menu (Load/Save Playlist). A full-client-sized overlay added LAST
+        // so its dropdown renders above the list and it gets first crack at
+        // clicks (closing on an outside click); non-bar clicks fall through to
+        // the widgets beneath. Greyed out without a file-dialog toolkit.
+        auto menu = std::make_unique<MenuBarWidget>(width, height, font);
+        m_menu = menu.get();
+        using MI = MenuBarWidget::Item;
+        auto fd = [this] { return m_player->hasFileDialog(); };
+        std::vector<MI> file_items;
+        file_items.push_back(MI::leaf("&Load Playlist...", [this] {
+            m_player->playlistManagerLoad();
+            reload(m_player->playlistManagerCurrentIndex());
+        }, nullptr, "", fd));
+        file_items.push_back(MI::leaf("&Save Playlist...", [this] {
+            m_player->playlistManagerSave();
+        }, nullptr, "", fd));
+        m_menu->addMenu("&File", std::move(file_items));
+        addChild(std::move(menu));
+
         reload(m_player->playlistManagerCurrentIndex());
         layout(width, height);
     }
@@ -304,6 +325,17 @@ public:
             if (s >= static_cast<int>(labels.size())) s = static_cast<int>(labels.size()) - 1;
             m_list->setSelectedIndex(s);
         }
+        updateButtonStates();
+    }
+
+    // Delete needs at least one track; Move Up/Down need at least two to have
+    // anywhere to move. (The Add buttons are gated on the file chooser instead.)
+    void updateButtonStates()
+    {
+        const int count = static_cast<int>(m_list->itemCount());
+        m_buttons[0]->setEnabled(count >= 1); // Delete
+        m_buttons[1]->setEnabled(count >= 2); // Move Up
+        m_buttons[2]->setEnabled(count >= 2); // Move Down
     }
 
     // Reposition/resize children for a client area of w x h. Two button rows are
@@ -312,13 +344,16 @@ public:
     // its row's width equally, so all of it reflows with the window.
     void layout(int w, int h)
     {
+        m_menu->resize(w, h); // spans the client; the bar sits along the top
+
+        const int list_top = MenuBarWidget::BAR_H + MARGIN;   // below the menu bar
         const int avail = std::max(1, w - 2 * MARGIN);
         const int row2_y = h - MARGIN - BUTTON_H;              // Add row (bottom)
         const int row1_y = row2_y - BUTTON_GAP - BUTTON_H;     // edit row
 
         int list_w = avail;
-        int list_h = std::max(1, row1_y - BUTTON_GAP - MARGIN);
-        m_list->setPos(Rect(MARGIN, MARGIN, list_w, list_h)); // anchor top-left
+        int list_h = std::max(1, row1_y - BUTTON_GAP - list_top);
+        m_list->setPos(Rect(MARGIN, list_top, list_w, list_h)); // anchor below the bar
         m_list->resize(list_w, list_h);
 
         auto lay_row = [&](std::initializer_list<ButtonWidget*> row, int y) {
@@ -351,6 +386,7 @@ private:
     Player* m_player;
     ListViewWidget* m_list = nullptr;
     ButtonWidget* m_buttons[NUM_BUTTONS] = { nullptr, nullptr, nullptr, nullptr, nullptr };
+    MenuBarWidget* m_menu = nullptr;
 };
 
 }
@@ -1147,18 +1183,20 @@ std::vector<TagLib::String> Player::playlistManagerLabels() const
     long count = playlist->entries();
     labels.reserve(static_cast<size_t>(std::max(0L, count)));
     for (long i = 0; i < count; ++i) {
+        // 1-based position prefix: "1. Artist - Title".
+        TagLib::String prefix = TagLib::String(std::to_string(i + 1)) + ". ";
         auto info = playlist->getTrackInfo(i);
         if (info && (!info->artist.isEmpty() || !info->title.isEmpty())) {
             TagLib::String artist = info->artist.isEmpty() ? TagLib::String("Unknown") : info->artist;
             TagLib::String title = info->title.isEmpty() ? TagLib::String("Unknown") : info->title;
-            labels.push_back(artist + " - " + title);
+            labels.push_back(prefix + artist + " - " + title);
         } else {
             // Fall back to the file's basename when tags are missing/unloaded.
             TagLib::String path = info ? info->path : playlist->getTrack(i);
             std::string p = path.to8Bit(true);
             size_t slash = p.find_last_of("/\\");
-            labels.push_back(TagLib::String(slash == std::string::npos ? p : p.substr(slash + 1),
-                                            TagLib::String::UTF8));
+            labels.push_back(prefix + TagLib::String(slash == std::string::npos ? p : p.substr(slash + 1),
+                                                     TagLib::String::UTF8));
         }
     }
     return labels;
@@ -1186,6 +1224,17 @@ void Player::playlistManagerMove(long from, long to)
     }
 }
 
+void Player::playlistManagerJumpTo(long index)
+{
+    if (!playlist || index < 0 || index >= playlist->entries()) {
+        return;
+    }
+    playlist->setPosition(index);
+    m_skip_attempts = 0;
+    requestTrackLoad(playlist->getTrack(index));
+    updateInfo();
+}
+
 void Player::playlistManagerAddNext()
 {
 #ifdef HAVE_FILEDIALOG
@@ -1199,6 +1248,61 @@ void Player::playlistManagerAddEnd()
 {
 #ifdef HAVE_FILEDIALOG
     queueTracksEnd();
+#else
+    showToast("File chooser not available in this build");
+#endif
+}
+
+void Player::playlistManagerLoad()
+{
+#ifdef HAVE_FILEDIALOG
+    if (!playlist) {
+        return;
+    }
+    std::vector<std::string> paths;
+    {
+        DialogFlagGuard dialog_guard;
+        paths = PsyMP3::Core::FileDialog::openFiles(false, "Load playlist", {"m3u", "m3u8"});
+    }
+    if (paths.empty()) {
+        return;
+    }
+    // Expand the chosen .m3u/.m3u8 into its tracks (same path the startup/CLI and
+    // the Open Tracks chooser use), then replace the playlist and play the first.
+    std::vector<TagLib::String> sources{ TagLib::String(paths.front(), TagLib::String::UTF8) };
+    std::vector<Playlist::Entry> entries = Playlist::resolveInlineSources(sources);
+    if (entries.empty()) {
+        showToast("Playlist is empty or could not be read");
+        return;
+    }
+    playlist->clear();
+    playlist->insertEntries(0, entries);
+    playlist->setPosition(0);
+    m_skip_attempts = 0;
+    requestTrackLoad(playlist->getTrack(0));
+    updateInfo();
+#else
+    showToast("File chooser not available in this build");
+#endif
+}
+
+void Player::playlistManagerSave()
+{
+#ifdef HAVE_FILEDIALOG
+    if (!playlist || playlist->entries() <= 0) {
+        showToast("Nothing to save: the playlist is empty");
+        return;
+    }
+    std::string path;
+    {
+        DialogFlagGuard dialog_guard;
+        path = PsyMP3::Core::FileDialog::saveFile("Save playlist", "playlist.m3u8", {"m3u8", "m3u"});
+    }
+    if (path.empty()) {
+        return;
+    }
+    playlist->savePlaylist(TagLib::String(path, TagLib::String::UTF8));
+    showToast("Playlist saved");
 #else
     showToast("File chooser not available in this build");
 #endif

@@ -198,10 +198,16 @@ class Player
         // Remove / reorder a playlist entry and refresh the "Playlist n/N" label.
         void playlistManagerRemove(long index);
         void playlistManagerMove(long from, long to);
+        // Jump playback to the given playlist index (double-click in the manager).
+        void playlistManagerJumpTo(long index);
         // Open the file chooser and queue the chosen track(s) next / at the end.
         // No-ops with a toast when built without native file-dialog support.
         void playlistManagerAddNext();
         void playlistManagerAddEnd();
+        // Load an .m3u/.m3u8 playlist, replacing the current playlist and playing
+        // its first track. Save the current playlist as extended M3U8 (UTF-8).
+        void playlistManagerLoad();
+        void playlistManagerSave();
 
     protected:
         PlayerState state;
