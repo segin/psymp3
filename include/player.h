@@ -182,6 +182,22 @@ class Player
         void cycleLoopMode();               // E key: None -> One -> All -> None
         void toggleZoom();                  // G key: 1x <-> 2x pixel doubling
 
+        // --- Playlist Manager (Shift+P test window) backing operations ---
+        // These are public because the window's client widget (defined outside
+        // the Player class) drives them.
+        // Display labels ("artist - title", or the file's basename) for every
+        // playlist entry, in playlist order.
+        std::vector<TagLib::String> playlistManagerLabels() const;
+        // The playlist's current position, or -1 when the playlist is empty.
+        long playlistManagerCurrentIndex() const;
+        // Remove / reorder a playlist entry and refresh the "Playlist n/N" label.
+        void playlistManagerRemove(long index);
+        void playlistManagerMove(long from, long to);
+        // Open the file chooser and queue the chosen track(s) next / at the end.
+        // No-ops with a toast when built without native file-dialog support.
+        void playlistManagerAddNext();
+        void playlistManagerAddEnd();
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;

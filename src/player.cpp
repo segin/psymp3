@@ -240,15 +240,18 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
     return client;
 }
 
-// Client area for the "P" test window: a playlist-manager mock-up — a scrolling
-// list view above a row of Delete / Move Up / Move Down buttons. layout() is
-// re-run whenever the containing window is resized so the list fills the space
-// and the button row stays pinned to the bottom.
+// Client area for the "P" (Shift+P) test window: a live view of the running
+// playlist — a scrolling ListViewWidget above a row of edit buttons. The list
+// mirrors the playlist; edits go through the Player (Playlist is the source of
+// truth) and then the view is reloaded. layout() re-flows on every resize: the
+// list fills the space above the buttons, and the buttons share the width
+// equally (resizing, not just repositioning) pinned to the bottom edge.
 class PlaylistManagerClient : public LayoutWidget {
 public:
-    PlaylistManagerClient(int width, int height, Font* font)
+    PlaylistManagerClient(int width, int height, Font* font, Player* player)
         : LayoutWidget(width, height, false)
         , m_font(font)
+        , m_player(player)
     {
         // The window frame force-fills the client surface white on refresh/resize,
         // so match that here to avoid a one-frame mismatch.
@@ -258,17 +261,46 @@ public:
                                                      height - 2 * MARGIN - BUTTON_H - BUTTON_GAP, font);
         m_list = list.get();
         m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
-        for (int i = 1; i <= 10; ++i) {
-            m_list->addItem(TagLib::String("Playlist item ") + TagLib::String(std::to_string(i)));
-        }
-        m_list->setSelectedIndex(0);
         addChild(std::move(list));
 
-        m_delete = makeButton("Delete", [this]() { m_list->removeSelected(); });
-        m_up     = makeButton("Move Up", [this]() { m_list->moveSelectedUp(); });
-        m_down   = makeButton("Move Down", [this]() { m_list->moveSelectedDown(); });
+        // Delete / Move Up / Move Down operate on the current selection; Add Next /
+        // Add To End open the file chooser and queue into the playlist.
+        m_buttons[0] = makeButton("Delete", [this]() {
+            int i = m_list->getSelectedIndex();
+            if (i >= 0) { m_player->playlistManagerRemove(i); reload(i); }
+        });
+        m_buttons[1] = makeButton("Move Up", [this]() {
+            int i = m_list->getSelectedIndex();
+            if (i > 0) { m_player->playlistManagerMove(i, i - 1); reload(i - 1); }
+        });
+        m_buttons[2] = makeButton("Move Down", [this]() {
+            int i = m_list->getSelectedIndex();
+            if (i >= 0 && i < static_cast<int>(m_list->itemCount()) - 1) {
+                m_player->playlistManagerMove(i, i + 1); reload(i + 1);
+            }
+        });
+        m_buttons[3] = makeButton("Add Next", [this]() {
+            m_player->playlistManagerAddNext(); reload(m_list->getSelectedIndex());
+        });
+        m_buttons[4] = makeButton("Add To End", [this]() {
+            m_player->playlistManagerAddEnd(); reload(m_list->getSelectedIndex());
+        });
 
+        reload(m_player->playlistManagerCurrentIndex());
         layout(width, height);
+    }
+
+    // Rebuild the list from the playlist, then select `desired_sel` (clamped) and
+    // scroll it into view. Used on open and after every edit.
+    void reload(int desired_sel)
+    {
+        std::vector<TagLib::String> labels = m_player->playlistManagerLabels();
+        m_list->setItems(labels);
+        if (!labels.empty()) {
+            int s = desired_sel < 0 ? 0 : desired_sel;
+            if (s >= static_cast<int>(labels.size())) s = static_cast<int>(labels.size()) - 1;
+            m_list->setSelectedIndex(s);
+        }
     }
 
     // Reposition/resize children for a client area of w x h.
@@ -282,24 +314,27 @@ public:
         m_list->setPos(Rect(MARGIN, MARGIN, list_w, list_h)); // anchor top-left
         m_list->resize(list_w, list_h);
 
-        // Three fixed-size buttons, left-aligned, pinned to the bottom edge.
+        // The buttons share the row width equally, so they grow/shrink with the
+        // window instead of just sliding — the same reflow as the list.
+        int avail = std::max(1, w - 2 * MARGIN);
+        int bw = (avail - (NUM_BUTTONS - 1) * BUTTON_GAP) / NUM_BUTTONS;
+        if (bw < 1) bw = 1;
         int x = MARGIN;
-        for (ButtonWidget* button : { m_delete, m_up, m_down }) {
-            Rect bp = button->getPos();
-            button->setPos(Rect(x, button_y, bp.width(), bp.height()));
-            x += bp.width() + BUTTON_GAP;
+        for (ButtonWidget* button : m_buttons) {
+            button->setGeometry(Rect(x, button_y, bw, BUTTON_H));
+            x += bw + BUTTON_GAP;
         }
     }
 
 private:
     static constexpr int MARGIN = 8;
     static constexpr int BUTTON_H = 22;
-    static constexpr int BUTTON_W = 82;
     static constexpr int BUTTON_GAP = 6;
+    static constexpr int NUM_BUTTONS = 5;
 
     ButtonWidget* makeButton(const char* label, std::function<void()> on_click)
     {
-        auto button = std::make_unique<ButtonWidget>(BUTTON_W, BUTTON_H);
+        auto button = std::make_unique<ButtonWidget>(BUTTON_H, BUTTON_H); // resized in layout()
         button->setText(TagLib::String(label), m_font);
         button->setOnClick(std::move(on_click));
         ButtonWidget* raw = button.get();
@@ -308,10 +343,9 @@ private:
     }
 
     Font* m_font;
+    Player* m_player;
     ListViewWidget* m_list = nullptr;
-    ButtonWidget* m_delete = nullptr;
-    ButtonWidget* m_up = nullptr;
-    ButtonWidget* m_down = nullptr;
+    ButtonWidget* m_buttons[NUM_BUTTONS] = { nullptr, nullptr, nullptr, nullptr, nullptr };
 };
 
 }
@@ -1088,6 +1122,72 @@ void Player::clearPlaylist()
     playlist->clear();
     stop();
     updateInfo();
+}
+
+std::vector<TagLib::String> Player::playlistManagerLabels() const
+{
+    std::vector<TagLib::String> labels;
+    if (!playlist) {
+        return labels;
+    }
+    long count = playlist->entries();
+    labels.reserve(static_cast<size_t>(std::max(0L, count)));
+    for (long i = 0; i < count; ++i) {
+        auto info = playlist->getTrackInfo(i);
+        if (info && (!info->artist.isEmpty() || !info->title.isEmpty())) {
+            TagLib::String artist = info->artist.isEmpty() ? TagLib::String("Unknown") : info->artist;
+            TagLib::String title = info->title.isEmpty() ? TagLib::String("Unknown") : info->title;
+            labels.push_back(artist + " - " + title);
+        } else {
+            // Fall back to the file's basename when tags are missing/unloaded.
+            TagLib::String path = info ? info->path : playlist->getTrack(i);
+            std::string p = path.to8Bit(true);
+            size_t slash = p.find_last_of("/\\");
+            labels.push_back(TagLib::String(slash == std::string::npos ? p : p.substr(slash + 1),
+                                            TagLib::String::UTF8));
+        }
+    }
+    return labels;
+}
+
+long Player::playlistManagerCurrentIndex() const
+{
+    if (!playlist || playlist->entries() <= 0) {
+        return -1;
+    }
+    return playlist->getPosition();
+}
+
+void Player::playlistManagerRemove(long index)
+{
+    if (playlist && playlist->removeTrack(index)) {
+        updateInfo();
+    }
+}
+
+void Player::playlistManagerMove(long from, long to)
+{
+    if (playlist && playlist->moveTrack(from, to)) {
+        updateInfo();
+    }
+}
+
+void Player::playlistManagerAddNext()
+{
+#ifdef HAVE_FILEDIALOG
+    queueTracksNext();
+#else
+    showToast("File chooser not available in this build");
+#endif
+}
+
+void Player::playlistManagerAddEnd()
+{
+#ifdef HAVE_FILEDIALOG
+    queueTracksEnd();
+#else
+    showToast("File chooser not available in this build");
+#endif
 }
 
 void Player::updateTaskbarPlayState()
@@ -3193,14 +3293,14 @@ void Player::toggleTestWindowP()
         return;
     }
 
-    // Sized so the 10 seed items overflow the list (the scrollbar starts active);
-    // resizing the window taller reveals more rows and parks the scrollbar.
-    const int client_w = 280;
-    const int client_h = 170;
+    // Wide enough for the five-button row to read comfortably; tall enough to
+    // show a useful slice of the playlist.
+    const int client_w = 480;
+    const int client_h = 300;
 
     m_test_window_p = std::make_unique<WindowFrameWidget>(client_w, client_h, "Playlist Manager", font.get());
 
-    auto client = std::make_unique<PlaylistManagerClient>(client_w, client_h, font.get());
+    auto client = std::make_unique<PlaylistManagerClient>(client_w, client_h, font.get(), this);
     PlaylistManagerClient* client_ptr = client.get();
     m_test_window_p->setClientArea(std::move(client));
     m_test_window_p->refresh();
