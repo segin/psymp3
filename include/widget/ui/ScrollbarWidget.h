@@ -32,6 +32,11 @@ public:
     double getValue() const { return m_value; }
     void setOnChange(std::function<void(double)> callback) { m_on_change = callback; }
 
+    // Reposition and resize the scrollbar in one shot, rebuilding its surface so
+    // the arrows/thumb track the new geometry. Use this instead of setPos() when
+    // a container re-lays out a scrollbar in response to a resize.
+    void setGeometry(const Rect& bounds);
+
 private:
     enum class ScrollbarPart {
         None,

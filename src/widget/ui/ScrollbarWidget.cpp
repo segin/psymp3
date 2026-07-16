@@ -155,6 +155,12 @@ bool ScrollbarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relat
     return true;
 }
 
+void ScrollbarWidget::setGeometry(const Rect& bounds)
+{
+    setPos(bounds);
+    rebuildSurface();
+}
+
 void ScrollbarWidget::setValue(double value)
 {
     const double clamped = clampValue(value);
