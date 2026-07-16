@@ -1163,7 +1163,7 @@ bool FileIOHandler::fillBuffer(filesize_t file_position, size_t min_bytes) {
     
     // Read data into buffer
     size_t bytes_read = fread(m_read_buffer.data(), 1, buffer_size_to_use, m_file_handle);
-    
+
     if (bytes_read == 0) {
         if (feof(m_file_handle)) {
             updateEofState(true);
@@ -1193,22 +1193,14 @@ bool FileIOHandler::fillBuffer(filesize_t file_position, size_t min_bytes) {
     
     // Update memory usage tracking
     updateMemoryUsage(bytes_read);
-    
-    // Optimize buffer pool usage based on access patterns.
-    // optimizeBufferPoolUsage() re-acquires m_buffer_mutex, so it MUST NOT run
-    // while this unique_lock is held — that would be a recursive lock on a
-    // non-recursive shared_mutex (EDEADLK -> std::system_error -> terminate),
-    // which aborted every read that hit this branch (e.g. FLAC decode). The
-    // enclosing IOHandler::read() holds m_operation_mutex exclusively, so no
-    // other thread can touch the buffer while it is briefly released here; the
-    // other caller (read_unlocked) also invokes optimize without this lock.
-    static size_t read_counter = 0;
-    read_counter++;
-    if (read_counter % 20 == 0) { // Optimize every 20 reads to avoid overhead
-        buffer_lock.unlock();
-        optimizeBufferPoolUsage();
-        buffer_lock.lock();
-    }
+
+    // NOTE: Do NOT call optimizeBufferPoolUsage() here. It may release the
+    // just-filled m_read_buffer and acquire a fresh pool buffer (with stale
+    // content) before the metadata below is committed, leaving m_buffer_*
+    // describing valid data that no longer lives in m_read_buffer — a
+    // subsequent readFromBufferAtPosition() then returns another buffer's
+    // leftovers. read_unlocked() already runs the optimizer at its top, safely
+    // outside any half-filled buffer.
 
     // Update buffer state
     m_buffer_file_position = file_position;
@@ -1253,7 +1245,7 @@ size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_reques
     // Calculate how many bytes we can read
     size_t available_bytes = readable_bytes - static_cast<size_t>(buffer_offset);
     size_t bytes_to_copy = std::min(bytes_requested, available_bytes);
-    
+
     // Copy data from buffer
     std::memcpy(buffer, m_read_buffer.data() + static_cast<size_t>(buffer_offset), bytes_to_copy);
     
