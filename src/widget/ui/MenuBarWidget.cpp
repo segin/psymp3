@@ -267,11 +267,14 @@ void MenuBarWidget::rebuild()
                             kShadow.r, kShadow.g, kShadow.b, 255);
                 continue;
             }
-            bool hi = (i == hover);
+            // Disabled items are greyed and never show the hover highlight.
+            bool en = it.isEnabled();
+            bool hi = (i == hover) && en;
             if (hi)
                 surf->box(box.x() + 1, ry, box.x() + box.width() - 2, ry + ITEM_H - 1,
                           kHiBg.r, kHiBg.g, kHiBg.b, 255);
-            SDL_Color tc = hi ? kHiText : kText;
+            SDL_Color kDisabled = { 128, 128, 128, 255 };
+            SDL_Color tc = !en ? kDisabled : (hi ? kHiText : kText);
             SDL_Color bg = hi ? kHiBg : kFace;
             // radio dot
             if (it.checked && it.checked()) {
@@ -375,7 +378,9 @@ bool MenuBarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int x, int 
     if (m_open_sub >= 0 && !m.items[m_open_sub].submenu.empty()) {
         int si = itemAt(m.items[m_open_sub].submenu, submenuRect(m, m_open_sub), x, y);
         if (si >= 0) {
-            auto act = m.items[m_open_sub].submenu[si].action;
+            const Item& sit = m.items[m_open_sub].submenu[si];
+            if (!sit.isEnabled()) return true; // disabled: consume, keep menu open
+            auto act = sit.action;
             closeMenu();
             if (act) act();
             return true;
@@ -384,6 +389,7 @@ bool MenuBarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int x, int 
 
     int di = itemAt(m.items, dropdownRect(m), x, y);
     if (di >= 0 && m.items[di].submenu.empty()) {
+        if (!m.items[di].isEnabled()) return true; // disabled: consume, keep menu open
         auto act = m.items[di].action;
         closeMenu();
         if (act) act();
@@ -546,6 +552,7 @@ bool MenuBarWidget::handleKey(const SDL_keysym& keysym)
                 }
                 return true;
             }
+            if (!it.isEnabled()) return true; // disabled: consume, keep menu open
             auto act = it.action;
             closeMenu();
             if (act) act();
@@ -568,6 +575,8 @@ bool MenuBarWidget::handleKey(const SDL_keysym& keysym)
                     m_hover_sub = firstSelectable(it.submenu);
                 }
                 rebuild();
+            } else if (!it.isEnabled()) {
+                return true; // disabled: consume, keep menu open
             } else {
                 auto act = it.action;
                 closeMenu();

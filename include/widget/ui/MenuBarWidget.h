@@ -37,19 +37,24 @@ public:
         std::string label;
         std::function<void()> action;    // invoked on click for leaf items
         std::function<bool()> checked;    // optional; draws a radio dot when true
+        std::function<bool()> enabled;    // optional; false => greyed, not clickable
         std::vector<Item> submenu;        // non-empty => submenu
         std::string shortcut;             // right-aligned accelerator hint
         bool separator = false;
 
         static Item leaf(std::string l, std::function<void()> a,
-                         std::function<bool()> c = nullptr, std::string sc = "") {
+                         std::function<bool()> c = nullptr, std::string sc = "",
+                         std::function<bool()> en = nullptr) {
             Item i; i.label = std::move(l); i.action = std::move(a);
-            i.checked = std::move(c); i.shortcut = std::move(sc); return i;
+            i.checked = std::move(c); i.shortcut = std::move(sc);
+            i.enabled = std::move(en); return i;
         }
         static Item sep() { Item i; i.separator = true; return i; }
         static Item sub(std::string l, std::vector<Item> items) {
             Item i; i.label = std::move(l); i.submenu = std::move(items); return i;
         }
+        // A leaf with no enabled predicate is always enabled.
+        bool isEnabled() const { return !enabled || enabled(); }
     };
 
     MenuBarWidget(int width, int height, Font* font);
