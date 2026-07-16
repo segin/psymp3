@@ -49,22 +49,22 @@ struct SampleTableInfo {
  * @brief Audio track information
  */
 struct AudioTrackInfo {
-    uint32_t trackId;
+    uint32_t trackId = 0;
     std::string codecType;        // "aac", "alac", "ulaw", "alaw", "lpcm"
-    uint32_t sampleRate;
-    uint16_t channelCount;
-    uint16_t bitsPerSample;
-    uint32_t avgBitrate;
+    uint32_t sampleRate = 0;
+    uint16_t channelCount = 0;
+    uint16_t bitsPerSample = 0;
+    uint32_t avgBitrate = 0;
     std::string artist;
     std::string title;
     std::string album;
-    
+
     // Codec-specific configuration
     std::vector<uint8_t> codecConfig;  // AAC: AudioSpecificConfig, ALAC: magic cookie
-    
+
     // Track timing
-    uint64_t duration;           // in track timescale units
-    uint32_t timescale;          // samples per second for timing
+    uint64_t duration = 0;       // in track timescale units
+    uint32_t timescale = 0;      // samples per second for timing
     
     // Current playback state
     uint64_t currentSampleIndex = 0;
