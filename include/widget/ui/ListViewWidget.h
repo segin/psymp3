@@ -43,6 +43,8 @@ public:
     // Selection. getSelectedIndex() returns -1 when nothing is selected.
     int getSelectedIndex() const { return m_selected; }
     void setSelectedIndex(int index);
+    // Scroll so the given row is within the visible area (no-op if already shown).
+    void ensureVisible(int index);
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
 
     // Editing helpers operating on the current selection. Each is a no-op when

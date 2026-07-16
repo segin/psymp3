@@ -138,9 +138,20 @@ void ListViewWidget::setSelectedIndex(int index)
         return;
     }
     m_selected = index;
+    ensureVisible(m_selected);
     invalidate();
     if (m_on_selection_changed) {
         m_on_selection_changed(m_selected);
+    }
+}
+
+void ListViewWidget::ensureVisible(int index)
+{
+    if (index < 0) return;
+    if (index < m_top) {
+        setTop(index);
+    } else if (index >= m_top + visibleRows()) {
+        setTop(index - visibleRows() + 1);
     }
 }
 
@@ -160,10 +171,7 @@ void ListViewWidget::removeSelected()
     }
 
     relayout();
-    if (m_selected >= 0) {
-        if (m_selected < m_top) setTop(m_selected);
-        else if (m_selected >= m_top + visibleRows()) setTop(m_selected - visibleRows() + 1);
-    }
+    ensureVisible(m_selected);
     invalidate();
     if (m_on_selection_changed) {
         m_on_selection_changed(m_selected);
@@ -177,9 +185,7 @@ void ListViewWidget::moveSelectedUp()
     }
     std::swap(m_items[m_selected - 1], m_items[m_selected]);
     m_selected -= 1;
-    if (m_selected < m_top) {
-        setTop(m_selected);
-    }
+    ensureVisible(m_selected);
     invalidate();
     if (m_on_selection_changed) {
         m_on_selection_changed(m_selected);
@@ -193,9 +199,7 @@ void ListViewWidget::moveSelectedDown()
     }
     std::swap(m_items[m_selected], m_items[m_selected + 1]);
     m_selected += 1;
-    if (m_selected >= m_top + visibleRows()) {
-        setTop(m_selected - visibleRows() + 1);
-    }
+    ensureVisible(m_selected);
     invalidate();
     if (m_on_selection_changed) {
         m_on_selection_changed(m_selected);
