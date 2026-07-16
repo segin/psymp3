@@ -3343,7 +3343,7 @@ void Player::togglePlaylistManager()
     m_test_window_p->refresh();
 
     Rect calculated_size = m_test_window_p->getPos();
-    m_test_window_p->setPos(Rect(180, 60, calculated_size.width(), calculated_size.height()));
+    m_test_window_p->setPos(Rect(180, 52, calculated_size.width(), calculated_size.height()));
 
     m_test_window_p->setOnDrag([this](int dx, int dy) {
         Rect current_pos = m_test_window_p->getPos();
