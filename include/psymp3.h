@@ -33,7 +33,7 @@
 #include <bitset>
 
 // defines
-#define PSYMP3_VERSION "1.99.12-RELEASE"
+#define PSYMP3_VERSION "2-CURRENT"
 #define PSYMP3_MAINTAINER "Kirn Gill II <segin2005@gmail.com>"
 
 enum {
