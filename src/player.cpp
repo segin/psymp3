@@ -240,6 +240,80 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
     return client;
 }
 
+// Client area for the "P" test window: a playlist-manager mock-up — a scrolling
+// list view above a row of Delete / Move Up / Move Down buttons. layout() is
+// re-run whenever the containing window is resized so the list fills the space
+// and the button row stays pinned to the bottom.
+class PlaylistManagerClient : public LayoutWidget {
+public:
+    PlaylistManagerClient(int width, int height, Font* font)
+        : LayoutWidget(width, height, false)
+        , m_font(font)
+    {
+        // The window frame force-fills the client surface white on refresh/resize,
+        // so match that here to avoid a one-frame mismatch.
+        setBackgroundColor(255, 255, 255);
+
+        auto list = std::make_unique<ListViewWidget>(width - 2 * MARGIN,
+                                                     height - 2 * MARGIN - BUTTON_H - BUTTON_GAP, font);
+        m_list = list.get();
+        m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
+        for (int i = 1; i <= 10; ++i) {
+            m_list->addItem(TagLib::String("Playlist item ") + TagLib::String(std::to_string(i)));
+        }
+        m_list->setSelectedIndex(0);
+        addChild(std::move(list));
+
+        m_delete = makeButton("Delete", [this]() { m_list->removeSelected(); });
+        m_up     = makeButton("Move Up", [this]() { m_list->moveSelectedUp(); });
+        m_down   = makeButton("Move Down", [this]() { m_list->moveSelectedDown(); });
+
+        layout(width, height);
+    }
+
+    // Reposition/resize children for a client area of w x h.
+    void layout(int w, int h)
+    {
+        const int button_y = h - MARGIN - BUTTON_H;
+
+        // The list fills everything above the button row.
+        int list_w = std::max(1, w - 2 * MARGIN);
+        int list_h = std::max(1, button_y - BUTTON_GAP - MARGIN);
+        m_list->setPos(Rect(MARGIN, MARGIN, list_w, list_h)); // anchor top-left
+        m_list->resize(list_w, list_h);
+
+        // Three fixed-size buttons, left-aligned, pinned to the bottom edge.
+        int x = MARGIN;
+        for (ButtonWidget* button : { m_delete, m_up, m_down }) {
+            Rect bp = button->getPos();
+            button->setPos(Rect(x, button_y, bp.width(), bp.height()));
+            x += bp.width() + BUTTON_GAP;
+        }
+    }
+
+private:
+    static constexpr int MARGIN = 8;
+    static constexpr int BUTTON_H = 22;
+    static constexpr int BUTTON_W = 82;
+    static constexpr int BUTTON_GAP = 6;
+
+    ButtonWidget* makeButton(const char* label, std::function<void()> on_click)
+    {
+        auto button = std::make_unique<ButtonWidget>(BUTTON_W, BUTTON_H);
+        button->setText(TagLib::String(label), m_font);
+        button->setOnClick(std::move(on_click));
+        ButtonWidget* raw = button.get();
+        addChild(std::move(button));
+        return raw;
+    }
+
+    Font* m_font;
+    ListViewWidget* m_list = nullptr;
+    ButtonWidget* m_delete = nullptr;
+    ButtonWidget* m_up = nullptr;
+    ButtonWidget* m_down = nullptr;
+};
+
 }
 
 /**
@@ -1857,7 +1931,13 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_p:
-            prevTrack();
+            // Shift+P opens the Playlist Manager test window; plain P is Previous
+            // Track (P is already taken, so the window uses the shifted chord).
+            if (keysym.mod & KMOD_SHIFT) {
+                toggleTestWindowP();
+            } else {
+                prevTrack();
+            }
             break;
 
         case SDLK_s:
@@ -2886,22 +2966,27 @@ void Player::renderWindows()
     size_t capacity_needed = m_random_windows.size();
     if (m_test_window_h) capacity_needed++;
     if (m_test_window_b) capacity_needed++;
+    if (m_test_window_p) capacity_needed++;
     sorted_windows.reserve(capacity_needed);
 
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }
-    
+
     if (m_test_window_b) {
         sorted_windows.push_back(m_test_window_b.get());
     }
-    
+
+    if (m_test_window_p) {
+        sorted_windows.push_back(m_test_window_p.get());
+    }
+
     // Add all random windows
     sorted_windows.reserve(sorted_windows.size() + m_random_windows.size());
     for (const auto& window : m_random_windows) {
         sorted_windows.push_back(window.get());
     }
-    
+
     std::sort(sorted_windows.begin(), sorted_windows.end(),
               [](const WindowFrameWidget* a, const WindowFrameWidget* b) {
                   return a->getZOrder() < b->getZOrder();
@@ -2929,22 +3014,27 @@ bool Player::handleWindowMouseEvents(const SDL_Event& event)
     size_t capacity_needed = m_random_windows.size();
     if (m_test_window_h) capacity_needed++;
     if (m_test_window_b) capacity_needed++;
+    if (m_test_window_p) capacity_needed++;
     sorted_windows.reserve(capacity_needed);
 
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }
-    
+
     if (m_test_window_b) {
         sorted_windows.push_back(m_test_window_b.get());
     }
-    
+
+    if (m_test_window_p) {
+        sorted_windows.push_back(m_test_window_p.get());
+    }
+
     // Add all random windows
     sorted_windows.reserve(sorted_windows.size() + m_random_windows.size());
     for (const auto& window : m_random_windows) {
         sorted_windows.push_back(window.get());
     }
-    
+
     std::sort(sorted_windows.begin(), sorted_windows.end(),
               [](const WindowFrameWidget* a, const WindowFrameWidget* b) {
                   return a->getZOrder() > b->getZOrder();
@@ -3021,6 +3111,7 @@ bool Player::windowOwnsMouseCapture() const
     if (!captured) return false;
     if (m_test_window_h && widgetBelongsToWindow(captured, m_test_window_h.get())) return true;
     if (m_test_window_b && widgetBelongsToWindow(captured, m_test_window_b.get())) return true;
+    if (m_test_window_p && widgetBelongsToWindow(captured, m_test_window_p.get())) return true;
     for (const auto& window : m_random_windows) {
         if (widgetBelongsToWindow(captured, window.get())) return true;
     }
@@ -3091,6 +3182,57 @@ void Player::toggleTestWindowH()
         
         showToast("H Window: Opened");
     }
+}
+
+void Player::toggleTestWindowP()
+{
+    if (m_test_window_p) {
+        deferWidgetDeletion(std::move(m_test_window_p));
+        m_test_window_p = nullptr;
+        showToast("Playlist Manager: Closed");
+        return;
+    }
+
+    // Sized so the 10 seed items overflow the list (the scrollbar starts active);
+    // resizing the window taller reveals more rows and parks the scrollbar.
+    const int client_w = 280;
+    const int client_h = 170;
+
+    m_test_window_p = std::make_unique<WindowFrameWidget>(client_w, client_h, "Playlist Manager", font.get());
+
+    auto client = std::make_unique<PlaylistManagerClient>(client_w, client_h, font.get());
+    PlaylistManagerClient* client_ptr = client.get();
+    m_test_window_p->setClientArea(std::move(client));
+    m_test_window_p->refresh();
+
+    Rect calculated_size = m_test_window_p->getPos();
+    m_test_window_p->setPos(Rect(180, 60, calculated_size.width(), calculated_size.height()));
+
+    m_test_window_p->setOnDrag([this](int dx, int dy) {
+        Rect current_pos = m_test_window_p->getPos();
+        current_pos.x(current_pos.x() + dx);
+        current_pos.y(current_pos.y() + dy);
+        m_test_window_p->setPos(current_pos);
+    });
+
+    m_test_window_p->setOnDragStart([this]() {
+        m_test_window_p->bringToFront();
+    });
+
+    m_test_window_p->setOnClose([this]() {
+        if (m_test_window_p) {
+            deferWidgetDeletion(std::move(m_test_window_p));
+            m_test_window_p = nullptr;
+        }
+        showToast("Playlist Manager: Closed");
+    });
+
+    // Re-flow the list and button row whenever the frame is resized.
+    m_test_window_p->setOnResize([client_ptr](int new_width, int new_height) {
+        client_ptr->layout(new_width, new_height);
+    });
+
+    showToast("Playlist Manager: Opened");
 }
 
 void Player::applyEqStateToAudio()

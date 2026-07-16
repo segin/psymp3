@@ -256,6 +256,7 @@ class Player
         bool windowOwnsMouseCapture() const;
         void toggleTestWindowH();
         void toggleTestWindowB();
+        void toggleTestWindowP();
         void createRandomWindows();
 
         std::unique_ptr<Display> screen;
@@ -352,6 +353,7 @@ class Player
         // Test windows
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
+        std::unique_ptr<WindowFrameWidget> m_test_window_p;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
 
         // Equalizer window (hosted in m_random_windows so it reuses the frame
