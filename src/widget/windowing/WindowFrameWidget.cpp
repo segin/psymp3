@@ -40,6 +40,9 @@ SDL_Cursor* WindowFrameWidget::s_cursor_ew = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
 SDL_Cursor* WindowFrameWidget::s_default_cursor = nullptr;
 WindowFrameWidget* WindowFrameWidget::s_active_window = nullptr;
+// Default maximize area = the full 640x404 base canvas; the Player narrows this
+// to the region below the menu bar via setMaximizeArea().
+Rect WindowFrameWidget::s_maximize_bounds = Rect(0, 0, 640, 404);
 
 namespace {
 // 16x16 standard cursor definitions
@@ -124,6 +127,8 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     , m_resizable(true)
     , m_minimizable(true)
     , m_maximizable(true)
+    , m_maximized(false)
+    , m_restore_bounds(0, 0, 0, 0)
 {
     // Calculate total window size (client area + decorations)
     int horizontal_border_total, vertical_border_total;
@@ -263,6 +268,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             Rect maximize_bounds = getMaximizeButtonBounds();
             if (relative_x >= maximize_bounds.x() && relative_x < maximize_bounds.x() + maximize_bounds.width() &&
                 relative_y >= maximize_bounds.y() && relative_y < maximize_bounds.y() + maximize_bounds.height()) {
+                toggleMaximize();
                 if (m_on_maximize) {
                     auto on_maximize = m_on_maximize;
                     on_maximize();
@@ -270,8 +276,9 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 return true;
             }
             
-            // Check for click in draggable area (start dragging, no double-click close)
-            if (isInDraggableArea(relative_x, relative_y)) {
+            // Check for click in draggable area (start dragging, no double-click
+            // close). A maximized window is pinned in place, so no dragging.
+            if (!m_maximized && isInDraggableArea(relative_x, relative_y)) {
                 // Start dragging immediately with absolute coordinates. Use the
                 // event's logical coords rather than SDL_GetMouseState (which
                 // returns raw window pixels and breaks with display scaling).
@@ -288,8 +295,9 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             }
         }
         
-        // Check if click is on resize border (only for resizable windows)
-        if (m_resizable) {
+        // Check if click is on resize border (only for resizable, non-maximized
+        // windows — a maximized window can't be edge-resized).
+        if (m_resizable && !m_maximized) {
             int resize_edge = getResizeEdge(relative_x, relative_y);
             if (resize_edge != 0) {
                 m_is_resizing = true;
@@ -746,6 +754,65 @@ void WindowFrameWidget::refresh()
     }
 }
 
+void WindowFrameWidget::setMaximizeArea(const Rect& area)
+{
+    s_maximize_bounds = area;
+}
+
+void WindowFrameWidget::setFrameBounds(const Rect& bounds)
+{
+    // Derive the client size from the requested outer size using the current
+    // border metrics, so the frame ends up exactly filling `bounds`.
+    int horizontal_border_total, vertical_border_total;
+    if (m_resizable) {
+        horizontal_border_total = (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2;
+        vertical_border_total = TITLEBAR_HEIGHT + (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2 + 1;
+    } else {
+        horizontal_border_total = 2;
+        vertical_border_total = TITLEBAR_HEIGHT + 2 + 1;
+    }
+
+    m_client_width = std::max(MIN_CLIENT_WIDTH, bounds.width() - horizontal_border_total);
+    m_client_height = std::max(MIN_CLIENT_HEIGHT, bounds.height() - vertical_border_total);
+
+    setPos(Rect(bounds.x(), bounds.y(),
+                m_client_width + horizontal_border_total,
+                m_client_height + vertical_border_total));
+
+    updateLayout();
+    rebuildSurface();
+
+    if (m_client_area) {
+        auto client_surface = std::make_unique<Surface>(m_client_width, m_client_height, true);
+        client_surface->FillRect(client_surface->MapRGB(255, 255, 255));
+        m_client_area->setSurface(std::move(client_surface));
+    }
+
+    // Let the client re-flow to the new size (copy the callback first; it may
+    // outlive nothing here, but keep the same discipline as the drag path).
+    if (m_on_resize) {
+        auto on_resize = m_on_resize;
+        on_resize(m_client_width, m_client_height);
+    }
+}
+
+void WindowFrameWidget::toggleMaximize()
+{
+    if (!m_maximizable) {
+        return;
+    }
+    if (m_maximized) {
+        m_maximized = false;
+        setFrameBounds(m_restore_bounds);
+    } else {
+        m_restore_bounds = getPos();
+        m_maximized = true;
+        setFrameBounds(s_maximize_bounds);
+    }
+    // Repaint the maximize/restore glyph for the new state.
+    rebuildSurface();
+}
+
 void WindowFrameWidget::updateLayout()
 {
     // Position client area within the frame (account for borders and titlebar)
@@ -970,11 +1037,16 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
         
         // Draw button background and 3D bevel
         drawButton(surface, maximize_bounds.x(), maximize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
-        
-        // Draw maximize symbol (upward pointing triangle ▲)
+
         int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
         int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
-        drawUpTriangle(surface, max_center_x, max_center_y, TRIANGLE_SIZE);
+        if (m_maximized) {
+            // Maximized: the button restores. Show the up+down "restore" glyph.
+            drawRestoreSymbol(surface, max_center_x, max_center_y, TRIANGLE_SIZE);
+        } else {
+            // Draw maximize symbol (upward pointing triangle ▲)
+            drawUpTriangle(surface, max_center_x, max_center_y, TRIANGLE_SIZE);
+        }
     }
     
     // Draw separator between buttons only if both are visible
@@ -1180,27 +1252,13 @@ void WindowFrameWidget::drawRightTriangle(Surface& surface, int center_x, int ce
 
 void WindowFrameWidget::drawRestoreSymbol(Surface& surface, int center_x, int center_y, int size)
 {
-    // Draw restore symbol using specified coordinates:
-    // Maximize arrow bottom-left at (6, 8) in one-indexed
-    // Minimize arrow top-left at (6, 11) in one-indexed
-    
-    // Draw maximize triangle (bottom-left at (6, 8))
-    Sint16 max_x1 = center_x - 3;      // Top point 
-    Sint16 max_y1 = center_y - 1;      
-    Sint16 max_x2 = center_x;          // Bottom-right point
-    Sint16 max_y2 = center_y + 2;      
-    Sint16 max_x3 = center_x - 6;      // Bottom-left point
-    Sint16 max_y3 = center_y + 2;      
-    surface.filledTriangle(max_x1, max_y1, max_x2, max_y2, max_x3, max_y3, 0, 0, 0, 255);
-    
-    // Draw minimize triangle (top-left at (6, 11))  
-    Sint16 min_x1 = center_x - 6;      // Left point
-    Sint16 min_y1 = center_y + 2;      // Top edge
-    Sint16 min_x2 = center_x;          // Right point
-    Sint16 min_y2 = center_y + 2;      // Top edge
-    Sint16 min_x3 = center_x - 3;      // Bottom point
-    Sint16 min_y3 = center_y + 5;      // Bottom edge
-    surface.filledTriangle(min_x1, min_y1, min_x2, min_y2, min_x3, min_y3, 0, 0, 0, 255);
+    (void)size;
+    // The "restore" glyph is the maximize (up) and minimize (down) arrows stacked
+    // on one button, pointing both ways at once, separated by a 2px gap. The
+    // up-arrow's widest row sits at center_y-2 and the down-arrow's at center_y+1,
+    // leaving rows center_y-1 and center_y empty between them (the 2px gap).
+    drawUpTriangle(surface, center_x, center_y - 3, TRIANGLE_SIZE);
+    drawDownTriangle(surface, center_x, center_y + 2, TRIANGLE_SIZE);
 }
 
 } // namespace Windowing

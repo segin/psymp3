@@ -208,7 +208,25 @@ public:
      * This replicates what happens during a resize to ensure consistent state.
      */
     void refresh();
-    
+
+    /**
+     * @brief Toggle between maximized (filling the shared maximize area) and the
+     *        bounds the window had before it was maximized. No-op if the window
+     *        is not maximizable.
+     */
+    void toggleMaximize();
+
+    /**
+     * @brief Whether the window is currently maximized.
+     */
+    bool isMaximized() const { return m_maximized; }
+
+    /**
+     * @brief Set the screen area that maximized windows fill. Shared by all
+     *        windows; the Player sets it to the drawable region below the menu bar.
+     */
+    static void setMaximizeArea(const Rect& area);
+
     static void restoreDefaultCursor();
 
 private:
@@ -275,6 +293,8 @@ private:
     static SDL_Cursor* s_cursor_ns;
     static SDL_Cursor* s_default_cursor;
     static WindowFrameWidget* s_active_window;
+    // Shared area maximized windows fill (set by the Player).
+    static Rect s_maximize_bounds;
     
     // Drag state
     bool m_is_dragging;
@@ -304,6 +324,8 @@ private:
     bool m_resizable;
     bool m_minimizable;
     bool m_maximizable;
+    bool m_maximized;        // currently maximized
+    Rect m_restore_bounds;   // bounds to return to when un-maximizing
     
     // Drag callbacks
     std::function<void(int dx, int dy)> m_on_drag;
@@ -331,6 +353,13 @@ private:
      * @brief Updates the layout of the client area.
      */
     void updateLayout();
+
+    /**
+     * @brief Resize and reposition the whole frame so it exactly fills the given
+     *        total (outer) bounds, deriving the client size from the current
+     *        border metrics and notifying the resize callback. Used by maximize.
+     */
+    void setFrameBounds(const Rect& bounds);
     static void setActiveWindow(WindowFrameWidget* window);
     static void setCursorShape(SDL_Cursor* cursor);
     
