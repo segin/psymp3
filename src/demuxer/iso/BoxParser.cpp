@@ -1159,18 +1159,9 @@ bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrac
         return false;
     }
     try {
-        // Read the cookie through ReadUInt32BE (4-byte reads at absolute offsets),
-        // the same path the rest of the box parser uses. A bulk io->read here
-        // corrupts a later parse of the file via the FileIOHandler buffer (a
-        // separate, latent IOHandler bug), so avoid it. See notes in ALACCodec.
         std::vector<uint8_t> cookie(static_cast<size_t>(size));
-        for (size_t i = 0; i < cookie.size(); i += 4) {
-            uint32_t word = ReadUInt32BE(offset + i);
-            size_t rem = cookie.size() - i < 4 ? cookie.size() - i : 4;
-            for (size_t b = 0; b < rem; ++b) {
-                cookie[i + b] = static_cast<uint8_t>(word >> (24 - 8 * b));
-            }
-        }
+        io->seek(static_cast<off_t>(offset), SEEK_SET);
+        io->read(cookie.data(), 1, cookie.size());
         track.codecConfig = std::move(cookie);
         Debug::log("iso", "ISODemuxerBoxParser: stored ALAC magic cookie of ",
                    track.codecConfig.size(), " bytes");
