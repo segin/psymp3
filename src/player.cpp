@@ -932,6 +932,10 @@ void Player::queueTracks(long insert_at, const char* dialog_title)
     }
     playlist->insertEntries(insert_at, entries);
 
+    // Refresh the "Playlist: n/N" label so the new total shows immediately,
+    // whether or not a track is currently playing.
+    updateInfo();
+
     // If nothing is playing, start with the first queued track; otherwise the
     // current track keeps playing and the queued tracks follow it in order.
     if (state == PlayerState::Stopped || !stream) {
