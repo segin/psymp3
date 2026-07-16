@@ -148,6 +148,12 @@ void ButtonWidget::setText(const TagLib::String& text, Font* font)
     rebuildSurface();
 }
 
+void ButtonWidget::setGeometry(const Rect& bounds)
+{
+    setPos(bounds);
+    rebuildSurface();
+}
+
 void ButtonWidget::rebuildSurface()
 {
     Rect pos = getPos();

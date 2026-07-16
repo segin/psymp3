@@ -117,6 +117,13 @@ public:
      */
     void setEnabled(bool enabled) override;
     void setText(const TagLib::String& text, Font* font);
+
+    /**
+     * @brief Reposition and resize the button in one call, rebuilding its
+     *        surface so the bevel/label track the new geometry. Use this instead
+     *        of setPos() when a container re-lays out a button on resize.
+     */
+    void setGeometry(const Rect& bounds);
     
     /**
      * @brief Gets whether the button is enabled.
