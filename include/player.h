@@ -134,6 +134,10 @@ class Player
         void seekTo(unsigned long pos);
         bool canSeek() const;
         static std::atomic<bool> guiRunning;
+        // Set while a modal native file chooser is up. The dialog blocks the main
+        // thread outside updateGUI(), so guiRunning stays false and cannot stop
+        // AppLoopTimer from backlogging RUN_GUI_ITERATION events; this flag does.
+        static std::atomic<bool> dialogOpen;
         // App-loop timer period in ms, returned by AppLoopTimer so the redraw
         // cadence (target FPS) can be changed live. 33ms ~= 30 FPS by default.
         static std::atomic<Uint32> s_app_loop_interval_ms;

@@ -28,6 +28,7 @@
 
 
 std::atomic<bool> Player::guiRunning{false};
+std::atomic<bool> Player::dialogOpen{false};
 std::atomic<Uint32> Player::s_app_loop_interval_ms{33}; // 33ms ~= 30 FPS default
 
 namespace {
@@ -379,7 +380,11 @@ bool Player::synthesizeUserEvent(int code, void *data1, void* data2) {
  * @return The interval for the next timer call.
  */
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
-    if (!Player::guiRunning)
+    // Skip while a frame is already rendering (guiRunning) OR a modal file dialog
+    // has the main thread blocked (dialogOpen). Queuing RUN_GUI_ITERATION in
+    // either case just backlogs the event queue, and for a dialog the whole
+    // backlog would then be drained in one burst on return, freezing the UI.
+    if (!Player::guiRunning && !Player::dialogOpen)
         Player::synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     else
         Debug::log("timer", "skipped");
@@ -874,6 +879,16 @@ std::vector<Playlist::Entry> expandChosenPaths(const std::vector<std::string>& p
     }
     return Playlist::resolveInlineSources(sources);
 }
+
+// RAII flag held for the lifetime of a blocking native chooser. See
+// Player::dialogOpen and AppLoopTimer: it stops the app-loop timer from
+// backlogging RUN_GUI_ITERATION events while the dialog owns the main thread.
+struct DialogFlagGuard {
+    DialogFlagGuard() { Player::dialogOpen = true; }
+    ~DialogFlagGuard() { Player::dialogOpen = false; }
+    DialogFlagGuard(const DialogFlagGuard&) = delete;
+    DialogFlagGuard& operator=(const DialogFlagGuard&) = delete;
+};
 } // namespace
 
 /**
@@ -886,8 +901,12 @@ void Player::openTracksReplacingPlaylist()
     if (!playlist) {
         return;
     }
-    std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
-        true, "Open track(s)", chooserExtensions());
+    std::vector<std::string> paths;
+    {
+        DialogFlagGuard dialog_guard;
+        paths = PsyMP3::Core::FileDialog::openFiles(
+            true, "Open track(s)", chooserExtensions());
+    }
     if (paths.empty()) {
         return; // cancelled: keep the existing playlist and playback
     }
@@ -915,8 +934,12 @@ void Player::queueTracks(long insert_at, const char* dialog_title)
     if (!playlist) {
         return;
     }
-    std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
-        true, dialog_title, chooserExtensions());
+    std::vector<std::string> paths;
+    {
+        DialogFlagGuard dialog_guard;
+        paths = PsyMP3::Core::FileDialog::openFiles(
+            true, dialog_title, chooserExtensions());
+    }
     if (paths.empty()) {
         return;
     }
@@ -967,8 +990,12 @@ void Player::queueTracksEnd()
  */
 void Player::openTemporaryTrackDialog()
 {
-    std::vector<std::string> paths = PsyMP3::Core::FileDialog::openFiles(
-        false, "Load temporary track", MediaFile::getSupportedExtensions());
+    std::vector<std::string> paths;
+    {
+        DialogFlagGuard dialog_guard;
+        paths = PsyMP3::Core::FileDialog::openFiles(
+            false, "Load temporary track", MediaFile::getSupportedExtensions());
+    }
     if (paths.empty()) {
         return;
     }
