@@ -183,6 +183,67 @@ void Playlist::clear()
     m_shuffled_indices.clear();
 }
 
+bool Playlist::removeTrack(long index)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (index < 0 || static_cast<size_t>(index) >= tracks.size()) {
+        return false;
+    }
+
+    tracks.erase(tracks.begin() + index);
+
+    // Keep the cursor on the same logical track. Removing a track before the
+    // cursor shifts it down; removing the cursor's own track leaves the cursor
+    // pointing at the track that slid into the slot (clamped to the new range).
+    if (m_position > index) {
+        m_position--;
+    } else if (m_position == index) {
+        long size = static_cast<long>(tracks.size());
+        if (size == 0) m_position = 0;
+        else if (m_position >= size) m_position = size - 1;
+    }
+
+    // A manual edit invalidates the precomputed shuffle order; rebuild it and
+    // keep the shuffle cursor in range. next()/prev() also repopulate on a size
+    // mismatch, but a move keeps the size, so rebuild here unconditionally.
+    if (m_shuffle) {
+        repopulateShuffleIndices();
+        long size = static_cast<long>(m_shuffled_indices.size());
+        if (m_shuffle_index >= size) m_shuffle_index = (size > 0) ? size - 1 : 0;
+    }
+    return true;
+}
+
+bool Playlist::moveTrack(long from, long to)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    const long size = static_cast<long>(tracks.size());
+    if (from < 0 || from >= size || to < 0 || to >= size || from == to) {
+        return false;
+    }
+
+    track moved = std::move(tracks[from]);
+    tracks.erase(tracks.begin() + from);
+    tracks.insert(tracks.begin() + to, std::move(moved));
+
+    // Track where the cursor's logical track ends up under the erase-then-insert.
+    long p = m_position;
+    if (p == from) {
+        p = to;
+    } else {
+        if (p > from) p -= 1;
+        if (p >= to) p += 1;
+    }
+    m_position = p;
+
+    if (m_shuffle) {
+        repopulateShuffleIndices();
+        long ssize = static_cast<long>(m_shuffled_indices.size());
+        if (m_shuffle_index >= ssize) m_shuffle_index = (ssize > 0) ? ssize - 1 : 0;
+    }
+    return true;
+}
+
 bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);

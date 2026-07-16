@@ -58,6 +58,14 @@ class Playlist
         bool insertEntries(long position, const std::vector<Entry>& entries);
         // Remove every track and reset the position/shuffle state to empty.
         void clear();
+        // Remove the track at the given index, keeping the position cursor on the
+        // same logical track (or the one that shifts into its slot). Returns false
+        // if the index is out of range.
+        bool removeTrack(long index);
+        // Move the track at `from` to index `to`, shifting the tracks in between
+        // and keeping the position cursor on the same logical track. Returns false
+        // for out-of-range indices or a no-op move.
+        bool moveTrack(long from, long to);
         ~Playlist() = default;
         bool addFile(TagLib::String path);
         long getPosition() const;
