@@ -23,7 +23,13 @@
 extern "C" {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wregister"
+// windows.h (pulled in via psymp3.h on the mingw build) defines FASTCALL, and
+// kjmp2 defines its own; swap ours out across the include and restore it after
+// so there is no macro redefinition.
+#pragma push_macro("FASTCALL")
+#undef FASTCALL
 #include "../../../third_party/kjmp2/kjmp2.c"
+#pragma pop_macro("FASTCALL")
 #pragma GCC diagnostic pop
 }
 

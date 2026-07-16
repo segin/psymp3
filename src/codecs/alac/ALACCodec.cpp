@@ -26,12 +26,18 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+// ELEMENT_TYPE collides with a Windows SDK typedef under mingw. ALAC only
+// *defines* this enum (never references the type name elsewhere), so rename it
+// for the duration of these includes and restore it afterwards.
+#pragma push_macro("ELEMENT_TYPE")
+#define ELEMENT_TYPE ALAC_ELEMENT_TYPE
 #include "../../../third_party/alac/ALACBitUtilities.c"
 #include "../../../third_party/alac/EndianPortable.c"
 #include "../../../third_party/alac/ag_dec.c"
 #include "../../../third_party/alac/dp_dec.c"
 #include "../../../third_party/alac/matrix_dec.c"
 #include "../../../third_party/alac/ALACDecoder.cpp"
+#pragma pop_macro("ELEMENT_TYPE")
 #pragma GCC diagnostic pop
 
 namespace PsyMP3 {
