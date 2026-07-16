@@ -2321,6 +2321,18 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::leaf("&Restart Track", [this]{ seekTo(0); }, nullptr, "R"));
         playback_items.push_back(MI::leaf("&Next Track", [this]{ nextTrack(); }, nullptr, "N"));
         playback_items.push_back(MI::sep());
+        // Repeat submenu (radio) over the same loop-mode state the E key cycles.
+        auto repeat_item = [this](const char* label, LoopMode mode) {
+            return MI::leaf(label,
+                [this, mode]{ setLoopMode(mode); },
+                [this, mode]{ return getLoopMode() == mode; });
+        };
+        playback_items.push_back(MI::sub("&Repeat", {
+            repeat_item("&None", LoopMode::None),
+            repeat_item("Repeat &One", LoopMode::One),
+            repeat_item("Repeat &All", LoopMode::All),
+        }));
+        playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
         playback_items.push_back(MI::leaf("Volume &Down", [this]{ volumeDown(); }, nullptr, "Dn"));
         playback_items.push_back(MI::sep());
