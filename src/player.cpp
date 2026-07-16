@@ -306,27 +306,29 @@ public:
         }
     }
 
-    // Reposition/resize children for a client area of w x h.
+    // Reposition/resize children for a client area of w x h. Two button rows are
+    // pinned to the bottom: Delete/Move Up/Move Down, then Add Next/Add To End
+    // below them. The list fills the space above both rows. Every button shares
+    // its row's width equally, so all of it reflows with the window.
     void layout(int w, int h)
     {
-        const int button_y = h - MARGIN - BUTTON_H;
+        const int avail = std::max(1, w - 2 * MARGIN);
+        const int row2_y = h - MARGIN - BUTTON_H;              // Add row (bottom)
+        const int row1_y = row2_y - BUTTON_GAP - BUTTON_H;     // edit row
 
-        // The list fills everything above the button row.
-        int list_w = std::max(1, w - 2 * MARGIN);
-        int list_h = std::max(1, button_y - BUTTON_GAP - MARGIN);
+        int list_w = avail;
+        int list_h = std::max(1, row1_y - BUTTON_GAP - MARGIN);
         m_list->setPos(Rect(MARGIN, MARGIN, list_w, list_h)); // anchor top-left
         m_list->resize(list_w, list_h);
 
-        // The buttons share the row width equally, so they grow/shrink with the
-        // window instead of just sliding — the same reflow as the list.
-        int avail = std::max(1, w - 2 * MARGIN);
-        int bw = (avail - (NUM_BUTTONS - 1) * BUTTON_GAP) / NUM_BUTTONS;
-        if (bw < 1) bw = 1;
-        int x = MARGIN;
-        for (ButtonWidget* button : m_buttons) {
-            button->setGeometry(Rect(x, button_y, bw, BUTTON_H));
-            x += bw + BUTTON_GAP;
-        }
+        auto lay_row = [&](std::initializer_list<ButtonWidget*> row, int y) {
+            int n = static_cast<int>(row.size());
+            int bw = std::max(1, (avail - (n - 1) * BUTTON_GAP) / n);
+            int x = MARGIN;
+            for (ButtonWidget* b : row) { b->setGeometry(Rect(x, y, bw, BUTTON_H)); x += bw + BUTTON_GAP; }
+        };
+        lay_row({ m_buttons[0], m_buttons[1], m_buttons[2] }, row1_y); // Delete/Up/Down
+        lay_row({ m_buttons[3], m_buttons[4] }, row2_y);               // Add Next/To End
     }
 
 private:
@@ -3327,10 +3329,10 @@ void Player::togglePlaylistManager()
         return;
     }
 
-    // Wide enough for the five-button row to read comfortably; tall enough to
-    // show a useful slice of the playlist.
-    const int client_w = 480;
-    const int client_h = 300;
+    // Narrow window: three edit buttons per row, so it needs far less width than
+    // the old single five-button row. Extra height covers the second button row.
+    const int client_w = 280;
+    const int client_h = 320;
 
     m_test_window_p = std::make_unique<WindowFrameWidget>(client_w, client_h, "Playlist Manager", font.get());
     m_test_window_p->setMinimizable(false); // no minimize; maximize/restore stays
