@@ -56,6 +56,20 @@ public:
     static std::vector<std::string> openFiles(bool allow_multiple,
                                               const std::string& title,
                                               const std::vector<std::string>& extensions);
+
+    /**
+     * @brief Show a modal save-file dialog. MUST be called from the main thread.
+     *
+     * @param title         Dialog title (UTF-8).
+     * @param default_name  Suggested file name (UTF-8), e.g. "playlist.m3u8".
+     * @param extensions    Lower-case extensions WITHOUT a leading dot, used to
+     *                      build the type filter. Empty means "all files".
+     * @return The chosen path (UTF-8), or an empty string if the user cancelled
+     *         or no toolkit backend is compiled in.
+     */
+    static std::string saveFile(const std::string& title,
+                                const std::string& default_name,
+                                const std::vector<std::string>& extensions);
 };
 
 } // namespace Core

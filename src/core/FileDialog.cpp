@@ -138,6 +138,25 @@ std::vector<std::string> FileDialog::openFiles(bool allow_multiple,
     return result;
 }
 
+std::string FileDialog::saveFile(const std::string& title,
+                                 const std::string& default_name,
+                                 const std::vector<std::string>& extensions)
+{
+    ensure_qapp();
+#if PSYMP3_QT_MAJOR >= 5
+    QLoggingCategory::setFilterRules(QStringLiteral("kf.kio.widgets.kdirmodel.warning=false"));
+#endif
+    const QString caption = QString::fromUtf8(title.c_str());
+    const QString filter = build_filter(extensions);
+    const QString suggested = QString::fromUtf8(default_name.c_str());
+#if PSYMP3_QT_MAJOR >= 4
+    QString file = QFileDialog::getSaveFileName(nullptr, caption, suggested, filter);
+#else
+    QString file = QFileDialog::getSaveFileName(suggested, filter, 0, 0, caption);
+#endif
+    return file.isEmpty() ? std::string() : qstr_to_utf8(file);
+}
+
 } // namespace Core
 } // namespace PsyMP3
 
@@ -251,6 +270,71 @@ std::vector<std::string> FileDialog::openFiles(bool allow_multiple,
     return result;
 }
 
+std::string FileDialog::saveFile(const std::string& title,
+                                 const std::string& default_name,
+                                 const std::vector<std::string>& extensions)
+{
+    std::string result;
+
+#if PSYMP3_GTK_MAJOR >= 4
+    if (!gtk_init_check()) {
+        return result;
+    }
+    GtkFileChooserNative* native = gtk_file_chooser_native_new(
+        title.c_str(), nullptr, GTK_FILE_CHOOSER_ACTION_SAVE, "_Save", "_Cancel");
+    GtkFileChooser* chooser = GTK_FILE_CHOOSER(native);
+    add_filters(chooser, extensions);
+    if (!default_name.empty()) {
+        gtk_file_chooser_set_current_name(chooser, default_name.c_str());
+    }
+
+    struct RunState { GMainLoop* loop; int response; };
+    RunState state{ g_main_loop_new(nullptr, FALSE), GTK_RESPONSE_CANCEL };
+    g_signal_connect(native, "response",
+        G_CALLBACK(+[](GtkNativeDialog*, int response, gpointer data) {
+            RunState* st = static_cast<RunState*>(data);
+            st->response = response;
+            g_main_loop_quit(st->loop);
+        }), &state);
+    gtk_native_dialog_show(GTK_NATIVE_DIALOG(native));
+    g_main_loop_run(state.loop);
+    g_main_loop_unref(state.loop);
+
+    if (state.response == GTK_RESPONSE_ACCEPT) {
+        GFile* gf = gtk_file_chooser_get_file(chooser);
+        char* path = gf ? g_file_get_path(gf) : nullptr;
+        if (path) { result = path; g_free(path); }
+        if (gf) g_object_unref(gf);
+    }
+    g_object_unref(native);
+#else
+    if (!gtk_init_check(nullptr, nullptr)) {
+        return result;
+    }
+    GtkWidget* dialog = gtk_file_chooser_dialog_new(
+        title.c_str(), nullptr, GTK_FILE_CHOOSER_ACTION_SAVE,
+        "_Cancel", GTK_RESPONSE_CANCEL,
+        "_Save", GTK_RESPONSE_ACCEPT,
+        static_cast<const char*>(nullptr));
+    GtkFileChooser* chooser = GTK_FILE_CHOOSER(dialog);
+    add_filters(chooser, extensions);
+    gtk_file_chooser_set_do_overwrite_confirmation(chooser, TRUE);
+    if (!default_name.empty()) {
+        gtk_file_chooser_set_current_name(chooser, default_name.c_str());
+    }
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        char* path = gtk_file_chooser_get_filename(chooser);
+        if (path) { result = path; g_free(path); }
+    }
+    gtk_widget_destroy(dialog);
+    while (gtk_events_pending()) {
+        gtk_main_iteration();
+    }
+#endif
+    return result;
+}
+
 } // namespace Core
 } // namespace PsyMP3
 
@@ -341,6 +425,50 @@ std::vector<std::string> FileDialog::openFiles(bool allow_multiple,
     return result;
 }
 
+std::string FileDialog::saveFile(const std::string& title,
+                                 const std::string& default_name,
+                                 const std::vector<std::string>& extensions)
+{
+    std::wstring wtitle = utf8_to_wide(title);
+
+    std::wstring pats;
+    for (size_t i = 0; i < extensions.size(); ++i) {
+        if (i) pats += L";";
+        pats += L"*." + utf8_to_wide(extensions[i]);
+    }
+    if (pats.empty()) pats = L"*.*";
+    std::wstring filter;
+    filter += L"Playlist"; filter.push_back(L'\0'); filter += pats;   filter.push_back(L'\0');
+    filter += L"All Files"; filter.push_back(L'\0'); filter += L"*.*"; filter.push_back(L'\0');
+    filter.push_back(L'\0');
+
+    // Seed the edit field with the suggested name.
+    std::vector<wchar_t> buf(64 * 1024, L'\0');
+    std::wstring wname = utf8_to_wide(default_name);
+    if (!wname.empty() && wname.size() < buf.size()) {
+        for (size_t i = 0; i < wname.size(); ++i) buf[i] = wname[i];
+    }
+
+    // Default the extension to the first one given (comdlg appends it if omitted).
+    std::wstring def_ext = extensions.empty() ? std::wstring() : utf8_to_wide(extensions.front());
+
+    OPENFILENAMEW ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = GetActiveWindow();
+    ofn.lpstrFilter = filter.c_str();
+    ofn.lpstrFile = buf.data();
+    ofn.nMaxFile = static_cast<DWORD>(buf.size());
+    ofn.lpstrTitle = wtitle.empty() ? nullptr : wtitle.c_str();
+    ofn.lpstrDefExt = def_ext.empty() ? nullptr : def_ext.c_str();
+    ofn.Flags = OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (GetSaveFileNameW(&ofn)) {
+        return wide_to_utf8(buf.data());
+    }
+    return std::string();
+}
+
 } // namespace Core
 } // namespace PsyMP3
 
@@ -354,6 +482,12 @@ namespace Core {
 
 std::vector<std::string> FileDialog::openFiles(bool, const std::string&,
                                                const std::vector<std::string>&)
+{
+    return {};
+}
+
+std::string FileDialog::saveFile(const std::string&, const std::string&,
+                                 const std::vector<std::string>&)
 {
     return {};
 }
