@@ -47,9 +47,16 @@ void DemuxerFactory::initializeBuiltInFormats() {
     // MP3 signature (ID3v2)
     registerSignature_unlocked(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"
     
-    // MP3 signature (frame sync)
-    registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xFB}, 0, 70)); // MPEG frame sync
-    
+    // MPEG audio frame sync. The MP3 demuxer (MP3NullDemuxer) parses all layers
+    // and tags the stream mp3/mp2 accordingly; these just get the file routed to
+    // it. 0xFB = MPEG-1 Layer III; 0xFC/0xFD = MPEG-1 Layer II (MP2); 0xF3/0xF5
+    // cover the MPEG-2 Layer III/II sync bytes.
+    registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xFB}, 0, 70));
+    registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xFC}, 0, 70)); // MPEG-1 Layer II
+    registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xFD}, 0, 70)); // MPEG-1 Layer II
+    registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xF3}, 0, 70)); // MPEG-2 Layer III
+    registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xF5}, 0, 70)); // MPEG-2 Layer II
+
     // Register file extensions
     s_extension_to_format["wav"] = "riff";
     s_extension_to_format["wave"] = "riff";
@@ -63,6 +70,8 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["m4a"] = "mp4";
     s_extension_to_format["m4b"] = "mp4";
     s_extension_to_format["mp3"] = "mp3";
+    s_extension_to_format["mp2"] = "mp3"; // Layer II elementary stream -> MP3 demuxer
+    s_extension_to_format["mpa"] = "mp3"; // generic MPEG audio -> MP3 demuxer
     s_extension_to_format["pcm"] = "raw";
     s_extension_to_format["raw"] = "raw";
     s_extension_to_format["s8"] = "raw";

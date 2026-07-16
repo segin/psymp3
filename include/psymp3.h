@@ -557,6 +557,7 @@ using PsyMP3::Codec::AAC::AACCodec;
 #include "demuxer/iso/ISODemuxer.h"
 #include "demuxer/ModernStream.h"
 #include "codecs/mp3/MiniMP3Codec.h"
+#include "codecs/mp2/MP2Codec.h"
 #include "demuxer/mp3/MP3NullDemuxer.h"
 #ifdef HAVE_OPUS
 using PsyMP3::Codec::Opus::OpusComments;

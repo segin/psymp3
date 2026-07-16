@@ -50,6 +50,13 @@ void registerAllCodecs() {
     });
     Debug::log("codec", "registerAllCodecs: Registered minimp3 codec with CodecRegistry");
 
+    // kjmp2-based MPEG Layer II codec (always available, no external dependency)
+    PsyMP3::Codec::MP2::MP2CodecSupport::registerCodec();
+    CodecRegistry::registerCodec("mp2", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::MP2::MP2Codec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered kjmp2 codec with CodecRegistry");
+
 #ifdef HAVE_VORBIS
     // Register the new container-agnostic VorbisCodec with AudioCodecFactory
     PsyMP3::Codec::Vorbis::VorbisCodecSupport::registerCodec();

@@ -143,6 +143,7 @@
 #define MINIMP3_IMPLEMENTATION
 #include "../third_party/minimp3/minimp3.h"
 #include "codecs/mp3/MiniMP3Codec.cpp"
+#include "codecs/mp2/MP2Codec.cpp"
 
 // ============================================================================
 // Optional Codec: Vorbis
