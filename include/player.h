@@ -182,7 +182,12 @@ class Player
         void cycleLoopMode();               // E key: None -> One -> All -> None
         void toggleZoom();                  // G key: 1x <-> 2x pixel doubling
 
-        // --- Playlist Manager (Shift+P test window) backing operations ---
+        // True when the build has a native file-chooser toolkit. Gates the
+        // enabled state of the file-chooser menu items and Playlist Manager
+        // Add buttons. Public: driven by the menu bar and the manager client.
+        bool hasFileDialog() const;
+
+        // --- Playlist Manager (Shift+P window) backing operations ---
         // These are public because the window's client widget (defined outside
         // the Player class) drives them.
         // Display labels ("artist - title", or the file's basename) for every
@@ -272,7 +277,7 @@ class Player
         bool windowOwnsMouseCapture() const;
         void toggleTestWindowH();
         void toggleTestWindowB();
-        void toggleTestWindowP();
+        void togglePlaylistManager();
         void createRandomWindows();
 
         std::unique_ptr<Display> screen;

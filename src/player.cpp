@@ -285,6 +285,9 @@ public:
         m_buttons[4] = makeButton("Add To End", [this]() {
             m_player->playlistManagerAddEnd(); reload(m_list->getSelectedIndex());
         });
+        // The Add buttons need the file chooser; grey them out when it's absent.
+        m_buttons[3]->setEnabled(m_player->hasFileDialog());
+        m_buttons[4]->setEnabled(m_player->hasFileDialog());
 
         reload(m_player->playlistManagerCurrentIndex());
         layout(width, height);
@@ -1122,6 +1125,15 @@ void Player::clearPlaylist()
     playlist->clear();
     stop();
     updateInfo();
+}
+
+bool Player::hasFileDialog() const
+{
+#ifdef HAVE_FILEDIALOG
+    return true;
+#else
+    return false;
+#endif
 }
 
 std::vector<TagLib::String> Player::playlistManagerLabels() const
@@ -2034,7 +2046,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             // Shift+P opens the Playlist Manager test window; plain P is Previous
             // Track (P is already taken, so the window uses the shifted chord).
             if (keysym.mod & KMOD_SHIFT) {
-                toggleTestWindowP();
+                togglePlaylistManager();
             } else {
                 prevTrack();
             }
@@ -2504,18 +2516,39 @@ bool Player::Initialize(const PlayerOptions& options) {
         auto menu_bar = std::make_unique<MenuBarWidget>(640, 400, font.get());
         m_menu_bar = menu_bar.get();
 
+        // Maximized windows fill the canvas below the menu bar (so the bar stays
+        // reachable) down to the bottom of the base 640x404 surface.
+        WindowFrameWidget::setMaximizeArea(Rect(0, MenuBarWidget::BAR_H, 640, 404 - MenuBarWidget::BAR_H));
+
+        // The file-chooser actions (and Clear Playlist) are shown in every build
+        // but greyed out when there is no native file-dialog toolkit. The action
+        // bodies are compiled out in that case; the disabled state keeps them from
+        // firing anyway.
         std::vector<MI> file_items;
+        auto fd_enabled = [this]{ return hasFileDialog(); };
+        file_items.push_back(MI::leaf("&Open Tracks...", [this]{
 #ifdef HAVE_FILEDIALOG
-        file_items.push_back(MI::leaf("&Open Tracks...", [this]{ openTracksReplacingPlaylist(); }, nullptr, "Ctrl+O"));
+            openTracksReplacingPlaylist();
 #endif
-        file_items.push_back(MI::leaf("&Clear Playlist", [this]{ clearPlaylist(); }));
+        }, nullptr, "Ctrl+O", fd_enabled));
+        file_items.push_back(MI::leaf("&Clear Playlist", [this]{ clearPlaylist(); }, nullptr, "", fd_enabled));
         file_items.push_back(MI::sep());
+        file_items.push_back(MI::leaf("Queue Track &Next...", [this]{
 #ifdef HAVE_FILEDIALOG
-        file_items.push_back(MI::leaf("Queue Track &Next...", [this]{ queueTracksNext(); }, nullptr, "I"));
-        file_items.push_back(MI::leaf("&Queue Track...", [this]{ queueTracksEnd(); }));
-        file_items.push_back(MI::leaf("&Play Now...", [this]{ openTemporaryTrackDialog(); }, nullptr, "L"));
-        file_items.push_back(MI::sep());
+            queueTracksNext();
 #endif
+        }, nullptr, "I", fd_enabled));
+        file_items.push_back(MI::leaf("&Queue Track...", [this]{
+#ifdef HAVE_FILEDIALOG
+            queueTracksEnd();
+#endif
+        }, nullptr, "", fd_enabled));
+        file_items.push_back(MI::leaf("&Play Now...", [this]{
+#ifdef HAVE_FILEDIALOG
+            openTemporaryTrackDialog();
+#endif
+        }, nullptr, "L", fd_enabled));
+        file_items.push_back(MI::sep());
         file_items.push_back(MI::leaf("E&xit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
         menu_bar->addMenu("&File", std::move(file_items));
 
@@ -2544,6 +2577,7 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::leaf("Volume &Down", [this]{ volumeDown(); }, nullptr, "Dn"));
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("&Equalizer...", [this]{ toggleEqualizerWindow(); }));
+        playback_items.push_back(MI::leaf("Playlist &Manager...", [this]{ togglePlaylistManager(); }));
         menu_bar->addMenu("&Playback", std::move(playback_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
@@ -3284,7 +3318,7 @@ void Player::toggleTestWindowH()
     }
 }
 
-void Player::toggleTestWindowP()
+void Player::togglePlaylistManager()
 {
     if (m_test_window_p) {
         deferWidgetDeletion(std::move(m_test_window_p));
@@ -3299,6 +3333,7 @@ void Player::toggleTestWindowP()
     const int client_h = 300;
 
     m_test_window_p = std::make_unique<WindowFrameWidget>(client_w, client_h, "Playlist Manager", font.get());
+    m_test_window_p->setMinimizable(false); // no minimize; maximize/restore stays
 
     auto client = std::make_unique<PlaylistManagerClient>(client_w, client_h, font.get(), this);
     PlaylistManagerClient* client_ptr = client.get();
@@ -3473,6 +3508,7 @@ void Player::toggleEqualizerWindow()
     const int cw = client->getPos().width();
     const int ch = client->getPos().height();
     auto frame = std::make_unique<WindowFrameWidget>(cw, ch, "Equalizer", font.get());
+    frame->setResizable(false); // fixed-size window
     frame->setMinimizable(false);
     frame->setMaximizable(false);
     frame->setClientArea(std::move(client));
