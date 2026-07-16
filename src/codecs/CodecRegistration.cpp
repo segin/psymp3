@@ -57,6 +57,13 @@ void registerAllCodecs() {
     });
     Debug::log("codec", "registerAllCodecs: Registered kjmp2 codec with CodecRegistry");
 
+    // Apple Lossless (ALAC) codec (always available, bundled Apache-2.0 decoder)
+    PsyMP3::Codec::ALAC::ALACCodecSupport::registerCodec();
+    CodecRegistry::registerCodec("alac", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::ALAC::ALACCodec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered ALAC codec with CodecRegistry");
+
 #ifdef HAVE_VORBIS
     // Register the new container-agnostic VorbisCodec with AudioCodecFactory
     PsyMP3::Codec::Vorbis::VorbisCodecSupport::registerCodec();

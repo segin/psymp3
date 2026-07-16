@@ -76,6 +76,7 @@ DEMUXER_LIBS =
 # MP3 codec is always built (minimp3 has no external dependency)
 CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
 CODEC_LIBS += codecs/mp2/libpsymp3-codec-mp2.a
+CODEC_LIBS += codecs/alac/libpsymp3-codec-alac.a
 DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
 
 if HAVE_FLAC

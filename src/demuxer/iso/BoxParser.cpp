@@ -1147,10 +1147,38 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
 }
 
 bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
-    // Placeholder for ALAC configuration parsing
-    // This would parse the ALAC magic cookie to extract
-    // ALAC-specific configuration data
-    return true;
+    (void)depth;
+    // The inner 'alac' box holds the ALAC "magic cookie": a 4-byte FullBox
+    // version/flags header followed by the 24-byte ALACSpecificConfig (possibly
+    // with a trailing channel-layout atom). Store the content verbatim in
+    // codecConfig; ALACCodec::initialize strips the FullBox header and hands the
+    // config to ALACDecoder::Init, which reads sample rate / channels / bit depth.
+    static const uint64_t MAX_ALAC_COOKIE = 4096; // sane upper bound
+    if (size < 24 || size > MAX_ALAC_COOKIE) {
+        Debug::log("iso", "ISODemuxerBoxParser: ALAC magic cookie has bad size: ", size);
+        return false;
+    }
+    try {
+        // Read the cookie through ReadUInt32BE (4-byte reads at absolute offsets),
+        // the same path the rest of the box parser uses. A bulk io->read here
+        // corrupts a later parse of the file via the FileIOHandler buffer (a
+        // separate, latent IOHandler bug), so avoid it. See notes in ALACCodec.
+        std::vector<uint8_t> cookie(static_cast<size_t>(size));
+        for (size_t i = 0; i < cookie.size(); i += 4) {
+            uint32_t word = ReadUInt32BE(offset + i);
+            size_t rem = cookie.size() - i < 4 ? cookie.size() - i : 4;
+            for (size_t b = 0; b < rem; ++b) {
+                cookie[i + b] = static_cast<uint8_t>(word >> (24 - 8 * b));
+            }
+        }
+        track.codecConfig = std::move(cookie);
+        Debug::log("iso", "ISODemuxerBoxParser: stored ALAC magic cookie of ",
+                   track.codecConfig.size(), " bytes");
+        return true;
+    } catch (const std::exception& e) {
+        Debug::log("iso", "ISODemuxerBoxParser: ALAC cookie parse exception: ", e.what());
+        return false;
+    }
 }
 
 bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
