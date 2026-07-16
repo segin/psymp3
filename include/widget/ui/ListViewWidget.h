@@ -46,6 +46,8 @@ public:
     // Scroll so the given row is within the visible area (no-op if already shown).
     void ensureVisible(int index);
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
+    // Fired when a row is double-clicked (the row index).
+    void setOnActivate(std::function<void(int)> cb) { m_on_activate = std::move(cb); }
 
     // Editing helpers operating on the current selection. Each is a no-op when
     // the operation is not possible (nothing selected, already at an end, etc.)
@@ -86,6 +88,12 @@ private:
     int m_row_height;
     ScrollbarWidget* m_scrollbar; // owned via addChild(); non-owning pointer
     std::function<void(int)> m_on_selection_changed;
+    std::function<void(int)> m_on_activate;
+
+    // Double-click detection for row activation.
+    static constexpr Uint32 DOUBLE_CLICK_MS = 500;
+    Uint32 m_last_click_ms = 0;
+    int m_last_click_row = -1;
 };
 
 } // namespace UI

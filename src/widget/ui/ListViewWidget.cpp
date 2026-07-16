@@ -217,12 +217,22 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
         return false;
     }
 
-    // Clicks inside the row area select the row under the cursor.
+    // Clicks inside the row area select the row under the cursor; a second click
+    // on the same row within the double-click window activates it.
     if (relative_x >= BORDER && relative_x < BORDER + listAreaWidth() &&
         relative_y >= BORDER && relative_y < BORDER + listAreaHeight()) {
         int row = m_top + (relative_y - BORDER) / m_row_height;
         if (row >= 0 && row < static_cast<int>(m_items.size())) {
-            setSelectedIndex(row);
+            Uint32 now = SDL_GetTicks();
+            if (row == m_last_click_row && (now - m_last_click_ms) <= DOUBLE_CLICK_MS) {
+                m_last_click_ms = 0; // consume, so a third click isn't a double
+                m_last_click_row = -1;
+                if (m_on_activate) m_on_activate(row);
+            } else {
+                setSelectedIndex(row);
+                m_last_click_row = row;
+                m_last_click_ms = now;
+            }
         }
         return true;
     }
