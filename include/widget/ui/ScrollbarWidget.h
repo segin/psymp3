@@ -30,6 +30,8 @@ public:
 
     void setValue(double value);
     double getValue() const { return m_value; }
+    // Repaint in the disabled (greyed, thumbless) style when turned off.
+    void setEnabled(bool enabled) override;
     void setOnChange(std::function<void(double)> callback) { m_on_change = callback; }
 
     // Reposition and resize the scrollbar in one shot, rebuilding its surface so

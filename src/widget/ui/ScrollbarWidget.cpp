@@ -31,23 +31,40 @@ void drawWin31Button(::Surface& surface, const Rect& rect, bool pressed)
     }
 }
 
-void drawArrowGlyph(::Surface& surface, const Rect& rect, ButtonSymbol symbol)
+void drawArrowGlyph(::Surface& surface, const Rect& rect, ButtonSymbol symbol, uint8_t shade = 0)
 {
-    const int center_x = rect.x() + rect.width() / 2;
-    const int center_y = rect.y() + rect.height() / 2;
+    // Pixel-drawn triangles (one row/column narrower per step from the base to a
+    // 1px apex), matching the crisp min/max glyphs on the window frame buttons.
+    // SDL_gfx's filledTriangle produced squatter, softer arrows that looked out
+    // of place next to them.
+    const int cx = rect.x() + rect.width() / 2;
+    const int cy = rect.y() + rect.height() / 2;
+    const uint8_t c = shade; // 0 = black (enabled), 128 = grey (disabled)
 
     switch (symbol) {
-        case ButtonSymbol::ScrollUp:
-            surface.filledTriangle(center_x, center_y - 3, center_x + 4, center_y + 2, center_x - 4, center_y + 2, 0, 0, 0, 255);
+        case ButtonSymbol::ScrollUp: // apex up, 7px base
+            surface.pixel(cx, cy - 2, c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy - 1, c, c, c, 255);
+            surface.hline(cx - 2, cx + 2, cy,     c, c, c, 255);
+            surface.hline(cx - 3, cx + 3, cy + 1, c, c, c, 255);
             break;
-        case ButtonSymbol::ScrollDown:
-            surface.filledTriangle(center_x - 4, center_y - 2, center_x + 4, center_y - 2, center_x, center_y + 3, 0, 0, 0, 255);
+        case ButtonSymbol::ScrollDown: // apex down, 7px base
+            surface.hline(cx - 3, cx + 3, cy - 1, c, c, c, 255);
+            surface.hline(cx - 2, cx + 2, cy,     c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy + 1, c, c, c, 255);
+            surface.pixel(cx, cy + 2, c, c, c, 255);
             break;
-        case ButtonSymbol::ScrollLeft:
-            surface.filledTriangle(center_x + 2, center_y - 4, center_x + 2, center_y + 4, center_x - 3, center_y, 0, 0, 0, 255);
+        case ButtonSymbol::ScrollLeft: // apex left, 7px base
+            surface.pixel(cx - 2, cy, c, c, c, 255);
+            surface.vline(cx - 1, cy - 1, cy + 1, c, c, c, 255);
+            surface.vline(cx,     cy - 2, cy + 2, c, c, c, 255);
+            surface.vline(cx + 1, cy - 3, cy + 3, c, c, c, 255);
             break;
-        case ButtonSymbol::ScrollRight:
-            surface.filledTriangle(center_x - 2, center_y - 4, center_x - 2, center_y + 4, center_x + 3, center_y, 0, 0, 0, 255);
+        case ButtonSymbol::ScrollRight: // apex right, 7px base
+            surface.vline(cx - 1, cy - 3, cy + 3, c, c, c, 255);
+            surface.vline(cx,     cy - 2, cy + 2, c, c, c, 255);
+            surface.vline(cx + 1, cy - 1, cy + 1, c, c, c, 255);
+            surface.pixel(cx + 2, cy, c, c, c, 255);
             break;
         default:
             break;
@@ -161,6 +178,15 @@ void ScrollbarWidget::setGeometry(const Rect& bounds)
     rebuildSurface();
 }
 
+void ScrollbarWidget::setEnabled(bool enabled)
+{
+    if (enabled == isEnabled()) {
+        return;
+    }
+    Widget::setEnabled(enabled);
+    rebuildSurface(); // switch between the normal and greyed appearance
+}
+
 void ScrollbarWidget::setValue(double value)
 {
     const double clamped = clampValue(value);
@@ -245,25 +271,37 @@ void ScrollbarWidget::rebuildSurface()
     auto surface = std::make_unique<Surface>(pos.width(), pos.height(), true);
     surface->FillRect(surface->MapRGBA(255, 255, 255, 255));
 
+    const bool enabled = isEnabled();
+
     Rect dec_arrow = getDecrementArrowRect();
     Rect inc_arrow = getIncrementArrowRect();
     Rect thumb = getThumbRect();
 
-    drawWin31Button(*surface, dec_arrow, m_pressed && m_pressed_part == ScrollbarPart::DecrementArrow);
-    drawWin31Button(*surface, inc_arrow, m_pressed && m_pressed_part == ScrollbarPart::IncrementArrow);
+    // Arrow buttons keep their bevel but only show a pressed state when enabled.
+    drawWin31Button(*surface, dec_arrow, enabled && m_pressed && m_pressed_part == ScrollbarPart::DecrementArrow);
+    drawWin31Button(*surface, inc_arrow, enabled && m_pressed && m_pressed_part == ScrollbarPart::IncrementArrow);
 
+    // Track: white when enabled, flat grey when disabled.
+    const uint8_t track = enabled ? 255 : 192;
     if (m_orientation == ScrollbarOrientation::Vertical) {
-        surface->box(1, dec_arrow.height(), pos.width() - 2, inc_arrow.y() - 1, 255, 255, 255, 255);
+        surface->box(1, dec_arrow.height(), pos.width() - 2, inc_arrow.y() - 1, track, track, track, 255);
     } else {
-        surface->box(dec_arrow.width(), 1, inc_arrow.x() - 1, pos.height() - 2, 255, 255, 255, 255);
+        surface->box(dec_arrow.width(), 1, inc_arrow.x() - 1, pos.height() - 2, track, track, track, 255);
     }
 
-    drawWin31Button(*surface, thumb, m_dragging_thumb);
+    // Disabled scrollbars have no thumb and grey (not black) arrow glyphs — the
+    // classic "nothing to scroll" look.
+    if (enabled) {
+        drawWin31Button(*surface, thumb, m_dragging_thumb);
+    }
 
+    const uint8_t glyph_shade = enabled ? 0 : 128;
     drawArrowGlyph(*surface, dec_arrow,
-                   m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollUp : ButtonSymbol::ScrollLeft);
+                   m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollUp : ButtonSymbol::ScrollLeft,
+                   glyph_shade);
     drawArrowGlyph(*surface, inc_arrow,
-                   m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollDown : ButtonSymbol::ScrollRight);
+                   m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollDown : ButtonSymbol::ScrollRight,
+                   glyph_shade);
 
     setSurface(std::move(surface));
 }
