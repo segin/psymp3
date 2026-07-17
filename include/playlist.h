@@ -87,6 +87,10 @@ class Playlist
         static std::vector<Entry> resolveInlineSources(const std::vector<TagLib::String>& sources);
         static std::unique_ptr<Playlist> loadPlaylist(TagLib::String path);
         void savePlaylist(TagLib::String path);
+        // Monotonic counter bumped on every change to the track list (add / insert
+        // / remove / move / clear). Lets an observer (the Playlist Manager window)
+        // cheaply detect external edits and refresh.
+        uint64_t generation() const { return m_generation.load(std::memory_order_relaxed); }
     protected:
     private:
         // Private unlocked versions of public methods (assumes locks are already held)
@@ -103,6 +107,8 @@ class Playlist
         bool m_shuffle = false;
         std::vector<long> m_shuffled_indices;
         long m_shuffle_index = 0;
+
+        std::atomic<uint64_t> m_generation{0}; // bumped on track-list changes
 
         mutable std::recursive_mutex m_mutex;
 };

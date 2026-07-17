@@ -139,6 +139,7 @@ bool Playlist::addFile(TagLib::String path)
         if (m_shuffle) {
             m_shuffled_indices.push_back(tracks.size() - 1);
         }
+        m_generation.fetch_add(1, std::memory_order_relaxed);
         Debug::log("playlist", "Playlist::addFile(): Successfully added file: ", path.to8Bit(true));
         return true;
     } catch (const std::exception& e) {
@@ -167,6 +168,7 @@ bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::Strin
     if (m_shuffle) {
         m_shuffled_indices.push_back(tracks.size() - 1);
     }
+    m_generation.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 
@@ -181,6 +183,7 @@ void Playlist::clear()
     tracks.clear();
     m_position = 0;
     m_shuffled_indices.clear();
+    m_generation.fetch_add(1, std::memory_order_relaxed);
 }
 
 bool Playlist::removeTrack(long index)
@@ -211,6 +214,7 @@ bool Playlist::removeTrack(long index)
         long size = static_cast<long>(m_shuffled_indices.size());
         if (m_shuffle_index >= size) m_shuffle_index = (size > 0) ? size - 1 : 0;
     }
+    m_generation.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 
@@ -241,6 +245,7 @@ bool Playlist::moveTrack(long from, long to)
         long ssize = static_cast<long>(m_shuffled_indices.size());
         if (m_shuffle_index >= ssize) m_shuffle_index = (ssize > 0) ? ssize - 1 : 0;
     }
+    m_generation.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 
@@ -299,6 +304,7 @@ bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
         m_shuffled_indices.insert(m_shuffled_indices.begin() + at, fresh.begin(), fresh.end());
     }
 
+    m_generation.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 
