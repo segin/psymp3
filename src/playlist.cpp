@@ -760,6 +760,25 @@ std::vector<Playlist::Entry> Playlist::resolveInlineSources(const std::vector<Ta
  * The saved file will include #EXTINF metadata for each track.
  * @param path The destination file path for the new playlist file.
  */
+namespace {
+// Resolve a stored track path to an absolute local path for saving. URIs
+// (http://, file://, ...) are written unchanged; local paths are made absolute
+// against the current directory (relative playlist/CLI paths are relative to it)
+// and normalized. UTF-8 in and out.
+std::string toAbsoluteLocalPath(const std::string& utf8_path)
+{
+    if (utf8_path.empty() || utf8_path.find("://") != std::string::npos) {
+        return utf8_path;
+    }
+    std::error_code ec;
+    std::filesystem::path abs = std::filesystem::absolute(System::pathFromUtf8(utf8_path), ec);
+    if (ec) {
+        return utf8_path; // best effort: keep the original on failure
+    }
+    return abs.lexically_normal().u8string();
+}
+} // namespace
+
 void Playlist::savePlaylist(TagLib::String path)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -777,7 +796,7 @@ void Playlist::savePlaylist(TagLib::String path)
         long duration = track.GetLen();
         std::string artist = track.GetArtist().to8Bit(true);
         std::string title = track.GetTitle().to8Bit(true);
-        std::string track_path = track.GetFilePath().to8Bit(true);
+        std::string track_path = toAbsoluteLocalPath(track.GetFilePath().to8Bit(true));
 
         file << "#EXTINF:" << duration << "," << artist << " - " << title << "\n";
         file << track_path << "\n";
