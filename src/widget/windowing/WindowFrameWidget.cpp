@@ -480,6 +480,19 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
     return Widget::handleMouseMotion(event, relative_x, relative_y);
 }
 
+bool WindowFrameWidget::handleMouseWheel(int delta, int relative_x, int relative_y)
+{
+    if (m_client_area) {
+        const Rect& client_pos = m_client_area->getPos();
+        if (relative_x >= client_pos.x() && relative_x < client_pos.x() + client_pos.width() &&
+            relative_y >= client_pos.y() && relative_y < client_pos.y() + client_pos.height()) {
+            return m_client_area->handleMouseWheel(
+                delta, relative_x - client_pos.x(), relative_y - client_pos.y());
+        }
+    }
+    return false;
+}
+
 bool WindowFrameWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     if (event.button == SDL_BUTTON_LEFT) {

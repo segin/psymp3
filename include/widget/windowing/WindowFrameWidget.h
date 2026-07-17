@@ -120,7 +120,12 @@ public:
      * @return true if the event was handled
      */
     virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
-    
+
+    /**
+     * @brief Forwards a mouse wheel event to the client area under the cursor.
+     */
+    virtual bool handleMouseWheel(int delta, int relative_x, int relative_y);
+
     /**
      * @brief Gets the window title.
      * @return The window title string
