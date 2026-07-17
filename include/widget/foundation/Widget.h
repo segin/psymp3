@@ -234,7 +234,21 @@ class Widget : public Surface
          * @return true if the event was handled, false otherwise
          */
         virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
-        
+
+        /**
+         * @brief Handles mouse wheel events.
+         *
+         * The default implementation forwards to the child under the cursor
+         * (top to bottom), like the button handlers. `delta` is the vertical
+         * scroll amount (positive = wheel up / away from the user).
+         *
+         * @param delta      Vertical scroll amount (positive = up).
+         * @param relative_x X coordinate relative to this widget's position.
+         * @param relative_y Y coordinate relative to this widget's position.
+         * @return true if the event was handled, false otherwise.
+         */
+        virtual bool handleMouseWheel(int delta, int relative_x, int relative_y);
+
         /**
          * @brief Captures mouse input to this widget.
          * 

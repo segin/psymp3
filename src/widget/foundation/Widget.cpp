@@ -259,8 +259,27 @@ bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, 
             }
         }
     }
-    
+
     // Event not handled by any child
+    return false;
+}
+
+bool Widget::handleMouseWheel(int delta, int relative_x, int relative_y)
+{
+    // Forward to children in reverse (front to back), like handleMouseDown.
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
+        const auto& child = *it;
+        if (child->isMouseTransparent()) {
+            continue;
+        }
+        Rect child_visible_pos = visibleChildRect(*this, *child);
+        const Rect& child_pos = child->getPos();
+        if (pointHitsRect(child_visible_pos, relative_x, relative_y)) {
+            if (child->handleMouseWheel(delta, relative_x - child_pos.x(), relative_y - child_pos.y())) {
+                return true;
+            }
+        }
+    }
     return false;
 }
 
