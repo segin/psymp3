@@ -111,12 +111,14 @@ void ListViewWidget::addItem(const TagLib::String& text)
     invalidate();
 }
 
-void ListViewWidget::setItems(const std::vector<TagLib::String>& items)
+void ListViewWidget::setItems(const std::vector<TagLib::String>& items, bool preserve_scroll)
 {
     m_items = items;
     m_selected = -1;
-    m_top = 0;
-    relayout();
+    if (!preserve_scroll) {
+        m_top = 0;
+    }
+    relayout(); // clamps m_top to the new maxTop()
     invalidate();
 }
 
@@ -221,8 +223,8 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
     // on the same row within the double-click window activates it.
     if (relative_x >= BORDER && relative_x < BORDER + listAreaWidth() &&
         relative_y >= BORDER && relative_y < BORDER + listAreaHeight()) {
-        int row = m_top + (relative_y - BORDER) / m_row_height;
-        if (row >= 0 && row < static_cast<int>(m_items.size())) {
+        int row = rowAt(relative_y);
+        if (row >= 0) {
             Uint32 now = SDL_GetTicks();
             if (row == m_last_click_row && (now - m_last_click_ms) <= DOUBLE_CLICK_MS) {
                 m_last_click_ms = 0; // consume, so a third click isn't a double
@@ -232,12 +234,80 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
                 setSelectedIndex(row);
                 m_last_click_row = row;
                 m_last_click_ms = now;
+                // Begin a potential drag-to-reorder; it becomes a real drag only
+                // once the pointer passes a threshold (see handleMouseMotion).
+                m_drag_from = row;
+                m_drag_start_y = relative_y;
+                m_dragging = false;
+                m_drag_gap = -1;
+                captureMouse();
             }
         }
         return true;
     }
 
     return false;
+}
+
+bool ListViewWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
+{
+    if (m_drag_from >= 0) {
+        // Ignore small jitter so a plain click doesn't register as a drag.
+        if (!m_dragging && std::abs(relative_y - m_drag_start_y) < m_row_height / 2) {
+            return true;
+        }
+        m_dragging = true;
+        int gap = gapAt(relative_y);
+        if (gap != m_drag_gap) {
+            m_drag_gap = gap;
+            invalidate();
+        }
+        return true;
+    }
+    return Widget::handleMouseMotion(event, relative_x, relative_y);
+}
+
+bool ListViewWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
+{
+    if (m_drag_from >= 0) {
+        releaseMouse();
+        int from = m_drag_from;
+        bool dragged = m_dragging;
+        int gap = m_drag_gap;
+        m_drag_from = -1;
+        m_dragging = false;
+        m_drag_gap = -1;
+        invalidate();
+        if (dragged && m_on_reorder) {
+            // gap is the insertion slot (0..count); after removing `from`, a slot
+            // past it shifts down one, giving the final destination index.
+            int dest = (gap > from) ? gap - 1 : gap;
+            if (dest != from && dest >= 0 && dest < static_cast<int>(m_items.size())) {
+                m_on_reorder(from, dest);
+            }
+        }
+        return true;
+    }
+    return Widget::handleMouseUp(event, relative_x, relative_y);
+}
+
+int ListViewWidget::rowAt(int relative_y) const
+{
+    if (relative_y < BORDER || m_row_height <= 0) {
+        return -1;
+    }
+    int r = m_top + (relative_y - BORDER) / m_row_height;
+    return (r >= 0 && r < static_cast<int>(m_items.size())) ? r : -1;
+}
+
+int ListViewWidget::gapAt(int relative_y) const
+{
+    if (m_row_height <= 0) {
+        return 0;
+    }
+    int rel = std::max(0, relative_y - BORDER);
+    int gap = m_top + (rel + m_row_height / 2) / m_row_height;
+    return std::max(0, std::min(gap, static_cast<int>(m_items.size())));
 }
 
 bool ListViewWidget::handleMouseWheel(int delta, int relative_x, int relative_y)
@@ -305,6 +375,14 @@ void ListViewWidget::draw(Surface& surface)
                 surface.Blit(*text, Rect(BORDER + 2, ty, text->width(), text->height()));
             }
         }
+    }
+
+    // Drag-to-reorder drop marker: a 2px line at the insertion gap.
+    if (m_dragging && m_drag_gap >= m_top && m_drag_gap <= m_top + rows) {
+        int my = BORDER + (m_drag_gap - m_top) * m_row_height;
+        int y0 = std::min(my, h - BORDER - 2);
+        surface.hline(BORDER, BORDER + content_w - 1, y0, 0, 0, 200, 255);
+        surface.hline(BORDER, BORDER + content_w - 1, y0 + 1, 0, 0, 200, 255);
     }
 
     // Sunken 3D frame (dark top/left, light bottom/right) drawn last so it sits

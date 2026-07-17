@@ -36,7 +36,10 @@ public:
 
     // Item management. Indices are 0-based into the current item order.
     void addItem(const TagLib::String& text);
-    void setItems(const std::vector<TagLib::String>& items);
+    // Replace all items. By default the scroll resets to the top; pass
+    // preserve_scroll to keep the current scroll offset (clamped) — used when
+    // refreshing a list in place so the viewport doesn't jump.
+    void setItems(const std::vector<TagLib::String>& items, bool preserve_scroll = false);
     void clearItems();
     size_t itemCount() const { return m_items.size(); }
 
@@ -48,6 +51,9 @@ public:
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
     // Fired when a row is double-clicked (the row index).
     void setOnActivate(std::function<void(int)> cb) { m_on_activate = std::move(cb); }
+    // Fired when a row is drag-reordered: (from index, to index) after adjusting
+    // for the removal, so it maps directly onto a move(from, to) operation.
+    void setOnReorder(std::function<void(int from, int to)> cb) { m_on_reorder = std::move(cb); }
 
     // Editing helpers operating on the current selection. Each is a no-op when
     // the operation is not possible (nothing selected, already at an end, etc.)
@@ -61,6 +67,8 @@ public:
     void resize(int new_width, int new_height);
 
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
+    bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
+    bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseWheel(int delta, int relative_x, int relative_y) override;
 
 protected:
@@ -81,6 +89,8 @@ private:
     void relayout();          // reposition/resize the scrollbar and clamp scroll
     void syncScrollbar();     // push m_top -> scrollbar value / enabled state
     void setTop(int top);     // scroll so the given row is first, clamped
+    int  rowAt(int relative_y) const; // item index under a y coordinate, or -1
+    int  gapAt(int relative_y) const; // insertion gap index (0..count) for a drag
 
     Core::Font* m_font;
     std::vector<TagLib::String> m_items;
@@ -90,6 +100,15 @@ private:
     ScrollbarWidget* m_scrollbar; // owned via addChild(); non-owning pointer
     std::function<void(int)> m_on_selection_changed;
     std::function<void(int)> m_on_activate;
+    std::function<void(int, int)> m_on_reorder;
+
+    // Drag-to-reorder state. m_drag_from is the grabbed row (-1 when not
+    // dragging); m_dragging becomes true once the pointer passes a small
+    // threshold, and m_drag_gap is the insertion gap the drop marker shows.
+    int m_drag_from = -1;
+    int m_drag_start_y = 0;
+    bool m_dragging = false;
+    int m_drag_gap = -1;
 
     // Double-click detection for row activation.
     static constexpr Uint32 DOUBLE_CLICK_MS = 500;
