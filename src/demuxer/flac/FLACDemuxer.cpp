@@ -1761,8 +1761,15 @@ bool FLACDemuxer::parseVorbisCommentBlock_unlocked(const FLACMetadataBlock& bloc
             }
         }
         
-        // Store the comment (later values overwrite earlier ones for same key)
-        m_vorbis_comments[normalized_name] = value;
+        // Vorbis comments are multi-valued: a field name may appear more than once
+        // (e.g. one ARTIST per performer). Join repeats with ", " rather than
+        // letting the last one win, so every performer is shown.
+        auto existing = m_vorbis_comments.find(normalized_name);
+        if (existing != m_vorbis_comments.end()) {
+            existing->second += ", " + value;
+        } else {
+            m_vorbis_comments[normalized_name] = value;
+        }
         valid_fields++;
         
         FLAC_DEBUG("[parseVorbisComment] Field ", i, ": ", normalized_name, "=", 
