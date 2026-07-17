@@ -2895,6 +2895,11 @@ void Player::EventLoop() {
             }
             case SDL_MOUSEMOTION:
             {
+                // Remember where the pointer is (logical coords) so wheel events,
+                // which don't carry a position, can be routed to what's under it.
+                m_last_mouse_x = event.motion.x;
+                m_last_mouse_y = event.motion.y;
+
                 // The legacy seek drag holds no widget capture; keep feeding it
                 // directly so moving over a window mid-drag doesn't freeze it.
                 if (m_is_dragging && !Widget::getMouseCapturedWidget()) {
@@ -2953,6 +2958,22 @@ void Player::EventLoop() {
                     // Fall back to old handler if the widget tree didn't handle it
                     if (!handled) {
                         handleMouseButtonUp(event.button);
+                    }
+                }
+                break;
+            }
+            case SDL_MOUSEWHEEL:
+            {
+                int delta = event.wheel.y; // +1 per notch up / away from the user
+                if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
+                    delta = -delta;
+                }
+                if (delta != 0) {
+                    // A window under the cursor gets the wheel (its ListView, if
+                    // any, scrolls) and occludes the desktop. Over the main player
+                    // interface, the wheel adjusts the volume.
+                    if (!handleWindowMouseWheel(m_last_mouse_x, m_last_mouse_y, delta)) {
+                        if (delta > 0) volumeUp(); else volumeDown();
                     }
                 }
                 break;
@@ -3339,6 +3360,33 @@ bool Player::handleWindowMouseEvents(const SDL_Event& event)
     }
 
     return handled_any_window;
+}
+
+bool Player::handleWindowMouseWheel(int mouse_x, int mouse_y, int delta)
+{
+    // Front-to-back: the topmost window under the cursor gets the wheel and
+    // occludes the desktop beneath it (whether or not an inner widget scrolls).
+    std::vector<WindowFrameWidget*> windows;
+    if (m_test_window_h) windows.push_back(m_test_window_h.get());
+    if (m_test_window_b) windows.push_back(m_test_window_b.get());
+    if (m_test_window_p) windows.push_back(m_test_window_p.get());
+    for (const auto& w : m_random_windows) windows.push_back(w.get());
+
+    std::sort(windows.begin(), windows.end(),
+              [](const WindowFrameWidget* a, const WindowFrameWidget* b) {
+                  return a->getZOrder() > b->getZOrder();
+              });
+
+    for (auto* window : windows) {
+        if (!window) continue;
+        Rect r = window->getPos();
+        if (mouse_x >= r.x() && mouse_x < r.x() + r.width() &&
+            mouse_y >= r.y() && mouse_y < r.y() + r.height()) {
+            window->handleMouseWheel(delta, mouse_x - r.x(), mouse_y - r.y());
+            return true; // occlude the desktop
+        }
+    }
+    return false;
 }
 
 /**

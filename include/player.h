@@ -280,6 +280,9 @@ class Player
         // Window management methods
         void renderWindows();
         bool handleWindowMouseEvents(const SDL_Event& event);
+        // Route a wheel notch to the window under (mouse_x, mouse_y); returns true
+        // when a window (which occludes the desktop) is under the cursor.
+        bool handleWindowMouseWheel(int mouse_x, int mouse_y, int delta);
         bool windowOwnsMouseCapture() const;
         void toggleTestWindowH();
         void toggleTestWindowB();
@@ -325,6 +328,10 @@ class Player
         // For progress bar dragging
         bool m_is_dragging = false;
         Uint32 m_drag_start_time = 0;
+        // Last pointer position in logical coords (from motion events), used to
+        // route wheel events, which don't carry a reliable position themselves.
+        int m_last_mouse_x = 0;
+        int m_last_mouse_y = 0;
         Uint16 m_drag_start_x = 0;
         unsigned long m_drag_position_ms = 0;
         
