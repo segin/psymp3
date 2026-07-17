@@ -314,26 +314,28 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 return true;
             }
         }
-        
-        // Otherwise, bring window to front and let the widget tree route to the client area
-        bringToFront();
+    }
 
-        if (m_client_area) {
-            const Rect& client_pos = m_client_area->getPos();
-            if (relative_x >= client_pos.x() &&
-                relative_x < client_pos.x() + client_pos.width() &&
-                relative_y >= client_pos.y() &&
-                relative_y < client_pos.y() + client_pos.height()) {
-                return m_client_area->handleMouseDown(
-                    event,
-                    relative_x - client_pos.x(),
-                    relative_y - client_pos.y());
-            }
-        }
+    // Any button (not just left): bring the window to front and route into the
+    // client area, so right-clicks — e.g. a ListView context menu — reach the
+    // client. The titlebar/resize handling above stays left-only.
+    bringToFront();
 
-        if (Widget::handleMouseDown(event, relative_x, relative_y)) {
-            return true;
+    if (m_client_area) {
+        const Rect& client_pos = m_client_area->getPos();
+        if (relative_x >= client_pos.x() &&
+            relative_x < client_pos.x() + client_pos.width() &&
+            relative_y >= client_pos.y() &&
+            relative_y < client_pos.y() + client_pos.height()) {
+            return m_client_area->handleMouseDown(
+                event,
+                relative_x - client_pos.x(),
+                relative_y - client_pos.y());
         }
+    }
+
+    if (Widget::handleMouseDown(event, relative_x, relative_y)) {
+        return true;
     }
     
     // Close system menu if clicking anywhere else
