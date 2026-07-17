@@ -159,11 +159,19 @@ track::track(const TagLib::String& a_FilePath, const TagLib::String& extinf_arti
       m_FilePath(a_FilePath),
       m_Len(extinf_duration)
 {
-    // Prioritize EXTINF data if provided
-
-    // Then attempt to load tags from TagLib, which will fill in missing info
-    // and create m_FileRef if not already done.
-    loadTags();
+    // Deliberately do NOT read tags from disk here. Playlist EXTINF is treated as
+    // authoritative, and a bare file (no EXTINF) falls back to its filename as a
+    // placeholder title. The real tags are read from the file when the track
+    // actually plays, and replace this metadata then (see
+    // Player::handleTrackLoadSuccessEvent -> Playlist::updateTrackMetadataAt).
+    //
+    // Opening every file at load time was slow, raced the playback path (a whole
+    // playlist could fail to play because a background tag-read and the play-load
+    // opened the same decoder concurrently), and gave weight to TagLib parse
+    // failures on valid media that simply has no usable tags.
+    if (m_Title.isEmpty() && !m_FilePath.isEmpty()) {
+        m_Title = filenameStem(m_FilePath);
+    }
 }
 
 /**
