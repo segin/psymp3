@@ -373,6 +373,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 #include "widget/ui/TextInputWidget.h"
 #include "widget/ui/ScrollbarWidget.h"
 #include "widget/ui/ListViewWidget.h"
+#include "widget/ui/ContextMenuWidget.h"
 #include "widget/ui/SliderWidget.h"
 #include "widget/ui/EqualizerCurveWidget.h"
 #include "widget/ui/MenuBarWidget.h"
@@ -393,6 +394,7 @@ using PsyMP3::Widget::UI::ButtonSymbol;
 using PsyMP3::Widget::UI::ScrollbarOrientation;
 using PsyMP3::Widget::UI::ScrollbarWidget;
 using PsyMP3::Widget::UI::ListViewWidget;
+using PsyMP3::Widget::UI::ContextMenuWidget;
 using PsyMP3::Widget::UI::SliderWidget;
 using PsyMP3::Widget::UI::EqualizerCurveWidget;
 using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;

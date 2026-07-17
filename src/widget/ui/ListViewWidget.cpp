@@ -215,6 +215,20 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
         return true;
     }
 
+    const bool in_rows = (relative_x >= BORDER && relative_x < BORDER + listAreaWidth() &&
+                          relative_y >= BORDER && relative_y < BORDER + listAreaHeight());
+
+    // Right-click a row: select it and raise the context menu at the cursor.
+    if (event.button == SDL_BUTTON_RIGHT && isEnabled() && in_rows) {
+        int row = rowAt(relative_y);
+        if (row >= 0) {
+            setSelectedIndex(row);
+            if (m_on_context) m_on_context(row, relative_x, relative_y);
+            return true;
+        }
+        return false;
+    }
+
     if (event.button != SDL_BUTTON_LEFT || !isEnabled()) {
         return false;
     }

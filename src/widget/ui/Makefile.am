@@ -46,6 +46,7 @@ libpsymp3_widget_ui_a_SOURCES = \
 	TextInputWidget.cpp \
 	ScrollbarWidget.cpp \
 	ListViewWidget.cpp \
+	ContextMenuWidget.cpp \
 	SliderWidget.cpp \
 	EqualizerCurveWidget.cpp \
 	EqualizerWindow.cpp \

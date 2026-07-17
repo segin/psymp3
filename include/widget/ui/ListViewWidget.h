@@ -54,6 +54,8 @@ public:
     // Fired when a row is drag-reordered: (from index, to index) after adjusting
     // for the removal, so it maps directly onto a move(from, to) operation.
     void setOnReorder(std::function<void(int from, int to)> cb) { m_on_reorder = std::move(cb); }
+    // Fired on right-click of a row: (row, x, y) with x/y relative to this widget.
+    void setOnContextMenu(std::function<void(int row, int x, int y)> cb) { m_on_context = std::move(cb); }
 
     // Editing helpers operating on the current selection. Each is a no-op when
     // the operation is not possible (nothing selected, already at an end, etc.)
@@ -101,6 +103,7 @@ private:
     std::function<void(int)> m_on_selection_changed;
     std::function<void(int)> m_on_activate;
     std::function<void(int, int)> m_on_reorder;
+    std::function<void(int, int, int)> m_on_context;
 
     // Drag-to-reorder state. m_drag_from is the grabbed row (-1 when not
     // dragging); m_dragging becomes true once the pointer passes a small
