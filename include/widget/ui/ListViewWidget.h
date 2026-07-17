@@ -48,6 +48,8 @@ public:
     void setSelectedIndex(int index);
     // Scroll so the given row is within the visible area (no-op if already shown).
     void ensureVisible(int index);
+    // Abandon any in-progress drag-to-reorder (e.g. the list changed underneath).
+    void cancelDrag();
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
     // Fired when a row is double-clicked (the row index).
     void setOnActivate(std::function<void(int)> cb) { m_on_activate = std::move(cb); }

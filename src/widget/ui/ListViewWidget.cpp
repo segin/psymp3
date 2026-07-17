@@ -248,13 +248,15 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
                 setSelectedIndex(row);
                 m_last_click_row = row;
                 m_last_click_ms = now;
-                // Begin a potential drag-to-reorder; it becomes a real drag only
-                // once the pointer passes a threshold (see handleMouseMotion).
-                m_drag_from = row;
-                m_drag_start_y = relative_y;
-                m_dragging = false;
-                m_drag_gap = -1;
-                captureMouse();
+                // Begin a potential drag-to-reorder (only meaningful with 2+ rows);
+                // it becomes a real drag once the pointer passes a threshold.
+                if (m_items.size() >= 2) {
+                    m_drag_from = row;
+                    m_drag_start_y = relative_y;
+                    m_dragging = false;
+                    m_drag_gap = -1;
+                    captureMouse();
+                }
             }
         }
         return true;
@@ -303,6 +305,18 @@ bool ListViewWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relati
         return true;
     }
     return Widget::handleMouseUp(event, relative_x, relative_y);
+}
+
+void ListViewWidget::cancelDrag()
+{
+    if (m_drag_from < 0) {
+        return;
+    }
+    releaseMouse(); // no-op if we don't hold capture
+    m_drag_from = -1;
+    m_dragging = false;
+    m_drag_gap = -1;
+    invalidate();
 }
 
 int ListViewWidget::rowAt(int relative_y) const

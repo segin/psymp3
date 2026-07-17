@@ -75,7 +75,11 @@ int ContextMenuWidget::itemAt(int x, int y) const
     if (x < r.x() || x >= r.x() + r.width() || y < r.y() || y >= r.y() + r.height()) {
         return -1;
     }
-    int idx = (y - (r.y() + 1)) / ITEM_H;
+    int rel = y - (r.y() + 1); // items start one pixel below the top border
+    if (rel < 0) {
+        return -1; // on the top border, not an item (integer -1/ITEM_H would be 0)
+    }
+    int idx = rel / ITEM_H;
     if (idx < 0 || idx >= static_cast<int>(m_entries.size())) {
         return -1;
     }
