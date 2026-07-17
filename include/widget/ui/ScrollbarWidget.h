@@ -35,6 +35,11 @@ public:
     double getValue() const { return m_value; }
     // Repaint in the disabled (greyed, thumbless) style when turned off.
     void setEnabled(bool enabled) override;
+    // Set how far an arrow click (line) and a track click/hold (page) move, as
+    // fractions of the 0..1 range. An owner that maps the value onto N scroll
+    // positions passes 1/N and (page rows)/N so a page click moves one visible
+    // page of content regardless of list size. Clamped to (0, 1].
+    void setSteps(double line_step, double page_step);
     void setOnChange(std::function<void(double)> callback) { m_on_change = callback; }
 
     // Reposition and resize the scrollbar in one shot, rebuilding its surface so
@@ -74,6 +79,12 @@ private:
     ScrollbarPart m_pressed_part;
     int m_drag_offset;
     std::function<void(double)> m_on_change;
+
+    // Movement per arrow click (line) and per track click/hold (page), as
+    // fractions of the range. Defaults suit a bare scrollbar; an owner that
+    // knows its content sets them via setSteps().
+    double m_line_step = 0.08;
+    double m_page_step = 0.2;
 
     // Track press-and-hold auto-repeat state.
     bool m_track_repeating = false;   // holding on the track, paging toward cursor

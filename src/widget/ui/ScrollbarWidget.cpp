@@ -18,7 +18,6 @@ namespace {
 // Track press-and-hold auto-repeat timing, and the page step per repeat.
 constexpr Uint32 kRepeatInitialMs = 300;  // delay before the first auto-repeat
 constexpr Uint32 kRepeatIntervalMs = 60;  // between subsequent repeats
-constexpr double kPageStep = 0.2;
 
 void drawWin31Button(::Surface& surface, const Rect& rect, bool pressed)
 {
@@ -102,10 +101,10 @@ bool ScrollbarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rel
 
     switch (m_pressed_part) {
         case ScrollbarPart::DecrementArrow:
-            setValue(m_value - 0.08);
+            setValue(m_value - m_line_step);
             break;
         case ScrollbarPart::IncrementArrow:
-            setValue(m_value + 0.08);
+            setValue(m_value + m_line_step);
             break;
         case ScrollbarPart::TrackBeforeThumb:
         case ScrollbarPart::TrackAfterThumb:
@@ -241,13 +240,19 @@ void ScrollbarWidget::pageTowardCursor()
     const double target = valueAtCoordinate(m_track_x, m_track_y);
     if (m_pressed_part == ScrollbarPart::TrackAfterThumb) {
         if (target > m_value + 1e-4) {
-            setValue(std::min(m_value + kPageStep, target)); // never past the cursor
+            setValue(std::min(m_value + m_page_step, target)); // never past the cursor
         }
     } else if (m_pressed_part == ScrollbarPart::TrackBeforeThumb) {
         if (target < m_value - 1e-4) {
-            setValue(std::max(m_value - kPageStep, target));
+            setValue(std::max(m_value - m_page_step, target));
         }
     }
+}
+
+void ScrollbarWidget::setSteps(double line_step, double page_step)
+{
+    m_line_step = std::max(0.0001, std::min(1.0, line_step));
+    m_page_step = std::max(0.0001, std::min(1.0, page_step));
 }
 
 void ScrollbarWidget::tickAutoRepeat()

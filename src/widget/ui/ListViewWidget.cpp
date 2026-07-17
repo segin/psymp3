@@ -92,6 +92,13 @@ void ListViewWidget::syncScrollbar()
     // Nothing to scroll when every item fits: park the thumb and disable it.
     m_scrollbar->setEnabled(mt > 0);
     m_scrollbar->setValue(mt > 0 ? static_cast<double>(m_top) / static_cast<double>(mt) : 0.0);
+    // Value spans [0, mt] rows: an arrow click moves one row and a track click
+    // one visible page, so the jump matches the list regardless of its length.
+    if (mt > 0) {
+        double line = 1.0 / static_cast<double>(mt);
+        double page = std::min(1.0, static_cast<double>(std::max(1, visibleRows())) / static_cast<double>(mt));
+        m_scrollbar->setSteps(line, page);
+    }
 }
 
 void ListViewWidget::setTop(int top)
