@@ -357,6 +357,20 @@ public:
             m_list->setSelectedIndex(s);
         }
         updateButtonStates();
+        // Remember the generation we just synced to, so the per-frame check below
+        // doesn't re-reload after our own edits.
+        m_last_generation = m_player->playlistGeneration();
+    }
+
+    // Refresh when the playlist changes from outside the manager (Open Track,
+    // Clear Playlist, the startup populator, ...) — detected via the generation
+    // counter once per rendered frame.
+    void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override
+    {
+        if (m_player->playlistGeneration() != m_last_generation) {
+            reload(m_player->playlistManagerCurrentIndex());
+        }
+        LayoutWidget::recursiveBlitTo(target, parent_absolute_pos);
     }
 
     // Delete needs at least one track; Move Up/Down need at least two to have
@@ -420,6 +434,7 @@ private:
     ButtonWidget* m_buttons[NUM_BUTTONS] = { nullptr, nullptr, nullptr, nullptr, nullptr };
     MenuBarWidget* m_menu = nullptr;
     ContextMenuWidget* m_context = nullptr;
+    uint64_t m_last_generation = 0; // playlist generation the list was last synced to
 };
 
 }
@@ -1241,6 +1256,11 @@ long Player::playlistManagerCurrentIndex() const
         return -1;
     }
     return playlist->getPosition();
+}
+
+uint64_t Player::playlistGeneration() const
+{
+    return playlist ? playlist->generation() : 0;
 }
 
 void Player::playlistManagerRemove(long index)

@@ -195,6 +195,8 @@ class Player
         std::vector<TagLib::String> playlistManagerLabels() const;
         // The playlist's current position, or -1 when the playlist is empty.
         long playlistManagerCurrentIndex() const;
+        // Track-list change counter, so the manager can detect external edits.
+        uint64_t playlistGeneration() const;
         // Remove / reorder a playlist entry and refresh the "Playlist n/N" label.
         void playlistManagerRemove(long index);
         void playlistManagerMove(long from, long to);
