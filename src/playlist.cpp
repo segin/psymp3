@@ -775,7 +775,10 @@ std::string toAbsoluteLocalPath(const std::string& utf8_path)
     if (ec) {
         return utf8_path; // best effort: keep the original on failure
     }
-    return abs.lexically_normal().u8string();
+    // u8string() is std::string under C++17 but std::u8string (char8_t) under
+    // C++20; copy the bytes through so it compiles either way.
+    auto u8 = abs.lexically_normal().u8string();
+    return std::string(u8.begin(), u8.end());
 }
 } // namespace
 
