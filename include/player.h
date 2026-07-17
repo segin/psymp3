@@ -197,6 +197,11 @@ class Player
         long playlistManagerCurrentIndex() const;
         // Track-list change counter, so the manager can detect external edits.
         uint64_t playlistGeneration() const;
+        // Path of the track at an index (empty if out of range), and the index of
+        // a track by path (-1 if absent) — lets the manager re-find a selected
+        // track after its index shifts (an insert/remove elsewhere).
+        TagLib::String playlistPathAt(long index) const;
+        long playlistIndexOfPath(const TagLib::String& path) const;
         // Remove / reorder a playlist entry and refresh the "Playlist n/N" label.
         void playlistManagerRemove(long index);
         void playlistManagerMove(long from, long to);

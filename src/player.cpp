@@ -305,10 +305,15 @@ public:
             }
         });
         m_buttons[3] = makeButton("Add Next", [this]() {
-            m_player->playlistManagerAddNext(); reload(m_list->getSelectedIndex());
+            // Remember the selected track before the insert shifts its index.
+            TagLib::String keep = selectedTrackPath();
+            m_player->playlistManagerAddNext();
+            reload(reselectIndex(keep));
         });
         m_buttons[4] = makeButton("Add To End", [this]() {
-            m_player->playlistManagerAddEnd(); reload(m_list->getSelectedIndex());
+            TagLib::String keep = selectedTrackPath();
+            m_player->playlistManagerAddEnd();
+            reload(reselectIndex(keep));
         });
         // The Add buttons need the file chooser; grey them out when it's absent.
         m_buttons[3]->setEnabled(m_player->hasFileDialog());
@@ -364,11 +369,21 @@ public:
 
     // Refresh when the playlist changes from outside the manager (Open Track,
     // Clear Playlist, the startup populator, ...) — detected via the generation
-    // counter once per rendered frame.
+    // counter once per rendered frame. Preserve the user's selected row (clamped)
+    // rather than jumping to the playing track, and debounce so a burst of
+    // changes (the startup populator) doesn't rebuild the whole list every frame.
     void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override
     {
         if (m_player->playlistGeneration() != m_last_generation) {
-            reload(m_player->playlistManagerCurrentIndex());
+            Uint32 now = SDL_GetTicks();
+            if (now - m_last_reload_ms >= RELOAD_DEBOUNCE_MS) {
+                // Abandon any in-progress drag and close the context menu: their
+                // captured indices refer to the pre-change list.
+                m_list->cancelDrag();
+                m_context->close();
+                reload(m_list->getSelectedIndex());
+                m_last_reload_ms = now;
+            }
         }
         LayoutWidget::recursiveBlitTo(target, parent_absolute_pos);
     }
@@ -417,10 +432,32 @@ private:
     static constexpr int BUTTON_H = 22;
     static constexpr int BUTTON_GAP = 6;
     static constexpr int NUM_BUTTONS = 5;
+    static constexpr Uint32 RELOAD_DEBOUNCE_MS = 100; // cap external-refresh rate
+
+    // Path of the currently selected track (empty if none), captured before a
+    // mutation so the same track can be re-selected afterwards.
+    TagLib::String selectedTrackPath() const
+    {
+        int i = m_list->getSelectedIndex();
+        return i >= 0 ? m_player->playlistPathAt(i) : TagLib::String();
+    }
+
+    // Index to select after a reload: the remembered track's new position if it
+    // still exists, else the current list selection.
+    int reselectIndex(const TagLib::String& keep) const
+    {
+        if (!keep.isEmpty()) {
+            long idx = m_player->playlistIndexOfPath(keep);
+            if (idx >= 0) return static_cast<int>(idx);
+        }
+        return m_list->getSelectedIndex();
+    }
 
     ButtonWidget* makeButton(const char* label, std::function<void()> on_click)
     {
-        auto button = std::make_unique<ButtonWidget>(BUTTON_H, BUTTON_H); // resized in layout()
+        // A sane default so the button reads correctly even before layout() sizes
+        // it to its share of the row width.
+        auto button = std::make_unique<ButtonWidget>(72, BUTTON_H);
         button->setText(TagLib::String(label), m_font);
         button->setOnClick(std::move(on_click));
         ButtonWidget* raw = button.get();
@@ -435,6 +472,7 @@ private:
     MenuBarWidget* m_menu = nullptr;
     ContextMenuWidget* m_context = nullptr;
     uint64_t m_last_generation = 0; // playlist generation the list was last synced to
+    Uint32 m_last_reload_ms = 0;    // last external-refresh time, for debouncing
 };
 
 }
@@ -1228,20 +1266,21 @@ std::vector<TagLib::String> Player::playlistManagerLabels() const
     if (!playlist) {
         return labels;
     }
-    long count = playlist->entries();
-    labels.reserve(static_cast<size_t>(std::max(0L, count)));
-    for (long i = 0; i < count; ++i) {
+    // One consistent snapshot under the playlist lock, so a concurrent add/remove
+    // can't produce a torn list.
+    std::vector<Playlist::TrackInfo> snap = playlist->snapshot();
+    labels.reserve(snap.size());
+    for (size_t i = 0; i < snap.size(); ++i) {
         // 1-based position prefix: "1. Artist - Title".
         TagLib::String prefix = TagLib::String(std::to_string(i + 1)) + ". ";
-        auto info = playlist->getTrackInfo(i);
-        if (info && (!info->artist.isEmpty() || !info->title.isEmpty())) {
-            TagLib::String artist = info->artist.isEmpty() ? TagLib::String("Unknown") : info->artist;
-            TagLib::String title = info->title.isEmpty() ? TagLib::String("Unknown") : info->title;
+        const Playlist::TrackInfo& info = snap[i];
+        if (!info.artist.isEmpty() || !info.title.isEmpty()) {
+            TagLib::String artist = info.artist.isEmpty() ? TagLib::String("Unknown") : info.artist;
+            TagLib::String title = info.title.isEmpty() ? TagLib::String("Unknown") : info.title;
             labels.push_back(prefix + artist + " - " + title);
         } else {
             // Fall back to the file's basename when tags are missing/unloaded.
-            TagLib::String path = info ? info->path : playlist->getTrack(i);
-            std::string p = path.to8Bit(true);
+            std::string p = info.path.to8Bit(true);
             size_t slash = p.find_last_of("/\\");
             labels.push_back(prefix + TagLib::String(slash == std::string::npos ? p : p.substr(slash + 1),
                                                      TagLib::String::UTF8));
@@ -1261,6 +1300,29 @@ long Player::playlistManagerCurrentIndex() const
 uint64_t Player::playlistGeneration() const
 {
     return playlist ? playlist->generation() : 0;
+}
+
+TagLib::String Player::playlistPathAt(long index) const
+{
+    if (!playlist) {
+        return TagLib::String();
+    }
+    auto info = playlist->getTrackInfo(index);
+    return info ? info->path : TagLib::String();
+}
+
+long Player::playlistIndexOfPath(const TagLib::String& path) const
+{
+    if (!playlist || path.isEmpty()) {
+        return -1;
+    }
+    std::vector<Playlist::TrackInfo> snap = playlist->snapshot();
+    for (size_t i = 0; i < snap.size(); ++i) {
+        if (snap[i].path == path) {
+            return static_cast<long>(i);
+        }
+    }
+    return -1;
 }
 
 void Player::playlistManagerRemove(long index)
