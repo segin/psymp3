@@ -41,6 +41,9 @@ class track
         static bool shouldCreateTagLibRefForPath(const TagLib::String& path);
         explicit track(const TagLib::String& a_FilePath, const TagLib::String& extinf_artist = "", const TagLib::String& extinf_title = "", long extinf_duration = 0);
         void SetFilePath(TagLib::String val) { m_FilePath = val; }
+        void setArtist(TagLib::String val) { m_Artist = val; }
+        void setTitle(TagLib::String val) { m_Title = val; }
+        void setAlbum(TagLib::String val) { m_Album = val; }
         unsigned int GetLen() const { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }
         void loadTags();

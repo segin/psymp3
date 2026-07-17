@@ -66,6 +66,15 @@ class Playlist
         // and keeping the position cursor on the same logical track. Returns false
         // for out-of-range indices or a no-op move.
         bool moveTrack(long from, long to);
+        // Overwrite the metadata of the track at `index` with live values read
+        // from the file when it actually loaded, replacing stale playlist (EXTINF)
+        // data. Only applies when the stored path matches `path` (so a
+        // temporary/out-of-list track can't corrupt an entry), and merges
+        // field-by-field so empty live fields don't blank existing data. Returns
+        // true (and bumps the generation) only if something actually changed.
+        bool updateTrackMetadataAt(long index, const TagLib::String& path,
+                                   const TagLib::String& artist, const TagLib::String& title,
+                                   const TagLib::String& album, unsigned int length_seconds);
         ~Playlist() = default;
         bool addFile(TagLib::String path);
         long getPosition() const;

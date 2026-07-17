@@ -4173,6 +4173,14 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     }
     stream = audio->getCurrentStream();
 
+    // Replace the playlist entry's metadata with the track's live tags, so any
+    // stale EXTINF carried in from an .m3u is corrected once the file loads.
+    if (playlist && stream) {
+        playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
+                                        stream->getArtist(), stream->getTitle(),
+                                        stream->getAlbum(), stream->getLength() / 1000);
+    }
+
     updateInfo();
     // Ensure audio is unpaused after everything is set up
     if (audio) audio->play(true);

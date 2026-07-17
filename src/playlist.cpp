@@ -249,6 +249,39 @@ bool Playlist::moveTrack(long from, long to)
     return true;
 }
 
+bool Playlist::updateTrackMetadataAt(long index, const TagLib::String& path,
+                                     const TagLib::String& artist, const TagLib::String& title,
+                                     const TagLib::String& album, unsigned int length_seconds)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (index < 0 || static_cast<size_t>(index) >= tracks.size()) {
+        return false;
+    }
+    track& t = tracks[index];
+    if (t.GetFilePath() != path) {
+        return false; // a different file occupies this slot now; don't clobber it
+    }
+
+    // Field-level merge: a non-empty live value wins over stale EXTINF, but an
+    // empty live field (untagged file) keeps whatever the playlist already had.
+    TagLib::String new_artist = artist.isEmpty() ? t.GetArtist() : artist;
+    TagLib::String new_title  = title.isEmpty()  ? t.GetTitle()  : title;
+    TagLib::String new_album  = album.isEmpty()  ? t.GetAlbum()  : album;
+    unsigned int   new_len    = (length_seconds > 0) ? length_seconds : t.GetLen();
+
+    if (new_artist == t.GetArtist() && new_title == t.GetTitle() &&
+        new_album == t.GetAlbum() && new_len == t.GetLen()) {
+        return false; // nothing changed
+    }
+
+    t.setArtist(new_artist);
+    t.setTitle(new_title);
+    t.setAlbum(new_album);
+    t.SetLen(new_len);
+    m_generation.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+
 bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
