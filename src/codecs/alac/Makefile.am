@@ -15,4 +15,8 @@ noinst_LIBRARIES = libpsymp3-codec-alac.a
 libpsymp3_codec_alac_a_SOURCES = \
 	ALACCodec.cpp
 
-AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
+# Apple's ALAC sources use multi-character constants ('alac', etc.). The
+# in-file `#pragma GCC diagnostic ignored "-Wmultichar"` suppresses this on
+# newer GCC/clang, but GCC 10's lexer emits the warning before the pragma takes
+# effect (e.g. on NetBSD i386), so disable it on the command line too.
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS) -Wno-multichar
