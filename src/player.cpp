@@ -263,6 +263,11 @@ public:
         m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
         // Double-click a row to jump playback to that track.
         m_list->setOnActivate([this](int i) { m_player->playlistManagerJumpTo(i); });
+        // Drag a row to reorder the playlist; keep the moved row selected.
+        m_list->setOnReorder([this](int from, int to) {
+            m_player->playlistManagerMove(from, to);
+            reload(to);
+        });
         addChild(std::move(list));
 
         // Delete / Move Up / Move Down operate on the current selection; Add Next /
@@ -319,7 +324,9 @@ public:
     void reload(int desired_sel)
     {
         std::vector<TagLib::String> labels = m_player->playlistManagerLabels();
-        m_list->setItems(labels);
+        // Keep the viewport where it is; setSelectedIndex() below only scrolls if
+        // the new selection actually falls outside it.
+        m_list->setItems(labels, /*preserve_scroll=*/true);
         if (!labels.empty()) {
             int s = desired_sel < 0 ? 0 : desired_sel;
             if (s >= static_cast<int>(labels.size())) s = static_cast<int>(labels.size()) - 1;
