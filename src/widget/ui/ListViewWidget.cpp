@@ -240,6 +240,24 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
     return false;
 }
 
+bool ListViewWidget::handleMouseWheel(int delta, int relative_x, int relative_y)
+{
+    (void)relative_x;
+    (void)relative_y;
+    if (!isEnabled() || m_items.empty()) {
+        return false;
+    }
+    // Scroll three rows per wheel notch; positive delta (wheel up) shows earlier
+    // rows. setTop() clamps and repaints.
+    const int kLinesPerNotch = 3;
+    int new_top = m_top - delta * kLinesPerNotch;
+    if (new_top == m_top) {
+        return true;
+    }
+    setTop(new_top);
+    return true;
+}
+
 void ListViewWidget::resize(int new_width, int new_height)
 {
     onResize(new_width, new_height);

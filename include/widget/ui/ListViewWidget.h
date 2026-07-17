@@ -61,6 +61,7 @@ public:
     void resize(int new_width, int new_height);
 
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
+    bool handleMouseWheel(int delta, int relative_x, int relative_y) override;
 
 protected:
     void draw(Surface& surface) override;
