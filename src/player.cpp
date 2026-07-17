@@ -268,6 +268,24 @@ public:
             m_player->playlistManagerMove(from, to);
             reload(to);
         });
+        // Right-click a row for a context menu of the same actions as the buttons.
+        m_list->setOnContextMenu([this](int row, int rx, int ry) {
+            int count = static_cast<int>(m_list->itemCount());
+            std::vector<ContextMenuWidget::Entry> entries;
+            entries.push_back({ "Play", [this, row] { m_player->playlistManagerJumpTo(row); }, true });
+            entries.push_back({ "Delete", [this, row] {
+                m_player->playlistManagerRemove(row); reload(row);
+            }, count >= 1 });
+            entries.push_back({ "Move Up", [this, row] {
+                if (row > 0) { m_player->playlistManagerMove(row, row - 1); reload(row - 1); }
+            }, row > 0 });
+            entries.push_back({ "Move Down", [this, row, count] {
+                if (row < count - 1) { m_player->playlistManagerMove(row, row + 1); reload(row + 1); }
+            }, row < count - 1 });
+            m_context->setEntries(std::move(entries));
+            Rect lp = m_list->getPos();
+            m_context->openAt(lp.x() + rx, lp.y() + ry);
+        });
         addChild(std::move(list));
 
         // Delete / Move Up / Move Down operate on the current selection; Add Next /
@@ -315,6 +333,12 @@ public:
         m_menu->addMenu("&File", std::move(file_items));
         addChild(std::move(menu));
 
+        // Right-click context menu overlay, added last so it sits above
+        // everything (including the File menu) and gets clicks first while open.
+        auto ctx = std::make_unique<ContextMenuWidget>(width, height, font);
+        m_context = ctx.get();
+        addChild(std::move(ctx));
+
         reload(m_player->playlistManagerCurrentIndex());
         layout(width, height);
     }
@@ -351,7 +375,8 @@ public:
     // its row's width equally, so all of it reflows with the window.
     void layout(int w, int h)
     {
-        m_menu->resize(w, h); // spans the client; the bar sits along the top
+        m_menu->resize(w, h);    // spans the client; the bar sits along the top
+        m_context->resize(w, h); // full-client overlay for the right-click menu
 
         const int list_top = MenuBarWidget::BAR_H + MARGIN;   // below the menu bar
         const int avail = std::max(1, w - 2 * MARGIN);
@@ -394,6 +419,7 @@ private:
     ListViewWidget* m_list = nullptr;
     ButtonWidget* m_buttons[NUM_BUTTONS] = { nullptr, nullptr, nullptr, nullptr, nullptr };
     MenuBarWidget* m_menu = nullptr;
+    ContextMenuWidget* m_context = nullptr;
 };
 
 }
