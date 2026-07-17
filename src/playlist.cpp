@@ -533,6 +533,18 @@ std::optional<Playlist::TrackInfo> Playlist::getTrackInfo(long position) const
     return std::nullopt;
 }
 
+std::vector<Playlist::TrackInfo> Playlist::snapshot() const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    std::vector<TrackInfo> out;
+    out.reserve(tracks.size());
+    for (const auto& t : tracks) {
+        out.push_back(TrackInfo{ t.GetArtist(), t.GetTitle(), t.GetAlbum(),
+                                 t.GetFilePath(), t.GetLen() });
+    }
+    return out;
+}
+
 /**
  * @brief Checks if a given path is absolute.
  * @param path The path to check.
@@ -718,7 +730,9 @@ std::vector<Playlist::Entry> Playlist::resolveInlineSources(const std::vector<Ta
 void Playlist::savePlaylist(TagLib::String path)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    std::ofstream file(path.toCString(true));
+    // Open via a std::filesystem::path so Unicode paths work on Windows (a plain
+    // UTF-8 const char* would be reinterpreted in the ANSI codepage there).
+    std::ofstream file(System::pathFromUtf8(path.to8Bit(true)));
     if (!file.is_open()) {
         Debug::log("playlist", "Playlist::savePlaylist(): Unable to open ", path.to8Bit(true), " for writing!");
         return;

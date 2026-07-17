@@ -77,6 +77,9 @@ class Playlist
         TagLib::String prev();
         TagLib::String peekNext() const;
         std::optional<TrackInfo> getTrackInfo(long position) const;
+        // Consistent snapshot of every track's metadata, taken under one lock, so
+        // an observer building a list can't see a torn view mid-mutation.
+        std::vector<TrackInfo> snapshot() const;
         // True if advancing forward by advance_count would run past the end of
         // the current play order (sequential or shuffle) and wrap. Used to honor
         // LoopMode::None in both orders.
