@@ -2276,6 +2276,9 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_s:
             if (keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) {
                 synthesizeUserEvent(DO_SAVE_PLAYLIST, nullptr, nullptr);
+            } else {
+                setShuffle(!getShuffle());
+                showToast(getShuffle() ? "Shuffle: On" : "Shuffle: Off");
             }
             break;
 
@@ -2793,6 +2796,10 @@ bool Player::Initialize(const PlayerOptions& options) {
             repeat_item("Repeat &One", LoopMode::One),
             repeat_item("Repeat &All", LoopMode::All),
         }));
+        // Shuffle toggle (checkmark shows when on), in the same section as Repeat.
+        playback_items.push_back(MI::leaf("&Shuffle",
+            [this]{ setShuffle(!getShuffle()); },
+            [this]{ return getShuffle(); }, "S"));
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
         playback_items.push_back(MI::leaf("Volume &Down", [this]{ volumeDown(); }, nullptr, "Dn"));
