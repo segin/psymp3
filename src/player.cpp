@@ -1274,10 +1274,16 @@ std::vector<TagLib::String> Player::playlistManagerLabels() const
         // 1-based position prefix: "1. Artist - Title".
         TagLib::String prefix = TagLib::String(std::to_string(i + 1)) + ". ";
         const Playlist::TrackInfo& info = snap[i];
-        if (!info.artist.isEmpty() || !info.title.isEmpty()) {
-            TagLib::String artist = info.artist.isEmpty() ? TagLib::String("Unknown") : info.artist;
-            TagLib::String title = info.title.isEmpty() ? TagLib::String("Unknown") : info.title;
-            labels.push_back(prefix + artist + " - " + title);
+        const bool have_artist = !info.artist.isEmpty();
+        const bool have_title = !info.title.isEmpty();
+        if (have_artist && have_title) {
+            labels.push_back(prefix + info.artist + " - " + info.title);
+        } else if (have_title) {
+            // Only a title (e.g. the filename stem used for an untagged file):
+            // show it alone rather than pairing it with a bogus "Unknown" artist.
+            labels.push_back(prefix + info.title);
+        } else if (have_artist) {
+            labels.push_back(prefix + info.artist);
         } else {
             // Fall back to the file's basename when tags are missing/unloaded.
             std::string p = info.path.to8Bit(true);
