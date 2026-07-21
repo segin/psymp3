@@ -138,10 +138,12 @@ bool FrameParser::parseFrameHeader(FrameHeader &header) {
   Debug::log("flac_codec", "[parseFrameHeader] Read sync word: 0x", std::hex,
              sync, std::dec);
 
-  // Validate sync code: top 14 bits must be 1, reserved bit must be 0
-  // 0xFFFC = 0b1111111111111100 (14 ones, then 00)
-  // Valid patterns: 0xFFF8 (fixed blocking) or 0xFFF9 (variable blocking)
-  if ((sync & 0xFFFC) != 0xFFF8) {
+  // Validate sync code: RFC 9639 Section 9.1 defines a 15-bit sync pattern
+  // 0b111111111111100, so the only valid first two bytes are 0xFFF8 (fixed
+  // blocking) and 0xFFF9 (variable blocking). Mask 0xFFFE covers all 15 sync
+  // bits; the previous 0xFFFC mask left bit 1 unchecked and admitted the
+  // invalid sync words 0xFFFA/0xFFFB.
+  if ((sync & 0xFFFE) != 0xFFF8) {
     Debug::log("flac_codec", "Invalid frame sync: 0x", std::hex, sync,
                std::dec);
     return false;
