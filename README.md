@@ -43,8 +43,8 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 **Optional integration dependencies**:
 - D-Bus 1.0 or later (for MPRIS desktop media control support)
 
-### Switch / ARM
-- Supported via DevkitPro (experimental)
+### Windows / ARM
+- Supported via llvm-mingw (experimental)
 
 ### Build Requirements
 - C++17 compliant compiler (GCC 9+, Clang 10+, MSVC 2019+)
