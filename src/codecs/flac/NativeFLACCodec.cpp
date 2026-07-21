@@ -388,9 +388,28 @@ bool FLACCodec::initialize_unlocked() {
     }
     
     m_initialized = true;
-    
+
+    // Recover the STREAMINFO metadata (block sizes, MD5 signature) from the
+    // demuxer-supplied codec_data: the raw 34-byte STREAMINFO body (RFC 9639
+    // Section 8.2). Without this, m_has_streaminfo stays false and whole-stream
+    // MD5 verification never runs. Parsing failure is non-fatal — decoding uses
+    // per-frame header parameters regardless.
+    if (m_stream_info.codec_data.size() >= 34 && m_metadata_parser && m_bitstream_reader) {
+        m_bitstream_reader->clearBuffer();
+        m_bitstream_reader->feedData(m_stream_info.codec_data.data(), 34);
+        StreamInfoMetadata parsed;
+        if (m_metadata_parser->parseStreamInfo(parsed)) {
+            setStreamInfo_unlocked(parsed);
+            Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] STREAMINFO recovered from codec_data (MD5 ",
+                       MD5Validator::isZeroMD5(parsed.md5_sum) ? "absent" : "present", ")");
+        } else {
+            Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] codec_data STREAMINFO parse failed (non-fatal)");
+        }
+        m_bitstream_reader->clearBuffer();
+    }
+
     // Initialize MD5 validator if enabled (Requirement 25)
-    if (m_md5_validation_enabled && m_has_streaminfo && 
+    if (m_md5_validation_enabled && m_has_streaminfo &&
         !MD5Validator::isZeroMD5(m_streaminfo.md5_sum)) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Initializing MD5 validator");
         if (!m_md5_validator->reset()) {
@@ -693,7 +712,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         
         // Copy interleaved samples to frame
         frame.samples = m_output_buffer;
-        
+
         // Transition back to INITIALIZED state after successful decode (Requirement 64.3)
         transitionState(DecoderState::INITIALIZED);
         

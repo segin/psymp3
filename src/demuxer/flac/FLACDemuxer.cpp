@@ -288,23 +288,16 @@ std::vector<StreamInfo> FLACDemuxer::getStreams_unlocked() const
     stream.duration_samples = m_streaminfo.total_samples;
     stream.duration_ms = m_streaminfo.getDurationMs();
     
-    // Requirement 26.2, 26.8: Populate codec_data with FLAC-specific parameters
-    // Format: 8 bytes - 4 bytes min_block_size (big-endian), 4 bytes max_block_size (big-endian)
-    // This provides FLACCodec with block size information for proper decoding
-    stream.codec_data.resize(8);
-    // Min block size (big-endian)
-    stream.codec_data[0] = static_cast<uint8_t>((m_streaminfo.min_block_size >> 24) & 0xFF);
-    stream.codec_data[1] = static_cast<uint8_t>((m_streaminfo.min_block_size >> 16) & 0xFF);
-    stream.codec_data[2] = static_cast<uint8_t>((m_streaminfo.min_block_size >> 8) & 0xFF);
-    stream.codec_data[3] = static_cast<uint8_t>(m_streaminfo.min_block_size & 0xFF);
-    // Max block size (big-endian)
-    stream.codec_data[4] = static_cast<uint8_t>((m_streaminfo.max_block_size >> 24) & 0xFF);
-    stream.codec_data[5] = static_cast<uint8_t>((m_streaminfo.max_block_size >> 16) & 0xFF);
-    stream.codec_data[6] = static_cast<uint8_t>((m_streaminfo.max_block_size >> 8) & 0xFF);
-    stream.codec_data[7] = static_cast<uint8_t>(m_streaminfo.max_block_size & 0xFF);
-    
-    FLAC_DEBUG("[getStreams] codec_data populated with block sizes: min=", 
-               m_streaminfo.min_block_size, ", max=", m_streaminfo.max_block_size);
+    // Requirement 26.2, 26.8: Populate codec_data with the raw 34-byte
+    // STREAMINFO body (RFC 9639 Section 8.2). The native codec parses this in
+    // initialize() to recover block sizes AND the MD5 signature needed for
+    // whole-stream verification; block sizes are bytes 0-3 within it.
+    if (m_streaminfo_raw.size() == 34) {
+        stream.codec_data = m_streaminfo_raw;
+        FLAC_DEBUG("[getStreams] codec_data populated with raw STREAMINFO (34 bytes)");
+    } else {
+        FLAC_DEBUG("[getStreams] raw STREAMINFO unavailable; codec_data left empty");
+    }
     
     // Requirement 26.4: Calculate bitrate if frame size information is available
     // Bitrate = (average_frame_size * 8 * sample_rate) / average_block_size
@@ -1145,6 +1138,11 @@ bool FLACDemuxer::parseStreamInfoBlock_unlocked(const FLACMetadataBlock& block)
         reportError("IO", "Failed to read STREAMINFO data");
         return false;
     }
+
+    // Keep the raw body so getStreams() can hand it to the native codec as
+    // codec_data, letting the codec recover the MD5 signature for whole-stream
+    // verification (the demuxer delivers per-frame chunks, not the metadata).
+    m_streaminfo_raw.assign(data, data + 34);
     
     // Parse STREAMINFO fields (all big-endian per RFC 9639 Section 5)
     

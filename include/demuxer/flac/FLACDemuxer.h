@@ -350,6 +350,7 @@ private:
     // FLAC metadata (protected by m_metadata_mutex)
     // ========================================================================
     FLACStreamInfo m_streaminfo;                           ///< STREAMINFO block data
+    std::vector<uint8_t> m_streaminfo_raw;                 ///< Raw 34-byte STREAMINFO body (for codec_data)
     std::vector<FLACSeekPoint> m_seektable;                ///< SEEKTABLE entries
     std::map<std::string, std::string> m_vorbis_comments;  ///< Vorbis comments metadata
     FLACCuesheet m_cuesheet;                               ///< CUESHEET block data
