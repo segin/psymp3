@@ -540,12 +540,9 @@ bool FrameParser::parseUncommonBlockSize(FrameHeader &header, uint32_t bits) {
     return false;
   }
 
-  // Validate: block size must be at least 16 (except for last frame)
-  if (header.block_size < 16) {
-    Debug::log("flac_codec", "Invalid block size: %u (must be >= 16)",
-               header.block_size);
-    return false;
-  }
+  // RFC 9639 Section 9.1.6: block sizes 1-15 are valid for the last frame of
+  // a stream. The codec decodes demuxer-framed chunks and cannot know frame
+  // placement; the demuxer enforces that short frames only occur at the end.
 
   Debug::log("flac_codec", "Parsed uncommon block size: %u", header.block_size);
   return true;
@@ -653,10 +650,12 @@ bool FrameParser::validateFrame(const FrameHeader &header,
 
 // Validation helper functions
 bool FrameParser::validateBlockSize(uint32_t block_size) const {
-  // Per RFC 9639: block size must be 16-65535 (except last frame can be
-  // smaller)
-  if (block_size < 16 || block_size > 65535) {
-    Debug::log("flac_codec", "Invalid block size: %u (must be 16-65535)",
+  // Per RFC 9639 Section 9.1.6: block size is 1-65535; sizes 1-15 are only
+  // valid for the last frame of a stream. Frame placement is enforced by the
+  // demuxer, so the codec accepts the full legal range here instead of
+  // dropping the (legal) short final frame and losing the stream tail.
+  if (block_size < 1 || block_size > 65535) {
+    Debug::log("flac_codec", "Invalid block size: %u (must be 1-65535)",
                block_size);
     return false;
   }
