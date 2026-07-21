@@ -227,8 +227,11 @@ bool ResidualDecoder::decodeRiceCode(int32_t &value, uint32_t rice_param) {
     return false;
   }
 
-  // Check for excessive quotient (potential DoS or corrupted data)
-  if (quotient > 1024) {
+  // Check for excessive quotient (potential DoS or corrupted data). RFC 9639
+  // Section 11 notes that valid-but-faulty encoder output with very long
+  // unary codes exists, so keep the guard aligned with the BitstreamReader
+  // unary cap rather than rejecting merely unusual (spec-legal) values.
+  if (quotient > 1000000) {
     m_last_error = "Excessive unary quotient in Rice code";
     return false;
   }
@@ -242,12 +245,15 @@ bool ResidualDecoder::decodeRiceCode(int32_t &value, uint32_t rice_param) {
     }
   }
 
-  // Compute folded unsigned value in 64-bit: quotient (up to 1024) shifted by
+  // Compute folded unsigned value in 64-bit: the quotient shifted by
   // rice_param (up to 30) can exceed 32 bits, which would wrap silently and
   // yield a garbage residual. A folded value that doesn't fit in 32 bits can't
-  // be a valid residual, so reject it as corrupt.
+  // be a valid residual, so reject it as corrupt. 0xFFFFFFFF is rejected too:
+  // it would unfold to -2^31, which RFC 9639 Section 9.2.7.2 forbids, and the
+  // unfold arithmetic (folded + 1) would wrap it to 0 instead — silently
+  // decoding a wrong sample rather than flagging the invalid stream.
   uint64_t folded64 = (static_cast<uint64_t>(quotient) << rice_param) | remainder;
-  if (folded64 > 0xFFFFFFFFull) {
+  if (folded64 >= 0xFFFFFFFFull) {
     m_last_error = "Rice code folded value out of range";
     return false;
   }
