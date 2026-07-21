@@ -57,7 +57,7 @@ public:
      * 
      * Requirements: 7.1-7.8, 26.1-26.8
      */
-    bool decorrelate(int32_t** channels, uint32_t block_size,
+    bool decorrelate(int64_t** channels, uint32_t block_size,
                     uint32_t channel_count, ChannelAssignment assignment);
     
 private:
@@ -71,7 +71,7 @@ private:
      * 
      * Requirements: 7.2
      */
-    void decorrelateLeftSide(int32_t* left, int32_t* side, uint32_t count);
+    void decorrelateLeftSide(int64_t* left, int64_t* side, uint32_t count);
     
     /**
      * Decorrelate right-side stereo
@@ -83,7 +83,7 @@ private:
      * 
      * Requirements: 7.3
      */
-    void decorrelateRightSide(int32_t* side, int32_t* right, uint32_t count);
+    void decorrelateRightSide(int64_t* side, int64_t* right, uint32_t count);
     
     /**
      * Decorrelate mid-side stereo
@@ -98,7 +98,7 @@ private:
      * 
      * Requirements: 7.4, 7.5
      */
-    void decorrelateMidSide(int32_t* mid, int32_t* side, uint32_t count);
+    void decorrelateMidSide(int64_t* mid, int64_t* side, uint32_t count);
     
     /**
      * Validate channel count

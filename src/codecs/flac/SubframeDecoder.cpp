@@ -19,7 +19,7 @@ SubframeDecoder::SubframeDecoder(BitstreamReader *reader,
 
 SubframeDecoder::~SubframeDecoder() {}
 
-bool SubframeDecoder::decodeSubframe(int32_t *output, uint32_t block_size,
+bool SubframeDecoder::decodeSubframe(int64_t *output, uint32_t block_size,
                                      uint32_t bit_depth, bool is_side_channel) {
   if (!output || block_size == 0) {
     Debug::log("subframe_decoder",
@@ -66,11 +66,11 @@ bool SubframeDecoder::decodeSubframe(int32_t *output, uint32_t block_size,
   }
 
   // Apply wasted bits padding if present (Requirement 20). Shift through an
-  // unsigned type: left-shifting a negative int32 sample is UB before C++20
-  // and trips UBSan.
+  // unsigned type: left-shifting a negative sample is UB before C++20 and
+  // trips UBSan.
   if (header.wasted_bits > 0) {
     for (uint32_t i = 0; i < block_size; i++) {
-      output[i] = static_cast<int32_t>(static_cast<uint32_t>(output[i]) << header.wasted_bits);
+      output[i] = static_cast<int64_t>(static_cast<uint64_t>(output[i]) << header.wasted_bits);
     }
   }
 
@@ -187,17 +187,18 @@ bool SubframeDecoder::parseSubframeHeader(SubframeHeader &header,
 // Placeholder implementations for other methods (will be implemented in
 // subsequent subtasks)
 
-bool SubframeDecoder::decodeConstant(int32_t *output, uint32_t block_size,
+bool SubframeDecoder::decodeConstant(int64_t *output, uint32_t block_size,
                                      const SubframeHeader &header) {
-  // Read single unencoded sample at subframe bit depth (Requirement 3)
-  int32_t constant_value;
-  if (!m_reader->readBitsSigned(constant_value, header.bit_depth)) {
+  // Read single unencoded sample at subframe bit depth (Requirement 3).
+  // 64-bit read: side subframes of 32-bit streams use 33-bit samples.
+  int64_t constant_value;
+  if (!m_reader->readBitsSigned64(constant_value, header.bit_depth)) {
     Debug::log("subframe_decoder", "Failed to read constant value");
     return false;
   }
 
-  Debug::log("subframe_decoder", "CONSTANT subframe: value=%d, block_size=%u",
-             constant_value, block_size);
+  Debug::log("subframe_decoder", "CONSTANT subframe: value=%lld, block_size=%u",
+             static_cast<long long>(constant_value), block_size);
 
   // Replicate constant value to all block samples (Requirement 3)
   for (uint32_t i = 0; i < block_size; i++) {
@@ -209,7 +210,7 @@ bool SubframeDecoder::decodeConstant(int32_t *output, uint32_t block_size,
   return true;
 }
 
-bool SubframeDecoder::decodeVerbatim(int32_t *output, uint32_t block_size,
+bool SubframeDecoder::decodeVerbatim(int64_t *output, uint32_t block_size,
                                      const SubframeHeader &header) {
   // Read unencoded samples sequentially at subframe bit depth (Requirement 3)
   Debug::log("subframe_decoder",
@@ -217,8 +218,8 @@ bool SubframeDecoder::decodeVerbatim(int32_t *output, uint32_t block_size,
              header.bit_depth);
 
   for (uint32_t i = 0; i < block_size; i++) {
-    int32_t sample;
-    if (!m_reader->readBitsSigned(sample, header.bit_depth)) {
+    int64_t sample;
+    if (!m_reader->readBitsSigned64(sample, header.bit_depth)) {
       Debug::log("subframe_decoder", "Failed to read verbatim sample %u", i);
       return false;
     }
@@ -230,7 +231,7 @@ bool SubframeDecoder::decodeVerbatim(int32_t *output, uint32_t block_size,
   return true;
 }
 
-bool SubframeDecoder::decodeFixed(int32_t *output, uint32_t block_size,
+bool SubframeDecoder::decodeFixed(int64_t *output, uint32_t block_size,
                                   const SubframeHeader &header) {
   uint32_t order = header.predictor_order;
 
@@ -253,10 +254,11 @@ bool SubframeDecoder::decodeFixed(int32_t *output, uint32_t block_size,
   }
 
   // Read warm-up samples (Requirement 35)
-  // These are unencoded samples at subframe bit depth
+  // These are unencoded samples at subframe bit depth (up to 33 bits for the
+  // side subframe of a 32-bit stream)
   for (uint32_t i = 0; i < order; i++) {
-    int32_t sample;
-    if (!m_reader->readBitsSigned(sample, header.bit_depth)) {
+    int64_t sample;
+    if (!m_reader->readBitsSigned64(sample, header.bit_depth)) {
       Debug::log("subframe_decoder", "Failed to read warm-up sample %u", i);
       return false;
     }
@@ -293,7 +295,7 @@ bool SubframeDecoder::decodeFixed(int32_t *output, uint32_t block_size,
   return true;
 }
 
-bool SubframeDecoder::decodeLPC(int32_t *output, uint32_t block_size,
+bool SubframeDecoder::decodeLPC(int64_t *output, uint32_t block_size,
                                 const SubframeHeader &header) {
   uint32_t order = header.predictor_order;
 
@@ -316,10 +318,11 @@ bool SubframeDecoder::decodeLPC(int32_t *output, uint32_t block_size,
   }
 
   // Read warm-up samples (Requirement 35)
-  // These are unencoded samples at subframe bit depth
+  // These are unencoded samples at subframe bit depth (up to 33 bits for the
+  // side subframe of a 32-bit stream)
   for (uint32_t i = 0; i < order; i++) {
-    int32_t sample;
-    if (!m_reader->readBitsSigned(sample, header.bit_depth)) {
+    int64_t sample;
+    if (!m_reader->readBitsSigned64(sample, header.bit_depth)) {
       Debug::log("subframe_decoder", "Failed to read LPC warm-up sample %u", i);
       return false;
     }
@@ -406,7 +409,7 @@ bool SubframeDecoder::decodeLPC(int32_t *output, uint32_t block_size,
   return true;
 }
 
-void SubframeDecoder::applyFixedPredictor(int32_t *samples,
+void SubframeDecoder::applyFixedPredictor(int64_t *samples,
                                           const int32_t *residuals,
                                           uint32_t count, uint32_t order) {
   // Apply FIXED predictor formulas (Requirement 4)
@@ -457,12 +460,12 @@ void SubframeDecoder::applyFixedPredictor(int32_t *samples,
     }
 
     // Reconstruct sample: s[i] = prediction + residual[i]
-    // Cast back to 32-bit - safe because FLAC spec guarantees samples fit in 32 bits
-    samples[sample_idx] = static_cast<int32_t>(prediction + residuals[i]);
+    // Samples stay in int64: side subframes of 32-bit streams hold 33-bit values
+    samples[sample_idx] = prediction + residuals[i];
   }
 }
 
-void SubframeDecoder::applyLPCPredictor(int32_t *samples,
+void SubframeDecoder::applyLPCPredictor(int64_t *samples,
                                         const int32_t *residuals,
                                         const int32_t *coeffs, uint32_t count,
                                         uint32_t order, int32_t shift) {
@@ -484,18 +487,18 @@ void SubframeDecoder::applyLPCPredictor(int32_t *samples,
     // coeff[1] applies to second most recent sample (sample[n-2])
     // etc.
     for (uint32_t j = 0; j < order; j++) {
-      // Multiply coefficient with corresponding past sample
-      sum += static_cast<int64_t>(coeffs[j]) *
-             static_cast<int64_t>(samples[sample_idx - j - 1]);
+      // Multiply coefficient with corresponding past sample. Products stay
+      // within int64: |coeff| < 2^15 and |sample| <= 2^33, so each term is
+      // < 2^48 and a 32-term sum is < 2^53.
+      sum += static_cast<int64_t>(coeffs[j]) * samples[sample_idx - j - 1];
     }
 
     // Apply quantization level shift (arithmetic right shift)
     int64_t prediction = sum >> shift;
 
-    // Add residual to get reconstructed sample. Add in 64-bit and narrow once
-    // (like the FIXED path): narrowing prediction to int32 first and then adding
-    // residuals[i] in int32 could be signed-overflow UB for crafted input.
-    samples[sample_idx] = static_cast<int32_t>(prediction + residuals[i]);
+    // Add residual to get reconstructed sample (stays in int64; see the
+    // FIXED path).
+    samples[sample_idx] = prediction + residuals[i];
   }
 }
 

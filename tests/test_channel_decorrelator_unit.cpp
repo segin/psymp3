@@ -18,9 +18,9 @@ void test_left_side_stereo() {
     ChannelDecorrelator decorrelator;
     
     // Left-side: right = left - side
-    int32_t left[] = {100, 200, 300, 400};
-    int32_t side[] = {10, 20, 30, 40};
-    int32_t* channels[] = {left, side};
+    int64_t left[] = {100, 200, 300, 400};
+    int64_t side[] = {10, 20, 30, 40};
+    int64_t* channels[] = {left, side};
     
     ASSERT_TRUE(decorrelator.decorrelate(channels, 4, 2, ChannelAssignment::LEFT_SIDE),
                 "Should decorrelate left-side");
@@ -38,9 +38,9 @@ void test_right_side_stereo() {
     ChannelDecorrelator decorrelator;
     
     // Right-side: left = right + side
-    int32_t side[] = {10, 20, 30, 40};
-    int32_t right[] = {100, 200, 300, 400};
-    int32_t* channels[] = {side, right};
+    int64_t side[] = {10, 20, 30, 40};
+    int64_t right[] = {100, 200, 300, 400};
+    int64_t* channels[] = {side, right};
     
     ASSERT_TRUE(decorrelator.decorrelate(channels, 4, 2, ChannelAssignment::RIGHT_SIDE),
                 "Should decorrelate right-side");
@@ -58,9 +58,9 @@ void test_mid_side_stereo() {
     ChannelDecorrelator decorrelator;
     
     // Mid-side: left = mid + (side>>1), right = mid - (side>>1)
-    int32_t mid[] = {100, 200, 300, 400};
-    int32_t side[] = {20, 40, 60, 80};
-    int32_t* channels[] = {mid, side};
+    int64_t mid[] = {100, 200, 300, 400};
+    int64_t side[] = {20, 40, 60, 80};
+    int64_t* channels[] = {mid, side};
     
     ASSERT_TRUE(decorrelator.decorrelate(channels, 4, 2, ChannelAssignment::MID_SIDE),
                 "Should decorrelate mid-side");
@@ -79,9 +79,9 @@ void test_mid_side_odd_values() {
     ChannelDecorrelator decorrelator;
     
     // Test proper rounding with odd side values
-    int32_t mid[] = {100, 200};
-    int32_t side[] = {21, 41};  // Odd values
-    int32_t* channels[] = {mid, side};
+    int64_t mid[] = {100, 200};
+    int64_t side[] = {21, 41};  // Odd values
+    int64_t* channels[] = {mid, side};
     
     ASSERT_TRUE(decorrelator.decorrelate(channels, 2, 2, ChannelAssignment::MID_SIDE),
                 "Should handle odd side values");
@@ -105,9 +105,9 @@ void test_mid_side_odd_values() {
 void test_independent_channels() {
     ChannelDecorrelator decorrelator;
     
-    int32_t ch0[] = {100, 200, 300};
-    int32_t ch1[] = {10, 20, 30};
-    int32_t* channels[] = {ch0, ch1};
+    int64_t ch0[] = {100, 200, 300};
+    int64_t ch1[] = {10, 20, 30};
+    int64_t* channels[] = {ch0, ch1};
     
     ASSERT_TRUE(decorrelator.decorrelate(channels, 3, 2, ChannelAssignment::INDEPENDENT),
                 "Should handle independent channels");
@@ -121,8 +121,8 @@ void test_independent_channels() {
 void test_mono_channel() {
     ChannelDecorrelator decorrelator;
     
-    int32_t ch0[] = {100, 200, 300};
-    int32_t* channels[] = {ch0};
+    int64_t ch0[] = {100, 200, 300};
+    int64_t* channels[] = {ch0};
     
     ASSERT_TRUE(decorrelator.decorrelate(channels, 3, 1, ChannelAssignment::INDEPENDENT),
                 "Should handle mono");
@@ -135,10 +135,10 @@ void test_mono_channel() {
 void test_multi_channel() {
     ChannelDecorrelator decorrelator;
     
-    int32_t ch0[] = {100, 200};
-    int32_t ch1[] = {10, 20};
-    int32_t ch2[] = {1, 2};
-    int32_t* channels[] = {ch0, ch1, ch2};
+    int64_t ch0[] = {100, 200};
+    int64_t ch1[] = {10, 20};
+    int64_t ch2[] = {1, 2};
+    int64_t* channels[] = {ch0, ch1, ch2};
     
     ASSERT_TRUE(decorrelator.decorrelate(channels, 2, 3, ChannelAssignment::INDEPENDENT),
                 "Should handle multi-channel");

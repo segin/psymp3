@@ -484,7 +484,12 @@ private:
     static constexpr size_t INPUT_BUFFER_SIZE = 64 * 1024;  // 64KB
     
     std::vector<uint8_t> m_input_buffer;
-    std::vector<int32_t> m_decode_buffer[MAX_CHANNELS];  // Per-channel decode buffers
+    // Per-channel decode buffers. int64: side subframes of decorrelated 32-bit
+    // streams hold 33-bit samples (RFC 9639 Section 9.2.2).
+    std::vector<int64_t> m_decode_buffer[MAX_CHANNELS];
+    // Post-decorrelation narrowed samples (all values fit the frame bit depth,
+    // at most 32 bits) for SampleReconstructor and MD5Validator.
+    std::vector<int32_t> m_narrow_buffer[MAX_CHANNELS];
     std::vector<int16_t> m_output_buffer;
     
     // Performance statistics

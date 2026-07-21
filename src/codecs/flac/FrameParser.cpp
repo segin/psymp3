@@ -340,7 +340,7 @@ bool FrameParser::parseFrameHeader(FrameHeader &header) {
     return false;
   }
 
-  // Decode bit depth
+  // Decode bit depth (RFC 9639 Section 9.1.4, Table 17)
   static const uint32_t bit_depth_table[] = {
       0,  // 000: get from STREAMINFO
       8,  // 001: 8 bits
@@ -349,7 +349,7 @@ bool FrameParser::parseFrameHeader(FrameHeader &header) {
       16, // 100: 16 bits
       20, // 101: 20 bits
       24, // 110: 24 bits
-      0   // 111: reserved
+      32  // 111: 32 bits
   };
 
   header.bit_depth = bit_depth_table[bit_depth_bits];

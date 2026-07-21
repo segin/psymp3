@@ -121,7 +121,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         SubframeDecoder subframe_decoder(&reader, &residual_decoder);
 
         // Allocate decode buffers
-        std::vector<int32_t> decode_buffers[8];
+        std::vector<int64_t> decode_buffers[8];
         for (uint32_t ch = 0; ch < header.channels; ++ch) {
             decode_buffers[ch].resize(header.block_size, 0);
         }
@@ -144,7 +144,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
         // Try to apply channel decorrelation
         ChannelDecorrelator decorrelator;
-        int32_t* channel_ptrs[8];
+        int64_t* channel_ptrs[8];
         for (uint32_t ch = 0; ch < header.channels; ++ch) {
             channel_ptrs[ch] = decode_buffers[ch].data();
         }

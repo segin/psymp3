@@ -38,6 +38,7 @@ public:
     // Basic bit reading
     bool readBits(uint32_t& value, uint32_t bit_count);
     bool readBitsSigned(int32_t& value, uint32_t bit_count);
+    bool readBitsSigned64(int64_t& value, uint32_t bit_count);
     bool readBit(bool& value);
     
     // Special encoding readers

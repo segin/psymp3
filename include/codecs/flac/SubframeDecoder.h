@@ -79,7 +79,7 @@ public:
      * 
      * Requirements: 3, 36
      */
-    bool decodeSubframe(int32_t* output, uint32_t block_size, 
+    bool decodeSubframe(int64_t* output, uint32_t block_size, 
                        uint32_t bit_depth, bool is_side_channel);
     
 private:
@@ -107,7 +107,7 @@ private:
      * 
      * Requirements: 3
      */
-    bool decodeConstant(int32_t* output, uint32_t block_size, 
+    bool decodeConstant(int64_t* output, uint32_t block_size, 
                        const SubframeHeader& header);
     
     /**
@@ -119,7 +119,7 @@ private:
      * 
      * Requirements: 3
      */
-    bool decodeVerbatim(int32_t* output, uint32_t block_size, 
+    bool decodeVerbatim(int64_t* output, uint32_t block_size, 
                        const SubframeHeader& header);
     
     /**
@@ -131,7 +131,7 @@ private:
      * 
      * Requirements: 3, 4, 35, 54
      */
-    bool decodeFixed(int32_t* output, uint32_t block_size, 
+    bool decodeFixed(int64_t* output, uint32_t block_size, 
                     const SubframeHeader& header);
     
     /**
@@ -143,7 +143,7 @@ private:
      * 
      * Requirements: 3, 5, 28, 35, 51, 52, 54
      */
-    bool decodeLPC(int32_t* output, uint32_t block_size, 
+    bool decodeLPC(int64_t* output, uint32_t block_size, 
                   const SubframeHeader& header);
     
     /**
@@ -155,7 +155,7 @@ private:
      * 
      * Requirements: 4, 54
      */
-    void applyFixedPredictor(int32_t* samples, const int32_t* residuals,
+    void applyFixedPredictor(int64_t* samples, const int32_t* residuals,
                             uint32_t count, uint32_t order);
     
     /**
@@ -169,7 +169,7 @@ private:
      * 
      * Requirements: 5, 51, 52, 54
      */
-    void applyLPCPredictor(int32_t* samples, const int32_t* residuals,
+    void applyLPCPredictor(int64_t* samples, const int32_t* residuals,
                           const int32_t* coeffs, uint32_t count, 
                           uint32_t order, int32_t shift);
 };

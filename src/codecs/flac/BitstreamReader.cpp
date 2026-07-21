@@ -195,6 +195,44 @@ bool BitstreamReader::readBitsSigned(int32_t &value, uint32_t bit_count) {
   return true;
 }
 
+bool BitstreamReader::readBitsSigned64(int64_t &value, uint32_t bit_count) {
+  // Wide variant of readBitsSigned for sample widths above 32 bits. RFC 9639
+  // requires up to 33-bit reads: the side subframe of a decorrelated 32-bit
+  // stream stores samples at bit depth + 1 (Section 9.2.2).
+  if (bit_count == 0) {
+    value = 0;
+    return true;
+  }
+
+  if (bit_count > 64) {
+    return false;
+  }
+
+  uint64_t unsigned_value = 0;
+  if (bit_count > 32) {
+    // Read high bits first (bitstream is MSB-first), then low 32 bits
+    uint32_t high = 0, low = 0;
+    if (!readBits(high, bit_count - 32) || !readBits(low, 32)) {
+      return false;
+    }
+    unsigned_value = (static_cast<uint64_t>(high) << 32) | low;
+  } else {
+    uint32_t bits = 0;
+    if (!readBits(bits, bit_count)) {
+      return false;
+    }
+    unsigned_value = bits;
+  }
+
+  // Sign extension if MSB is set
+  if (bit_count < 64 && (unsigned_value & (1ULL << (bit_count - 1)))) {
+    unsigned_value |= ~((1ULL << bit_count) - 1);
+  }
+
+  value = static_cast<int64_t>(unsigned_value);
+  return true;
+}
+
 bool BitstreamReader::readBit(bool &value) {
   uint32_t bit;
   if (!readBits(bit, 1)) {

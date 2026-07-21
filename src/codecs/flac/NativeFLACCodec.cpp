@@ -94,6 +94,7 @@ FLACCodec::~FLACCodec() {
     m_input_buffer.clear();
     for (size_t i = 0; i < MAX_CHANNELS; i++) {
         m_decode_buffer[i].clear();
+        m_narrow_buffer[i].clear();
     }
     m_output_buffer.clear();
     
@@ -217,7 +218,8 @@ FLACCodecStats FLACCodec::getStats() const {
     // Update memory usage estimate (snapshot)
     stats.memory_usage_bytes = m_input_buffer.capacity() * sizeof(uint8_t);
     for (size_t i = 0; i < MAX_CHANNELS; i++) {
-        stats.memory_usage_bytes += m_decode_buffer[i].capacity() * sizeof(int32_t);
+        stats.memory_usage_bytes += m_decode_buffer[i].capacity() * sizeof(int64_t);
+        stats.memory_usage_bytes += m_narrow_buffer[i].capacity() * sizeof(int32_t);
     }
     stats.memory_usage_bytes += m_output_buffer.capacity() * sizeof(int16_t);
 
@@ -567,20 +569,35 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         
         // Step 5: Apply channel decorrelation
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Applying channel decorrelation");
-        
+
         // Create array of channel pointers
-        int32_t* channel_ptrs[MAX_CHANNELS];
+        int64_t* decode_ptrs[MAX_CHANNELS];
         for (uint32_t ch = 0; ch < header.channels; ch++) {
-            channel_ptrs[ch] = m_decode_buffer[ch].data();
+            decode_ptrs[ch] = m_decode_buffer[ch].data();
         }
-        
-        if (!m_channel_decorrelator->decorrelate(channel_ptrs, header.block_size,
+
+        if (!m_channel_decorrelator->decorrelate(decode_ptrs, header.block_size,
                                                  header.channels, header.channel_assignment)) {
             Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Channel decorrelation failed");
             m_state = DecoderState::DECODER_ERROR;
             return AudioFrame();
         }
-        
+
+        // Narrow decorrelated samples to int32 for reconstruction and MD5.
+        // After decorrelation every sample fits the frame bit depth (<= 32
+        // bits) for valid streams; clamp defensively for crafted input.
+        int32_t* channel_ptrs[MAX_CHANNELS];
+        for (uint32_t ch = 0; ch < header.channels; ch++) {
+            m_narrow_buffer[ch].resize(header.block_size);
+            for (uint32_t i = 0; i < header.block_size; i++) {
+                int64_t s = decode_ptrs[ch][i];
+                if (s > INT32_MAX) s = INT32_MAX;
+                else if (s < INT32_MIN) s = INT32_MIN;
+                m_narrow_buffer[ch][i] = static_cast<int32_t>(s);
+            }
+            channel_ptrs[ch] = m_narrow_buffer[ch].data();
+        }
+
         // Step 6: Reconstruct samples with bit depth conversion
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Reconstructing samples");
         
@@ -762,6 +779,7 @@ void FLACCodec::reset_unlocked() {
     m_input_buffer.clear();
     for (size_t i = 0; i < MAX_CHANNELS; i++) {
         m_decode_buffer[i].clear();
+        m_narrow_buffer[i].clear();
     }
     m_output_buffer.clear();
     
@@ -1374,6 +1392,8 @@ void FLACCodec::recoverFromMemoryError() {
     for (size_t i = 0; i < MAX_CHANNELS; i++) {
         m_decode_buffer[i].clear();
         m_decode_buffer[i].shrink_to_fit();
+        m_narrow_buffer[i].clear();
+        m_narrow_buffer[i].shrink_to_fit();
     }
     
     m_output_buffer.clear();
@@ -1398,6 +1418,7 @@ void FLACCodec::handleUnrecoverableError() {
     m_input_buffer.clear();
     for (size_t i = 0; i < MAX_CHANNELS; i++) {
         m_decode_buffer[i].clear();
+        m_narrow_buffer[i].clear();
     }
     m_output_buffer.clear();
     
@@ -1496,6 +1517,7 @@ bool FLACCodec::resetFromErrorState() {
     m_input_buffer.clear();
     for (size_t i = 0; i < MAX_CHANNELS; i++) {
         m_decode_buffer[i].clear();
+        m_narrow_buffer[i].clear();
     }
     m_output_buffer.clear();
     

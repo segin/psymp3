@@ -36,7 +36,7 @@ void test_constant_subframe() {
     };
     reader.feedData(data, sizeof(data));
     
-    int32_t output[8];
+    int64_t output[8];
     memset(output, 0, sizeof(output));
     
     ASSERT_TRUE(decoder.decodeSubframe(output, 8, 16, false), 
@@ -66,7 +66,7 @@ void test_verbatim_subframe() {
     };
     reader.feedData(data, sizeof(data));
     
-    int32_t output[4];
+    int64_t output[4];
     memset(output, 0, sizeof(output));
     
     ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false), 
@@ -110,7 +110,7 @@ void test_fixed_predictor_order_0_full() {
     };
     reader.feedData(data, sizeof(data));
     
-    int32_t output[4];
+    int64_t output[4];
     memset(output, 0, sizeof(output));
 
     ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
@@ -149,7 +149,7 @@ void test_fixed_predictor_full_decoding() {
     };
     reader.feedData(data, sizeof(data));
     
-    int32_t output[4];
+    int64_t output[4];
     memset(output, 0, sizeof(output));
 
     // Block size 4, bit depth 16
@@ -187,7 +187,7 @@ void test_wasted_bits() {
     };
     reader.feedData(data, sizeof(data));
     
-    int32_t output[4];
+    int64_t output[4];
     memset(output, 0, sizeof(output));
     
     // The decoder should handle wasted bits
@@ -210,7 +210,7 @@ void test_side_channel_bit_depth() {
     };
     reader.feedData(data, sizeof(data));
     
-    int32_t output[4];
+    int64_t output[4];
     memset(output, 0, sizeof(output));
     
     // is_side_channel=true means bit depth is frame_bit_depth + 1
@@ -280,7 +280,7 @@ void test_lpc_subframe_decoding() {
     ResidualDecoder residual(&reader);
     SubframeDecoder decoder(&reader, &residual);
 
-    int32_t output[4];
+    int64_t output[4];
     memset(output, 0, sizeof(output));
 
     ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
@@ -372,7 +372,7 @@ void test_lpc_subframe_full() {
 
     reader.feedData(data, sizeof(data));
 
-    int32_t output[4];
+    int64_t output[4];
     memset(output, 0, sizeof(output));
 
     ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
