@@ -122,10 +122,9 @@ bool ResidualDecoder::decodeResidual(int32_t *output, uint32_t block_size,
         return false;
       }
 
-      if (info.escape_bits == 0 || info.escape_bits > 32) {
-        m_last_error = "Invalid escape bit width";
-        return false;
-      }
+      // RFC 9639 Section 9.2.7.1 explicitly permits an escape bit width of 0:
+      // the partition then contains no residual bits and every residual is 0.
+      // (The field is 5 bits wide, so values above 31 cannot occur.)
     } else {
       // Normal Rice-coded partition
       info.is_escaped = false;
