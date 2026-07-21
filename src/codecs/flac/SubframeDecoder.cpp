@@ -153,8 +153,12 @@ bool SubframeDecoder::parseSubframeHeader(SubframeHeader &header,
     header.wasted_bits++;
   }
 
-  // Calculate subframe bit depth (Requirement 36)
-  header.bit_depth = frame_bit_depth;
+  // Calculate subframe bit depth (Requirement 36). Per RFC 9639 Sections
+  // 9.2.2/9.2.3 the side-channel extra bit is part of the subframe bit depth
+  // BEFORE wasted bits are subtracted, so validate against the total: a side
+  // subframe may legally waste as many bits as the frame bit depth (leaving a
+  // 1-bit subframe).
+  header.bit_depth = frame_bit_depth + (is_side_channel ? 1 : 0);
 
   // Subtract wasted bits
   if (header.wasted_bits >= header.bit_depth) {
@@ -164,12 +168,7 @@ bool SubframeDecoder::parseSubframeHeader(SubframeHeader &header,
   }
   header.bit_depth -= header.wasted_bits;
 
-  // Add 1 bit for side channel (Requirement 36)
-  if (is_side_channel) {
-    header.bit_depth++;
-  }
-
-  // Validate bit depth is positive
+  // Validate bit depth range (max 33: 32-bit stream side subframe)
   if (header.bit_depth == 0 || header.bit_depth > 33) {
     Debug::log("subframe_decoder", "Invalid subframe bit depth: %u",
                header.bit_depth);
