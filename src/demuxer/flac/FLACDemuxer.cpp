@@ -2983,10 +2983,22 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
             frame.sample_offset = coded_number;
             FLAC_DEBUG("[parseFrameHeader] Sample offset from coded number (variable): ", frame.sample_offset);
         } else {
-            // Fixed block size: coded number is frame number, multiply by block size
-            frame.sample_offset = coded_number * frame.block_size;
-            FLAC_DEBUG("[parseFrameHeader] Sample offset from coded number (fixed): frame ", 
-                       coded_number, " * ", frame.block_size, " = ", frame.sample_offset);
+            // Fixed block size: coded number is frame number, multiply by the
+            // stream's CONSTANT block size (RFC 9639 Section 9.1.5), not this
+            // frame's own block_size. The last frame of a fixed-blocksize
+            // stream is legally shorter; using its short size here yields a
+            // wrong offset (frame_number * short_size) that fails the
+            // next-frame boundary match in readChunk, dropping the final frame
+            // (and its audio) from nearly every track. For fixed-blocksize
+            // streams STREAMINFO min == max == the constant size; fall back to
+            // the frame's own size only if STREAMINFO is unavailable.
+            uint32_t constant_block_size = frame.block_size;
+            if (m_streaminfo.isValid() && m_streaminfo.max_block_size > 0) {
+                constant_block_size = m_streaminfo.max_block_size;
+            }
+            frame.sample_offset = coded_number * constant_block_size;
+            FLAC_DEBUG("[parseFrameHeader] Sample offset from coded number (fixed): frame ",
+                       coded_number, " * ", constant_block_size, " = ", frame.sample_offset);
         }
     } else {
         // Fallback to current position if coded number parsing failed
