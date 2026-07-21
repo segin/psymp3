@@ -81,12 +81,13 @@ bool ResidualDecoder::decodeResidual(int32_t *output, uint32_t block_size,
   // With an attacker-controlled partition_order, samples_per_partition can be
   // smaller than predictor_order; the unsigned subtraction below would then
   // wrap to a huge value and overrun the (block_size - predictor_order) output
-  // buffer. RFC 9639 Section 9.2 requires the first partition to hold at least
-  // the predictor order's worth of warm-up samples, so reject this case.
-  if (samples_per_partition < predictor_order) {
+  // buffer. RFC 9639 Section 9.2.7 requires (block size >> partition order) to
+  // be strictly LARGER than the predictor order, so equality (a zero-sample
+  // first partition) is also invalid and rejected.
+  if (samples_per_partition <= predictor_order) {
     m_last_error = "Partition order too large for predictor order";
     Debug::log("residual_decoder", "samples_per_partition ",
-               samples_per_partition, " < predictor_order ", predictor_order);
+               samples_per_partition, " <= predictor_order ", predictor_order);
     return false;
   }
 
