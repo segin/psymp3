@@ -327,9 +327,15 @@ size_t BoundedCircularBuffer::peek(void* data, size_t size) const {
 }
 
 size_t BoundedCircularBuffer::skip(size_t size) {
+    // Guard against capacity 0 (set when the pool allocation failed): the
+    // modulo below would divide by zero (SIGFPE) even for skip(0). Match the
+    // early-return that write/read/peek already use.
+    if (!m_buffer || m_capacity == 0) {
+        return 0;
+    }
     size_t available_data = available();
     size_t to_skip = std::min(size, available_data);
-    
+
     m_read_pos = (m_read_pos + to_skip) % m_capacity;
     m_count -= to_skip;
     
