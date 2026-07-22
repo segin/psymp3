@@ -752,8 +752,15 @@ void IOHandler::safeErrorPropagation(int error_code, const std::string& error_me
         // Update memory tracking to reflect any cleanup
         updateMemoryUsage(0);
         
-        // Mark as closed if this is a fatal error
-        if (error_code == ENOMEM || error_code == ENOSPC || error_code == EMFILE) {
+        // Mark as closed only for genuinely unrecoverable resource exhaustion.
+        // ENOMEM here is usually a memory-LIMIT rejection of an oversized single
+        // read (FileIOHandler::validateOperationParameters counts size*count
+        // against the per-handler cap), which is transient: the caller should
+        // get the error for that operation but the handler must stay usable so a
+        // smaller subsequent read succeeds. Permanently closing it bricked
+        // playback mid-file on one large or crafted read (the reopen path is
+        // dead code), so do not close on ENOMEM.
+        if (error_code == ENOSPC || error_code == EMFILE) {
             Debug::log("error", "IOHandler::safeErrorPropagation() - Fatal error, marking as closed");
             m_closed = true;
             m_eof = true;
