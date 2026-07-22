@@ -32,11 +32,16 @@ std::string normalizeCommandLineText(const char* raw_text)
     }
 
     std::string text(raw_text);
-    if (UTF8Util::isValid(text)) {
-        return text;
+    if (!UTF8Util::isValid(text)) {
+        // Strict UTF-8 policy: do NOT transcode invalid UTF-8 through Latin-1.
+        // On POSIX the argv bytes ARE the on-disk filename, so re-encoding them
+        // (0xE9 -> 0xC3 0xA9) changes the path and the file can no longer be
+        // opened; it also masks the real bytes behind a fabricated path in
+        // error messages and --logfile names. Pass the bytes through verbatim
+        // and surface the situation rather than silently decoding it.
+        Debug::log("main", "Command-line argument is not valid UTF-8; passing bytes through verbatim");
     }
-
-    return UTF8Util::fromLatin1(text);
+    return text;
 }
 
 } // namespace
