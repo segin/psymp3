@@ -659,7 +659,11 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
 std::vector<Playlist::Entry> Playlist::loadPlaylistEntries(TagLib::String path)
 {
     std::vector<Entry> entries;
-    std::ifstream file(path.toCString(true));
+    // Open via a std::filesystem::path so Unicode paths work on Windows (a plain
+    // UTF-8 const char* would be reinterpreted in the ANSI codepage there),
+    // mirroring savePlaylist(). Without this a playlist saved into a Cyrillic/
+    // CJK-named folder saved fine but failed to load back.
+    std::ifstream file(System::pathFromUtf8(path.to8Bit(true)));
     if (!file.is_open()) {
         Debug::log("playlist", "Playlist::loadPlaylistEntries(): Could not open playlist file: ", path.to8Bit(true));
         return entries; // Return empty list on failure
