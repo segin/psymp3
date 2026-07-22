@@ -162,6 +162,16 @@ bool FLACDemuxer::parseContainer_unlocked()
         // Total size = header (10 bytes) + tag size
         size_t total_id3_size = 10 + id3_size;
 
+        // ID3v2.4 tags may append a 10-byte footer ("3DI"...) whose bytes are
+        // NOT counted in the syncsafe size field (ID3v2.4 §3.1). id3_header[3]
+        // is the major version and id3_header[5] the header flags; bit 0x10 is
+        // the "footer present" flag. Without this, the seek lands 10 bytes
+        // short and validateStreamMarker reads footer bytes instead of "fLaC".
+        if (id3_header[3] >= 4 && (id3_header[5] & 0x10)) {
+            total_id3_size += 10;
+            FLAC_DEBUG("ID3v2.4 footer present; adding 10 bytes to skip distance");
+        }
+
         // A tag that claims to run to/past EOF is malformed; reject rather than
         // seek past the end (the subsequent marker read would fail anyway, but
         // this states the intent and avoids a pointless seek).
