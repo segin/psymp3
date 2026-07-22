@@ -47,8 +47,15 @@ LastFM::LastFM() :
 
 LastFM::~LastFM()
 {
-    // Signal shutdown and wait for thread to finish (Requirements 7.3)
-    m_shutdown = true;
+    // Signal shutdown and wait for thread to finish (Requirements 7.3). The
+    // store must happen under m_scrobble_mutex — the same mutex the submission
+    // thread evaluates its wait predicate under — or a store+notify landing
+    // between the waiter's predicate check and its block is lost and join()
+    // hangs forever (no further notify arrives once submissions have stopped).
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        m_shutdown = true;
+    }
     m_submission_cv.notify_all();
     
     if (m_submission_thread.joinable()) {
