@@ -142,7 +142,18 @@ uint8_t* MemoryPoolManager::allocateBuffer_unlocked(size_t size, const std::stri
             uint8_t* buffer = pool.free_buffers.back();
             pool.free_buffers.pop_back();
             pool.hits++;
-            
+
+            // The buffer just left the free list, so decrement the pooled-bytes
+            // counter (releaseBuffer_unlocked increments it on return). Omitting
+            // this inflated m_total_pooled by buffer_size on every recycle
+            // cycle, spuriously tripping the setMemoryLimits cleanup and
+            // corrupting getMemoryStats.
+            if (m_total_pooled >= pool.buffer_size) {
+                m_total_pooled -= pool.buffer_size;
+            } else {
+                m_total_pooled = 0;
+            }
+
             // Update memory tracking
             usage.current_usage += pool.buffer_size;
             usage.peak_usage = std::max(usage.peak_usage, usage.current_usage);
