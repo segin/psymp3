@@ -306,6 +306,15 @@ AudioFrame DemuxedStream::getNextFrame() {
             }
             frame.timestamp_ms = (m_rate > 0) ? (frame.timestamp_samples * 1000) / m_rate : 0;
 
+            // Advance the reported stream position from the decoded frame's
+            // timestamp. Previously m_position/m_sposition were written only by
+            // updateStreamProperties() (0) and seekTo() (target), so
+            // getPosition()/getSPosition() were frozen during playback — which
+            // also made the seek-error monitor compare a seek target against
+            // itself and broke keyboard-seek origin and Winamp IPC position.
+            m_position = static_cast<int>(frame.timestamp_ms);
+            m_sposition = frame.timestamp_samples;
+
             Debug::log("demux", "DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples. Timestamp: ", frame.timestamp_ms, "ms");
             return frame;
         } else {
@@ -514,7 +523,13 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
     if (stream_info.stream_id == 0 || stream_info.codec_type != "audio") {
         return false;
     }
-    
+
+    // Serialize against the decoder thread: getData()/seekTo() mutate the same
+    // codec and per-frame state under m_decode_mutex (lock order: decode before
+    // buffer). Without this lock, a concurrent switch would reassign/destroy
+    // m_codec while decode() is executing on it — a use-after-free.
+    std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
+
     // Clear current state (thread-safe)
     {
         std::lock_guard<std::mutex> lock(m_buffer_mutex);
@@ -523,9 +538,15 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
         }
         m_current_buffer_bytes = 0; // Reset memory tracking
     }
+    while (!m_temp_chunk_buffer.empty()) {
+        m_temp_chunk_buffer.pop();
+    }
     m_current_frame = AudioFrame{};
     m_current_frame_offset = 0;
-    
+    // The new stream is not at EOF; clear the latches seekTo also resets.
+    m_eof_reached = false;
+    m_eof = false;
+
     // Update stream ID
     m_current_stream_id = stream_id;
     
