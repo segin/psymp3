@@ -231,9 +231,17 @@ void SignalEmitter::signalWorkerLoop() {
       });
 
       if (m_shutdown_requested.load()) {
-        // Process remaining signals before shutdown
-        processSignalQueue_unlocked();
+        // Flush any batched properties into the queue first, then drain the
+        // whole queue regardless of m_shutdown_requested. processSignalQueue_-
+        // unlocked() stops as soon as m_shutdown_requested is set, so using it
+        // here would silently drop the final batched PropertiesChanged (e.g.
+        // the Stopped state emitted on stop(true)). Drain explicitly instead.
         flushBatch_unlocked();
+        while (!m_signal_queue.empty()) {
+          if (!processNextSignal_unlocked()) {
+            break; // Error processing signal
+          }
+        }
         shutting_down = true;
       } else {
         // Process queued signals
