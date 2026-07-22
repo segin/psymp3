@@ -420,6 +420,12 @@ class Player
         void toggleEqualizerWindow();
         void applyEqStateToAudio();
 
+        // "About PsyMP3" dialog: a single instance owned by m_random_windows.
+        // Shown from the Help > About menu item and the F1 key; non-owning
+        // back-pointer used to avoid opening a second copy / to bring it forward.
+        WindowFrameWidget* m_about_window = nullptr;
+        void showAboutWindow();
+
         // Persistent user settings (volume, EQ gains/enabled) in psymp3.conf
         // under the config dir; loaded at construction, saved at shutdown.
         void loadSettings();

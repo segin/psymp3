@@ -65,6 +65,17 @@ void about_console()
 }
 
 /**
+ * @brief Returns the multi-line about/version/copyright text.
+ *
+ * Shared by about_console(), the native Windows message box, and the in-app
+ * About dialog (AboutWindow) so all three stay in sync.
+ */
+const char* about_message()
+{
+    return _about_message;
+}
+
+/**
  * @brief Prints GNU-style help information to the standard console output.
  * 
  * This function displays usage information, command-line options, and available

@@ -2422,6 +2422,10 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             toggleZoom();
             break;
 
+        case SDLK_F1:
+            showAboutWindow();
+            break;
+
         // The H, B, and J keys (test window H, test window B, random windows)
         // are deliberately disabled: their handlers are intentionally omitted
         // here. The toggleTestWindowH/toggleTestWindowB/createRandomWindows
@@ -2900,6 +2904,11 @@ bool Player::Initialize(const PlayerOptions& options) {
         settings_items.push_back(MI::leaf("2x &Zoom", [this]{ toggleZoom(); },
             [this]{ return screen && screen->getLogicalScale() == 2; }, "G"));
         menu_bar->addMenu("&Settings", std::move(settings_items));
+
+        // Help: the About dialog (also on F1).
+        std::vector<MI> help_items;
+        help_items.push_back(MI::leaf("&About", [this]{ showAboutWindow(); }, nullptr, "F1"));
+        menu_bar->addMenu("&Help", std::move(help_items));
 
         menu_bar->setZOrder(ZOrder::MAX); // sort above toasts
         app_widget.addWindow(std::move(menu_bar), ZOrder::MAX);
@@ -3858,6 +3867,56 @@ void Player::toggleEqualizerWindow()
     });
     m_random_windows.push_back(std::move(frame));
     showToast("Equalizer: Opened");
+}
+
+/**
+ * @brief Shows the "About PsyMP3" dialog (Help > About, or F1).
+ *
+ * Opens a single About window with the shared version/copyright text. If it is
+ * already open, brings it to the front instead of opening a second copy.
+ */
+void Player::showAboutWindow()
+{
+    if (m_about_window) {
+        m_about_window->bringToFront();
+        return;
+    }
+
+    auto client = std::make_unique<AboutWindow>(font.get());
+    const int cw = client->getPos().width();
+    const int ch = client->getPos().height();
+
+    auto frame = std::make_unique<WindowFrameWidget>(cw, ch, "About PsyMP3", font.get());
+    frame->setResizable(false);
+    frame->setMinimizable(false);
+    frame->setMaximizable(false);
+    frame->setClientArea(std::move(client));
+    frame->refresh();
+
+    // Center the dialog on the logical surface (clamped to the top-left so a
+    // dialog taller/wider than the surface stays reachable).
+    Rect sz = frame->getPos();
+    int x = std::max(0, (Display::LOGICAL_WIDTH - sz.width()) / 2);
+    int y = std::max(0, (Display::LOGICAL_HEIGHT - sz.height()) / 2);
+    frame->setPos(Rect(x, y, sz.width(), sz.height()));
+
+    WindowFrameWidget* fp = frame.get();
+    m_about_window = fp;
+    frame->setOnDrag([fp](int dx, int dy) {
+        Rect p = fp->getPos(); p.x(p.x() + dx); p.y(p.y() + dy); fp->setPos(p);
+    });
+    frame->setOnDragStart([fp] { fp->bringToFront(); });
+    frame->setOnClose([this, fp] {
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [fp](const auto& w) { return w.get() == fp; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_about_window = nullptr;
+    });
+    fp->bringToFront();
+    m_random_windows.push_back(std::move(frame));
 }
 
 /**
