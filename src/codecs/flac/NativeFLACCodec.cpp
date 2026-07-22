@@ -390,13 +390,29 @@ bool FLACCodec::initialize_unlocked() {
     m_initialized = true;
 
     // Recover the STREAMINFO metadata (block sizes, MD5 signature) from the
-    // demuxer-supplied codec_data: the raw 34-byte STREAMINFO body (RFC 9639
-    // Section 8.2). Without this, m_has_streaminfo stays false and whole-stream
-    // MD5 verification never runs. Parsing failure is non-fatal — decoding uses
-    // per-frame header parameters regardless.
-    if (m_stream_info.codec_data.size() >= 34 && m_metadata_parser && m_bitstream_reader) {
+    // demuxer-supplied codec_data. Without this, m_has_streaminfo stays false
+    // and whole-stream MD5 verification never runs. Two layouts occur:
+    //   - native FLAC demuxer: the bare 34-byte STREAMINFO body (RFC 9639
+    //     Section 8.2), so codec_data.size() == 34.
+    //   - FLAC-in-MP4 (dfLa box): FLAC metadata blocks each prefixed with a
+    //     4-byte block header (type + 24-bit length); the first block is
+    //     STREAMINFO, so its body starts at offset 4.
+    // Parsing failure is non-fatal — decoding uses per-frame header parameters.
+    const auto& cd = m_stream_info.codec_data;
+    size_t streaminfo_offset = SIZE_MAX;
+    if (cd.size() == 34) {
+        streaminfo_offset = 0;
+    } else if (cd.size() >= 38 && (cd[0] & 0x7F) == 0) {
+        // Metadata-block form: verify the STREAMINFO block length field is 34.
+        uint32_t block_len = (static_cast<uint32_t>(cd[1]) << 16) |
+                             (static_cast<uint32_t>(cd[2]) << 8) | cd[3];
+        if (block_len == 34) {
+            streaminfo_offset = 4;
+        }
+    }
+    if (streaminfo_offset != SIZE_MAX && m_metadata_parser && m_bitstream_reader) {
         m_bitstream_reader->clearBuffer();
-        m_bitstream_reader->feedData(m_stream_info.codec_data.data(), 34);
+        m_bitstream_reader->feedData(cd.data() + streaminfo_offset, 34);
         StreamInfoMetadata parsed;
         if (m_metadata_parser->parseStreamInfo(parsed)) {
             setStreamInfo_unlocked(parsed);
