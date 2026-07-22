@@ -736,10 +736,12 @@ void ChunkDemuxer::parseWaveList(const Chunk& chunk) {
                 if (!stream_data.copyright.empty() && stream_data.copyright.back() == '\0') {
                     stream_data.copyright.pop_back();
                 }
-            } else {
-                // Skip unknown INFO chunk
-                skipChunk(info_chunk);
             }
+
+            // Realign to the end of this INFO subchunk regardless of which
+            // branch ran, consuming the IFF pad byte after odd-sized payloads
+            // so the next readChunkHeader starts on the next subchunk boundary.
+            skipChunk(info_chunk);
         }
     }
     
@@ -754,8 +756,13 @@ void ChunkDemuxer::parseAiffName(const Chunk& chunk) {
     
     auto& stream_data = m_audio_streams.begin()->second;
     stream_data.title = readFixedString(chunk.size);
-    
+
     Debug::log("chunk", "ChunkDemuxer: AIFF NAME - title=", stream_data.title);
+
+    // Realign to the chunk end, consuming the IFF pad byte after an
+    // odd-sized payload so the main parse loop reads the next chunk header
+    // on the correct boundary.
+    skipChunk(chunk);
 }
 
 void ChunkDemuxer::parseAiffAuth(const Chunk& chunk) {
@@ -766,8 +773,12 @@ void ChunkDemuxer::parseAiffAuth(const Chunk& chunk) {
     
     auto& stream_data = m_audio_streams.begin()->second;
     stream_data.artist = readFixedString(chunk.size);
-    
+
     Debug::log("chunk", "ChunkDemuxer: AIFF AUTH - artist=", stream_data.artist);
+
+    // Realign to the chunk end, consuming the IFF pad byte after an odd-sized
+    // payload.
+    skipChunk(chunk);
 }
 
 void ChunkDemuxer::parseAiffCopyright(const Chunk& chunk) {
@@ -778,8 +789,12 @@ void ChunkDemuxer::parseAiffCopyright(const Chunk& chunk) {
     
     auto& stream_data = m_audio_streams.begin()->second;
     stream_data.copyright = readFixedString(chunk.size);
-    
+
     Debug::log("chunk", "ChunkDemuxer: AIFF (c) - copyright=", stream_data.copyright);
+
+    // Realign to the chunk end, consuming the IFF pad byte after an odd-sized
+    // payload.
+    skipChunk(chunk);
 }
 
 void ChunkDemuxer::parseAiffAnnotation(const Chunk& chunk) {
@@ -790,8 +805,12 @@ void ChunkDemuxer::parseAiffAnnotation(const Chunk& chunk) {
     
     auto& stream_data = m_audio_streams.begin()->second;
     stream_data.comment = readFixedString(chunk.size);
-    
+
     Debug::log("chunk", "ChunkDemuxer: AIFF ANNO - comment=", stream_data.comment);
+
+    // Realign to the chunk end, consuming the IFF pad byte after an odd-sized
+    // payload.
+    skipChunk(chunk);
 }
 
 // Error recovery method implementations
