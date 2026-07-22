@@ -707,29 +707,31 @@ void ChunkDemuxer::parseWaveList(const Chunk& chunk) {
         
         while (m_handler->tell() < static_cast<long>(list_end - 8)) {
             Chunk info_chunk = readChunkHeader();
-            
-            if (info_chunk.fourcc == 0x4D414E49) { // "INAM" - title
+
+            // FourCCs are read big-endian by readChunkHeader, so compare
+            // against big-endian FourCC constants (e.g. "INAM" == 0x494E414D).
+            if (info_chunk.fourcc == 0x494E414D) { // "INAM" - title
                 stream_data.title = readFixedString(info_chunk.size);
                 // Remove null terminator if present
                 if (!stream_data.title.empty() && stream_data.title.back() == '\0') {
                     stream_data.title.pop_back();
                 }
-            } else if (info_chunk.fourcc == 0x54524149) { // "IART" - artist
+            } else if (info_chunk.fourcc == 0x49415254) { // "IART" - artist
                 stream_data.artist = readFixedString(info_chunk.size);
                 if (!stream_data.artist.empty() && stream_data.artist.back() == '\0') {
                     stream_data.artist.pop_back();
                 }
-            } else if (info_chunk.fourcc == 0x4D544E49) { // "ICMT" - comment
+            } else if (info_chunk.fourcc == 0x49434D54) { // "ICMT" - comment
                 stream_data.comment = readFixedString(info_chunk.size);
                 if (!stream_data.comment.empty() && stream_data.comment.back() == '\0') {
                     stream_data.comment.pop_back();
                 }
-            } else if (info_chunk.fourcc == 0x44525049) { // "IPRD" - album
+            } else if (info_chunk.fourcc == 0x49505244) { // "IPRD" - album
                 stream_data.album = readFixedString(info_chunk.size);
                 if (!stream_data.album.empty() && stream_data.album.back() == '\0') {
                     stream_data.album.pop_back();
                 }
-            } else if (info_chunk.fourcc == 0x50595249) { // "ICOP" - copyright
+            } else if (info_chunk.fourcc == 0x49434F50) { // "ICOP" - copyright
                 stream_data.copyright = readFixedString(info_chunk.size);
                 if (!stream_data.copyright.empty() && stream_data.copyright.back() == '\0') {
                     stream_data.copyright.pop_back();
