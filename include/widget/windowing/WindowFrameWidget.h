@@ -253,7 +253,9 @@ private:
     
     // System menu constants
     static constexpr int SYSTEM_MENU_WIDTH = 120;
-    static constexpr int SYSTEM_MENU_HEIGHT = 140;
+    // Top margin (4) + six 16px items (96) + one 4px separator = 104. Matches the
+    // real content laid out by drawSystemMenu(); 140 left a blank grey strip.
+    static constexpr int SYSTEM_MENU_HEIGHT = 104;
     static constexpr int SYSTEM_MENU_SHADOW_OFFSET = 2;
     static constexpr int SYSTEM_MENU_BORDER_MARGIN = 8;
     static constexpr int SYSTEM_MENU_ITEM_HEIGHT = 16;

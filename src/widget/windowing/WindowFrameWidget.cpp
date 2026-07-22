@@ -209,6 +209,77 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
     if (event.button == SDL_BUTTON_LEFT) {
         setActiveWindow(this);
 
+        // If the control (system) menu is open, hit-test its items first: it is
+        // drawn below the titlebar and overlaps the client area, so it must be
+        // consulted before the client routing further down. The item layout here
+        // must mirror drawSystemMenu(): top margin, then the text items and the
+        // one separator, in this exact order:
+        //   0 Restore, 1 Move, 2 Size, 3 Minimize, 4 Maximize, 5 separator, 6 Close
+        if (m_system_menu_open) {
+            const bool inside_menu =
+                relative_x >= m_system_menu_x && relative_x < m_system_menu_x + SYSTEM_MENU_WIDTH &&
+                relative_y >= m_system_menu_y && relative_y < m_system_menu_y + SYSTEM_MENU_HEIGHT;
+            if (inside_menu) {
+                int hit = -1;               // index of the text item under the cursor
+                int item_y = m_system_menu_y + SYSTEM_MENU_TOP_MARGIN;
+                for (int i = 0; i < 7; ++i) {
+                    const bool is_separator = (i == 5);
+                    const int h = is_separator ? SYSTEM_MENU_SEPARATOR_HEIGHT : SYSTEM_MENU_ITEM_HEIGHT;
+                    if (!is_separator && relative_y >= item_y && relative_y < item_y + h) {
+                        hit = i;
+                        break;
+                    }
+                    item_y += h;
+                }
+
+                // Close the menu before dispatching (an action may destroy this
+                // widget, after which no members may be touched).
+                m_system_menu_open = false;
+                rebuildSurface();
+
+                switch (hit) {
+                    case 0: // Restore
+                        if (m_maximized) {
+                            toggleMaximize();
+                            if (m_on_maximize) {
+                                auto on_maximize = m_on_maximize;
+                                on_maximize();
+                            }
+                        }
+                        // A non-maximized window has nothing to restore from here
+                        // (un-minimizing is driven elsewhere) — no-op.
+                        break;
+                    case 3: // Minimize — same action as the titlebar minimize button
+                        if (m_on_minimize) {
+                            auto on_minimize = m_on_minimize;
+                            on_minimize();
+                        }
+                        break;
+                    case 4: // Maximize — same action as the titlebar maximize button
+                        toggleMaximize();
+                        if (m_on_maximize) {
+                            auto on_maximize = m_on_maximize;
+                            on_maximize();
+                        }
+                        break;
+                    case 6: // Close — same action as the titlebar double-click close
+                        if (m_on_close) {
+                            auto on_close = m_on_close;
+                            on_close();
+                        }
+                        break;
+                    case 1: // Move
+                    case 2: // Size
+                        // Keyboard-driven move/size mode is not implemented; the
+                        // menu closes with no action rather than inventing a new op.
+                        break;
+                    default:
+                        break;
+                }
+                return true;
+            }
+        }
+
         // Check if click is in titlebar
         if (isInTitlebar(relative_x, relative_y)) {
             // Check for control menu click
@@ -1115,8 +1186,17 @@ void WindowFrameWidget::drawSystemMenu(Surface& surface) const
             surface.hline(m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN, m_system_menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y + 1, 0, 0, 0, 255);
             current_y += SYSTEM_MENU_SEPARATOR_HEIGHT;
         } else {
-            // Menu item area (could be highlighted if selected)
-            // For now, just reserve the space - text rendering would go here
+            // Render the item label as black text on the light-grey menu.
+            if (m_font) {
+                auto text_surface = m_font->Render(
+                    TagLib::String(menu_items[i], TagLib::String::UTF8), 0, 0, 0);
+                if (text_surface) {
+                    int text_x = m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN;
+                    int text_y = current_y + (SYSTEM_MENU_ITEM_HEIGHT - text_surface->height()) / 2;
+                    surface.Blit(*text_surface,
+                                 Rect(text_x, text_y, text_surface->width(), text_surface->height()));
+                }
+            }
             current_y += SYSTEM_MENU_ITEM_HEIGHT;
         }
     }
