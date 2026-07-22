@@ -122,7 +122,7 @@ void FFT::neomat_fft_init_twiddle_factors() {
  * @param input A pointer to the float array of time-domain input samples.
  */
 void FFT::original_fft_impl(float *output, const float *input) { 
-	int nu = (int) (logf(size) / logf(2.0f)); // Number of bits of item indexes
+	int nu = 0; while ((1u << nu) < static_cast<unsigned>(size)) ++nu; // exact log2 for power-of-two size (float logf truncates 8192->12, 32768->14)
 	int n2 = size / 2;
 	int nu1 = nu - 1;
 	float tr, ti, arg, c, s;
@@ -180,7 +180,7 @@ void FFT::original_fft_impl(float *output, const float *input) {
  * @param input A pointer to the float array of time-domain input samples.
  */
 void FFT::optimized_fft_impl(float *output, const float *input) { // vibe-1
-    int nu = (int) (logf(size) / logf(2.0f)); // Number of bits for bitreverse
+    int nu = 0; while ((1u << nu) < static_cast<unsigned>(size)) ++nu; // exact log2 (see above)
 
     // 1. Copy input to internal real/imag and perform bit-reversal permutation
     for (int i = 0; i < size; ++i) { // Bit-reversal permutation
@@ -225,7 +225,7 @@ void FFT::optimized_fft_impl(float *output, const float *input) { // vibe-1
  * @param input A pointer to the float array of time-domain input samples.
  */
 void FFT::neomat_in_place_fft_impl(float *output, const float *input) { // neomat-in
-    int nu = (int) (logf(size) / logf(2.0f));
+    int nu = 0; while ((1u << nu) < static_cast<unsigned>(size)) ++nu; // exact log2
 
     // 1. Convert input to complex and perform bit-reversal permutation
     for (int i = 0; i < size; ++i) {
@@ -259,7 +259,7 @@ void FFT::neomat_in_place_fft_impl(float *output, const float *input) { // neoma
  * @param input A pointer to the float array of time-domain input samples.
  */
 void FFT::neomat_out_of_place_fft_impl(float *output, const float *input) { // neomat-out
-    int nu = (int) (logf(size) / logf(2.0f));
+    int nu = 0; while ((1u << nu) < static_cast<unsigned>(size)) ++nu; // exact log2
 
     // 1. Convert input to complex and perform bit-reversal permutation into output buffer
     for (int i = 0; i < size; ++i) {
