@@ -233,8 +233,15 @@ std::unique_ptr<Tag> TagFactory::createFromFile(const std::string& filepath) {
         return std::make_unique<NullTag>();
     }
     
+    // Reading the 1KB header from a file smaller than 1KB sets eofbit (and
+    // failbit), and C++11 seekg() only clears eofbit. Reset the stream state
+    // here so the subsequent seek/tell/read below actually run instead of
+    // failing their sentries and silently discarding a valid tag (mirrors the
+    // reopen in parseMP3Tags()).
+    file.clear();
+
     TagFormat format = detectFormat(header.data(), bytes_read);
-    
+
     switch (format) {
         case TagFormat::ID3v2: {
             // Read full ID3v2 tag
