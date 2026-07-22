@@ -409,9 +409,13 @@ size_t FileIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
                 fill_success = fillBuffer(read_position, read_size);
                 
                 if (!fill_success && m_error.load() == 0) {
-                    // Check if we hit EOF (file mutex already held)
-                    if (feof(m_file_handle.get())) {
-                        updateEofState(true);
+                    // Check the m_eof flag that fillBuffer sets on a logical EOF
+                    // (file_position >= cached size), NOT stdio feof(): fillBuffer
+                    // clamps its reads to the exact remaining bytes, so stdio
+                    // never sets its EOF indicator, and the old feof() test fell
+                    // through to fabricating an error code from stale errno on
+                    // every normal over-length read at end-of-file.
+                    if (m_eof.load()) {
                         Debug::log("io", "FileIOHandler::read() - Reached end of file during buffer fill");
                     } else {
                         // ferror() only reports that the error indicator is set,
