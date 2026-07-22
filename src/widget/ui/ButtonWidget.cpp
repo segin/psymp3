@@ -58,9 +58,13 @@ bool ButtonWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relati
     if (relative_x >= 0 && relative_x < pos.width() && 
         relative_y >= 0 && relative_y < pos.height()) {
         m_pressed = true;
-        
-        // Global mouse tracking enabled (SDL 1.2 doesn't have mouse capture)
-        
+
+        // Grab the mouse so the matching up event is delivered here even if the
+        // cursor leaves the button before release. Without capture a release off
+        // the button never reaches us, m_pressed stays set forever, and a later
+        // unrelated release over the button would spuriously fire m_on_click.
+        captureMouse();
+
         rebuildSurface();
         return true;
     }
@@ -75,22 +79,23 @@ bool ButtonWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative
     }
     
     if (m_pressed) {
+        // Clear the pressed state and release the capture taken in
+        // handleMouseDown, regardless of where the release landed.
         m_pressed = false;
-        
-        // Global mouse tracking disabled (SDL 1.2 doesn't have mouse capture)
-        
-        // Check if mouse is still over button for click
+        releaseMouse();
+
+        // Only fire the click when the release lands over the button after the
+        // captured press; a release elsewhere cancels the press silently.
         Rect pos = getPos();
-        bool mouse_over_button = (relative_x >= 0 && relative_x < pos.width() && 
+        bool mouse_over_button = (relative_x >= 0 && relative_x < pos.width() &&
                                  relative_y >= 0 && relative_y < pos.height());
-        
-        // For global tracking, always consider it a valid click if button was pressed
-        if (mouse_over_button || m_global_mouse_tracking) {
+
+        if (mouse_over_button) {
             if (m_on_click) {
                 m_on_click();
             }
         }
-        
+
         rebuildSurface();
         return true;
     }
