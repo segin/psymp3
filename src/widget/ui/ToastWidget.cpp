@@ -243,7 +243,15 @@ void ToastWidget::updateSize()
     // Ensure minimum size
     window_width = std::max(window_width, 50);
     window_height = std::max(window_height, 30);
-    
+
+    // Clamp to a sane maximum so long error messages/paths don't render wider
+    // than the 640px canvas (which would push the centered toast off-screen at
+    // a negative x). The toast has no word-wrap, so an over-long single line is
+    // truncated at the right edge by the blit clip. 600px matches the intent of
+    // the (dead) calculateSize() clamp.
+    window_width = std::min(window_width, 600);
+    window_height = std::min(window_height, 300);
+
     // Update our position to maintain the new size
     Rect current_pos = getPos();
     current_pos.width(window_width);
