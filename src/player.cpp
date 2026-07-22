@@ -557,8 +557,14 @@ Player::~Player() {
     }
 #endif
     if (m_loader_active) {
-        m_loader_active = false;
-        m_loader_queue_cv.notify_one(); 
+        // Set the flag under m_loader_queue_mutex (the loader's wait predicate
+        // mutex) so a store+notify can't be lost between the loader's predicate
+        // check and its block, which would hang join() forever.
+        {
+            std::lock_guard<std::mutex> lock(m_loader_queue_mutex);
+            m_loader_active = false;
+        }
+        m_loader_queue_cv.notify_one();
         if (m_loader_thread.joinable()) {
             m_loader_thread.join();
         }
@@ -3154,7 +3160,12 @@ void Player::Cleanup() {
     // SDL_PushEvent against a torn-down event subsystem (use-after-free inside
     // SDL). ~Player also joins them, but its joinable() guards make that a
     // no-op once we have joined here.
-    m_loader_active = false;
+    // Set the flag under m_loader_queue_mutex (see ~Player) to avoid a lost
+    // wakeup that would hang this join() at exit.
+    {
+        std::lock_guard<std::mutex> lock(m_loader_queue_mutex);
+        m_loader_active = false;
+    }
     m_loader_queue_cv.notify_one();
     if (m_loader_thread.joinable()) {
         m_loader_thread.join();
