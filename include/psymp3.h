@@ -56,7 +56,8 @@ enum {
     DO_SET_LOOP_MODE,
     QUIT_APPLICATION,
     AUTOMATED_SKIP_TRACK,
-    SHOW_NOTIFICATION
+    SHOW_NOTIFICATION,
+    RAISE_WINDOW // Bring the player window to the foreground (MPRIS Raise)
 };
 
 enum class PlayerState {

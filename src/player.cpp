@@ -3157,6 +3157,11 @@ void Player::EventLoop() {
                     nextTrack();
                 } else if (event.user.code == QUIT_APPLICATION) {
                     done = true;
+                } else if (event.user.code == RAISE_WINDOW) {
+                    // MPRIS Raise: bring the player window to the foreground.
+                    if (screen && screen->getWindowHandle()) {
+                        SDL_RaiseWindow(screen->getWindowHandle());
+                    }
                 } else {
                     done = handleUserEvent(event.user);
                 }

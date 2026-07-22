@@ -360,11 +360,20 @@ void MethodHandler::initializePropertyHandlers_unlocked() {
 DBusHandlerResult
 MethodHandler::handleRaise_unlocked(DBusConnection *connection,
                                     DBusMessage *message) {
-  // Bring the media player to the foreground
-  // For PsyMP3, this might mean focusing the window or just logging
+  // Bring the media player window to the foreground.
   Debug::log("mpris", "Received Raise command - bringing player to foreground");
 
+  // Send reply before acting to ensure the client gets a response.
   sendMethodReturn_unlocked(connection, message);
+
+  // Signal the player to raise its window using the established user-event
+  // pattern (mirrors handleQuit_unlocked below).
+#ifndef TESTING
+  if (m_player) {
+    Player::synthesizeUserEvent(RAISE_WINDOW, nullptr, nullptr);
+  }
+#endif
+
   return DBUS_HANDLER_RESULT_HANDLED;
 }
 
