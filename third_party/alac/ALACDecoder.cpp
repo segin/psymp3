@@ -251,6 +251,12 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 				{
 					numSamples  = BitBufferRead( bits, 16 ) << 16;
 					numSamples |= BitBufferRead( bits, 16 );
+
+					// A partial frame may only be SHORTER than the configured
+					// frame length. A crafted stream supplying numSamples >
+					// frameLength would overrun mMixBufferU/V and mPredictor
+					// (calloc'd to frameLength) and the caller's output buffer.
+					RequireAction( numSamples <= mConfig.frameLength, status = kALAC_ParamError; goto Exit; );
 				}
 
 				if ( escapeFlag == 0 )
@@ -402,6 +408,12 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 				{
 					numSamples  = BitBufferRead( bits, 16 ) << 16;
 					numSamples |= BitBufferRead( bits, 16 );
+
+					// A partial frame may only be SHORTER than the configured
+					// frame length. A crafted stream supplying numSamples >
+					// frameLength would overrun mMixBufferU/V and mPredictor
+					// (calloc'd to frameLength) and the caller's output buffer.
+					RequireAction( numSamples <= mConfig.frameLength, status = kALAC_ParamError; goto Exit; );
 				}
 
 				if ( escapeFlag == 0 )
