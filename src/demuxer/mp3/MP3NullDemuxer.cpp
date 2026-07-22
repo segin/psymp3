@@ -387,19 +387,31 @@ MediaChunk MP3NullDemuxer::readChunk_unlocked() {
         return MediaChunk();
     }
 
-    // Validate and find sync if needed
+    // Validate and find sync if needed. A header with a valid 11-bit sync but
+    // invalid fields (e.g. reserved MPEG version FF E8) is a FALSE sync: the
+    // old code sought back, re-found the same 2-byte sync, re-failed validation
+    // once, and permanently flagged EOF — silently losing the rest of the track
+    // (common after a seek that lands mid-payload). Instead, scan forward past
+    // false syncs one byte at a time until a fully valid header is found.
     if (!isValidFrameHeader(header)) {
         m_handler->seek(-4, SEEK_CUR);
-        if (!findFrameSync_unlocked()) {
-            m_eof_flag.store(true);
-            return MediaChunk();
+        bool found = false;
+        while (static_cast<uint64_t>(m_handler->tell()) < m_data_end_offset) {
+            if (!findFrameSync_unlocked()) {
+                break; // no further sync candidates
+            }
+            frame_offset = static_cast<uint64_t>(m_handler->tell());
+            if (m_handler->read(header, 1, 4) != 4) {
+                break;
+            }
+            if (isValidFrameHeader(header)) {
+                found = true;
+                break;
+            }
+            // False sync: step one byte past it and keep scanning.
+            m_handler->seek(static_cast<long>(frame_offset) + 1, SEEK_SET);
         }
-        frame_offset = static_cast<uint64_t>(m_handler->tell());
-        if (m_handler->read(header, 1, 4) != 4) {
-            m_eof_flag.store(true);
-            return MediaChunk();
-        }
-        if (!isValidFrameHeader(header)) {
+        if (!found) {
             m_eof_flag.store(true);
             return MediaChunk();
         }
