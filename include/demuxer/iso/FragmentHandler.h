@@ -20,24 +20,31 @@ namespace ISO {
  * @brief Track fragment information structure
  */
 struct TrackFragmentInfo {
-    uint32_t trackId;
-    uint64_t baseDataOffset;
-    uint32_t sampleDescriptionIndex;
-    uint32_t defaultSampleDuration;
-    uint32_t defaultSampleSize;
-    uint32_t defaultSampleFlags;
-    
+    // Default-initialize every scalar: the tfhd/trun parsers only assign these
+    // when the corresponding optional flag is present, and the standard
+    // default-base-is-moof layout leaves baseDataOffset unwritten. Reading an
+    // indeterminate value as a file offset (UpdateSampleTables/ExtractFragment-
+    // Sample) is UB and seeks to a random position. Zero is the correct default.
+    uint32_t trackId = 0;
+    uint64_t baseDataOffset = 0;
+    uint32_t sampleDescriptionIndex = 0;
+    uint32_t defaultSampleDuration = 0;
+    uint32_t defaultSampleSize = 0;
+    uint32_t defaultSampleFlags = 0;
+
     // Track run information
     struct TrackRunInfo {
-        uint32_t sampleCount;
-        uint32_t dataOffset;
-        uint32_t firstSampleFlags;
+        uint32_t sampleCount = 0;
+        // Signed per ISO/IEC 14496-12 §8.8.8 (data can precede the base offset);
+        // a uint32_t zero-extends a negative value into a ~4 GB positive offset.
+        int32_t dataOffset = 0;
+        uint32_t firstSampleFlags = 0;
         std::vector<uint32_t> sampleDurations;
         std::vector<uint32_t> sampleSizes;
         std::vector<uint32_t> sampleFlags;
         std::vector<uint32_t> sampleCompositionTimeOffsets;
     };
-    
+
     std::vector<TrackRunInfo> trackRuns;
     uint64_t tfdt = 0; // Track fragment decode time
 };
@@ -46,10 +53,10 @@ struct TrackFragmentInfo {
  * @brief Movie fragment header information
  */
 struct MovieFragmentInfo {
-    uint32_t sequenceNumber;
-    uint64_t moofOffset;
-    uint64_t mdatOffset;
-    uint64_t mdatSize;
+    uint32_t sequenceNumber = 0;
+    uint64_t moofOffset = 0;
+    uint64_t mdatOffset = 0;
+    uint64_t mdatSize = 0;
     std::vector<TrackFragmentInfo> trackFragments;
     bool isComplete = false;
 };

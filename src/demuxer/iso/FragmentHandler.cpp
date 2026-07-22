@@ -55,7 +55,11 @@ bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std:
     // Get file size for validation
     io->seek(0, SEEK_END);
     uint64_t fileSize = static_cast<uint64_t>(io->tell());
-    
+
+    // moof header size: 8 normally, 16 when it uses the 64-bit largesize form.
+    // Set precisely on the size==0 path (where we read the header here).
+    uint64_t moofHeaderSize = 8;
+
     // If size is 0, read the box header to get the actual size
     if (size == 0) {
         io->seek(static_cast<off_t>(offset), SEEK_SET);
@@ -85,12 +89,12 @@ bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std:
             if (offset + 16 > fileSize) {
                 return false;
             }
-            
+
             uint8_t extSizeBytes[8];
             if (io->read(extSizeBytes, 1, 8) != 8) {
                 return false;
             }
-            
+
             size = (static_cast<uint64_t>(extSizeBytes[0]) << 56) |
                    (static_cast<uint64_t>(extSizeBytes[1]) << 48) |
                    (static_cast<uint64_t>(extSizeBytes[2]) << 40) |
@@ -99,16 +103,20 @@ bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std:
                    (static_cast<uint64_t>(extSizeBytes[5]) << 16) |
                    (static_cast<uint64_t>(extSizeBytes[6]) << 8) |
                    static_cast<uint64_t>(extSizeBytes[7]);
+            moofHeaderSize = 16; // largesize box: 8-byte header + 8-byte size
         }
     }
-    
+
     // Validate size
     if (offset + size > fileSize) {
         return false;
     }
-    
-    // Parse moof box children
-    uint64_t currentOffset = offset + 8; // Skip box header
+
+    // Parse moof box children. Skip the ACTUAL header size: a moof using the
+    // 64-bit largesize form has a 16-byte header, so the old fixed offset+8
+    // landed on the largesize field and parsed it as a child box header,
+    // rejecting every extended-header moof.
+    uint64_t currentOffset = offset + moofHeaderSize;
     uint64_t endOffset = offset + size;
     
     while (currentOffset < endOffset) {
@@ -120,7 +128,7 @@ bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std:
             return false;
         }
         
-        uint32_t boxSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
+        uint64_t boxSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
                           (static_cast<uint32_t>(headerBytes[1]) << 16) |
                           (static_cast<uint32_t>(headerBytes[2]) << 8) |
                           static_cast<uint32_t>(headerBytes[3]);
@@ -222,7 +230,7 @@ bool FragmentHandler::ParseTrackFragmentBox(uint64_t offset, uint64_t size, std:
             return false;
         }
         
-        uint32_t boxSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
+        uint64_t boxSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
                           (static_cast<uint32_t>(headerBytes[1]) << 16) |
                           (static_cast<uint32_t>(headerBytes[2]) << 8) |
                           static_cast<uint32_t>(headerBytes[3]);
@@ -740,70 +748,80 @@ bool FragmentHandler::ValidateTrackFragment(const TrackFragmentInfo& traf) const
     return true;
 }
 
-bool FragmentHandler::ExtractFragmentSample(uint32_t trackId, uint64_t sampleIndex, 
+bool FragmentHandler::ExtractFragmentSample(uint32_t trackId, uint64_t sampleIndex,
                                           uint64_t& offset, uint32_t& size) {
-    // Find the fragment containing this sample
-    // This is a simplified implementation - in a real-world scenario,
-    // we would need to map global sample indices to fragment-specific indices
-    
-    MovieFragmentInfo* fragment = GetCurrentFragment();
-    if (!fragment) {
-        return false;
-    }
-    
-    // Find the track fragment for this track
-    TrackFragmentInfo* traf = nullptr;
-    for (auto& trackFragment : fragment->trackFragments) {
-        if (trackFragment.trackId == trackId) {
-            traf = &trackFragment;
-            break;
-        }
-    }
-    
-    if (!traf) {
-        return false;
-    }
-    
-    // Find the track run containing this sample
-    uint64_t runStartSample = 0;
-    
-    for (const auto& trun : traf->trackRuns) {
-        if (sampleIndex >= runStartSample && sampleIndex < runStartSample + trun.sampleCount) {
-            // Found the run containing this sample
-            uint64_t sampleIndexInRun = sampleIndex - runStartSample;
-            
-            // Calculate base data offset
-            uint64_t baseDataOffset = traf->baseDataOffset;
-            if (baseDataOffset == 0) {
-                baseDataOffset = fragment->moofOffset;
+    // Map the GLOBAL sample index (which grows monotonically across the whole
+    // track) to the fragment and run that contain it. The previous code only
+    // looked at GetCurrentFragment() (fragments[0], never advanced on sequential
+    // reads), so once the index passed fragment 0's sample count it returned
+    // false and playback stopped at the first of any 2+ fragment file. Walk all
+    // fragments, accumulating each fragment's sample count for this track.
+    uint64_t globalStart = 0;
+
+    for (auto& fragment : fragments) {
+        // Find this track's fragment within the current moof.
+        TrackFragmentInfo* traf = nullptr;
+        for (auto& trackFragment : fragment.trackFragments) {
+            if (trackFragment.trackId == trackId) {
+                traf = &trackFragment;
+                break;
             }
-            
-            // Add data offset from trun
-            baseDataOffset += trun.dataOffset;
-            
-            // Calculate sample offset within run
-            for (uint64_t i = 0; i < sampleIndexInRun; i++) {
-                if (i < trun.sampleSizes.size()) {
-                    baseDataOffset += trun.sampleSizes[i];
-                } else {
-                    baseDataOffset += traf->defaultSampleSize;
+        }
+        if (!traf) {
+            continue; // this fragment carries no run for the requested track
+        }
+
+        // Total samples this track contributes in this fragment.
+        uint64_t fragmentSampleCount = 0;
+        for (const auto& trun : traf->trackRuns) {
+            fragmentSampleCount += trun.sampleCount;
+        }
+
+        if (sampleIndex >= globalStart + fragmentSampleCount) {
+            globalStart += fragmentSampleCount; // sample lies in a later fragment
+            continue;
+        }
+
+        // The sample is in this fragment; rebase to a fragment-local index and
+        // locate the containing run.
+        uint64_t localIndex = sampleIndex - globalStart;
+        uint64_t runStartSample = 0;
+        for (const auto& trun : traf->trackRuns) {
+            if (localIndex >= runStartSample && localIndex < runStartSample + trun.sampleCount) {
+                uint64_t sampleIndexInRun = localIndex - runStartSample;
+
+                // Base data offset: an unset (0) baseDataOffset means
+                // default-base-is-moof, so it is the moof's own offset.
+                uint64_t baseDataOffset = traf->baseDataOffset;
+                if (baseDataOffset == 0) {
+                    baseDataOffset = fragment.moofOffset;
                 }
+                // trun.dataOffset is signed (may precede the base offset); the
+                // uint64 += int32 sign-extends correctly.
+                baseDataOffset += trun.dataOffset;
+
+                for (uint64_t i = 0; i < sampleIndexInRun; i++) {
+                    if (i < trun.sampleSizes.size()) {
+                        baseDataOffset += trun.sampleSizes[i];
+                    } else {
+                        baseDataOffset += traf->defaultSampleSize;
+                    }
+                }
+
+                offset = baseDataOffset;
+                if (sampleIndexInRun < trun.sampleSizes.size()) {
+                    size = trun.sampleSizes[sampleIndexInRun];
+                } else {
+                    size = traf->defaultSampleSize;
+                }
+                return true;
             }
-            
-            // Set output parameters
-            offset = baseDataOffset;
-            if (sampleIndexInRun < trun.sampleSizes.size()) {
-                size = trun.sampleSizes[sampleIndexInRun];
-            } else {
-                size = traf->defaultSampleSize;
-            }
-            
-            return true;
+            runStartSample += trun.sampleCount;
         }
-        
-        runStartSample += trun.sampleCount;
+        // Index fell within the fragment's count but no run matched (malformed).
+        return false;
     }
-    
+
     return false;
 }
 
@@ -863,7 +881,7 @@ uint64_t FragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<
         return 0;
     }
     
-    uint32_t moofSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
+    uint64_t moofSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
                        (static_cast<uint32_t>(headerBytes[1]) << 16) |
                        (static_cast<uint32_t>(headerBytes[2]) << 8) |
                        static_cast<uint32_t>(headerBytes[3]);
