@@ -294,9 +294,14 @@ void IOBufferPool::clear() {
         }
         pool.second->available_buffers.clear();
     }
-    
-    m_current_pool_size = 0;
-    
+
+    // Subtract exactly what we freed rather than zeroing: a concurrent
+    // PoolEntry::returnBuffer (which holds only its per-entry mutex, not
+    // m_pools_mutex) can fetch_add a buffer into an already-processed entry
+    // between our loop and here. Zeroing would clobber that add and later
+    // wrap the unsigned counter on the next acquire(), disabling pooling.
+    m_current_pool_size.fetch_sub(total_freed, std::memory_order_relaxed);
+
     Debug::log("memory", "BufferPool::clear() - Freed ", total_freed, " bytes from pool");
 }
 
