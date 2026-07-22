@@ -274,7 +274,15 @@ bool SampleTableManager::BuildOptimizedChunkTable(const SampleTableInfo& rawTabl
         }
         
         uint32_t chunkCount = lastChunk - firstChunk + 1;
-        uint32_t totalSamples = chunkCount * entry.samplesPerChunk;
+        // samplesPerChunk is an untrusted 32-bit stsc field; chunkCount *
+        // samplesPerChunk can overflow uint32 and wrap (mapping samples to
+        // wrong chunks / spurious EOF). Compute in 64-bit and skip the entry if
+        // it exceeds the 32-bit range, matching ErrorRecovery's guard.
+        uint64_t totalSamples64 = static_cast<uint64_t>(chunkCount) * entry.samplesPerChunk;
+        if (totalSamples64 > 0xFFFFFFFFull) {
+            continue; // implausibly large / overflowing entry
+        }
+        uint32_t totalSamples = static_cast<uint32_t>(totalSamples64);
         
         // Create compressed chunk info with enhanced compression
         CompressedChunkInfo compressedInfo;
