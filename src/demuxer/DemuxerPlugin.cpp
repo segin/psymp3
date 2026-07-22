@@ -150,6 +150,12 @@ bool DemuxerPluginManager::loadPlugin(const std::string& plugin_path) {
     // Register plugin formats
     if (!registerPluginFormats(plugin_handle.get())) {
         Debug::log("plugin", "DemuxerPluginManager::loadPlugin: Failed to register formats: ", plugin_name);
+        // Roll back any formats/detectors already registered before unmapping
+        // the library: leaving them registered means std::functions capturing
+        // code in the .so survive the dlclose below, so a later detector/factory
+        // call jumps into unmapped memory (SIGSEGV). unregisterPluginFormats is
+        // idempotent over whatever partial registration succeeded.
+        unregisterPluginFormats(plugin_handle.get());
         unloadLibrary(library_handle);
         m_stats.failed_loads++;
         return false;
