@@ -2829,6 +2829,13 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
     switch (sample_rate_bits) {
         case 0x00:                                    // Requirement 6.2: Get from STREAMINFO
             frame.sample_rate = m_streaminfo.sample_rate;
+            // Requirement 20.1: sample-rate bits 0b0000 (get from STREAMINFO)
+            // violate the streamable subset (RFC 9639 §20.1), mirroring how the
+            // bit-depth 0b000 case is handled in parseBitDepthBits_unlocked.
+            if (m_is_streamable_subset) {
+                FLAC_DEBUG("[parseFrameHeader] Requirement 20.1: sample-rate bits 0b0000 - marking as non-streamable");
+                m_is_streamable_subset = false;
+            }
             break;
         case 0x01: frame.sample_rate = 88200; break;  // Requirement 6.3
         case 0x02: frame.sample_rate = 176400; break; // Requirement 6.4
