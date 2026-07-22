@@ -40,16 +40,15 @@ bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t off
         
         uint32_t boxSize = ReadUInt32BE(io, currentOffset);
         uint32_t boxType = ReadUInt32BE(io, currentOffset + 4);
-        
-        if (boxSize == 0 || boxSize < 8) {
-            break;
-        }
-        
-        uint64_t boxDataOffset = currentOffset + 8;
-        uint64_t boxDataSize = boxSize - 8;
-        uint64_t actualBoxSize = boxSize;
 
-        // Handle extended size
+        uint64_t boxDataOffset;
+        uint64_t boxDataSize;
+        uint64_t actualBoxSize;
+
+        // Handle extended (64-bit) size FIRST: boxSize == 1 signals a largesize
+        // box. The previous "boxSize < 8 -> break" ran before this branch, so
+        // (1 < 8) aborted parsing at any largesize child and silently dropped
+        // every metadata box after it.
         if (boxSize == 1) {
             if (currentOffset + 16 > endOffset) {
                 break;
@@ -63,6 +62,12 @@ bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t off
             boxDataOffset = currentOffset + 16;
             boxDataSize = extendedSize - 16;
             actualBoxSize = extendedSize;
+        } else if (boxSize == 0 || boxSize < 8) {
+            break;
+        } else {
+            boxDataOffset = currentOffset + 8;
+            boxDataSize = boxSize - 8;
+            actualBoxSize = boxSize;
         }
         
         // Parse specific metadata boxes
@@ -194,9 +199,14 @@ bool MetadataExtractor::ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, u
                     // Artwork - store as binary data indicator
                     value = "[ARTWORK_DATA]";
                 } else if (atomType == BOX_TRACK || atomType == BOX_DISK) {
-                    // Track/disk number - binary format
+                    // Track/disk number - iTunes binary format: [0-1] padding,
+                    // [2-3] number, [4-5] total. Read the 16-bit number from
+                    // bytes [2-3], which lie within the guaranteed 4-byte
+                    // minimum. The old ReadUInt32BE(dataOffset+2) spanned the
+                    // number AND the total, yielding (number<<16)|total (e.g.
+                    // "3/12" -> 196620), and read 2 bytes past the guarantee.
                     if (dataSize >= 4) {
-                        uint32_t trackNum = ReadUInt32BE(io, dataOffset + 2); // Skip padding
+                        uint32_t trackNum = ReadUInt32BE(io, dataOffset) & 0xFFFF;
                         value = std::to_string(trackNum);
                     }
                 } else {
