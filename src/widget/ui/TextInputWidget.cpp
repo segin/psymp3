@@ -332,27 +332,39 @@ void TextInputWidget::rebuildSurface()
     const int inner_width = std::max(1, pos.width() - 8);
 
     std::string full_utf8 = narrowText(m_text);
-    std::string display_utf8 = full_utf8;
-    size_t visible_start = 0;
     std::unique_ptr<Surface> text_surface;
 
-    while (visible_start < full_utf8.size()) {
-        display_utf8 = full_utf8.substr(visible_start);
-        if (m_font) {
-            text_surface = m_font->Render(TagLib::String(display_utf8, TagLib::String::UTF8), 0, 0, 0);
+    // Width in pixels of the UTF-8 byte range [from, to).
+    auto prefix_width = [&](size_t from, size_t to) -> int {
+        if (!m_font || to <= from) {
+            return 0;
         }
-        if (!text_surface || text_surface->width() + 1 <= inner_width) {
-            break;
-        }
-        // Advance by one whole UTF-8 codepoint. Stepping a single byte could
-        // leave visible_start in the middle of a multi-byte sequence, so the
-        // next substr() would begin on a continuation byte that the strict
-        // UTF-8 decoder rejects (garbling the text and the caret offset).
+        auto s = m_font->Render(
+            TagLib::String(full_utf8.substr(from, to - from), TagLib::String::UTF8), 0, 0, 0);
+        return s ? s->width() : 0;
+    };
+
+    // Make the viewport follow the caret. Advance visible_start only toward the
+    // caret, so the caret is never pushed off the left edge (previously a caret
+    // left of visible_start clamped to 0 while edits happened at the true
+    // offscreen index — Home then typing was invisible), and stop as soon as the
+    // caret fits within inner_width so it never spills past the right edge. Each
+    // step lands on a UTF-8 lead byte; stepping a single byte could leave
+    // visible_start on a continuation byte that the strict decoder rejects
+    // (garbling the text and the caret offset).
+    const size_t caret = std::min(m_caret_index, full_utf8.size());
+    size_t visible_start = 0;
+    while (visible_start < caret && prefix_width(visible_start, caret) + 1 > inner_width) {
         ++visible_start;
-        while (visible_start < full_utf8.size() &&
+        while (visible_start < caret &&
                (static_cast<unsigned char>(full_utf8[visible_start]) & 0xC0) == 0x80) {
             ++visible_start;
         }
+    }
+
+    std::string display_utf8 = full_utf8.substr(visible_start);
+    if (m_font && !display_utf8.empty()) {
+        text_surface = m_font->Render(TagLib::String(display_utf8, TagLib::String::UTF8), 0, 0, 0);
     }
 
     if (full_utf8.empty() && !m_placeholder.isEmpty() && !m_focused && m_font) {
