@@ -123,7 +123,9 @@ private:
     static std::map<std::string, FormatRegistration> s_formats;
     static std::map<std::string, std::string> s_extension_to_format;
     static std::map<std::string, std::string> s_mime_to_format;
-    static bool s_initialized;
+    // Atomic so the lock-free fast-path read in createStream*/analyzeContent is
+    // not a data race; the check-and-init write is serialized by s_factory_mutex.
+    static std::atomic<bool> s_initialized;
     static std::mutex s_factory_mutex; // Thread safety for factory operations
     
     static void initializeDefaultFormats();

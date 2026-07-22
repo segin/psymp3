@@ -17,14 +17,13 @@ namespace Demuxer {
 std::map<std::string, MediaFactory::FormatRegistration> MediaFactory::s_formats;
 std::map<std::string, std::string> MediaFactory::s_extension_to_format;
 std::map<std::string, std::string> MediaFactory::s_mime_to_format;
-bool MediaFactory::s_initialized = false;
+std::atomic<bool> MediaFactory::s_initialized{false};
 std::mutex MediaFactory::s_factory_mutex; // Thread safety for factory operations
-static std::mutex s_init_mutex; // Separate mutex for initialization
 
 std::unique_ptr<Stream> MediaFactory::createStream(const std::string& uri) {
     // Thread-safe initialization check with double-checked locking
     if (!s_initialized) {
-        std::lock_guard<std::mutex> init_lock(s_init_mutex);
+        std::lock_guard<std::mutex> init_lock(s_factory_mutex);
         if (!s_initialized) {
             Debug::log("loader", "MediaFactory::createStream initializing default formats");
             initializeDefaultFormats();
@@ -44,7 +43,7 @@ std::unique_ptr<Stream> MediaFactory::createStream(const std::string& uri) {
 std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string& uri, const std::string& mime_type) {
     // Thread-safe initialization check with double-checked locking
     if (!s_initialized) {
-        std::lock_guard<std::mutex> init_lock(s_init_mutex);
+        std::lock_guard<std::mutex> init_lock(s_factory_mutex);
         if (!s_initialized) {
             initializeDefaultFormats();
             s_initialized = true;
@@ -73,7 +72,7 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string
 std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::string& uri, const ContentInfo& info) {
     // Thread-safe initialization check with double-checked locking
     if (!s_initialized) {
-        std::lock_guard<std::mutex> init_lock(s_init_mutex);
+        std::lock_guard<std::mutex> init_lock(s_factory_mutex);
         if (!s_initialized) {
             Debug::log("loader", "MediaFactory::createStreamWithContentInfo initializing default formats");
             try {
@@ -148,7 +147,7 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::str
 ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
     // Thread-safe initialization check with double-checked locking
     if (!s_initialized) {
-        std::lock_guard<std::mutex> init_lock(s_init_mutex);
+        std::lock_guard<std::mutex> init_lock(s_factory_mutex);
         if (!s_initialized) {
             Debug::log("loader", "MediaFactory::analyzeContent initializing default formats");
             initializeDefaultFormats();
@@ -208,7 +207,7 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
 ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
     // Thread-safe initialization check with double-checked locking
     if (!s_initialized) {
-        std::lock_guard<std::mutex> init_lock(s_init_mutex);
+        std::lock_guard<std::mutex> init_lock(s_factory_mutex);
         if (!s_initialized) {
             initializeDefaultFormats();
             s_initialized = true;
@@ -298,6 +297,7 @@ std::vector<MediaFormat> MediaFactory::getSupportedFormats() {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     
     std::vector<MediaFormat> formats;
@@ -311,6 +311,7 @@ std::optional<MediaFormat> MediaFactory::getFormatInfo(const std::string& format
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     
     auto it = s_formats.find(format_id);
@@ -324,6 +325,7 @@ bool MediaFactory::supportsFormat(const std::string& format_id) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     std::string lower_id = format_id;
     std::transform(lower_id.begin(), lower_id.end(), lower_id.begin(), ::tolower);
@@ -334,6 +336,7 @@ bool MediaFactory::supportsExtension(const std::string& extension) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     std::string ext = extension;
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -344,6 +347,7 @@ bool MediaFactory::supportsMimeType(const std::string& mime_type) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     return s_mime_to_format.find(mime_type) != s_mime_to_format.end();
 }
@@ -357,6 +361,7 @@ std::string MediaFactory::extensionToMimeType(const std::string& extension) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     
     std::string ext = extension;
@@ -376,6 +381,7 @@ std::string MediaFactory::mimeTypeToExtension(const std::string& mime_type) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     
     auto it = s_mime_to_format.find(mime_type);
@@ -392,6 +398,7 @@ std::vector<std::string> MediaFactory::getExtensionsForMimeType(const std::strin
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     
     auto it = s_mime_to_format.find(mime_type);
@@ -408,6 +415,7 @@ std::vector<std::string> MediaFactory::getMimeTypesForExtension(const std::strin
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
+        s_initialized = true;
     }
     
     std::string ext = extension;
