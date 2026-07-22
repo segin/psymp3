@@ -326,15 +326,18 @@ bool ComplianceValidator::ValidateSampleTableConsistency(const SampleTableInfo& 
         for (size_t i = 0; i < sampleTable.sampleToChunkEntries.size(); ++i) {
             const auto& entry = sampleTable.sampleToChunkEntries[i];
             
-            // Check chunk reference validity (firstChunk is 1-based in ISO format)
-            if (entry.firstChunk == 0 || entry.firstChunk > sampleTable.chunkOffsets.size()) {
+            // BoxParser stores firstChunk 0-based (it converts the 1-based ISO
+            // field), so a valid first entry has firstChunk == 0. Treating it as
+            // 1-based (rejecting 0, and the +1 sentinel below) failed the check
+            // for EVERY well-formed file. Validate against the 0-based domain.
+            if (entry.firstChunk >= sampleTable.chunkOffsets.size()) {
                 return false;
             }
-            
+
             // Calculate number of chunks this entry applies to
             uint32_t nextFirstChunk = (i + 1 < sampleTable.sampleToChunkEntries.size())
                 ? sampleTable.sampleToChunkEntries[i + 1].firstChunk
-                : static_cast<uint32_t>(sampleTable.chunkOffsets.size()) + 1; // +1 because firstChunk is 1-based
+                : static_cast<uint32_t>(sampleTable.chunkOffsets.size()); // 0-based: last chunk index + 1 == count
 
             // firstChunk values must be strictly increasing; otherwise the
             // subtraction below underflows to ~4 billion.
