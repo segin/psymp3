@@ -92,9 +92,17 @@ Audio::~Audio() {
     // Stop playback first (this will notify buffer_cv if stopping)
     play(false);
     
-    // Signal decoder thread to terminate
-    m_active = false;
-    
+    // Signal decoder thread to terminate. The store must happen under the same
+    // mutexes the decoder waits on: otherwise a store+notify landing between the
+    // waiter's predicate evaluation and its block is a lost wakeup, and with the
+    // device already paused nothing else would ever notify — join() below would
+    // hang forever. Lock acquisition order: m_stream_mutex before m_buffer_mutex.
+    {
+        std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        m_active = false;
+    }
+
     // Wake up decoder thread from all possible wait conditions
     m_stream_cv.notify_all(); // Wake up if waiting for a new stream
     m_buffer_cv.notify_all(); // Wake up if waiting for buffer space
@@ -120,7 +128,13 @@ void Audio::setup() {
     SDL_AudioSpec desired{}, obtained{};
 
     if (!ensureSDLAudioSubsystem()) {
-        return;
+        // No usable audio backend (no ALSA/Pulse/PipeWire, etc.). Throw like the
+        // other setup() failure paths so the Player catch handler skips the track
+        // and surfaces an error, instead of returning into a half-built Audio
+        // whose callback never runs — a silent, non-advancing "Playing" wedge.
+        throw InvalidMediaException(
+            std::string("Audio::setup: could not initialize SDL audio subsystem: ") +
+            SDL_GetError());
     }
 
     // Lock memory to prevent swapping-induced latency spikes
@@ -254,6 +268,9 @@ void Audio::resetBuffer() {
     // refills: LoopMode::One would loop silently and a backward seek in a track's
     // tail would end the track instead of replaying.
     m_stream_eof = false;
+    // Invalidate any decode that started before this seek: its result (and EOF
+    // flag) belongs to the pre-seek position and must not be committed.
+    m_decode_epoch.fetch_add(1);
     m_stream_cv.notify_all();
     // Also wake the decoder if it is parked on the high water mark: clearing the
     // buffer alone would otherwise leave it asleep until the next drain.
@@ -376,6 +393,11 @@ void Audio::decoderThreadLoop() {
             }
             // END CRITICAL SECTION - player mutex released
             
+            // Snapshot the decode epoch before the unlocked read so a seek that
+            // runs during getData() (which bumps the epoch under the commit
+            // locks) is detected below and this stale result discarded.
+            uint64_t decode_epoch = m_decode_epoch.load();
+
             // Perform decoding WITHOUT holding player mutex (prevents GUI deadlock)
             if (validated_stream) {
                 bytes_read = validated_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
@@ -407,6 +429,17 @@ void Audio::decoderThreadLoop() {
                 local_stream.get() != m_current_stream_raw_ptr.load()) {
                 Debug::log("audio", "Audio decoder thread: Discarding stale decode result after stream swap");
                 break;
+            }
+
+            // A seek (resetBuffer) between the epoch snapshot and here cleared
+            // the buffer and EOF latch for the new position; this decode read
+            // from the old position. Discard it — committing its samples would
+            // insert stale audio, and committing its eof would re-latch
+            // m_stream_eof that resetBuffer just cleared, ending the track on a
+            // backward seek in the tail. Re-evaluate against the new position.
+            if (m_decode_epoch.load() != decode_epoch) {
+                Debug::log("audio", "Audio decoder thread: Discarding stale decode result after seek");
+                continue;
             }
 
             if (bytes_read > 0) {

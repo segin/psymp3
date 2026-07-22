@@ -103,6 +103,11 @@ private:
     std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};
     std::atomic<bool> m_stream_eof{false};
+    // Bumped by resetBuffer() (seek). The decoder captures it before an
+    // unlocked getData() and re-checks it at commit; a decode that began before
+    // a seek is discarded (including its EOF latch) so a stale in-flight read
+    // cannot re-set m_stream_eof after resetBuffer() just cleared it.
+    std::atomic<uint64_t> m_decode_epoch{0};
 
     PsyMP3::DSP::Equalizer m_eq; // applied to the output PCM in callback()
 };
