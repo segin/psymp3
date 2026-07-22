@@ -44,6 +44,8 @@ std::string DBusVariant::toString() const {
     return std::to_string(std::get<double>(value));
   case Boolean:
     return std::get<bool>(value) ? "true" : "false";
+  case ObjectPath:
+    return std::get<std::string>(value);
   case Dictionary: {
     const auto &dict = *std::get<std::shared_ptr<DBusDictionary>>(value);
     std::string result = "{";
@@ -80,9 +82,15 @@ std::map<std::string, DBusVariant> MPRISMetadata::toDBusDict() const {
     dict.insert(std::make_pair(std::string("xesam:album"),
                                DBusVariant(std::string(album))));
   }
-  if (!track_id.empty()) {
+  // mpris:trackid is a D-Bus object path ('o') and must always be present and
+  // non-empty per the MPRIS2 spec. Fall back to a synthesized default path when
+  // no track id has been generated yet (e.g. a track without a title).
+  {
+    std::string trackid_path =
+        track_id.empty() ? "/org/mpris/MediaPlayer2/psymp3/CurrentTrack"
+                         : track_id;
     dict.insert(std::make_pair(std::string("mpris:trackid"),
-                               DBusVariant(std::string(track_id))));
+                               DBusVariant::makeObjectPath(trackid_path)));
   }
   if (length_us > 0) {
     dict.insert(std::make_pair(std::string("mpris:length"),
@@ -188,6 +196,16 @@ void appendVariantToDBusIter(struct DBusMessageIter* iter, const DBusVariant& va
     const std::string &str_val = variant.get<std::string>();
     const char *str_cstr = str_val.c_str();
     dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING, &str_cstr);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  case DBusVariant::ObjectPath: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "o",
+                                     &variant_iter);
+    const std::string &path_val = variant.get<std::string>();
+    const char *path_cstr = path_val.c_str();
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_OBJECT_PATH,
+                                   &path_cstr);
     dbus_message_iter_close_container(iter, &variant_iter);
     break;
   }

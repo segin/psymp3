@@ -384,14 +384,15 @@ struct DBusVariant {
         UInt64 = 3, 
         Double = 4, 
         Boolean = 5,
-        Dictionary = 6
+        Dictionary = 6,
+        ObjectPath = 7
     } type;
-    
+
     std::variant<std::string, std::vector<std::string>, int64_t, uint64_t, double, bool, std::shared_ptr<DBusDictionary>> value;
-    
+
     // Default constructor
     DBusVariant() : type(String), value(std::string{}) {}
-    
+
     // Constructors for different types
     explicit DBusVariant(const std::string& str) : type(String), value(str) {}
     explicit DBusVariant(const std::vector<std::string>& arr) : type(StringArray), value(arr) {}
@@ -400,7 +401,17 @@ struct DBusVariant {
     explicit DBusVariant(double d) : type(Double), value(d) {}
     explicit DBusVariant(bool b) : type(Boolean), value(b) {}
     explicit DBusVariant(const DBusDictionary& dict) : type(Dictionary), value(std::make_shared<DBusDictionary>(dict)) {}
-    
+
+    // Object paths share std::string storage with String but marshal as the
+    // D-Bus object-path type 'o'. A factory is used because a constructor
+    // taking std::string would collide with the String constructor above.
+    static DBusVariant makeObjectPath(const std::string& path) {
+        DBusVariant v;
+        v.type = ObjectPath;
+        v.value = path;
+        return v;
+    }
+
     // Type-safe getters
     template<typename T>
     const T& get() const {
