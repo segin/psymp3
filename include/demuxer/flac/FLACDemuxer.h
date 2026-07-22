@@ -357,8 +357,11 @@ private:
     std::vector<FLACPicture> m_pictures;                   ///< PICTURE block data (multiple allowed)
     
     // ========================================================================
-    // Frame index for sample-accurate seeking (protected by m_metadata_mutex)
+    // Frame index for sample-accurate seeking (protected by m_state_mutex)
     // Requirements 22.4, 22.7: Build frame index during parsing for seeking
+    // Note: all runtime accesses (addFrameToIndex_unlocked from the readChunk
+    // and seek paths, plus the reads in the seek helpers) occur under
+    // m_state_mutex, not m_metadata_mutex.
     // ========================================================================
     std::vector<FLACFrameIndexEntry> m_frame_index;        ///< Cached frame positions
     
