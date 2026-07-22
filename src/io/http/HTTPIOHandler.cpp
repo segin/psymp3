@@ -82,14 +82,55 @@ void HTTPIOHandler::initialize() {
             1000  // base delay 1 second
         );
         
+        // Some servers reject HEAD (405/403) but serve GET fine — e.g. S3-style
+        // presigned GET URLs, or endpoints that only implement GET. Fall back to
+        // a ranged GET probe for the same metadata before declaring the URL
+        // invalid. A 206 also yields the total size via Content-Range.
+        bool from_get_fallback = false;
         if (!response.success) {
-            std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "HEAD request");
-            Debug::log("HTTPIOHandler", errorMsg);
-            m_error = response.statusCode > 0 ? response.statusCode : -1;
-            // Throw rather than return: returning leaves the constructor to hand
-            // back a half-built handler whose every read yields 0 (a silent
-            // "empty stream") instead of surfacing the network failure.
-            throw InvalidMediaException(errorMsg);
+            Debug::log("HTTPIOHandler", "HEAD failed (status ", response.statusCode, "); trying ranged GET fallback");
+            HTTPClient::Response get_probe = retryNetworkOperation(
+                [this]() { return HTTPClient::getRange(m_url, 0, 0); },
+                "GET range probe",
+                3,
+                1000);
+            if (get_probe.success) {
+                response = get_probe;
+                from_get_fallback = true;
+                Debug::log("HTTPIOHandler", "GET fallback succeeded (status: ", response.statusCode, ")");
+            } else {
+                std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "HEAD request");
+                Debug::log("HTTPIOHandler", errorMsg);
+                m_error = response.statusCode > 0 ? response.statusCode : -1;
+                // Throw rather than return: returning leaves the constructor to
+                // hand back a half-built handler whose every read yields 0 (a
+                // silent "empty stream") instead of surfacing the failure.
+                throw InvalidMediaException(errorMsg);
+            }
+        }
+
+        // When the metadata came from a 206 range response, the total size is in
+        // Content-Range ("bytes 0-0/TOTAL"), not Content-Length (which is the
+        // 1-byte range size). Seed m_content_length and range support from it.
+        if (from_get_fallback) {
+            if (response.statusCode == 206) {
+                m_supports_ranges = true;
+                std::string cr = response.getHeader("Content-Range");
+                auto slash = cr.rfind('/');
+                if (slash != std::string::npos && slash + 1 < cr.size()) {
+                    try {
+                        long long total = std::stoll(cr.substr(slash + 1));
+                        if (total >= 0 && m_content_length == -1) {
+                            m_content_length = total;
+                            Debug::log("HTTPIOHandler", "Content-Range total: ", m_content_length, " bytes");
+                        }
+                    } catch (const std::exception&) { /* non-numeric total ('*'): leave unknown */ }
+                }
+            } else {
+                // 200: server ignored the Range header; Content-Length (parsed
+                // below) is the full size and ranges are unsupported.
+                m_supports_ranges = false;
+            }
         }
         
         Debug::log("HTTPIOHandler", "HEAD request successful (status: ", response.statusCode, ")");
@@ -123,9 +164,14 @@ void HTTPIOHandler::initialize() {
             Debug::log("HTTPIOHandler", "No Content-Type header found");
         }
 
-        // Detect Accept-Ranges header for range request capability
-        std::string accept_ranges_hdr = response.getHeader("Accept-Ranges");
-        if (!accept_ranges_hdr.empty()) {
+        // Detect Accept-Ranges header for range request capability. Skip when
+        // the GET fallback already determined range support from the 206/200
+        // status (re-probing would be redundant, and a 206 fallback response
+        // may not carry Accept-Ranges).
+        std::string accept_ranges_hdr = from_get_fallback ? std::string() : response.getHeader("Accept-Ranges");
+        if (from_get_fallback) {
+            Debug::log("HTTPIOHandler", "Range support determined by GET fallback: ", (m_supports_ranges ? "yes" : "no"));
+        } else if (!accept_ranges_hdr.empty()) {
             std::string accept_ranges = accept_ranges_hdr;
             // Convert to lowercase for comparison
             std::transform(accept_ranges.begin(), accept_ranges.end(),
@@ -260,6 +306,14 @@ size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
             request_size = optimizeRangeRequestSize(request_size);
             
             if (!fillBuffer(read_position, request_size)) {
+                // A read whose range starts at/after end-of-content is a clean
+                // EOF, not a network error: don't log an error or tear down the
+                // buffers (which only forces a refetch on a later backward seek).
+                int64_t clen = m_content_length.load();
+                if (clen >= 0 && read_position >= clen) {
+                    updateEofState(true);
+                    break;
+                }
                 std::string errorMsg = getErrorMessage(-1, "Failed to fill buffer for read operation");
                 Debug::log("HTTPIOHandler", errorMsg);
                 updateErrorState(-1, "fillBuffer failed during read operation");
