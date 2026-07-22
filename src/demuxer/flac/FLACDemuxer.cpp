@@ -3944,6 +3944,78 @@ uint32_t FLACDemuxer::calculateFrameSize_unlocked(const FLACFrame& frame) const
     return fallback_estimate;
 }
 
+bool FLACDemuxer::findNextFrameBoundary_unlocked(const FLACFrame& frame, uint64_t& next_offset)
+{
+    // Mirror readChunk_unlocked's boundary search: read a window starting at the
+    // current frame and scan for the next real sync code, validating each
+    // candidate header and requiring its sample offset to be exactly the sample
+    // that follows the current frame. This locates the true frame end instead
+    // of the max_frame_size over-estimate.
+    static constexpr size_t MIN_FRAME_SIZE = 9;
+    static constexpr size_t MAX_WINDOW = 1024 * 1024;  // matches readChunk MAX_FRAME_SIZE cap
+
+    const uint64_t expected_next_sample = frame.sample_offset + frame.block_size;
+
+    // Size the read window generously past the stream's largest frame; keep it
+    // bounded when max_frame_size is unknown so per-frame seeks stay cheap.
+    size_t window = 64 * 1024;
+    if (m_streaminfo.isValid() && m_streaminfo.max_frame_size > 0) {
+        uint64_t want = static_cast<uint64_t>(m_streaminfo.max_frame_size) + 4096;
+        window = static_cast<size_t>(std::min<uint64_t>(want, MAX_WINDOW));
+    }
+
+    if (m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET) != 0) {
+        return false;
+    }
+
+    std::vector<uint8_t> data(window);
+    size_t bytes_read = m_handler->read(data.data(), 1, window);
+    if (bytes_read < MIN_FRAME_SIZE + 16) {
+        return false;
+    }
+    data.resize(bytes_read);
+
+    // Skip likely-false early syncs using min_frame_size, but never so far that
+    // the search cannot run within the buffered data (see the readChunk clamp).
+    size_t search_start = MIN_FRAME_SIZE;
+    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > MIN_FRAME_SIZE) {
+        search_start = m_streaminfo.min_frame_size;
+        if (search_start > MAX_WINDOW ||
+            search_start > bytes_read - (MIN_FRAME_SIZE + 16)) {
+            search_start = MIN_FRAME_SIZE;
+        }
+    }
+
+    for (size_t i = search_start; i + 16 < bytes_read; ++i) {
+        if (data[i] != 0xFF || (data[i + 1] != 0xF8 && data[i + 1] != 0xF9)) {
+            continue;
+        }
+        // data[i+2] == 0xFF encodes reserved block-size/sample-rate nibbles.
+        if (data[i + 2] == 0xFF) {
+            continue;
+        }
+
+        FLACFrame candidate;
+        candidate.file_offset = frame.file_offset + i;
+        candidate.variable_block_size = (data[i + 1] == 0xF9);
+
+        if (!parseFrameHeader_unlocked(candidate, data.data() + i, bytes_read - i)) {
+            continue;
+        }
+        if (candidate.sample_offset != expected_next_sample) {
+            continue;
+        }
+
+        next_offset = frame.file_offset + i;
+        FLAC_DEBUG("[findNextFrameBoundary] Next frame boundary at offset ", next_offset,
+                   " (frame size ", i, " bytes)");
+        return true;
+    }
+
+    FLAC_DEBUG("[findNextFrameBoundary] No next sync found within ", bytes_read, " bytes");
+    return false;
+}
+
 // ============================================================================
 // Utility Methods
 // ============================================================================
@@ -4962,15 +5034,26 @@ bool FLACDemuxer::parseFramesToSample_unlocked(uint64_t target_sample)
             return true;
         }
         
-        // Calculate frame size and skip to next frame
-        uint32_t frame_size = calculateFrameSize_unlocked(frame);
-        if (frame_size == 0) {
-            frame_size = 64;  // Conservative fallback
+        // Advance to the ACTUAL next frame boundary by locating the next real
+        // sync code, exactly as readChunk_unlocked does. calculateFrameSize_
+        // unlocked returns max(max_frame_size, min_frame_size), which overshoots
+        // the end of every frame smaller than the stream maximum and would skip
+        // past the frame that contains the target sample. Only fall back to the
+        // size estimate if the real boundary cannot be located.
+        uint64_t next_offset = 0;
+        if (findNextFrameBoundary_unlocked(frame, next_offset)) {
+            m_current_offset = next_offset;
+        } else {
+            uint32_t frame_size = calculateFrameSize_unlocked(frame);
+            if (frame_size == 0) {
+                frame_size = 64;  // Conservative fallback
+            }
+            m_current_offset = frame.file_offset + frame_size;
+            FLAC_DEBUG("[parseFramesToSample] Next sync not found; using size estimate ", frame_size);
         }
-        
+
         // Update position to end of this frame
         // Requirement 28.6: Use atomic operations for sample counters
-        m_current_offset = frame.file_offset + frame_size;
         updateCurrentSample_unlocked(frame_end_sample);
         
         // Seek to next frame position

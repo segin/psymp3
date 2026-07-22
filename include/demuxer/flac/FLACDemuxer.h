@@ -424,6 +424,21 @@ private:
     bool findNextFrame_unlocked(FLACFrame& frame);
     bool parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buffer, size_t size);
     uint32_t calculateFrameSize_unlocked(const FLACFrame& frame) const;
+
+    /**
+     * @brief Locate the actual file offset of the frame following @p frame
+     *
+     * Scans forward from @p frame for the next real sync code, validating each
+     * candidate with parseFrameHeader_unlocked and an expected-next-sample
+     * check (the same logic readChunk_unlocked uses to size a frame). This
+     * finds the true frame boundary instead of relying on the max_frame_size
+     * estimate, which overshoots every frame smaller than the stream maximum.
+     *
+     * @param frame The current (already parsed) frame
+     * @param next_offset [out] File offset of the next frame's sync code
+     * @return true if the next frame boundary was located, false otherwise
+     */
+    bool findNextFrameBoundary_unlocked(const FLACFrame& frame, uint64_t& next_offset);
     
     /**
      * @brief Parse block size bits from frame header per RFC 9639 Table 14
