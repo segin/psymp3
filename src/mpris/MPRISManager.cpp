@@ -973,6 +973,11 @@ void MPRISManager::configureErrorRecovery_unlocked() {
         [this]() -> bool {
             try {
                 shutdown_unlocked();
+                // shutdown_unlocked() latches m_shutdown_requested, and
+                // initialize_unlocked() refuses to run while it is set. Clear it
+                // here so the deliberate restart can re-initialize; without this
+                // Restart recovery can never succeed.
+                m_shutdown_requested.store(false);
                 auto result = initialize_unlocked();
                 return result.isSuccess();
             } catch (const std::exception& e) {
