@@ -330,13 +330,17 @@ void MethodHandler::initializePropertyHandlers_unlocked() {
       true};
 
   player["Shuffle"] = {
-      [this]() { return PsyMP3::MPRIS::DBusVariant(false); },
+      [this]() {
+        return PsyMP3::MPRIS::DBusVariant(m_properties->getShuffle());
+      },
       [this](const PsyMP3::MPRIS::DBusVariant &variant) {
         if (variant.type != PsyMP3::MPRIS::DBusVariant::Boolean) {
           return PsyMP3::MPRIS::Result<void>::error(
               "Shuffle must be a boolean");
         }
-        // Shuffle logic
+        bool value = variant.get<bool>();
+        if (m_player)
+          m_player->setShuffle(value);
         return PsyMP3::MPRIS::Result<void>::success();
       },
       true};
