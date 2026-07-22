@@ -528,8 +528,23 @@ retry_frame_read:
     size_t search_start = MIN_FRAME_SIZE;
     if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > MIN_FRAME_SIZE) {
         search_start = m_streaminfo.min_frame_size;
+
+        // STREAMINFO min_frame_size is an unvalidated 24-bit field (up to
+        // ~16 MB). The read buffer is capped at MAX_FRAME_SIZE, so a bogus or
+        // simply oversized value can push search_start past the bytes actually
+        // buffered, which silently disables the boundary search below
+        // (while (bytes_read > search_start) is immediately false). Recovery
+        // then advances by that same bogus distance and a file of individually
+        // valid frames becomes unplayable. Fall back to the absolute minimum
+        // whenever the value cannot fit within the buffered data; the
+        // expected_next_sample check below still rejects any false early syncs.
+        if (search_start > MAX_FRAME_SIZE ||
+            (bytes_read > MIN_FRAME_SIZE + 16 &&
+             search_start > bytes_read - (MIN_FRAME_SIZE + 16))) {
+            search_start = MIN_FRAME_SIZE;
+        }
     }
-    
+
     const uint64_t expected_next_sample = frame.sample_offset + frame.block_size;
 
     while (bytes_read > search_start) {
@@ -5208,10 +5223,21 @@ bool FLACDemuxer::skipCorruptedFrame_unlocked(uint64_t frame_offset)
     // Move past the current position to avoid re-detecting the same sync code
     // Use STREAMINFO min_frame_size if available, otherwise use a conservative estimate
     uint32_t skip_distance = 16;  // Minimum skip to get past sync code and basic header
-    
+
     if (m_streaminfo.min_frame_size > 0) {
         skip_distance = m_streaminfo.min_frame_size;
-        FLAC_DEBUG("[skipCorruptedFrame] Using STREAMINFO min_frame_size: ", skip_distance, " bytes");
+
+        // min_frame_size is an unvalidated 24-bit STREAMINFO field (up to
+        // ~16 MB). Using it verbatim as a skip distance can leap past every
+        // remaining frame (and EOF) on a stream whose STREAMINFO is bogus,
+        // turning a single recoverable frame into total playback loss. Cap the
+        // skip at a bounded amount so resyncToNextFrame_unlocked still lands on
+        // the very next real sync.
+        static constexpr uint32_t MAX_SKIP_DISTANCE = 64 * 1024;
+        if (skip_distance > MAX_SKIP_DISTANCE) {
+            skip_distance = MAX_SKIP_DISTANCE;
+        }
+        FLAC_DEBUG("[skipCorruptedFrame] Using STREAMINFO min_frame_size (clamped): ", skip_distance, " bytes");
     }
     
     // Update current offset to skip past the corrupted frame
