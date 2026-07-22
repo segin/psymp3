@@ -364,12 +364,23 @@ bool ID3v2Tag::parseFrames(const uint8_t* data, size_t size) {
         return true; // Empty frame data is valid
     }
     
-    // Apply unsynchronization if needed
+    // Apply unsynchronization if needed.
+    //
+    // In ID3v2.2/2.3 the tag-level unsync flag means the WHOLE tag body was
+    // unsynchronised as one unit, so we decode the entire frame region here and
+    // frame sizes describe the decoded bytes.
+    //
+    // In ID3v2.4 the tag-level flag does NOT mean whole-tag unsync: unsync is
+    // applied per frame and each frame's size counts the still-unsynchronised
+    // on-disk bytes. Decoding the whole buffer here would drift frame boundaries
+    // (sizes would no longer match) and double-decode frames that also set the
+    // per-frame unsync flag. So for v2.4 we leave the buffer raw and let
+    // parseFrame() de-unsynchronise each frame's payload exactly once.
     std::vector<uint8_t> frame_data;
     const uint8_t* parse_data = data;
     size_t parse_size = size;
-    
-    if (hasUnsynchronization()) {
+
+    if (m_major_version < 4 && hasUnsynchronization()) {
         frame_data = ID3v2Utils::decodeUnsync(data, size);
         parse_data = frame_data.data();
         parse_size = frame_data.size();
@@ -461,9 +472,16 @@ ID3v2Frame ID3v2Tag::parseFrame(const uint8_t* data, size_t size, size_t& bytes_
     const uint8_t* frame_data = data + header_size;
     size_t data_size = frame_size;
     
-    // Handle frame-level unsynchronization (v2.4 only)
+    // Handle frame-level unsynchronization (v2.4 only).
+    //
+    // parseFrames() intentionally skips the whole-buffer decode for v2.4, so the
+    // frame payload here is still on-disk (unsynchronised). Decode it once when
+    // either the per-frame unsync flag (0x0002) is set OR the tag-level unsync
+    // flag is set (in v2.4 the tag-level flag means "treat every frame as
+    // unsynchronised"). The single OR guard guarantees exactly-once decoding
+    // even when a spec-compliant writer sets both flags.
     std::vector<uint8_t> unsync_data;
-    if (m_major_version == 4 && (frame_flags & 0x0002)) {
+    if (m_major_version == 4 && ((frame_flags & 0x0002) || hasUnsynchronization())) {
         unsync_data = ID3v2Utils::decodeUnsync(frame_data, data_size);
         frame_data = unsync_data.data();
         data_size = unsync_data.size();
