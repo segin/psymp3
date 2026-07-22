@@ -129,6 +129,9 @@ private:
     double m_progress;          // Actual progress (0.0 to 1.0)
     double m_drag_progress;     // Visual progress during drag (0.0 to 1.0)
     bool m_is_dragging;
+    bool m_drag_display;        // Show m_drag_progress even without widget-native drag
+                               // (Player's legacy seek path drives setDragProgress
+                               //  without ever setting m_is_dragging here).
     int m_last_drawn_width = 0;
     int m_last_drawn_height = 0;
     

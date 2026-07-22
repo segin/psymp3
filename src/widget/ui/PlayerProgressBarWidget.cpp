@@ -37,6 +37,7 @@ PlayerProgressBarWidget::PlayerProgressBarWidget(int width, int height)
     , m_progress(0.0)
     , m_drag_progress(0.0)
     , m_is_dragging(false)
+    , m_drag_display(false)
 {
     // Set initial position and size
     Rect pos(0, 0, width, height);
@@ -108,6 +109,7 @@ bool PlayerProgressBarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, i
 {
     if (event.button == SDL_BUTTON_LEFT && m_is_dragging) {
         m_is_dragging = false;
+        m_drag_display = false;
         releaseMouse();
 
         // Finalize the seek
@@ -149,6 +151,16 @@ void PlayerProgressBarWidget::setProgress(double progress)
     if (progress < 0.0) progress = 0.0;
     if (progress > 1.0) progress = 1.0;
     
+    // A plain progress update means we are no longer previewing a drag. If a
+    // legacy-path drag (which set m_drag_display without touching m_is_dragging)
+    // just ended, leave preview mode and repaint the true progress.
+    if (!m_is_dragging && m_drag_display) {
+        m_drag_display = false;
+        m_progress = progress;
+        rebuildSurface();
+        return;
+    }
+
     if (m_progress != progress) {
         m_progress = progress;
         if (!m_is_dragging) {
@@ -162,12 +174,16 @@ void PlayerProgressBarWidget::setDragProgress(double progress)
     // Clamp progress to valid range
     if (progress < 0.0) progress = 0.0;
     if (progress > 1.0) progress = 1.0;
-    
-    if (m_drag_progress != progress) {
+
+    // Store the value and repaint whenever it changes, regardless of the
+    // widget's own m_is_dragging flag: the Player's legacy seek path drives this
+    // every frame while only the Player tracks the drag, so keying the rebuild
+    // off m_is_dragging alone froze the fill. m_drag_display makes rebuildSurface
+    // show m_drag_progress on this path too.
+    if (m_drag_progress != progress || !m_drag_display) {
         m_drag_progress = progress;
-        if (m_is_dragging) {
-            rebuildSurface();
-        }
+        m_drag_display = true;
+        rebuildSurface();
     }
 }
 
@@ -183,7 +199,7 @@ void PlayerProgressBarWidget::rebuildSurface()
     // Frame is drawn by main rendering loop, not by widget
     
     // Draw the rainbow fill inside the frame
-    double display_progress = m_is_dragging ? m_drag_progress : m_progress;
+    double display_progress = (m_is_dragging || m_drag_display) ? m_drag_progress : m_progress;
     drawRainbowFill(*progress_surface, display_progress);
     
     // Set the surface
