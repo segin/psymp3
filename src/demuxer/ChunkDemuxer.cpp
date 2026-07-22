@@ -441,14 +441,30 @@ bool ChunkDemuxer::parseWaveData(const Chunk& chunk) {
     stream_data.data_offset = chunk.data_offset;
     stream_data.data_size = chunk.size;
     stream_data.current_offset = 0;
-    
+
+    // Guard against a declared data size that overruns the file: clamp the
+    // recorded size to what actually remains so playback never reads past EOF.
+    auto file_size = m_handler->getFileSize();
+    if (file_size > 0 &&
+        chunk.data_offset + chunk.size > static_cast<uint64_t>(file_size)) {
+        stream_data.data_size = static_cast<uint32_t>(
+            static_cast<uint64_t>(file_size) - chunk.data_offset);
+    }
+
     // Calculate duration
     if (stream_data.bytes_per_frame > 0) {
         uint64_t total_samples = stream_data.data_size / stream_data.bytes_per_frame;
         m_duration_ms = (total_samples * 1000ULL) / stream_data.sample_rate;
     }
-    
-    // Don't skip this chunk - we'll read from it during playback
+
+    // Seek past the audio payload (word-aligned, IFF pad included) so the
+    // parseContainer loop resumes at any real trailing chunk (LIST/fact)
+    // instead of misreading PCM bytes as chunk headers. The recorded
+    // data_offset/data_size above are what readChunk uses for playback, so
+    // audio is still read from the correct place. When 'data' is the final
+    // chunk this seeks to (or past) the container end and the loop terminates
+    // cleanly at EOF rather than scanning PCM.
+    skipChunk(chunk);
     return true;
 }
 
