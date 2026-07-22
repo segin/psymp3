@@ -3883,6 +3883,7 @@ void Player::showAboutWindow()
     }
 
     auto client = std::make_unique<AboutWindow>(font.get());
+    AboutWindow* about = client.get();
     const int cw = client->getPos().width();
     const int ch = client->getPos().height();
 
@@ -3892,6 +3893,11 @@ void Player::showAboutWindow()
     frame->setMaximizable(false);
     frame->setClientArea(std::move(client));
     frame->refresh();
+    // WindowFrameWidget::refresh() replaces the client area's surface with a
+    // blank one; as a DrawableWidget, AboutWindow caches its rendered text in
+    // that surface and would otherwise stay blank. Mark it dirty so it repaints
+    // its content on the next blit.
+    about->invalidate();
 
     // Center the dialog on the logical surface (clamped to the top-left so a
     // dialog taller/wider than the surface stays reachable).
