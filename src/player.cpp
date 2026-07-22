@@ -645,9 +645,19 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
 void Player::requestTrackLoad(TagLib::String path) {
     Debug::log("loader", "Player::requestTrackLoad(", path.to8Bit(true), ") called.");
     if (m_loading_track) {
-        Debug::log("loader", "Already loading a track, ignoring new request: ", path.to8Bit(true));
-        return; // Or queue it, depending on desired behavior
+        // Supersede rather than drop: record the latest requested track and
+        // issue it when the in-flight load settles. Dropping it silently left
+        // the playlist cursor (already advanced by nextTrack/prevTrack/jumpTo)
+        // pointing at a track that never loaded, desyncing navigation and the
+        // now-playing metadata. A newer request overrides an older pending one.
+        Debug::log("loader", "Load in flight; queuing latest request to supersede: ", path.to8Bit(true));
+        m_pending_load_path = path;
+        m_pending_load_active = true;
+        return;
     }
+    // A fresh, user-driven load means playback is wanted: cancel any pending
+    // stop-cancellation from a superseded sequence.
+    m_cancel_inflight_load = false;
     m_loading_track = true;
     m_preloading_track = false; // A "play now" request cancels any pending preload
     m_next_stream.reset(); // Clear any existing preloaded stream
@@ -1625,6 +1635,13 @@ bool Player::canGoNext() const {
  * @return `true` always.
  */
 bool Player::stop(void) {
+    // Cancel any in-flight PlayNow load so its completion does not resurrect
+    // playback after we stop (and clear any queued supersede request). The
+    // loader thread keeps running; the result is discarded on arrival.
+    if (m_loading_track) {
+        m_cancel_inflight_load = true;
+    }
+    m_pending_load_active = false;
     state = PlayerState::Stopped;
     updateTaskbarPlayState();
     m_pause_indicator.reset();
@@ -1753,7 +1770,11 @@ void Player::seekToInternal(unsigned long pos, bool monitor_seek_errors)
 
         if (audio) {
             audio->resetBuffer();
-            audio->setSamplesPlayed((pos * audio->getRate()) / 1000);
+            // Widen before multiplying: pos is unsigned long (32-bit on LLP64
+            // Windows and ILP32 targets), so pos*rate wraps past ~97 s at
+            // 44.1 kHz and corrupts the samples-played counter that drives the
+            // position readout. Match the uint64_t pattern used below.
+            audio->setSamplesPlayed((static_cast<uint64_t>(pos) * audio->getRate()) / 1000);
         }
         stream->seekTo(pos);
 
@@ -1963,18 +1984,31 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
             }
         }
 
-        // Trigger preloading when near the end of the track (last 10 seconds)
+        // Trigger preloading when near the end of the track (last 10 seconds).
+        // Gate on the same end-of-playlist rule nextTrack() uses (loop-mode and
+        // shuffle aware) rather than the raw sequential index test: under
+        // shuffle, getPosition() is the playlist index and says nothing about
+        // position in shuffle order, so the old test let the last shuffle track
+        // preload a wrapped pick and loop forever under LoopMode::None. When
+        // advancing would wrap and we are not looping the whole playlist, skip
+        // preloading so track-end routes through nextTrack()'s stop logic.
+        const bool may_advance = playlist &&
+            (m_loop_mode == LoopMode::All || !playlist->advanceWouldWrap(1));
         if (!m_next_stream && !m_preloading_track && total_len_ms > 0 &&
-            (total_len_ms - current_pos_ms) < 10000 && playlist &&
-            playlist->getPosition() < playlist->entries() - 1) {
+            (total_len_ms - current_pos_ms) < 10000 && playlist && may_advance) {
 
-            // Look ahead for sequences of short tracks and automatically chain them
+            // Look ahead for sequences of short tracks and automatically chain
+            // them. This scan walks sequential playlist indices, which only
+            // matches play order when NOT shuffling; under shuffle it would
+            // chain the wrong files and desync the cursor, so restrict it to
+            // sequential playback and let shuffle use the shuffle-aware
+            // peekNext() single-track preload below.
             std::vector<TagLib::String> short_track_chain;
             long current_playlist_pos = playlist->getPosition();
             long look_ahead_pos = current_playlist_pos + 1;
 
             // Scan ahead for consecutive short tracks (< 10 seconds each)
-            while (look_ahead_pos < playlist->entries()) {
+            while (!playlist->isShuffle() && look_ahead_pos < playlist->entries()) {
                 TagLib::String candidate_path = playlist->getTrack(look_ahead_pos);
                 if (candidate_path.isEmpty()) break;
                 
@@ -3332,27 +3366,18 @@ bool Player::findFirstPlayableTrack() {
         return false; // No playlist
     }
 
-    // Try to find the first playable track starting from position 0
-    for (size_t i = 0; i < static_cast<size_t>(playlist->entries()); ++i) {
-        playlist->setPosition(i);
-        TagLib::String track_path = playlist->getTrack(i);
-        
-        // Try to create a stream for this track using MediaFile::open
-        try {
-            auto test_stream = MediaFile::open(track_path);
-            if (test_stream) {
-                // Found a playable track - unique_ptr handles cleanup automatically
-                m_skip_attempts = 0;
-                requestTrackLoad(track_path);
-                return true;
-            }
-        } catch (...) {
-            // Track failed to load, continue to next
-        }
-    }
-
-    // No playable tracks found
-    return false;
+    // Start loading the first entry asynchronously rather than probing each
+    // entry with a synchronous MediaFile::open() on the main thread. The old
+    // loop blocked the GUI for one connect/probe timeout per dead leading entry
+    // (dead http:// streams, stale NFS mounts) and opened the accepted track
+    // twice. The background loader opens off-thread; if the entry is
+    // unplayable, handleTrackLoadFailureEvent -> handleUnplayableTrack advances
+    // to the next entry and retries, exhausting to a clean stop if none play.
+    m_navigation_direction = 1;
+    m_skip_attempts = 0;
+    playlist->setPosition(0);
+    requestTrackLoad(playlist->getTrack(0));
+    return true;
 }
 
 /**
@@ -4150,6 +4175,28 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
 
     m_loading_track = false; // Loading complete
 
+    // If a stop/clear-playlist happened while this load was in flight, this
+    // result is for a track no longer meant to play — discard it instead of
+    // resurrecting playback on an empty/stopped player.
+    if (m_cancel_inflight_load) {
+        Debug::log("loader", "Discarding load result cancelled by stop/clearPlaylist.");
+        delete new_stream;
+        m_cancel_inflight_load = false;
+        m_pending_load_active = false;
+        return;
+    }
+    // If a newer navigation superseded this request while it was loading, this
+    // stream is for an outdated cursor position. Discard it (so it can't play
+    // the wrong track or stamp its metadata onto the current row) and load the
+    // latest requested track instead.
+    if (m_pending_load_active) {
+        Debug::log("loader", "Discarding superseded load result; issuing pending request.");
+        delete new_stream;
+        m_pending_load_active = false;
+        requestTrackLoad(m_pending_load_path);
+        return;
+    }
+
     // Take ownership of the new stream from the loader thread.
     std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
     const bool recreate_audio = !canReuseAudioForStream(audio.get(), owned_new_stream.get());
@@ -4239,6 +4286,19 @@ void Player::handleTrackLoadFailureEvent(TrackLoadResult* result) {
     m_loading_track = false; // Loading complete
 
     Debug::log("loader", "Player: Failed to load track: ", error_msg.to8Bit(true));
+
+    // A stop/clear during the load cancels any follow-up; don't skip-advance.
+    if (m_cancel_inflight_load) {
+        m_cancel_inflight_load = false;
+        m_pending_load_active = false;
+        return;
+    }
+    // A newer navigation superseded this (failed) request: issue the latest.
+    if (m_pending_load_active) {
+        m_pending_load_active = false;
+        requestTrackLoad(m_pending_load_path);
+        return;
+    }
 
     // Robust playlist handling: skip unplayable tracks
     if (!handleUnplayableTrack()) {

@@ -371,6 +371,15 @@ class Player
         std::condition_variable m_loader_queue_cv;
         std::atomic<bool> m_loading_track;
         std::atomic<bool> m_preloading_track;
+        // Supersede/cancel bookkeeping for in-flight PlayNow loads (main thread
+        // only). When a navigation request arrives while a load is in flight it
+        // is recorded here and issued when the load settles, so the playlist
+        // cursor (advanced by the caller) can't desync from the loaded track.
+        // m_cancel_inflight_load is set by stop()/clearPlaylist() so a load
+        // completing after a stop does not resurrect playback.
+        bool m_pending_load_active = false;
+        bool m_cancel_inflight_load = false;
+        TagLib::String m_pending_load_path;
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;
         int m_skip_attempts = 0;
