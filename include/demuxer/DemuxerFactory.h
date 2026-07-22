@@ -101,7 +101,7 @@ public:
      * @brief Get all registered format signatures
      * @return Vector of format signatures
      */
-    static const std::vector<FormatSignature>& getSignatures();
+    static std::vector<FormatSignature> getSignatures();
     
 private:
     static std::map<std::string, DemuxerFactoryFunc> s_demuxer_factories;

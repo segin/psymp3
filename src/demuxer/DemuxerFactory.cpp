@@ -397,10 +397,14 @@ void DemuxerFactory::registerSignature_unlocked(const FormatSignature& signature
              [](const auto& a, const auto& b) { return a.priority > b.priority; });
 }
 
-const std::vector<FormatSignature>& DemuxerFactory::getSignatures() {
+std::vector<FormatSignature> DemuxerFactory::getSignatures() {
     // Initialize built-in formats if needed (thread-safe)
     initializeBuiltInFormats();
-    
+
+    // Return a COPY under the lock: returning a reference to the mutex-guarded
+    // static let the caller iterate it after the lock was released, racing
+    // registerSignature's push_back/sort (reallocation) — the lock protected
+    // nothing.
     std::lock_guard<std::mutex> lock(s_factory_mutex);
     return s_signatures;
 }
