@@ -210,7 +210,12 @@ void ScrollbarWidget::setEnabled(bool enabled)
 void ScrollbarWidget::setValue(double value)
 {
     const double clamped = clampValue(value);
-    if (std::abs(clamped - m_value) < 0.0001) {
+    // Use a dead-band far below any realistic line step. ListViewWidget derives
+    // its line_step via setSteps(), which clamps to max(0.0001, ...); a 0.0001
+    // dead-band here swallowed nearly every per-arrow-click delta after FP
+    // rounding, so arrow scrolling stuck on long lists. 1e-9 only rejects
+    // genuinely identical values.
+    if (std::abs(clamped - m_value) < 1e-9) {
         return;
     }
 
