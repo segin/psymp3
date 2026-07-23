@@ -331,7 +331,10 @@ void ButtonWidget::drawButtonText(Surface& surface, bool enabled)
         return;
     }
 
-    auto text_surface = m_font->Render(m_text, enabled ? 0 : 128, enabled ? 0 : 128, enabled ? 0 : 128);
+    // ClearType (LCD subpixel) text, pre-blended against the button's light-gray
+    // face (192,192,192) so the label matches the crisp Label/Toast rendering.
+    const uint8_t fg = enabled ? 0 : 128;
+    auto text_surface = m_font->RenderLCD(m_text, fg, fg, fg, 192, 192, 192);
     if (!text_surface) {
         return;
     }
