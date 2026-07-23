@@ -42,6 +42,12 @@ class Label : public Widget
 
         void setText(const TagLib::String& text);
         void setBackgroundColor(SDL_Color background_color);
+
+        // Greedy word-wrap: split `text` into lines no wider than `max_width` px
+        // when rendered with `font`. Whitespace-delimited; a single word wider
+        // than max_width is placed on its own (overflowing) line rather than
+        // split mid-word. Returns at least one (possibly empty) line.
+        static std::vector<std::string> wrapText(Font* font, const std::string& text, int max_width);
         void setAlignment(Align align);
         void setMarqueeEnabled(bool enabled);
         void BlitTo(Surface& target) override;

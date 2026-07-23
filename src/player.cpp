@@ -3877,8 +3877,15 @@ void Player::toggleEqualizerWindow()
  */
 void Player::showAboutWindow()
 {
+    // Toggle: close if already open (matching Equalizer / Playlist Manager).
     if (m_about_window) {
-        m_about_window->bringToFront();
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [this](const auto& w) { return w.get() == m_about_window; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_about_window = nullptr;
         return;
     }
 

@@ -24,21 +24,29 @@ AboutWindow::AboutWindow(::Font* font)
     int max_width = 0;
     int total_height = 0;
 
+    // Each source line is word-wrapped to the content width so long license
+    // paragraphs (single logical lines in about_message) flow to fill the
+    // dialog's width, keeping it short vertically. Blank source lines stay as
+    // paragraph spacers.
     std::istringstream ss(std::string(PsyMP3::Core::about_message()));
     std::string line;
     while (std::getline(ss, line, '\n')) {
-        if (m_font && !line.empty()) {
-            auto surface = m_font->Render(line, 230, 230, 230);
-            if (surface && surface->isValid()) {
-                max_width = std::max(max_width, static_cast<int>(surface->width()));
-                m_line_height = std::max(m_line_height, static_cast<int>(surface->height()));
-                m_lines.push_back(std::move(surface));
-                continue;
-            }
+        if (line.empty()) {
+            m_lines.push_back(nullptr); // paragraph spacer
+            continue;
         }
-        // Blank line (or a line that failed to render): keep a placeholder so
-        // the vertical spacing matches the source text.
-        m_lines.push_back(nullptr);
+        for (const std::string& wrapped : Label::wrapText(m_font, line, kMinContentWidth)) {
+            if (m_font && !wrapped.empty()) {
+                auto surface = m_font->Render(wrapped, 230, 230, 230);
+                if (surface && surface->isValid()) {
+                    max_width = std::max(max_width, static_cast<int>(surface->width()));
+                    m_line_height = std::max(m_line_height, static_cast<int>(surface->height()));
+                    m_lines.push_back(std::move(surface));
+                    continue;
+                }
+            }
+            m_lines.push_back(nullptr);
+        }
     }
 
     if (m_line_height <= 0) {

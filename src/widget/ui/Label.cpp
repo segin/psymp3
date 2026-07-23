@@ -27,6 +27,36 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+std::vector<std::string> Label::wrapText(Font* font, const std::string& text, int max_width)
+{
+    std::vector<std::string> lines;
+    if (!font || max_width <= 0) {
+        lines.push_back(text);
+        return lines;
+    }
+    std::istringstream words(text);
+    std::string word;
+    std::string current;
+    while (words >> word) {
+        std::string candidate = current.empty() ? word : current + " " + word;
+        auto surf = font->Render(candidate, 255, 255, 255);
+        int w = (surf && surf->isValid()) ? surf->width() : 0;
+        if (!current.empty() && w > max_width) {
+            lines.push_back(current); // flush the line before this word overflows
+            current = word;
+        } else {
+            current = std::move(candidate);
+        }
+    }
+    if (!current.empty()) {
+        lines.push_back(current);
+    }
+    if (lines.empty()) {
+        lines.push_back("");
+    }
+    return lines;
+}
+
 Label::Label(Font* font, const Rect& position, const TagLib::String& initial_text, SDL_Color color, SDL_Color background_color)
     : Widget(Surface(), position), // Initialize base Widget with an empty surface and a position
       m_font(font),
