@@ -3899,11 +3899,15 @@ void Player::showAboutWindow()
     // its content on the next blit.
     about->invalidate();
 
-    // Center the dialog on the logical surface (clamped to the top-left so a
-    // dialog taller/wider than the surface stays reachable).
+    // Center horizontally; sit a bit below vertical center. Clamp so a dialog
+    // taller/wider than the surface stays reachable at the top-left.
     Rect sz = frame->getPos();
     int x = std::max(0, (Display::LOGICAL_WIDTH - sz.width()) / 2);
-    int y = std::max(0, (Display::LOGICAL_HEIGHT - sz.height()) / 2);
+    int y = (Display::LOGICAL_HEIGHT - sz.height()) / 2 + 48;
+    if (y + sz.height() > Display::LOGICAL_HEIGHT) {
+        y = Display::LOGICAL_HEIGHT - sz.height();
+    }
+    y = std::max(0, y);
     frame->setPos(Rect(x, y, sz.width(), sz.height()));
 
     WindowFrameWidget* fp = frame.get();

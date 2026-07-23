@@ -46,6 +46,9 @@ AboutWindow::AboutWindow(::Font* font)
     }
     total_height = static_cast<int>(m_lines.size()) * m_line_height;
 
+    // Enforce a comfortable minimum content width so the dialog is a roomy
+    // ~620px wide rather than shrink-wrapping the longest line.
+    max_width = std::max(max_width, kMinContentWidth);
     const int width = max_width + kPadding * 2;
     const int height = total_height + kPadding * 2;
     onResize(width, height); // sets the widget size and triggers the first draw()

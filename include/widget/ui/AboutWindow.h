@@ -34,7 +34,8 @@ private:
     std::vector<std::unique_ptr<Surface>> m_lines;
     int m_line_height = 0;
 
-    static constexpr int kPadding = 12; // px margin around the text block
+    static constexpr int kPadding = 12;          // px margin around the text block
+    static constexpr int kMinContentWidth = 596; // → ~620px window (client + borders)
 };
 
 } // namespace UI
