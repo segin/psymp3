@@ -157,7 +157,7 @@ void ToastWidget::draw(Surface& surface)
     int y_offset = 8;
     while (std::getline(ss, line, '\n')) {
         if (m_font && !line.empty()) {
-            auto line_surface = m_font->Render(line, 255, 255, 255);
+            auto line_surface = m_font->RenderLCD(TagLib::String(line, TagLib::String::UTF8), 255, 255, 255, 50, 50, 50);
             if (line_surface && line_surface->isValid()) {
                 Rect label_rect(8, y_offset, line_surface->width(), line_surface->height());
                 surface.Blit(*line_surface, label_rect);
@@ -189,7 +189,7 @@ void ToastWidget::draw(Surface& surface)
     std::string line;
     while (std::getline(ss, line, '\n')) {
         if (!line.empty()) {
-            auto text_surface = font->Render(line, 255, 255, 255);
+            auto text_surface = font->RenderLCD(TagLib::String(line, TagLib::String::UTF8), 255, 255, 255, 50, 50, 50);
             if (text_surface && text_surface->isValid()) {
                 max_width = std::max(max_width, static_cast<int>(text_surface->width()));
                 total_height += text_surface->height();
@@ -225,7 +225,7 @@ void ToastWidget::updateSize()
         std::string line;
         while (std::getline(ss, line, '\n')) {
             if (!line.empty()) {
-                auto label_surface = m_font->Render(line, 255, 255, 255);
+                auto label_surface = m_font->RenderLCD(TagLib::String(line, TagLib::String::UTF8), 255, 255, 255, 50, 50, 50);
                 if (label_surface && label_surface->isValid()) {
                     max_width = std::max(max_width, static_cast<int>(label_surface->width()));
                     total_height += label_surface->height();
