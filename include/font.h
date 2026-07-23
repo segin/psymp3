@@ -43,6 +43,9 @@ class Font
         std::unique_ptr<Surface> RenderLCD(const TagLib::String& text,
                                            uint8_t fg_r, uint8_t fg_g, uint8_t fg_b,
                                            uint8_t bg_r, uint8_t bg_g, uint8_t bg_b);
+        // Pixel width of `text` from glyph advances only — no rasterization or
+        // surface allocation. Cheap enough to call per word while word-wrapping.
+        int measureWidth(const TagLib::String& text);
         bool isValid();
     protected:
     private:

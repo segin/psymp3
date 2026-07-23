@@ -30,6 +30,12 @@ namespace {
 constexpr int kGlyphLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
                                 FT_LOAD_MONOCHROME | FT_LOAD_FORCE_AUTOHINT;
 
+// Same hinting as kGlyphLoadFlags but WITHOUT FT_LOAD_RENDER: computes the glyph
+// advance without rasterizing. Used for width measurement (the render pre-pass
+// and measureWidth), which previously rasterized every glyph an extra time.
+constexpr int kMeasureLoadFlags = FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME |
+                                  FT_LOAD_FORCE_AUTOHINT;
+
 std::vector<uint32_t> toRenderableCodepoints(const TagLib::String& text)
 {
     return UTF8Util::toCodepoints(text.to8Bit(true));
@@ -107,7 +113,9 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
 
     const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
     for (uint32_t codepoint : codepoints) {
-        if (FT_Load_Char(m_face, codepoint, kGlyphLoadFlags)) {
+        // Advance-only load (no rasterization) for the width sum; the glyphs are
+        // rasterized once below in the composition loop.
+        if (FT_Load_Char(m_face, codepoint, kMeasureLoadFlags)) {
             Debug::log("font", "FT_Load_Char failed for codepoint: ", codepoint);
             continue;
         }
@@ -159,6 +167,22 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     return sfc;
 }
 
+int Font::measureWidth(const TagLib::String& text)
+{
+    if (!m_face) {
+        return 0;
+    }
+    int width = 0;
+    const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
+    for (uint32_t codepoint : codepoints) {
+        if (FT_Load_Char(m_face, codepoint, kMeasureLoadFlags)) {
+            continue;
+        }
+        width += m_face->glyph->advance.x >> 6;
+    }
+    return width;
+}
+
 std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
                                          uint8_t fg_r, uint8_t fg_g, uint8_t fg_b,
                                          uint8_t bg_r, uint8_t bg_g, uint8_t bg_b)
@@ -171,6 +195,8 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
     // resulting bitmap has FT_PIXEL_MODE_LCD with width tripled (one byte per
     // subpixel: R, G, B per logical pixel).
     constexpr int kLCDLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
+    // Advance-only variant (no rasterization) for the width pre-pass.
+    constexpr int kLCDMeasureFlags = FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
 
     int width = 0;
     int font_height = (m_face->size->metrics.height) >> 6;
@@ -182,7 +208,7 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
 
     const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
     for (uint32_t codepoint : codepoints) {
-        if (FT_Load_Char(m_face, codepoint, kLCDLoadFlags)) {
+        if (FT_Load_Char(m_face, codepoint, kLCDMeasureFlags)) {
             continue;
         }
         width += m_face->glyph->advance.x >> 6;
