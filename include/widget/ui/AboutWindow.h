@@ -43,7 +43,10 @@ protected:
 private:
     void reflow(int content_width);   // rebuild m_content for the given text width
     void layoutButton();
+    void layoutScrollbar();
+    void syncScrollbar();             // push value/enabled/steps to the scrollbar
     int viewportHeight() const;       // visible text height (excludes padding + button strip)
+    int maxScroll() const;
     void clampScroll();
 
     ::Font* m_font;
@@ -54,6 +57,7 @@ private:
     int m_line_height = 0;
     int m_scroll = 0;                        // vertical scroll offset in px
     ButtonWidget* m_ok = nullptr;            // owned via addChild()
+    ScrollbarWidget* m_scrollbar = nullptr;  // owned via addChild()
     std::function<void()> m_on_ok;
 
     static constexpr int kPad = 12;          // margin around the text block
@@ -61,7 +65,8 @@ private:
     static constexpr int kButtonW = 72;
     static constexpr int kButtonH = 22;
     static constexpr int kScrollStep = 28;   // px per wheel notch
-    static constexpr int kScrollbarW = 6;
+    static constexpr int kScrollbarW = 16;   // matches ListViewWidget::SCROLLBAR_WIDTH
+    static constexpr int kScrollbarGap = 2;  // gap between text and scrollbar
     static constexpr int kMinContentWidth = 596; // → ~620px window
 };
 

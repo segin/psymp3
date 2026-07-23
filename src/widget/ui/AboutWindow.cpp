@@ -26,6 +26,17 @@ AboutWindow::AboutWindow(::Font* font)
         m_source_lines.push_back(line);
     }
 
+    // Standard vertical scrollbar (same widget ListView uses), driving the
+    // pixel scroll offset from its 0..1 value.
+    auto sb = std::make_unique<ScrollbarWidget>(kScrollbarW, 10, ScrollbarOrientation::Vertical);
+    sb->setValue(0.0);
+    sb->setOnChange([this](double value) {
+        m_scroll = static_cast<int>(value * maxScroll() + 0.5);
+        invalidate();
+    });
+    m_scrollbar = sb.get();
+    addChild(std::move(sb));
+
     // "Ok" button along the bottom, centered; dismisses the dialog.
     auto btn = std::make_unique<ButtonWidget>(kButtonW, kButtonH);
     btn->setText("Ok", font);
@@ -37,10 +48,12 @@ AboutWindow::AboutWindow(::Font* font)
     // frame/showAboutWindow clamps this to the desktop and drives re-flow via
     // onClientResized().
     reflow(kMinContentWidth);
-    const int width = kMinContentWidth + kPad * 2;
+    const int width = kMinContentWidth + kPad * 2 + kScrollbarW + kScrollbarGap;
     const int height = m_content_height + kButtonStrip + kPad * 2;
     onResize(width, height);
     layoutButton();
+    layoutScrollbar();
+    syncScrollbar();
 }
 
 void AboutWindow::reflow(int content_width)
@@ -91,10 +104,14 @@ int AboutWindow::viewportHeight() const
     return std::max(0, getPos().height() - kPad * 2 - kButtonStrip);
 }
 
+int AboutWindow::maxScroll() const
+{
+    return std::max(0, m_content_height - viewportHeight());
+}
+
 void AboutWindow::clampScroll()
 {
-    const int max_scroll = std::max(0, m_content_height - viewportHeight());
-    m_scroll = std::max(0, std::min(m_scroll, max_scroll));
+    m_scroll = std::max(0, std::min(m_scroll, maxScroll()));
 }
 
 void AboutWindow::layoutButton()
@@ -108,12 +125,40 @@ void AboutWindow::layoutButton()
     m_ok->setGeometry(Rect(x, y, kButtonW, kButtonH));
 }
 
+void AboutWindow::layoutScrollbar()
+{
+    if (!m_scrollbar) {
+        return;
+    }
+    const Rect p = getPos();
+    m_scrollbar->setGeometry(Rect(p.width() - kPad - kScrollbarW, kPad,
+                                  kScrollbarW, viewportHeight()));
+}
+
+void AboutWindow::syncScrollbar()
+{
+    if (!m_scrollbar) {
+        return;
+    }
+    const int ms = maxScroll();
+    m_scrollbar->setEnabled(ms > 0);
+    m_scrollbar->setValue(ms > 0 ? static_cast<double>(m_scroll) / ms : 0.0);
+    const int vh = viewportHeight();
+    if (ms > 0) {
+        m_scrollbar->setSteps(static_cast<double>(kScrollStep) / ms,
+                              vh > 0 ? static_cast<double>(vh) / ms : 0.2);
+    }
+}
+
 void AboutWindow::onClientResized(int width, int height)
 {
     setPos(Rect(getPos().x(), getPos().y(), width, height));
-    reflow(std::max(1, width - kPad * 2));
+    // Reserve the scrollbar column so text never runs under the bar.
+    reflow(std::max(1, width - kPad * 2 - kScrollbarW - kScrollbarGap));
     layoutButton();
+    layoutScrollbar();
     clampScroll();
+    syncScrollbar();
     invalidate();
 }
 
@@ -122,6 +167,7 @@ bool AboutWindow::handleMouseWheel(int delta, int /*relative_x*/, int /*relative
     // Wheel up (positive delta) scrolls the content up (toward the top).
     m_scroll -= delta * kScrollStep;
     clampScroll();
+    syncScrollbar(); // keep the scrollbar thumb in step with the wheel
     invalidate();
     return true;
 }
@@ -144,21 +190,8 @@ void AboutWindow::draw(Surface& surface)
         surface.Blit(*slice, Rect(kPad, kPad, view_w, view_h));
     }
 
-    // Scrollbar (only when the content overflows the viewport).
-    const int max_scroll = std::max(0, m_content_height - view_h);
-    if (max_scroll > 0 && view_h > 0) {
-        const int track_x = pos.width() - kPad + 2;
-        const uint32_t track_col = surface.MapRGB(40, 40, 52);
-        const uint32_t thumb_col = surface.MapRGB(120, 120, 150);
-        surface.box(static_cast<int16_t>(track_x), static_cast<int16_t>(kPad),
-                    static_cast<int16_t>(track_x + kScrollbarW - 1),
-                    static_cast<int16_t>(kPad + view_h - 1), track_col);
-        const int thumb_h = std::max(16, view_h * view_h / m_content_height);
-        const int thumb_y = kPad + (view_h - thumb_h) * m_scroll / max_scroll;
-        surface.box(static_cast<int16_t>(track_x), static_cast<int16_t>(thumb_y),
-                    static_cast<int16_t>(track_x + kScrollbarW - 1),
-                    static_cast<int16_t>(thumb_y + thumb_h - 1), thumb_col);
-    }
+    // The scrollbar is a standard ScrollbarWidget child, drawn on top of this
+    // surface by the widget tree (see layoutScrollbar/syncScrollbar).
 
     // 1px border.
     surface.rectangle(0, 0, static_cast<int16_t>(pos.width() - 1),
