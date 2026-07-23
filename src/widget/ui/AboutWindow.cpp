@@ -70,8 +70,10 @@ void AboutWindow::reflow(int content_width)
         }
         for (const std::string& wrapped : Label::wrapText(m_font, src, m_content_width)) {
             if (m_font && !wrapped.empty()) {
+                // Light mode: dark text, LCD-blended against the light background.
                 // UTF-8 so "©" renders correctly (TagLib's std::string ctor is Latin-1).
-                auto s = m_font->Render(TagLib::String(wrapped, TagLib::String::UTF8), 230, 230, 230);
+                auto s = m_font->RenderLCD(TagLib::String(wrapped, TagLib::String::UTF8),
+                                           20, 20, 20, 240, 240, 240);
                 if (s && s->isValid()) {
                     m_line_height = std::max(m_line_height, static_cast<int>(s->height()));
                     rendered.push_back(std::move(s));
@@ -89,7 +91,7 @@ void AboutWindow::reflow(int content_width)
     // Compose the full (tall) content surface once; draw() blits a scrolled
     // slice of it each frame.
     m_content = std::make_unique<Surface>(m_content_width, std::max(1, m_content_height), true);
-    m_content->FillRect(m_content->MapRGB(24, 24, 32));
+    m_content->FillRect(m_content->MapRGB(240, 240, 240));
     int y = 0;
     for (const auto& s : rendered) {
         if (s && s->isValid()) {
@@ -153,8 +155,13 @@ void AboutWindow::syncScrollbar()
 void AboutWindow::onClientResized(int width, int height)
 {
     setPos(Rect(getPos().x(), getPos().y(), width, height));
-    // Reserve the scrollbar column so text never runs under the bar.
-    reflow(std::max(1, width - kPad * 2 - kScrollbarW - kScrollbarGap));
+    // Only re-wrap/re-render the text when the WIDTH changes — a vertical-only
+    // resize (or a repeated width during a drag) reuses the cached content
+    // surface, so resizing no longer re-renders every glyph each mouse-move.
+    const int content_w = std::max(1, width - kPad * 2 - kScrollbarW - kScrollbarGap);
+    if (content_w != m_content_width) {
+        reflow(content_w);
+    }
     layoutButton();
     layoutScrollbar();
     clampScroll();
@@ -175,7 +182,7 @@ bool AboutWindow::handleMouseWheel(int delta, int /*relative_x*/, int /*relative
 void AboutWindow::draw(Surface& surface)
 {
     const Rect pos = getPos();
-    surface.FillRect(surface.MapRGB(24, 24, 32));
+    surface.FillRect(surface.MapRGB(240, 240, 240));
 
     const int view_h = viewportHeight();
     const int view_w = m_content_width;
@@ -185,7 +192,7 @@ void AboutWindow::draw(Surface& surface)
     // onto the widget surface.
     if (m_content && view_h > 0 && view_w > 0) {
         auto slice = std::make_unique<Surface>(view_w, view_h, true);
-        slice->FillRect(slice->MapRGB(24, 24, 32));
+        slice->FillRect(slice->MapRGB(240, 240, 240));
         slice->Blit(*m_content, Rect(0, -m_scroll, m_content_width, m_content_height));
         surface.Blit(*slice, Rect(kPad, kPad, view_w, view_h));
     }
@@ -196,7 +203,7 @@ void AboutWindow::draw(Surface& surface)
     // 1px border.
     surface.rectangle(0, 0, static_cast<int16_t>(pos.width() - 1),
                       static_cast<int16_t>(pos.height() - 1),
-                      surface.MapRGB(80, 80, 96));
+                      surface.MapRGB(140, 140, 150));
 }
 
 } // namespace UI
