@@ -43,6 +43,12 @@ class Label : public Widget
         void setText(const TagLib::String& text);
         void setBackgroundColor(SDL_Color background_color);
 
+        // Enable multi-line reflow: the label word-wraps its text to `wrap_width`
+        // pixels and grows its height to fit the wrapped lines (instead of the
+        // default single-line render). Re-applies to the current text; call
+        // again with a new width (e.g. on container resize) to re-flow.
+        void setReflow(bool enabled, int wrap_width);
+
         // Greedy word-wrap: split `text` into lines no wider than `max_width` px
         // when rendered with `font`. Whitespace-delimited; a single word wider
         // than max_width is placed on its own (overflowing) line rather than
@@ -70,6 +76,9 @@ class Label : public Widget
         int m_last_drawn_width{0};
         int m_last_drawn_height{0};
         bool m_marquee_enabled{false};
+        bool m_reflow{false};
+        int m_reflow_width{0};
+        void renderReflowed(); // multi-line wrapped render into the widget surface
         static constexpr int kEdgeFadeWidth = 14;
         static constexpr int kMarqueeGapPixels = 48;
         static constexpr int kMarqueePauseMs = 2000;

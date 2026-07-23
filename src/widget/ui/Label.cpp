@@ -136,6 +136,13 @@ void Label::setText(const TagLib::String& text)
         return;
     }
 
+    // Multi-line reflow path: word-wrap to the configured width and stack lines.
+    if (m_reflow && m_reflow_width > 0) {
+        renderReflowed();
+        invalidate();
+        return;
+    }
+
     // Use the ClearType (LCD subpixel) path so the rendered glyphs are
     // pre-blended against this label's background colour, avoiding the
     // single-alpha quality loss of compositing the text surface afterwards.
@@ -156,6 +163,75 @@ void Label::setText(const TagLib::String& text)
     
     // Notify parent that this widget needs repainting
     invalidate();
+}
+
+void Label::setReflow(bool enabled, int wrap_width)
+{
+    m_reflow = enabled;
+    m_reflow_width = wrap_width;
+    if (!m_font) {
+        return;
+    }
+    // Re-render the current text with the new wrap settings.
+    if (m_reflow && m_reflow_width > 0) {
+        renderReflowed();
+    } else if (!m_text.isEmpty()) {
+        m_text_surface = m_font->RenderLCD(m_text, m_color.r, m_color.g, m_color.b,
+                                           m_background_color.r, m_background_color.g,
+                                           m_background_color.b);
+        if (m_text_surface) {
+            auto ws = std::make_unique<Surface>(m_text_surface->width(), m_text_surface->height(), true);
+            ws->FillRect(ws->MapRGBA(0, 0, 0, 0));
+            ws->Blit(*m_text_surface, Rect(0, 0, m_text_surface->width(), m_text_surface->height()));
+            setSurface(std::move(ws));
+        }
+    }
+    invalidate();
+}
+
+void Label::renderReflowed()
+{
+    // Word-wrap the (UTF-8) text to m_reflow_width and stack the rendered lines
+    // into a single tall surface, growing the label's height to fit.
+    const std::vector<std::string> lines = wrapText(m_font, m_text.to8Bit(true), m_reflow_width);
+
+    std::vector<std::unique_ptr<Surface>> rendered;
+    rendered.reserve(lines.size());
+    int max_w = 0;
+    int line_h = 0;
+    for (const std::string& ln : lines) {
+        if (ln.empty()) {
+            rendered.push_back(nullptr); // blank line: preserve spacing
+            continue;
+        }
+        auto s = m_font->RenderLCD(TagLib::String(ln, TagLib::String::UTF8),
+                                   m_color.r, m_color.g, m_color.b,
+                                   m_background_color.r, m_background_color.g, m_background_color.b);
+        if (s && s->isValid()) {
+            max_w = std::max(max_w, static_cast<int>(s->width()));
+            line_h = std::max(line_h, static_cast<int>(s->height()));
+        }
+        rendered.push_back(std::move(s));
+    }
+    if (line_h <= 0) {
+        line_h = 14;
+    }
+    const int surf_w = std::max(max_w, m_reflow_width);
+    const int surf_h = std::max(line_h, static_cast<int>(rendered.size()) * line_h);
+
+    auto ws = std::make_unique<Surface>(surf_w, surf_h, true);
+    ws->FillRect(ws->MapRGBA(0, 0, 0, 0));
+    int y = 0;
+    for (const auto& s : rendered) {
+        if (s && s->isValid()) {
+            ws->Blit(*s, Rect(0, y, s->width(), s->height()));
+        }
+        y += line_h;
+    }
+    setSurface(std::move(ws));
+
+    Rect p = getPos();
+    setPos(Rect(p.x(), p.y(), surf_w, surf_h));
 }
 
 void Label::BlitTo(Surface& target)

@@ -3891,30 +3891,35 @@ void Player::showAboutWindow()
 
     auto client = std::make_unique<AboutWindow>(font.get());
     AboutWindow* about = client.get();
-    const int cw = client->getPos().width();
-    const int ch = client->getPos().height();
+
+    // Clamp the client size so the whole window (client + frame borders) fits
+    // the desktop. Resizable frame overhead: 8px wide, 27px tall (titlebar +
+    // borders). Leave a small margin. Oversized content then scrolls.
+    constexpr int kFrameBorderH = 8;
+    constexpr int kFrameBorderV = 27;
+    constexpr int kScreenMargin = 8;
+    const int max_client_w = Display::LOGICAL_WIDTH  - kFrameBorderH - kScreenMargin * 2;
+    const int max_client_h = Display::LOGICAL_HEIGHT - kFrameBorderV - kScreenMargin * 2;
+    const int cw = std::min(static_cast<int>(client->getPos().width()),  max_client_w);
+    const int ch = std::min(static_cast<int>(client->getPos().height()), max_client_h);
 
     auto frame = std::make_unique<WindowFrameWidget>(cw, ch, "About PsyMP3", font.get());
-    frame->setResizable(false);
+    frame->setResizable(true);
     frame->setMinimizable(false);
     frame->setMaximizable(false);
     frame->setClientArea(std::move(client));
     frame->refresh();
-    // WindowFrameWidget::refresh() replaces the client area's surface with a
-    // blank one; as a DrawableWidget, AboutWindow caches its rendered text in
-    // that surface and would otherwise stay blank. Mark it dirty so it repaints
-    // its content on the next blit.
-    about->invalidate();
+    // refresh() blanked the client surface and setClientArea sized it; re-flow
+    // the AboutWindow to the (possibly clamped) client size and repaint.
+    about->onClientResized(cw, ch);
 
-    // Center horizontally; sit a bit below vertical center. Clamp so a dialog
-    // taller/wider than the surface stays reachable at the top-left.
+    // Center horizontally, a bit below center, and clamp the FULL window frame
+    // fully on-screen.
     Rect sz = frame->getPos();
-    int x = std::max(0, (Display::LOGICAL_WIDTH - sz.width()) / 2);
+    int x = (Display::LOGICAL_WIDTH - sz.width()) / 2;
     int y = (Display::LOGICAL_HEIGHT - sz.height()) / 2 + 48;
-    if (y + sz.height() > Display::LOGICAL_HEIGHT) {
-        y = Display::LOGICAL_HEIGHT - sz.height();
-    }
-    y = std::max(0, y);
+    x = std::max(0, std::min(x, Display::LOGICAL_WIDTH - sz.width()));
+    y = std::max(0, std::min(y, Display::LOGICAL_HEIGHT - sz.height()));
     frame->setPos(Rect(x, y, sz.width(), sz.height()));
 
     WindowFrameWidget* fp = frame.get();
@@ -3923,7 +3928,12 @@ void Player::showAboutWindow()
         Rect p = fp->getPos(); p.x(p.x() + dx); p.y(p.y() + dy); fp->setPos(p);
     });
     frame->setOnDragStart([fp] { fp->bringToFront(); });
-    frame->setOnClose([this, fp] {
+    // Re-flow the text and re-layout the button/scrollbar when the user resizes.
+    frame->setOnResize([about](int w, int h) { about->onClientResized(w, h); });
+
+    // Shared dismiss path for both the frame's close button and the Ok button.
+    // deferWidgetDeletion makes it safe to call from within the button's click.
+    auto dismiss = [this, fp] {
         auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
                                [fp](const auto& w) { return w.get() == fp; });
         if (it != m_random_windows.end()) {
@@ -3931,7 +3941,10 @@ void Player::showAboutWindow()
             m_random_windows.erase(it);
         }
         m_about_window = nullptr;
-    });
+    };
+    frame->setOnClose(dismiss);
+    about->setOnOk(dismiss);
+
     fp->bringToFront();
     m_random_windows.push_back(std::move(frame));
 }
