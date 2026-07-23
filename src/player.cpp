@@ -3906,7 +3906,7 @@ void Player::showAboutWindow()
     auto frame = std::make_unique<WindowFrameWidget>(cw, ch, "About PsyMP3", font.get());
     frame->setResizable(true);
     frame->setMinimizable(false);
-    frame->setMaximizable(false);
+    frame->setMaximizable(true);
     frame->setClientArea(std::move(client));
     frame->refresh();
     // refresh() blanked the client surface and setClientArea sized it; re-flow
