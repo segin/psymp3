@@ -3892,16 +3892,18 @@ void Player::showAboutWindow()
     auto client = std::make_unique<AboutWindow>(font.get());
     AboutWindow* about = client.get();
 
-    // Clamp the client size so the whole window (client + frame borders) fits
-    // the desktop. Resizable frame overhead: 8px wide, 27px tall (titlebar +
-    // borders). Leave a small margin. Oversized content then scrolls.
+    // Default to a 500x290 window, clamped so the whole window (client + frame
+    // borders) fits the desktop. Resizable frame overhead: 8px wide, 27px tall
+    // (titlebar + borders). Oversized content then scrolls.
     constexpr int kFrameBorderH = 8;
     constexpr int kFrameBorderV = 27;
     constexpr int kScreenMargin = 8;
+    constexpr int kDefaultWindowW = 500;
+    constexpr int kDefaultWindowH = 290;
     const int max_client_w = Display::LOGICAL_WIDTH  - kFrameBorderH - kScreenMargin * 2;
     const int max_client_h = Display::LOGICAL_HEIGHT - kFrameBorderV - kScreenMargin * 2;
-    const int cw = std::min(static_cast<int>(client->getPos().width()),  max_client_w);
-    const int ch = std::min(static_cast<int>(client->getPos().height()), max_client_h);
+    const int cw = std::min(kDefaultWindowW - kFrameBorderH, max_client_w);
+    const int ch = std::min(kDefaultWindowH - kFrameBorderV, max_client_h);
 
     auto frame = std::make_unique<WindowFrameWidget>(cw, ch, "About PsyMP3", font.get());
     frame->setResizable(true);
