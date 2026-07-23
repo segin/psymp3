@@ -20,7 +20,10 @@ AboutWindow::AboutWindow(::Font* font)
     // Split the shared about text into its source lines (license paragraphs are
     // already single logical lines; copyright lines stay separate). Blank lines
     // are kept as paragraph spacers.
-    std::istringstream ss(std::string(PsyMP3::Core::about_message()));
+    // Note: a named string avoids the most-vexing-parse that clang/libc++
+    // rejects for `std::istringstream ss(std::string(about_message()))`.
+    const std::string about_text = PsyMP3::Core::about_message();
+    std::istringstream ss(about_text);
     std::string line;
     while (std::getline(ss, line, '\n')) {
         m_source_lines.push_back(line);
