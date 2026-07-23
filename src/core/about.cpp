@@ -33,7 +33,7 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
             "Copyright © 2009-2026 Kirn Gill II <segin2005@gmail.com>\n"
             "Copyright © 2010-2026 Mattis Michel <sic_zer0@hotmail.com>\n"
-            "Copyright (c) 2009-2025 Rajesh Rajan <seanawake@gmail.com>\n"
+            "Copyright © 2009-2026 Rajesh Rajan <seanawake@gmail.com>\n"
             "Font \"Droid Sans Fallback\" is Copyright © 2006-2026 Google, Inc.\n"
             "\n"
             // License paragraphs are single logical lines so consumers that

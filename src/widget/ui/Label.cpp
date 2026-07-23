@@ -39,7 +39,9 @@ std::vector<std::string> Label::wrapText(Font* font, const std::string& text, in
     std::string current;
     while (words >> word) {
         std::string candidate = current.empty() ? word : current + " " + word;
-        auto surf = font->Render(candidate, 255, 255, 255);
+        // UTF-8 so multi-byte glyphs measure correctly (TagLib::String's
+        // std::string ctor otherwise defaults to Latin-1).
+        auto surf = font->Render(TagLib::String(candidate, TagLib::String::UTF8), 255, 255, 255);
         int w = (surf && surf->isValid()) ? surf->width() : 0;
         if (!current.empty() && w > max_width) {
             lines.push_back(current); // flush the line before this word overflows

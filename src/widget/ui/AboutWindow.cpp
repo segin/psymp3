@@ -37,7 +37,10 @@ AboutWindow::AboutWindow(::Font* font)
         }
         for (const std::string& wrapped : Label::wrapText(m_font, line, kMinContentWidth)) {
             if (m_font && !wrapped.empty()) {
-                auto surface = m_font->Render(wrapped, 230, 230, 230);
+                // Decode as UTF-8: TagLib::String's std::string ctor defaults to
+                // Latin-1, which would render "©" (0xC2 0xA9) as "Â©".
+                auto surface = m_font->Render(TagLib::String(wrapped, TagLib::String::UTF8),
+                                              230, 230, 230);
                 if (surface && surface->isValid()) {
                     max_width = std::max(max_width, static_cast<int>(surface->width()));
                     m_line_height = std::max(m_line_height, static_cast<int>(surface->height()));
