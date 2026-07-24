@@ -953,7 +953,7 @@ MethodHandler::handleGetAllProperties_unlocked(DBusConnection *connection,
         dbus_message_iter_append_basic(&entry_iter, DBUS_TYPE_STRING,
                                        &key_cstr);
 
-        appendVariantToIter_unlocked(&entry_iter, value);
+        appendVariantToDBusIter(&entry_iter, value);
 
         dbus_message_iter_close_container(&dict_iter, &entry_iter);
       } catch (const std::exception &e) {
@@ -1143,119 +1143,11 @@ void MethodHandler::appendVariantToMessage_unlocked(
     DBusMessage *reply, const PsyMP3::MPRIS::DBusVariant &variant) {
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
-  appendVariantToIter_unlocked(&args, variant);
+  // Single, shared variant marshaller (also used by SignalEmitter): keeps the
+  // Get/GetAll and PropertiesChanged paths in lock-step for every variant type.
+  appendVariantToDBusIter(&args, variant);
 }
 
-void MethodHandler::appendVariantToIter_unlocked(
-    DBusMessageIter *iter, const PsyMP3::MPRIS::DBusVariant &variant) {
-  DBusMessageIter variant_iter;
-
-  switch (variant.type) {
-  case PsyMP3::MPRIS::DBusVariant::String: {
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "s",
-                                     &variant_iter);
-    const std::string &str_val = variant.get<std::string>();
-    const char *str_cstr = str_val.c_str();
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING, &str_cstr);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  case PsyMP3::MPRIS::DBusVariant::ObjectPath: {
-    // Same std::string storage as String, but marshals as the object-path type
-    // 'o'. Without this, appending mpris:trackid (used by Properties.GetAll on
-    // the Player interface) threw "Unknown variant type" and the whole Metadata
-    // reply failed, so clients (playerctl, GNOME) saw no player.
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "o",
-                                     &variant_iter);
-    const std::string &path_val = variant.get<std::string>();
-    const char *path_cstr = path_val.c_str();
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_OBJECT_PATH,
-                                   &path_cstr);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  case PsyMP3::MPRIS::DBusVariant::StringArray: {
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "as",
-                                     &variant_iter);
-    DBusMessageIter array_iter;
-    dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY, "s",
-                                     &array_iter);
-
-    const auto &str_array = variant.get<std::vector<std::string>>();
-    for (const auto &str : str_array) {
-      const char *str_cstr = str.c_str();
-      dbus_message_iter_append_basic(&array_iter, DBUS_TYPE_STRING, &str_cstr);
-    }
-
-    dbus_message_iter_close_container(&variant_iter, &array_iter);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  case PsyMP3::MPRIS::DBusVariant::Int64: {
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "x",
-                                     &variant_iter);
-    dbus_int64_t int_val = static_cast<dbus_int64_t>(variant.get<int64_t>());
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_INT64, &int_val);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  case PsyMP3::MPRIS::DBusVariant::UInt64: {
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "t",
-                                     &variant_iter);
-    dbus_uint64_t uint_val =
-        static_cast<dbus_uint64_t>(variant.get<uint64_t>());
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_UINT64, &uint_val);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  case PsyMP3::MPRIS::DBusVariant::Double: {
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "d",
-                                     &variant_iter);
-    double double_val = variant.get<double>();
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE,
-                                   &double_val);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  case PsyMP3::MPRIS::DBusVariant::Boolean: {
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = variant.get<bool>() ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  case PsyMP3::MPRIS::DBusVariant::Dictionary: {
-    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "a{sv}",
-                                     &variant_iter);
-    DBusMessageIter dict_iter;
-    dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY, "{sv}",
-                                     &dict_iter);
-
-    const auto &dict =
-        *variant.get<std::shared_ptr<PsyMP3::MPRIS::DBusDictionary>>();
-    for (const auto &[key, value] : dict) {
-      DBusMessageIter entry_iter;
-      dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
-                                       nullptr, &entry_iter);
-
-      const char *key_cstr = key.c_str();
-      dbus_message_iter_append_basic(&entry_iter, DBUS_TYPE_STRING, &key_cstr);
-
-      // Recursive call for the value variant
-      appendVariantToIter_unlocked(&entry_iter, value);
-
-      dbus_message_iter_close_container(&dict_iter, &entry_iter);
-    }
-
-    dbus_message_iter_close_container(&variant_iter, &dict_iter);
-    dbus_message_iter_close_container(iter, &variant_iter);
-    break;
-  }
-  default:
-    throw std::runtime_error("Unknown variant type");
-  }
-}
 
 
 // Error handling and logging

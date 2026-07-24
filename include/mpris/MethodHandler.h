@@ -126,9 +126,10 @@ private:
     PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>> parseSetPositionArguments_unlocked(DBusMessage* message);
     PsyMP3::MPRIS::Result<std::pair<std::string, std::string>> parsePropertyArguments_unlocked(DBusMessage* message);
     
-    // Property value serialization for D-Bus responses
+    // Property value serialization for D-Bus responses. The recursive variant
+    // marshalling itself lives in one shared place: the free function
+    // appendVariantToDBusIter() (MPRISTypes), also used by SignalEmitter.
     void appendVariantToMessage_unlocked(DBusMessage* reply, const PsyMP3::MPRIS::DBusVariant& variant);
-    void appendVariantToIter_unlocked(DBusMessageIter* iter, const PsyMP3::MPRIS::DBusVariant& variant);
     
     // Error handling and logging
     void logMethodCall_unlocked(const std::string& interface_name, const std::string& method_name);
