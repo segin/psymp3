@@ -65,8 +65,10 @@ LastFM::~LastFM()
     // Save any remaining scrobbles to cache (Requirements 7.3)
     // Use public saveScrobbles() which acquires lock for thread safety
     saveScrobbles();
-    writeConfig();
-    
+    // Note: lastfm.conf is user-owned credentials (username=/password=) and is
+    // never rewritten by the app, so nothing to persist here. The session key
+    // is in-memory only and re-obtained by handshake each run.
+
     // Securely clear credentials from memory (CWE-312)
     if (!m_password_hash.empty()) {
         OPENSSL_cleanse(&m_password_hash[0], m_password_hash.length());
@@ -110,18 +112,17 @@ void LastFM::readConfig()
                 OPENSSL_cleanse(&line[0], line.length());
             }
         } else if (key == "password_hash") {
+            // Back-compat: older versions rewrote lastfm.conf with the hash
+            // instead of the plaintext password. Still accepted so those users
+            // keep working, but the app no longer writes it.
             m_password_hash = value;
             DEBUG_LOG_LAZY("lastfm", "Password hash loaded");
-        } else if (key == "session_key") {
-            m_session_key = value;
-            DEBUG_LOG_LAZY("lastfm", "Session key loaded");
-        } else if (key == "now_playing_url") {
-            m_nowplaying_url = value;
-            DEBUG_LOG_LAZY("lastfm", "Now playing URL loaded: ", m_nowplaying_url);
-        } else if (key == "submission_url") {
-            m_submission_url = value;
-            DEBUG_LOG_LAZY("lastfm", "Submission URL loaded: ", m_submission_url);
         }
+        // session_key / now_playing_url / submission_url are intentionally NOT
+        // read from lastfm.conf: the Last.fm session is ephemeral and obtained
+        // by a fresh handshake from username/password each run. Ignoring any
+        // stale cached session an older build may have written avoids getting
+        // stuck on it (we never clear keys on an auth failure anymore).
     }
     
     if (isConfigured()) {
@@ -129,38 +130,6 @@ void LastFM::readConfig()
     } else {
         DEBUG_LOG_LAZY("lastfm", "Missing username or password hash - scrobbling disabled");
     }
-}
-
-void LastFM::writeConfig()
-{
-    System::createStoragePath();
-
-#ifndef _WIN32
-    // Set umask to ensure file is created with 0600 permissions
-    mode_t old_mask = umask(0077);
-#endif
-
-    std::ofstream config(System::pathFromUtf8(m_config_file));
-
-#ifndef _WIN32
-    umask(old_mask);
-#endif
-
-    if (!config.is_open()) {
-        DEBUG_LOG_LAZY("lastfm", "Failed to write config file: ", m_config_file);
-        return;
-    }
-    
-    config << "# Last.fm configuration\n";
-    config << "username=" << m_username << "\n";
-    // Persist the MD5 password hash (never the plaintext). The file is written
-    // 0600. Without this, the destructor's writeConfig() erased the hash on the
-    // first clean shutdown, so isConfigured() went false on next launch and
-    // scrobbling silently died once the session key expired.
-    config << "password_hash=" << m_password_hash << "\n";
-    config << "session_key=" << m_session_key << "\n";
-    config << "now_playing_url=" << m_nowplaying_url << "\n";
-    config << "submission_url=" << m_submission_url << "\n";
 }
 
 std::string LastFM::getSessionKey()
@@ -173,11 +142,12 @@ std::string LastFM::getSessionKey()
         return "";
     }
 
-    // Try to get session key from each host
+    // Try to get session key from each host. The session key is kept in memory
+    // only for this run — lastfm.conf holds just the user's username/password
+    // and is never rewritten.
     for (int i = 0; i < 3; ++i) {
         if (performHandshake(i)) {
             m_handshake_attempts = 0; // Reset on success
-            writeConfig(); // Save the session key
             return m_session_key;
         }
     }
@@ -603,13 +573,10 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
             DEBUG_LOG_LAZY("lastfm", "Scrobble submitted successfully: ", artist, " - ", title);
             return true;
         } else if (status.substr(0, 6) == "FAILED") {
+            // Do not clear the session or any credentials on an auth failure —
+            // only log it. (Clearing keys here silently tore down a working
+            // configuration on a transient BADAUTH.)
             DEBUG_LOG_LAZY("lastfm", "Scrobble submission failed - ", status);
-            // Clear session for authentication failures
-            if (status.find("BADAUTH") != std::string::npos) {
-                m_session_key.clear(); // Force re-authentication
-                m_submission_url.clear();
-                m_nowplaying_url.clear();
-            }
         } else {
             DEBUG_LOG_LAZY("lastfm", "Unexpected scrobble response: ", status);
         }
@@ -743,13 +710,8 @@ bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
             }
             return true;
         } else if (status.substr(0, 6) == "FAILED") {
+            // Auth failure: log only, never clear the session or credentials.
             DEBUG_LOG_LAZY("lastfm", "Now playing submission failed - ", status);
-            // Clear session for authentication failures
-            if (status.find("BADAUTH") != std::string::npos) {
-                m_session_key.clear();
-                m_submission_url.clear();
-                m_nowplaying_url.clear();
-            }
         } else {
             DEBUG_LOG_LAZY("lastfm", "Unexpected now playing response: ", status);
         }

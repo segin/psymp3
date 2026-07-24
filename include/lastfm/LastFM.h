@@ -123,8 +123,10 @@ private:
     void increaseBackoff_unlocked();
     
     // Configuration and cache management
+    // lastfm.conf is user-owned (username=/password=) and read-only: the app
+    // reads credentials from it but never rewrites it, so the user's keys are
+    // never deleted or migrated away. The Last.fm session key is in-memory only.
     void readConfig();
-    void writeConfig();
     std::string getSessionKey();
     void loadScrobbles();  // Called only from constructor (single-threaded)
     void saveScrobbles();  // Public wrapper acquires lock
