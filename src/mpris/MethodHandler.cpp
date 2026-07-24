@@ -1160,6 +1160,20 @@ void MethodHandler::appendVariantToIter_unlocked(
     dbus_message_iter_close_container(iter, &variant_iter);
     break;
   }
+  case PsyMP3::MPRIS::DBusVariant::ObjectPath: {
+    // Same std::string storage as String, but marshals as the object-path type
+    // 'o'. Without this, appending mpris:trackid (used by Properties.GetAll on
+    // the Player interface) threw "Unknown variant type" and the whole Metadata
+    // reply failed, so clients (playerctl, GNOME) saw no player.
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "o",
+                                     &variant_iter);
+    const std::string &path_val = variant.get<std::string>();
+    const char *path_cstr = path_val.c_str();
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_OBJECT_PATH,
+                                   &path_cstr);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
   case PsyMP3::MPRIS::DBusVariant::StringArray: {
     dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "as",
                                      &variant_iter);
