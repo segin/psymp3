@@ -894,6 +894,18 @@ void Player::handleTrackSeamlessSwapEvent() {
 
     // Update stream pointer and start scrobbling for new track
     stream = audio->getCurrentStream();
+
+    // Replace the now-current playlist entry's metadata with the track's live
+    // tags, exactly as the manual/PlayNow load path does — so a track that
+    // starts by natural end-of-track transition (seamless swap) also refreshes
+    // its Playlist Manager row, not just when double-clicked. The cursor was
+    // advanced just above, so getPosition() points at the swapped-in track.
+    if (playlist && stream) {
+        playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
+                                        stream->getArtist(), stream->getTitle(),
+                                        stream->getAlbum(), stream->getLength() / 1000);
+    }
+
     startTrackScrobbling();
 
     // Notify now-playing listeners of the new track. The seamless-swap path
