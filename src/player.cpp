@@ -895,6 +895,18 @@ void Player::handleTrackSeamlessSwapEvent() {
     // Update stream pointer and start scrobbling for new track
     stream = audio->getCurrentStream();
 
+    // Ensure the audio device is actually running. When the next track's format
+    // differs, the branch above constructs a NEW Audio, whose SDL device starts
+    // paused (m_playing=false) — and nothing else on this path unpauses it, so
+    // the track sat silent at the very start until the user toggled pause.
+    // Seeking never helped because resetBuffer() does not touch the device's
+    // pause state. Mirrors the play(true) in handleTrackLoadSuccessEvent; the
+    // state guard keeps a paused player paused, and it is a no-op for the
+    // same-format branch that reuses the already-running device.
+    if (audio && state == PlayerState::Playing) {
+        audio->play(true);
+    }
+
     // Replace the now-current playlist entry's metadata with the track's live
     // tags, exactly as the manual/PlayNow load path does — so a track that
     // starts by natural end-of-track transition (seamless swap) also refreshes
