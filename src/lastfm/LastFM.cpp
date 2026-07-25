@@ -145,7 +145,9 @@ std::string LastFM::getSessionKey()
     // Try to get session key from each host. The session key is kept in memory
     // only for this run — lastfm.conf holds just the user's username/password
     // and is never rewritten.
-    for (int i = 0; i < 3; ++i) {
+    // Bound by the host list itself so pruning/adding a host can't leave a
+    // stale literal here (which would index past the array).
+    for (int i = 0; i < static_cast<int>(m_api_hosts.size()); ++i) {
         if (performHandshake(i)) {
             m_handshake_attempts = 0; // Reset on success
             return m_session_key;

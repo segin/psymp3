@@ -92,12 +92,13 @@ private:
     std::string m_cache_file;
     
     // API endpoints - supports multiple hosts for redundancy
-    std::array<std::string, 3> m_api_hosts = {
+    // Handshake endpoints, tried in order. submissions.last.fm was removed: it
+    // no longer resolves, so every handshake round wasted a DNS timeout on it.
+    std::array<std::string, 2> m_api_hosts = {
         "post.audioscrobbler.com",
-        "post2.audioscrobbler.com", 
-        "submissions.last.fm"
+        "post2.audioscrobbler.com"
     };
-    std::array<int, 3> m_api_ports = {443, 443, 443};
+    std::array<int, 2> m_api_ports = {443, 443};
     
     // Submission URLs (obtained from handshake response)
     std::string m_submission_url;
