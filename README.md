@@ -27,29 +27,47 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 
 ### Linux/BSD
 **Core dependencies** (always required):
-- SDL2
-- FreeType2
-- taglib 1.6 or later
-- OpenSSL 1.0 or later
-- libcurl 7.20.0 or later
+- SDL2 2.0 or later (`sdl2`)
+- FreeType2 (`freetype2`)
+- taglib 1.6 or later (`taglib`)
+- OpenSSL 1.0 or later (`openssl`)
+- libcurl 7.20.0 or later (`libcurl`)
 
-**Optional codec dependencies** (can be disabled at build time):
-- MP3 support is provided by bundled minimp3 (no external dependency)
-- libvorbis (for Ogg Vorbis support)
-- libopus (for Opus support)
-- libogg (required for Vorbis, Opus, and Ogg FLAC)
-- No external FLAC library is required; PsyMP3 uses its native FLAC decoder
+**Optional codec dependencies** (auto-detected; each can be disabled at build time):
+- libogg (`ogg`) — required for Vorbis, Opus, and Ogg FLAC
+- libvorbis (`vorbis`) — Ogg Vorbis
+- libopus (`opus`) — Opus
+- faad2 (`faad2`) — AAC
+- speex 1.2 or later (`speex`) — Speex
+- spandsp (`spandsp`) — G.722
+
+**Bundled codecs** (vendored, no external dependency):
+- FLAC — native decoder (no libFLAC needed)
+- MP3 — minimp3 (`third_party/minimp3`)
+- MP2 — kjmp2 (`third_party/kjmp2`)
+- ALAC — Apple's reference decoder (`third_party/alac`)
 
 **Optional integration dependencies**:
-- D-Bus 1.0 or later (for MPRIS desktop media control support)
+- D-Bus 1.0 or later (`dbus-1`) — MPRIS desktop media control
+- A GUI toolkit for the native file-open/save dialog. Configure probes, in
+  order, and uses the first one found:
+  **Qt 6** (`Qt6Widgets`) → **Qt 5** (`Qt5Widgets`) → **Qt 4** (`QtGui`) →
+  **Qt 3** (no pkg-config; opt in with `--with-qt3-dir=PREFIX`) →
+  **GTK 4** (`gtk4`) → **GTK+ 3** (`gtk+-3.0`) → **GTK+ 2** (`gtk+-2.0`).
+  Without any of these, the file dialogs are unavailable but PsyMP3 still
+  builds and plays files given on the command line.
 
 ### Windows / ARM
 - Supported via llvm-mingw (experimental)
 
 ### Build Requirements
 - C++17 compliant compiler (GCC 9+, Clang 10+, MSVC 2019+)
-- Autotools (`autoconf`, `automake`, `libtool`, `autoconf-archive`)
+- Autotools: `autoconf`, `automake`, `libtool`, and **`autoconf-archive`**
+  (required — it supplies `AX_CXX_COMPILE_STDCXX_17`; without it `autoreconf`
+  silently drops the C++17 check and the build fails with `-std=c++17` errors)
 - `pkg-config`
+- Optional, for `make check`: [RapidCheck](https://github.com/emil-e/rapidcheck)
+  (property-based tests, enabled with `--enable-rapidcheck`)
 
 ## Building
 
