@@ -216,6 +216,11 @@ class Player
         void playlistManagerLoad();
         void playlistManagerSave();
 
+        // "Persist Playlist" session option (Playlist Manager > File). When on,
+        // the current playlist is saved on exit and reloaded on the next launch.
+        bool getPersistPlaylist() const { return m_persist_playlist; }
+        void togglePersistPlaylist();
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
@@ -357,6 +362,10 @@ class Player
         // Progress bar widget (non-owning pointer - owned by progress frame widget which is owned by ApplicationWidget)
         PlayerProgressBarWidget* m_progress_widget;
 
+        // Repeat/Shuffle status indicators above the progress bar (non-owning;
+        // owned by the HUD panel).
+        PlaybackIndicatorsWidget* m_playback_indicators = nullptr;
+
         // Overlay widgets
         LyricsWidget* m_lyrics_widget = nullptr;
         std::unique_ptr<Label> m_pause_indicator;
@@ -430,6 +439,15 @@ class Player
         // under the config dir; loaded at construction, saved at shutdown.
         void loadSettings();
         void saveSettings() const;
+        std::string sessionPlaylistPath() const;
+        void persistPlaylistOnExit();  // save the playlist if the option is on
+
+        // Persisted playback options. Shuffle/loop are applied once the playlist
+        // exists (see the pending-* members), matching how zoom is deferred.
+        bool m_persist_playlist = false;
+        bool m_pending_shuffle = false;
+        LoopMode m_pending_loop_mode = LoopMode::None;
+        bool m_session_playlist_saved = false; // avoid double-saving at teardown
         int m_random_window_counter = 0;
 
         // Deferred widget deletion

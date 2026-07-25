@@ -232,6 +232,7 @@
 #include "widget/ui/TextInputWidget.cpp"
 #include "widget/ui/ToastWidget.cpp"
 #include "widget/ui/AboutWindow.cpp"
+#include "widget/ui/PlaybackIndicatorsWidget.cpp"
 
 // ============================================================================
 // Tag Subsystem

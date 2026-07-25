@@ -335,6 +335,11 @@ public:
         file_items.push_back(MI::leaf("&Save Playlist...", [this] {
             m_player->playlistManagerSave();
         }, nullptr, "", fd));
+        file_items.push_back(MI::sep());
+        // Checkmark reflects the persisted state; toggling saves the setting.
+        file_items.push_back(MI::leaf("&Persist Playlist",
+            [this] { m_player->togglePersistPlaylist(); },
+            [this] { return m_player->getPersistPlaylist(); }));
         m_menu->addMenu("&File", std::move(file_items));
         addChild(std::move(menu));
 
@@ -2136,6 +2141,11 @@ bool Player::updateGUI()
         }
 #endif
     }
+    // Keep the Repeat/Shuffle indicators in sync (no-op when unchanged).
+    if (m_playback_indicators) {
+        m_playback_indicators->setState(m_loop_mode.load(), getShuffle());
+    }
+
     // Now use the copied data for rendering, outside the lock.
     if(current_stream) {
         m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
@@ -2729,6 +2739,8 @@ bool Player::Initialize(const PlayerOptions& options) {
 
     // Create an empty playlist. It will be populated in the background.
     playlist = std::make_unique<Playlist>();
+    // Apply the persisted shuffle state (no toast/MPRIS churn at startup).
+    playlist->setShuffle(m_pending_shuffle);
 
     fft = std::make_unique<FastFourier>();
     mutex = std::make_unique<std::mutex>();
@@ -2799,6 +2811,15 @@ bool Player::Initialize(const PlayerOptions& options) {
     add_label(*hud_panel_ptr, "album",    Rect(1, 34, 350, 16), true);
     add_label(*hud_panel_ptr, "playlist", Rect(270, 4, 120, 16));
     add_label(*hud_panel_ptr, "position", Rect(400, 3, 150, 16));
+
+    // Repeat/Shuffle indicators: right-aligned to the progress bar's right edge
+    // (x=399+222=621), in the row above it, to the right of the position text.
+    {
+        auto indicators = std::make_unique<PlaybackIndicatorsWidget>(40, 16);
+        indicators->setPos(Rect(621 - 40, 3, 40, 16));
+        m_playback_indicators = indicators.get();
+        hud_panel_ptr->addChild(std::move(indicators));
+    }
     // Shifted down by the menu-bar height so the in-app menu bar doesn't cover them.
     add_label(app_widget,     "scale",    Rect(545, MenuBarWidget::BAR_H + 0, 95, 16));
     add_label(app_widget,     "decay",    Rect(545, MenuBarWidget::BAR_H + 15, 95, 16));
@@ -2937,7 +2958,10 @@ bool Player::Initialize(const PlayerOptions& options) {
         menu_bar->setZOrder(ZOrder::MAX); // sort above toasts
         app_widget.addWindow(std::move(menu_bar), ZOrder::MAX);
     }
-    m_loop_mode = LoopMode::None; // Default loop mode on startup
+    // Default loop mode on start is None (non-persistence path); a persisted
+    // loop_mode= from settings overrides it (m_pending_loop_mode stays None when
+    // there was nothing to load).
+    m_loop_mode = m_pending_loop_mode;
 
     // Initialize lyrics widget and add to application window system
     auto lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
@@ -2949,9 +2973,18 @@ bool Player::Initialize(const PlayerOptions& options) {
     
 
     // If command line arguments are provided, start populating the playlist
-    // and load the first track in a background thread.
-    if (!options.files.empty()) {
-        m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, options.files);
+    // and load the first track in a background thread. Otherwise, when "Persist
+    // Playlist" is on, reload the saved session playlist instead.
+    std::vector<std::string> startup_files = options.files;
+    if (startup_files.empty() && m_persist_playlist) {
+        std::ifstream session(System::pathFromUtf8(sessionPlaylistPath()));
+        if (session.good()) {
+            startup_files.push_back(sessionPlaylistPath());
+            Debug::log("player", "Persist Playlist: reloading session playlist");
+        }
+    }
+    if (!startup_files.empty()) {
+        m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, startup_files);
         state = PlayerState::Stopped; // Will transition to playing when track loads
     } else {
         // No files, start with stopped state and an empty screen.
@@ -3245,6 +3278,10 @@ void Player::Cleanup() {
     if (m_playlist_populator_thread.joinable()) {
         m_playlist_populator_thread.join();
     }
+
+    // Save the session playlist (if the option is on) now that the populator has
+    // finished and the playlist is complete, while it's all still alive.
+    persistPlaylistOnExit();
 
     // all is well ;)
     Debug::log("player", "Exited cleanly");
@@ -3775,6 +3812,16 @@ void Player::loadSettings()
                 m_volume = static_cast<float>(std::clamp(v, 0.0, 1.0));
         } else if (key == "eq_enabled") {
             m_eq_enabled = (value == "1" || value == "true");
+        } else if (key == "shuffle") {
+            m_pending_shuffle = (value == "1" || value == "true");
+        } else if (key == "loop_mode") {
+            int m = 0;
+            if (parseSettingDouble(value, v)) m = static_cast<int>(v);
+            m_pending_loop_mode = (m == static_cast<int>(LoopMode::One))  ? LoopMode::One
+                                : (m == static_cast<int>(LoopMode::All))  ? LoopMode::All
+                                                                          : LoopMode::None;
+        } else if (key == "persist_playlist") {
+            m_persist_playlist = (value == "1" || value == "true");
         } else if (key == "zoom") {
             if (parseSettingDouble(value, v)) {
                 m_pending_scale = (static_cast<int>(v) >= 2) ? 2 : 1;
@@ -3819,8 +3866,38 @@ void Player::saveSettings() const
     f << "eq_enabled=" << (m_eq_enabled ? 1 : 0) << "\n";
     f << "zoom=" << (screen ? screen->getLogicalScale() : m_pending_scale) << "\n";
     f << "target_fps=" << m_target_fps << "\n";
+    // Playback options. getShuffle() reads the live playlist when present, else
+    // falls back to the value we loaded (persisted here even before playback).
+    f << "shuffle=" << (getShuffle() ? 1 : 0) << "\n";
+    f << "loop_mode=" << static_cast<int>(getLoopMode()) << "\n";
+    f << "persist_playlist=" << (m_persist_playlist ? 1 : 0) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
+}
+
+std::string Player::sessionPlaylistPath() const
+{
+    return System::getStoragePath().to8Bit(true) + "/session.m3u8";
+}
+
+void Player::persistPlaylistOnExit()
+{
+    // Save the current playlist for the next launch, once, if the option is on.
+    if (m_session_playlist_saved || !m_persist_playlist || !playlist) {
+        return;
+    }
+    m_session_playlist_saved = true;
+    if (playlist->entries() > 0) {
+        playlist->savePlaylist(TagLib::String(sessionPlaylistPath(), TagLib::String::UTF8));
+        Debug::log("player", "Persisted session playlist (", playlist->entries(), " entries)");
+    }
+}
+
+void Player::togglePersistPlaylist()
+{
+    m_persist_playlist = !m_persist_playlist;
+    saveSettings(); // persist the setting itself immediately
+    showToast(m_persist_playlist ? "Persist Playlist: On" : "Persist Playlist: Off");
 }
 
 void Player::toggleEqualizerWindow()

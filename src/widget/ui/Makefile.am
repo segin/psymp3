@@ -51,6 +51,7 @@ libpsymp3_widget_ui_a_SOURCES = \
 	EqualizerCurveWidget.cpp \
 	EqualizerWindow.cpp \
 	AboutWindow.cpp \
+	PlaybackIndicatorsWidget.cpp \
 	ToastWidget.cpp
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
