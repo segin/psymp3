@@ -70,6 +70,21 @@ public:
     static std::string saveFile(const std::string& title,
                                 const std::string& default_name,
                                 const std::vector<std::string>& extensions);
+
+    /**
+     * @brief True if a persistent GUI-toolkit global was created for the dialog
+     *        and that toolkit is known to crash in its own exit handlers.
+     *
+     * The Qt backend keeps a process-lifetime QApplication. Qt flushes pending
+     * DeferredDelete events from a static destructor at exit, by which point
+     * parts of Qt (the animation driver) are already gone — under KDE this
+     * SIGSEGVs inside the Breeze style plugin's QObject destructor, in a
+     * teardown path containing none of our own code. Callers use this to skip
+     * third-party exit handlers once our own state has been flushed.
+     *
+     * Always false for the GTK/Win32/no-op backends.
+     */
+    static bool toolkitCrashesAtExit();
 };
 
 } // namespace Core

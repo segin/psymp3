@@ -157,6 +157,13 @@ std::string FileDialog::saveFile(const std::string& title,
     return file.isEmpty() ? std::string() : qstr_to_utf8(file);
 }
 
+bool FileDialog::toolkitCrashesAtExit()
+{
+    // True once the process-lifetime QApplication exists (i.e. a dialog was
+    // opened). See the declaration for why Qt's exit-time teardown is unsafe.
+    return qApp != nullptr;
+}
+
 } // namespace Core
 } // namespace PsyMP3
 
@@ -335,6 +342,13 @@ std::string FileDialog::saveFile(const std::string& title,
     return result;
 }
 
+
+bool FileDialog::toolkitCrashesAtExit()
+{
+    // Only the Qt backend keeps a process-lifetime toolkit global with unsafe
+    // exit-time teardown; this backend exits cleanly.
+    return false;
+}
 } // namespace Core
 } // namespace PsyMP3
 
@@ -469,6 +483,13 @@ std::string FileDialog::saveFile(const std::string& title,
     return std::string();
 }
 
+
+bool FileDialog::toolkitCrashesAtExit()
+{
+    // Only the Qt backend keeps a process-lifetime toolkit global with unsafe
+    // exit-time teardown; this backend exits cleanly.
+    return false;
+}
 } // namespace Core
 } // namespace PsyMP3
 
@@ -492,6 +513,13 @@ std::string FileDialog::saveFile(const std::string&, const std::string&,
     return {};
 }
 
+
+bool FileDialog::toolkitCrashesAtExit()
+{
+    // Only the Qt backend keeps a process-lifetime toolkit global with unsafe
+    // exit-time teardown; this backend exits cleanly.
+    return false;
+}
 } // namespace Core
 } // namespace PsyMP3
 

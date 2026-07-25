@@ -192,5 +192,23 @@ int main(int argc, char *argv[]) {
     }
 
     Debug::shutdown();
+
+#ifdef HAVE_FILEDIALOG
+    // If a GUI toolkit global outlives us, leave the process before its exit
+    // handlers run. Qt flushes pending DeferredDelete events from a static
+    // destructor at exit, after parts of Qt (the animation driver) are already
+    // torn down; under KDE that SIGSEGVs inside the Breeze style plugin, in a
+    // stack containing none of our own code, and dumps core on a clean quit.
+    //
+    // This is safe because everything of ours is already flushed: the Player
+    // destructor above joined the worker threads and saved the playlist and
+    // scrobble cache, and Debug::shutdown() closed the log. Only stdio buffers
+    // remain, and _Exit does not flush them, so do that explicitly first.
+    if (PsyMP3::Core::FileDialog::toolkitCrashesAtExit()) {
+        std::fflush(nullptr);
+        std::_Exit(0);
+    }
+#endif
+
     return 0;
 }
