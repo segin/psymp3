@@ -28,6 +28,13 @@ public:
     // Update the displayed state; only repaints when something changed.
     void setState(LoopMode loop, bool shuffle);
 
+    // Install click handlers: clicking the repeat glyph invokes on_repeat,
+    // clicking the shuffle glyph invokes on_shuffle.
+    void setCallbacks(std::function<void()> on_repeat, std::function<void()> on_shuffle);
+
+    // Clicking the left half toggles repeat, the right half toggles shuffle.
+    bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
+
 protected:
     void draw(Surface& surface) override;
 
@@ -37,6 +44,8 @@ private:
 
     LoopMode m_loop = LoopMode::None;
     bool m_shuffle = false;
+    std::function<void()> m_on_repeat_click;
+    std::function<void()> m_on_shuffle_click;
 
     static constexpr int kRepeatX = 0;   // left glyph origin
     static constexpr int kShuffleX = 21; // right glyph origin

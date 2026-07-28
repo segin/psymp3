@@ -2289,9 +2289,9 @@ void Player::cycleLoopMode()
 {
     LoopMode next_mode;
     switch (m_loop_mode) {
-        case LoopMode::None: next_mode = LoopMode::One;  break;
-        case LoopMode::One:  next_mode = LoopMode::All;  break;
-        case LoopMode::All:  next_mode = LoopMode::None; break;
+        case LoopMode::None: next_mode = LoopMode::All;  break;
+        case LoopMode::All:  next_mode = LoopMode::One;  break;
+        case LoopMode::One:  next_mode = LoopMode::None; break;
         default:             next_mode = LoopMode::None; break;
     }
     setLoopMode(next_mode);
@@ -2816,7 +2816,10 @@ bool Player::Initialize(const PlayerOptions& options) {
     // (x=399+222=621), in the row above it, to the right of the position text.
     {
         auto indicators = std::make_unique<PlaybackIndicatorsWidget>(40, 16);
-        indicators->setPos(Rect(621 - 40, 3, 40, 16));
+        indicators->setPos(Rect(621 - 40, 1, 40, 16));
+        indicators->setCallbacks(
+            [this]{ cycleLoopMode(); },
+            [this]{ setShuffle(!getShuffle()); });
         m_playback_indicators = indicators.get();
         hud_panel_ptr->addChild(std::move(indicators));
     }

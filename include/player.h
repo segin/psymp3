@@ -179,7 +179,7 @@ class Player
         void setFFTMode(FFTMode mode);      // set + toast + refresh
         void setTargetFps(int fps);         // redraw cadence: 30/60/120 + persist
         void cycleFFTMode();                // F key: advance to the next mode
-        void cycleLoopMode();               // E key: None -> One -> All -> None
+        void cycleLoopMode();               // E key: None -> All -> One -> None
         void toggleZoom();                  // G key: 1x <-> 2x pixel doubling
 
         // True when the build has a native file-chooser toolkit. Gates the
