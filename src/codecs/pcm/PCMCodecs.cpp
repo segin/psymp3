@@ -97,8 +97,10 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
     switch (m_pcm_format) {
         case PCMFormat::PCM_8_UNSIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                // Convert 8-bit unsigned to 16-bit signed
-                output_samples[i] = (static_cast<int16_t>(input_ptr[i]) - 128) << 8;
+                // Convert 8-bit unsigned to 16-bit signed. Scale by
+                // multiplication: shifting the negative half of the range
+                // left by 8 (the previous code) is UB in C++17.
+                output_samples[i] = static_cast<int16_t>((static_cast<int32_t>(input_ptr[i]) - 128) * 256);
             }
             break;
             
@@ -109,10 +111,14 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
             
         case PCMFormat::PCM_24_SIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                // Convert 24-bit to 16-bit (little-endian)
-                int32_t sample24 = (static_cast<int8_t>(input_ptr[i*3 + 2]) << 16) |
-                                  (static_cast<uint8_t>(input_ptr[i*3 + 1]) << 8) |
-                                  static_cast<uint8_t>(input_ptr[i*3]);
+                // Build the 24-bit value (little-endian) in unsigned, then
+                // sign-extend from bit 23. Shifting a negative int8_t left
+                // by 16 (the previous code) is UB in C++17.
+                uint32_t raw = (static_cast<uint32_t>(input_ptr[i*3 + 2]) << 16) |
+                               (static_cast<uint32_t>(input_ptr[i*3 + 1]) << 8) |
+                                static_cast<uint32_t>(input_ptr[i*3]);
+                int32_t sample24 = (raw & 0x800000u) ? static_cast<int32_t>(raw | 0xFF000000u)
+                                                     : static_cast<int32_t>(raw);
                 output_samples[i] = static_cast<int16_t>(sample24 >> 8);
             }
             break;
