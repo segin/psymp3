@@ -287,7 +287,10 @@ int32_t dyn_decomp( AGParamRecPtr params, BitBuffer * bitstream, int32_t * pc, i
 
 	in = bitstream->cur;
 	startPos = bitstream->bitIndex;
-	maxPos = bitstream->byteSize * 8;
+	// PsyMP3: bitPos is relative to bitstream->cur, so the limit has to be the
+	// bits remaining from there. byteSize is the whole buffer, which let the
+	// loop below run cur's offset worth of bytes past the end.
+	maxPos = (bitstream->cur < bitstream->end) ? ((uint32_t)(bitstream->end - bitstream->cur) * 8) : 0;
 	bitPos = startPos;
 
     mb = params->mb0;

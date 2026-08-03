@@ -37,6 +37,20 @@ void BitBufferInit( BitBuffer * bits, uint8_t * buffer, uint32_t byteSize )
 	bits->byteSize	= byteSize;
 }
 
+// BitBufferByteAt
+//
+// PsyMP3: the readers below are unchecked by design (see the header), but the
+// ALAC element parsers only test cur against end between elements, so a
+// truncated frame reads well past the client's buffer from inside one. Bytes at
+// or past the end read as zero while cur still advances, so those existing
+// end-of-buffer tests continue to fail the frame.
+static inline uint8_t BitBufferByteAt( BitBuffer * bits, uint32_t offset )
+{
+	uint8_t *	ptr = bits->cur + offset;
+
+	return (ptr < bits->end) ? *ptr : 0;
+}
+
 // BitBufferRead
 //
 uint32_t BitBufferRead( BitBuffer * bits, uint8_t numBits )
@@ -45,7 +59,7 @@ uint32_t BitBufferRead( BitBuffer * bits, uint8_t numBits )
 	
 	//Assert( numBits <= 16 );
 
-	returnBits = ((uint32_t)bits->cur[0] << 16) | ((uint32_t)bits->cur[1] << 8) | ((uint32_t)bits->cur[2]);
+	returnBits = ((uint32_t)BitBufferByteAt( bits, 0 ) << 16) | ((uint32_t)BitBufferByteAt( bits, 1 ) << 8) | ((uint32_t)BitBufferByteAt( bits, 2 ));
 	returnBits = returnBits << bits->bitIndex;
 	returnBits &= 0x00FFFFFF;
 	
@@ -70,7 +84,7 @@ uint8_t BitBufferReadSmall( BitBuffer * bits, uint8_t numBits )
 	
 	//Assert( numBits <= 8 );
 	
-	returnBits = (bits->cur[0] << 8) | bits->cur[1];
+	returnBits = (BitBufferByteAt( bits, 0 ) << 8) | BitBufferByteAt( bits, 1 );
 	returnBits = returnBits << bits->bitIndex;
 	
 	bits->bitIndex += numBits;
@@ -92,7 +106,7 @@ uint8_t BitBufferReadOne( BitBuffer * bits )
 {
 	uint8_t		returnBits;
 
-	returnBits = (bits->cur[0] >> (7 - bits->bitIndex)) & 1;
+	returnBits = (BitBufferByteAt( bits, 0 ) >> (7 - bits->bitIndex)) & 1;
 
 	bits->bitIndex++;
 	
@@ -108,15 +122,15 @@ uint8_t BitBufferReadOne( BitBuffer * bits )
 //
 uint32_t BitBufferPeek( BitBuffer * bits, uint8_t numBits )
 {
-	return ((((((uint32_t) bits->cur[0] << 16) | ((uint32_t) bits->cur[1] << 8) |
-			((uint32_t) bits->cur[2])) << bits->bitIndex) & 0x00FFFFFF) >> (24 - numBits));
+	return ((((((uint32_t) BitBufferByteAt( bits, 0 ) << 16) | ((uint32_t) BitBufferByteAt( bits, 1 ) << 8) |
+			((uint32_t) BitBufferByteAt( bits, 2 ))) << bits->bitIndex) & 0x00FFFFFF) >> (24 - numBits));
 }
 
 // BitBufferPeekOne
 //
 uint32_t BitBufferPeekOne( BitBuffer * bits )
 {
-	return ((bits->cur[0] >> (7 - bits->bitIndex)) & 1);
+	return ((BitBufferByteAt( bits, 0 ) >> (7 - bits->bitIndex)) & 1);
 }
 
 // BitBufferUnpackBERSize

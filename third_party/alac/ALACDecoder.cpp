@@ -200,6 +200,11 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 	
 	RequireAction( (bits != nil) && (sampleBuffer != nil) && (outNumSamples != nil), return kALAC_ParamError; );
 	RequireAction( numChannels > 0, return kALAC_ParamError; );
+	// PsyMP3: mMixBufferU/V and mPredictor were sized from mConfig.frameLength in
+	// Init(), but every write loop below is bounded by the caller's numSamples.
+	// A caller that disagrees with the config overruns them, so refuse rather
+	// than trust it.
+	RequireAction( numSamples <= mConfig.frameLength, return kALAC_ParamError; );
 
 	mActiveElements = 0;
 	channelIndex	= 0;
@@ -246,6 +251,12 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 
 				chanBits = mConfig.bitDepth - (bytesShifted * 8);
 				
+				// PsyMP3: bytesShifted comes from the bitstream, so this
+				// unsigned subtraction can reach zero (or wrap, if the config
+				// bit depth was never validated). Both feed dyn_decomp()'s
+				// maxSize as an out-of-range shift distance.
+				RequireAction( (chanBits > 0) && (chanBits <= kMaxBitDepth), status = kALAC_ParamError; goto Exit; );
+
 				// check for partial frame to override requested numSamples
 				if ( partialFrame != 0 )
 				{
@@ -342,6 +353,11 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 						mShiftBuffer[i] = (uint16_t) BitBufferRead( &shiftBits, (uint8_t) shift );
 				}
 
+				// PsyMP3: the escape and shift-off loops above read numSamples
+				// times without consulting the end of the buffer, so a
+				// truncated frame is only caught here.
+				RequireAction( bits->cur <= bits->end, status = kALAC_ParamError; goto Exit; );
+
 				// convert 32-bit integers into output buffer
 				switch ( mConfig.bitDepth )
 				{
@@ -403,6 +419,10 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 
 				chanBits = mConfig.bitDepth - (bytesShifted * 8) + 1;
 				
+				// PsyMP3: see the ID_SCE case; the extra bit of the mid/side
+				// pair makes kMaxBitDepth + 1 the legitimate maximum here.
+				RequireAction( (chanBits > 0) && (chanBits <= (kMaxBitDepth + 1)), status = kALAC_ParamError; goto Exit; );
+
 				// check for partial frame length to override requested numSamples
 				if ( partialFrame != 0 )
 				{
@@ -535,6 +555,9 @@ int32_t ALACDecoder::Decode( BitBuffer * bits, uint8_t * sampleBuffer, uint32_t 
 						mShiftBuffer[i + 1] = (uint16_t) BitBufferRead( &shiftBits, (uint8_t) shift );
 					}
 				}
+
+				// PsyMP3: see the ID_SCE case.
+				RequireAction( bits->cur <= bits->end, status = kALAC_ParamError; goto Exit; );
 
 				// un-mix the data and convert to output format
 				// - note that mixRes = 0 means just interleave so we use that path for uncompressed frames
