@@ -444,9 +444,16 @@ void DemuxedStream::seekTo(unsigned long pos) {
         return;
     }
     
-    // Reset codec state
+    // Reset codec state. reset() re-runs codec initialization, which throws on a
+    // malformed configuration; that cannot normally fire here (the same config
+    // already validated at init) but must not escape a seek on the player thread.
     if (m_codec) {
-        m_codec->reset();
+        try {
+            m_codec->reset();
+        } catch (const std::exception& e) {
+            Debug::log("demux", "DemuxedStream::seekTo(): codec reset failed: ", e.what());
+            return;
+        }
     }
     
     // Update position tracking
@@ -550,8 +557,16 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
     // Update stream ID
     m_current_stream_id = stream_id;
     
-    // Setup new codec
-    if (!setupCodec()) {
+    // Setup new codec. Codec initialization throws on a malformed configuration
+    // (e.g. an ALAC magic cookie that fails validation), which for a stream
+    // switch means "this stream is unusable", not a fatal error.
+    try {
+        if (!setupCodec()) {
+            return false;
+        }
+    } catch (const std::exception& e) {
+        Debug::log("demux", "DemuxedStream::switchToStream(): codec setup failed: ", e.what());
+        m_codec.reset();
         return false;
     }
     
