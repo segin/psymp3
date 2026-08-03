@@ -44,6 +44,46 @@ namespace PsyMP3 {
 namespace Codec {
 namespace ALAC {
 
+namespace {
+
+// ALACDecoder sizes mMixBufferU/V and mPredictor from frameLength, and this
+// wrapper sizes the output buffer from it; anything beyond this is a crafted
+// cookie rather than a real encoder, which uses kALACDefaultFramesPerPacket.
+constexpr uint32_t kMaxFrameLength = 65536;
+
+// Apple's adaptive-Golomb reader (ag_dec.c) works on a raw pointer, loading 32
+// bits at a time and only re-testing its bit position between samples, so it
+// reads up to eight bytes beyond the last valid one. The packet copy handed to
+// BitBufferInit() therefore carries this much zero padding past the length it
+// declares, which is where the readers' end-of-buffer checks still point.
+constexpr size_t kBitstreamPadding = 16;
+
+// Decode() switches on bitDepth to emit samples and computes chanBits as
+// bitDepth - bytesShifted * 8 in unsigned arithmetic, so a depth its output
+// stage does not handle either drops the frame or wraps chanBits negative.
+bool isSupportedBitDepth(uint32_t bit_depth) {
+    return bit_depth == 16 || bit_depth == 20 || bit_depth == 24 || bit_depth == 32;
+}
+
+// ALACDecoder::Init() walks past the optional 'frma' and 'alac' atoms that may
+// precede the ALACSpecificConfig, but never consults the cookie length while
+// doing so. Repeat the walk with bounds checks and return the config only when
+// the cookie actually contains one; every case where the two walks would
+// diverge is a cookie this returns nullptr for.
+const uint8_t* findSpecificConfig(const uint8_t* cookie, uint32_t size) {
+    if (size >= 12 && std::memcmp(cookie + 4, "frma", 4) == 0) {
+        cookie += 12;
+        size -= 12;
+    }
+    if (size >= 12 && std::memcmp(cookie + 4, "alac", 4) == 0) {
+        cookie += 12;
+        size -= 12;
+    }
+    return size >= sizeof(ALACSpecificConfig) ? cookie : nullptr;
+}
+
+} // namespace
+
 ALACCodec::ALACCodec(const StreamInfo& stream_info)
     : AudioCodec(stream_info),
       m_magic_cookie(stream_info.codec_data),
@@ -80,8 +120,7 @@ bool ALACCodec::canDecode(const StreamInfo& stream_info) const {
 
 bool ALACCodec::initialize_unlocked() {
     if (m_magic_cookie.empty()) {
-        Debug::log("alac", "ALACCodec: missing ALAC magic cookie (codec_data)");
-        return false;
+        throw BadFormatException("ALACCodec: missing ALAC magic cookie (codec_data)");
     }
 
     const uint8_t* cookie = m_magic_cookie.data();
@@ -95,11 +134,48 @@ bool ALACCodec::initialize_unlocked() {
         cookie_size -= 4;
     }
 
+    // The decoder validates none of this: it sizes its buffers with
+    // calloc(frameLength * sizeof(int32_t), 1) — zero bytes for a zero
+    // frameLength, which calloc still returns non-NULL for — and then decodes a
+    // full frame into them, so the cookie has to be rejected before Init().
+    const uint8_t* config = findSpecificConfig(cookie, cookie_size);
+    if (config == nullptr) {
+        throw BadFormatException("ALACCodec: magic cookie holds no ALACSpecificConfig (" +
+                                 std::to_string(cookie_size) + " bytes)");
+    }
+
+    const uint32_t frame_length = (static_cast<uint32_t>(config[0]) << 24) |
+                                  (static_cast<uint32_t>(config[1]) << 16) |
+                                  (static_cast<uint32_t>(config[2]) << 8) |
+                                   static_cast<uint32_t>(config[3]);
+    const uint32_t bit_depth    = config[5];
+    const uint32_t rice_k       = config[8];
+    const uint32_t num_channels = config[9];
+
+    if (frame_length == 0 || frame_length > kMaxFrameLength) {
+        throw BadFormatException("ALACCodec: ALACSpecificConfig frameLength out of range (" +
+                                 std::to_string(frame_length) + ")");
+    }
+    if (!isSupportedBitDepth(bit_depth)) {
+        throw BadFormatException("ALACCodec: unsupported ALACSpecificConfig bitDepth (" +
+                                 std::to_string(bit_depth) + ")");
+    }
+    // set_ag_params() derives wb as (1u << kb) - 1, undefined once kb reaches the
+    // width of unsigned, and the Golomb reader shifts by 32 - kb, undefined at
+    // kb == 0. Real encoders emit KB0 (14).
+    if (rice_k == 0 || rice_k > 31) {
+        throw BadFormatException("ALACCodec: ALACSpecificConfig kb out of range (" +
+                                 std::to_string(rice_k) + ")");
+    }
+    if (num_channels == 0 || num_channels > static_cast<uint32_t>(kALACMaxChannels)) {
+        throw BadFormatException("ALACCodec: ALACSpecificConfig numChannels out of range (" +
+                                 std::to_string(num_channels) + ")");
+    }
+
     m_decoder = std::make_unique<ALACDecoder>();
     if (m_decoder->Init(const_cast<uint8_t*>(cookie), cookie_size) != 0) {
-        Debug::log("alac", "ALACCodec: ALACDecoder::Init failed");
         m_decoder.reset();
-        return false;
+        throw BadFormatException("ALACCodec: ALACDecoder::Init rejected the magic cookie");
     }
 
     // Adopt the parameters the decoder read from the cookie.
@@ -109,8 +185,6 @@ bool ALACCodec::initialize_unlocked() {
     if (m_decoder->mConfig.sampleRate != 0) {
         m_sample_rate = m_decoder->mConfig.sampleRate;
     }
-    if (m_channels == 0) m_channels = 2;
-    if (m_frame_length == 0) m_frame_length = 4096;
 
     m_initialized = true;
     Debug::log("alac", "ALACCodec: Initialized ch=", m_channels, " bits=", m_bit_depth,
@@ -123,9 +197,11 @@ AudioFrame ALACCodec::decode_unlocked(const MediaChunk& chunk) {
         return AudioFrame();
     }
 
+    m_packet.assign(chunk.data.begin(), chunk.data.end());
+    m_packet.resize(chunk.data.size() + kBitstreamPadding, 0);
+
     BitBuffer bits;
-    BitBufferInit(&bits, const_cast<uint8_t*>(chunk.data.data()),
-                  static_cast<uint32_t>(chunk.data.size()));
+    BitBufferInit(&bits, m_packet.data(), static_cast<uint32_t>(chunk.data.size()));
 
     // Output buffer sized for the widest sample format (32-bit) per interleaved
     // sample; the decoder writes at the container's bit depth.
@@ -133,6 +209,11 @@ AudioFrame ALACCodec::decode_unlocked(const MediaChunk& chunk) {
     uint32_t decoded = 0;
     int32_t status = m_decoder->Decode(&bits, out.data(), m_frame_length, m_channels, &decoded);
     if (status != 0 || decoded == 0) {
+        // A truncated or corrupt packet is recoverable: the demuxer feeds the
+        // next one. Matches the other codecs, which skip bad packets rather
+        // than tear down playback from the decoder thread.
+        Debug::log("alac", "ALACCodec: Decode failed (status=", status, ", decoded=", decoded,
+                   ", packet=", chunk.data.size(), " bytes) - skipping packet");
         return AudioFrame();
     }
 

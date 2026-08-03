@@ -42,6 +42,7 @@ private:
 
     std::unique_ptr<ALACDecoder> m_decoder;
     std::vector<uint8_t> m_magic_cookie; // raw 'alac' box content (codec_data)
+    std::vector<uint8_t> m_packet;       // zero-padded copy of the packet being decoded
     uint32_t m_sample_rate = 0;
     uint16_t m_channels = 0;
     uint16_t m_bit_depth = 16;
