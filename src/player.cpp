@@ -1125,6 +1125,13 @@ void Player::prevTrack(void) {
     if (!playlist || playlist->entries() == 0) return;
 
     if (playlist->isShuffle()) {
+        // At the start of the shuffle order, honor the loop mode the same way the
+        // sequential path does below: LoopMode::None restarts the current track
+        // rather than wrapping to the end of the shuffle order.
+        if (m_loop_mode != LoopMode::All && playlist->retreatWouldWrap()) {
+            seekTo(0);
+            return;
+        }
         TagLib::String prev_path = playlist->prev();
         m_skip_attempts = 0;
         requestTrackLoad(prev_path);
@@ -3413,37 +3420,25 @@ bool Player::handleUnplayableTrack() {
         return false;
     }
 
-    // Try the next track in the current direction
+    // Advance to the next track in the current direction, following the active
+    // play order. Delegating to Playlist::next()/prev() keeps this correct under
+    // shuffle — walking getPosition()±1 sequentially would corrupt the shuffle
+    // order (setPosition resyncs the shuffle cursor to the sequential slot). The
+    // wouldWrap guards honor LoopMode::None at the ends of the order.
     if (m_navigation_direction > 0) {
         // Moving forward
-        long new_pos = playlist->getPosition() + 1;
-        if (new_pos >= playlist->entries()) {
-            // Reached end of playlist
-            if (m_loop_mode == LoopMode::All) {
-                new_pos = 0; // Wrap to beginning
-            } else {
-                // End of playlist in LoopMode::None - stop
-                m_skip_attempts = 0;
-                return false;
-            }
+        if (m_loop_mode != LoopMode::All && playlist->advanceWouldWrap(1)) {
+            m_skip_attempts = 0;
+            return false; // End of playlist in LoopMode::None - stop
         }
-        playlist->setPosition(new_pos);
-        requestTrackLoad(playlist->getTrack(new_pos));
+        requestTrackLoad(playlist->next());
     } else {
         // Moving backward
-        long new_pos = playlist->getPosition() - 1;
-        if (new_pos < 0) {
-            // Reached beginning of playlist
-            if (m_loop_mode == LoopMode::All) {
-                new_pos = playlist->entries() - 1; // Wrap to end
-            } else {
-                // Beginning of playlist in LoopMode::None - stop
-                m_skip_attempts = 0;
-                return false;
-            }
+        if (m_loop_mode != LoopMode::All && playlist->retreatWouldWrap()) {
+            m_skip_attempts = 0;
+            return false; // Beginning of playlist in LoopMode::None - stop
         }
-        playlist->setPosition(new_pos);
-        requestTrackLoad(playlist->getTrack(new_pos));
+        requestTrackLoad(playlist->prev());
     }
 
     return true; // Continue trying
