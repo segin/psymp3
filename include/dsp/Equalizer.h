@@ -81,6 +81,7 @@ private:
     Biquad   m_coeff[kNumBands];
     uint32_t m_last_dirty = 0;
     bool     m_reset_latched = false; // set by latchReset(), consumed by process()
+    bool     m_was_enabled = false;   // prev enabled state, for rising-edge reset
     double   m_z1[kMaxChannels][kNumBands] = {};
     double   m_z2[kMaxChannels][kNumBands] = {};
 };

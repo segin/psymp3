@@ -69,13 +69,10 @@ float Equalizer::getBandGain(int band) const
 
 void Equalizer::setEnabled(bool on)
 {
-    // process() early-returns while disabled, freezing z1/z2 with whatever was
-    // playing at the disable instant; resuming the cascade with that stale
-    // state would emit an audible click. Reset on the off->on edge.
-    const bool was = m_enabled.exchange(on, std::memory_order_relaxed);
-    if (on && !was) {
-        requestReset();
-    }
+    // The off->on history reset is handled on the audio thread via rising-edge
+    // detection in process(), which can't race this toggle, so just publish the
+    // flag here.
+    m_enabled.store(on, std::memory_order_relaxed);
 }
 bool Equalizer::isEnabled() const   { return m_enabled.load(std::memory_order_relaxed); }
 
@@ -131,7 +128,19 @@ void Equalizer::recompute()
 
 void Equalizer::process(int16_t* samples, size_t frame_count, int channels)
 {
-    if (!m_enabled.load(std::memory_order_relaxed)) return;
+    const bool enabled = m_enabled.load(std::memory_order_relaxed);
+    // Reset history on the disabled->enabled rising edge, detected here on the
+    // audio thread. process() early-returns while disabled, freezing z1/z2 with
+    // whatever played at the disable instant; resuming the cascade with that
+    // stale state would click. Doing the edge detection on the consumer thread
+    // (rather than arming a reset from setEnabled) makes it immune to any
+    // interleaving with the UI thread's enable toggle.
+    if (enabled && !m_was_enabled) {
+        for (int c = 0; c < kMaxChannels; ++c)
+            for (int b = 0; b < kNumBands; ++b) { m_z1[c][b] = 0.0; m_z2[c][b] = 0.0; }
+    }
+    m_was_enabled = enabled;
+    if (!enabled) return;
     if (!samples || channels <= 0 || channels > kMaxChannels) return;
 
     // Consume only the flag latched under the producers' lock (latchReset());
