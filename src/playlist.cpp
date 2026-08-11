@@ -345,7 +345,9 @@ bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
 
     // Keep the position cursor on the same logical track if we inserted at or
     // before it (callers that want to jump to an insert override this after).
-    if (position <= m_position) {
+    // On a previously empty playlist m_position is 0 but denotes no track, so
+    // shifting it would leave it one past the last valid index.
+    if (size > 0 && position <= m_position) {
         m_position += n;
     }
 
