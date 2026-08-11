@@ -72,13 +72,16 @@ void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_
         // passage, where every frame is the same ~0), draw() would stop being
         // called and the fade would freeze mid-decay ("stuck" graph). Any change
         // or remaining energy re-arms a bounded tail of redraws long enough for
-        // the trail to darken to black; after that we go idle again.
-        static constexpr int FADE_SETTLE_FRAMES = 60;
+        // the trail to darken to black; after that we go idle again. The tail is
+        // wall-clock (2s, ~60 frames at the 30 FPS default) rather than a frame
+        // count so it doesn't shrink to nothing at high or unlimited FPS, where
+        // 60 frames pass in well under the time the trail needs to reach black.
+        static constexpr Uint32 FADE_SETTLE_MS = 2000;
+        Uint32 now = SDL_GetTicks();
         if (data_changed || max_val > 0.001f) {
-            m_fade_settle_frames = FADE_SETTLE_FRAMES;
+            m_fade_settle_start_ms = now;
         }
-        if (m_fade_settle_frames > 0) {
-            --m_fade_settle_frames;
+        if (m_fade_settle_start_ms != 0 && now - m_fade_settle_start_ms < FADE_SETTLE_MS) {
             invalidate(); // Trigger redraw (advances the fade in draw())
         }
     }

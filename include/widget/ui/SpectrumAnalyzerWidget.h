@@ -91,10 +91,11 @@ private:
     int m_color_scheme;
     float m_decay_factor;
     int m_scale_factor;
-    // Frames of redraw still owed to let the fade/decay animation finish after
-    // the input stops changing (e.g. a silent passage). Without this the
-    // "redraw only on change" optimization freezes the fade mid-decay.
-    int m_fade_settle_frames = 0;
+    // Start of the wall-clock redraw tail owed to let the fade/decay animation
+    // finish after the input stops changing (e.g. a silent passage). Without
+    // this the "redraw only on change" optimization freezes the fade mid-decay.
+    // 0 = no activity seen yet.
+    Uint32 m_fade_settle_start_ms = 0;
 
     /**
      * @brief Draws spectrum bars visualization.

@@ -30,6 +30,8 @@
 std::atomic<bool> Player::guiRunning{false};
 std::atomic<bool> Player::dialogOpen{false};
 std::atomic<Uint32> Player::s_app_loop_interval_ms{33}; // 33ms ~= 30 FPS default
+std::atomic<bool> Player::s_unlimited_fps{false};
+std::atomic<Uint32> Player::s_last_gui_iteration_tick{0};
 
 namespace {
 
@@ -630,7 +632,15 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     // has the main thread blocked (dialogOpen). Queuing RUN_GUI_ITERATION in
     // either case just backlogs the event queue, and for a dialog the whole
     // backlog would then be drained in one burst on return, freezing the UI.
-    if (!Player::guiRunning && !Player::dialogOpen)
+    if (Player::s_unlimited_fps.load(std::memory_order_relaxed)) {
+        // Unlimited FPS: handleRunGuiIterationEvent() queues its own successor,
+        // so queuing here every tick would grow the event queue without bound.
+        // Act only as a watchdog: restart the chain if no iteration has started
+        // for a full period (the chain died, e.g. an event was dropped).
+        if (!Player::guiRunning && !Player::dialogOpen &&
+            SDL_GetTicks() - Player::s_last_gui_iteration_tick.load(std::memory_order_relaxed) >= kUnlimitedWatchdogMs)
+            Player::synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+    } else if (!Player::guiRunning && !Player::dialogOpen)
         Player::synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     else
         Debug::log("timer", "skipped");
@@ -2123,7 +2133,27 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
             // rates it would decay faster in real time. Scale its strength by
             // 30/target_fps (full at 30 FPS, half at 60, quarter at 120) so the
             // trail decays at the same wall-clock rate regardless of Target FPS.
-            float fade_decay = decayfactor * (30.0f / static_cast<float>(m_target_fps));
+            // Unlimited FPS (target 0) has no fixed cadence to scale by, so the
+            // strength is derived from measured wall-clock time instead, spent
+            // in >=16ms chunks: a per-frame value at very high frame rates
+            // would truncate to zero in the widget's 8-bit fade alpha and the
+            // trail would never decay.
+            float fade_decay;
+            if (m_target_fps == 0) {
+                Uint32 now = SDL_GetTicks();
+                if (m_unlimited_fade_last_ms == 0) m_unlimited_fade_last_ms = now;
+                Uint32 elapsed_ms = now - m_unlimited_fade_last_ms;
+                if (elapsed_ms >= 16) {
+                    // Capped at 4.0 so the widget's 255*(decay/4) alpha cannot
+                    // overflow 8 bits after a long stall.
+                    fade_decay = std::min(4.0f, decayfactor * (static_cast<float>(elapsed_ms) * (30.0f / 1000.0f)));
+                    m_unlimited_fade_last_ms = now;
+                } else {
+                    fade_decay = 0.0f; // keep accumulating, no fade this frame
+                }
+            } else {
+                fade_decay = decayfactor * (30.0f / static_cast<float>(m_target_fps));
+            }
             m_spectrum_widget->updateSpectrum(spectrum, PsyMP3::Core::SpectrumConfig::NumBands, scalefactor, fade_decay);
         }
 
@@ -2293,16 +2323,37 @@ void Player::setFFTMode(FFTMode mode)
     updateInfo();
 }
 
-void Player::setTargetFps(int fps)
+void Player::applyTargetFps(int fps)
 {
-    if (fps < 1) fps = 1;
+    if (fps < 0) fps = 0; // 0 = unlimited
     if (fps > 1000) fps = 1000;
     m_target_fps = fps;
-    // Round the period so e.g. 60 FPS -> 17ms (16.67 rounded), 120 -> 8ms.
-    Uint32 period = static_cast<Uint32>((1000 + fps / 2) / fps);
-    if (period < 1) period = 1;
-    s_app_loop_interval_ms.store(period, std::memory_order_relaxed);
-    showToast("Target FPS: " + std::to_string(fps));
+    if (fps == 0) {
+        // Unlimited: the GUI loop drives itself (see handleRunGuiIterationEvent);
+        // the timer only runs the restart watchdog, so slow it to that cadence.
+        m_unlimited_fade_last_ms = 0; // re-prime the measured-time fade
+        s_app_loop_interval_ms.store(kUnlimitedWatchdogMs, std::memory_order_relaxed);
+        s_unlimited_fps.store(true, std::memory_order_relaxed);
+    } else {
+        s_unlimited_fps.store(false, std::memory_order_relaxed);
+        // Round the period so e.g. 60 FPS -> 17ms (16.67 rounded), 120 -> 8ms.
+        Uint32 period = static_cast<Uint32>((1000 + fps / 2) / fps);
+        if (period < 1) period = 1;
+        s_app_loop_interval_ms.store(period, std::memory_order_relaxed);
+    }
+}
+
+void Player::setTargetFps(int fps)
+{
+    applyTargetFps(fps);
+    if (m_target_fps == 0) {
+        // Kick off the self-driving iteration chain right away; the watchdog
+        // would otherwise take up to kUnlimitedWatchdogMs to start it.
+        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+        showToast("Target FPS: Unlimited");
+    } else {
+        showToast("Target FPS: " + std::to_string(m_target_fps));
+    }
     saveSettings();
 }
 
@@ -2981,6 +3032,8 @@ bool Player::Initialize(const PlayerOptions& options) {
             fps_item("30", 30),
             fps_item("60", 60),
             fps_item("120", 120),
+            MI::sep(),
+            fps_item("Unlimited", 0),
         }));
         settings_items.push_back(MI::sep());
         settings_items.push_back(MI::leaf("2x &Zoom", [this]{ toggleZoom(); },
@@ -3035,6 +3088,11 @@ bool Player::Initialize(const PlayerOptions& options) {
         Debug::log("test", "Automated test mode enabled.");
     }
     m_app_loop_timer_id = SDL_AddTimer(s_app_loop_interval_ms.load(), Player::AppLoopTimer, nullptr);
+    if (s_unlimited_fps.load(std::memory_order_relaxed)) {
+        // Persisted Unlimited FPS: start the self-driving iteration chain now
+        // rather than waiting up to kUnlimitedWatchdogMs for the watchdog.
+        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+    }
     if (m_automated_test_mode) {
         m_automated_test_timer_id = SDL_AddTimer(1000, Player::AutomatedTestTimer, this);
     }
@@ -3853,11 +3911,8 @@ void Player::loadSettings()
             }
         } else if (key == "target_fps") {
             if (parseSettingDouble(value, v)) {
-                int fps = std::clamp(static_cast<int>(v), 1, 1000);
-                m_target_fps = fps;
-                Uint32 period = static_cast<Uint32>((1000 + fps / 2) / fps);
-                if (period < 1) period = 1;
-                s_app_loop_interval_ms.store(period, std::memory_order_relaxed);
+                // 0 = Unlimited (self-driving GUI loop, see applyTargetFps).
+                applyTargetFps(std::clamp(static_cast<int>(v), 0, 1000));
             }
         } else if (key.rfind("eq_band_", 0) == 0) {
             try {
@@ -4565,6 +4620,8 @@ void Player::handleTrackPreloadFailureEvent(TrackLoadResult* result) {
 }
 
 void Player::handleRunGuiIterationEvent() {
+    // Liveness stamp for the Unlimited-FPS watchdog in AppLoopTimer.
+    s_last_gui_iteration_tick.store(SDL_GetTicks(), std::memory_order_relaxed);
 #ifdef HAVE_DBUS
     // Pump incoming MPRIS D-Bus method calls / property requests on the main
     // thread (~30 Hz via the app-loop timer). Handlers call non-thread-safe
@@ -4586,4 +4643,10 @@ void Player::handleRunGuiIterationEvent() {
             nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
         }
     }
+    // Unlimited FPS: queue the next iteration ourselves instead of waiting for
+    // the timer, so the loop runs as fast as frames can render. Input events
+    // that arrived while this frame rendered are already ahead of the new event
+    // in the queue, so the UI stays responsive.
+    if (s_unlimited_fps.load(std::memory_order_relaxed) && !dialogOpen)
+        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
 }

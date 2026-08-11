@@ -141,6 +141,14 @@ class Player
         // App-loop timer period in ms, returned by AppLoopTimer so the redraw
         // cadence (target FPS) can be changed live. 33ms ~= 30 FPS by default.
         static std::atomic<Uint32> s_app_loop_interval_ms;
+        // Unlimited Target FPS: handleRunGuiIterationEvent() re-queues the next
+        // RUN_GUI_ITERATION itself as soon as a frame completes, and AppLoopTimer
+        // degrades to a watchdog that restarts that chain if it ever dies (e.g.
+        // a dropped event). s_last_gui_iteration_tick is the watchdog's liveness
+        // signal, stamped at the start of every GUI iteration.
+        static std::atomic<bool> s_unlimited_fps;
+        static std::atomic<Uint32> s_last_gui_iteration_tick;
+        static constexpr Uint32 kUnlimitedWatchdogMs = 500;
         
         // MPRIS Error Notification
         void toggleMPRISErrorNotifications();
@@ -433,7 +441,14 @@ class Player
         // Display logical scale (1x/2x) loaded from psymp3.conf; applied to the
         // Display once it is created (loadSettings runs before that).
         int  m_pending_scale = 1;
-        int  m_target_fps = 30;   // redraw cadence; persisted in psymp3.conf
+        int  m_target_fps = 30;   // redraw cadence, 0 = unlimited; persisted in psymp3.conf
+        // Wall-clock timestamp of the last spectrum fade application in
+        // Unlimited FPS mode, where the fade strength is derived from measured
+        // elapsed time instead of the fixed frame period. 0 = not yet primed.
+        Uint32 m_unlimited_fade_last_ms = 0;
+        // Shared by setTargetFps() and loadSettings(): sets m_target_fps and
+        // derives the app-loop timer state (period or unlimited watchdog).
+        void applyTargetFps(int fps);
         void toggleEqualizerWindow();
         void applyEqStateToAudio();
 
