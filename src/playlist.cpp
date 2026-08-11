@@ -27,7 +27,40 @@
 static bool isAbsolutePath(const TagLib::String& path);
 static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String& relative);
 
-Playlist::Playlist() { }
+Playlist::Playlist() : m_shuffle_rng(std::random_device{}()) { }
+
+// Splice a newly-appended track's index into the shuffle order at a uniformly
+// random position within the not-yet-played remainder (strictly after the
+// current shuffle cursor). This keeps the shuffle order a genuine random
+// permutation even when the playlist is populated one track at a time with
+// shuffle already on — otherwise every append landed at the end and the order
+// degenerated to file order (identity permutation), silently defeating shuffle.
+// Inserting only after the cursor means the currently-playing slot never moves,
+// so appends never replay or displace an already-heard track. Assumes the lock
+// is held.
+void Playlist::insertShuffleIndex_unlocked(long new_track_index)
+{
+    long lo = m_shuffle_index + 1;
+    const long hi = static_cast<long>(m_shuffled_indices.size());
+    if (lo < 0) lo = 0;
+    if (lo > hi) lo = hi;
+    std::uniform_int_distribution<long> dist(lo, hi);
+    const long at = dist(m_shuffle_rng);
+    m_shuffled_indices.insert(m_shuffled_indices.begin() + at, new_track_index);
+}
+
+// The shuffle cursor, clamped into the shuffle order's valid range. The cursor
+// can outlive the order it points into (clear() empties the order, an edit can
+// shrink it), and the size-mismatch repopulate guard in next()/prev() does not
+// catch that when the order is otherwise in sync with the track list. Assumes
+// the lock is held.
+long Playlist::shuffleCursor_unlocked() const
+{
+    const long size = static_cast<long>(m_shuffled_indices.size());
+    if (m_shuffle_index < 0 || size <= 0) return 0;
+    if (m_shuffle_index >= size) return size - 1;
+    return m_shuffle_index;
+}
 
 namespace {
 
@@ -137,7 +170,7 @@ bool Playlist::addFile(TagLib::String path)
         // Construct track directly in the vector. The track constructor will handle tag loading.
         tracks.emplace_back(path);
         if (m_shuffle) {
-            m_shuffled_indices.push_back(tracks.size() - 1);
+            insertShuffleIndex_unlocked(static_cast<long>(tracks.size()) - 1);
         }
         m_generation.fetch_add(1, std::memory_order_relaxed);
         Debug::log("playlist", "Playlist::addFile(): Successfully added file: ", path.to8Bit(true));
@@ -166,7 +199,7 @@ bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::Strin
     // The track constructor will handle creating TagLib::FileRef if needed.
     tracks.emplace_back(path, artist, title, duration);
     if (m_shuffle) {
-        m_shuffled_indices.push_back(tracks.size() - 1);
+        insertShuffleIndex_unlocked(static_cast<long>(tracks.size()) - 1);
     }
     m_generation.fetch_add(1, std::memory_order_relaxed);
     return true;
@@ -183,6 +216,7 @@ void Playlist::clear()
     tracks.clear();
     m_position = 0;
     m_shuffled_indices.clear();
+    m_shuffle_index = 0;
     m_generation.fetch_add(1, std::memory_order_relaxed);
 }
 
@@ -416,7 +450,7 @@ TagLib::String Playlist::next()
             repopulateShuffleIndices();
         }
 
-        m_shuffle_index++;
+        m_shuffle_index = shuffleCursor_unlocked() + 1;
         if (static_cast<size_t>(m_shuffle_index) >= m_shuffled_indices.size()) {
             m_shuffle_index = 0; // Wrap around
         }
@@ -446,10 +480,11 @@ TagLib::String Playlist::prev()
             repopulateShuffleIndices();
         }
 
+        m_shuffle_index = shuffleCursor_unlocked();
         if (m_shuffle_index > 0) {
             m_shuffle_index--;
         } else {
-            m_shuffle_index = m_shuffled_indices.size() - 1; // Wrap around
+            m_shuffle_index = static_cast<long>(m_shuffled_indices.size()) - 1; // Wrap around
         }
         m_position = m_shuffled_indices[m_shuffle_index];
     } else {
@@ -477,7 +512,7 @@ TagLib::String Playlist::peekNext() const
 
     long next_pos;
     if (m_shuffle && m_shuffled_indices.size() == tracks.size()) {
-        long next_shuffle_idx = m_shuffle_index + 1;
+        long next_shuffle_idx = shuffleCursor_unlocked() + 1;
         if (static_cast<size_t>(next_shuffle_idx) >= m_shuffled_indices.size()) {
             next_shuffle_idx = 0; // Wrap around
         }
@@ -550,9 +585,26 @@ bool Playlist::advanceWouldWrap(size_t advance_count) const
         if (m_shuffled_indices.size() != tracks.size()) {
             return false;
         }
-        return static_cast<size_t>(m_shuffle_index) + advance_count >= m_shuffled_indices.size();
+        return static_cast<size_t>(shuffleCursor_unlocked()) + advance_count >= m_shuffled_indices.size();
     }
     return static_cast<size_t>(m_position) + advance_count >= tracks.size();
+}
+
+bool Playlist::retreatWouldWrap() const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (tracks.empty()) {
+        return true;
+    }
+    if (m_shuffle) {
+        // If the shuffle order is stale, prev() will repopulate rather than
+        // wrap, so treat that as "won't wrap".
+        if (m_shuffled_indices.size() != tracks.size()) {
+            return false;
+        }
+        return shuffleCursor_unlocked() == 0;
+    }
+    return m_position == 0;
 }
 
 std::optional<Playlist::TrackInfo> Playlist::getTrackInfo(long position) const

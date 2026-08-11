@@ -93,6 +93,10 @@ class Playlist
         // the current play order (sequential or shuffle) and wrap. Used to honor
         // LoopMode::None in both orders.
         bool advanceWouldWrap(size_t advance_count) const;
+        // True if a single prev() would run past the beginning of the current
+        // play order (sequential or shuffle) and wrap. Backward analogue of
+        // advanceWouldWrap; used to honor LoopMode::None when skipping backward.
+        bool retreatWouldWrap() const;
         void setShuffle(bool enabled);
         bool isShuffle() const;
         static std::vector<Entry> loadPlaylistEntries(TagLib::String path);
@@ -111,7 +115,15 @@ class Playlist
         bool setPosition_unlocked(long position);
         TagLib::String getTrack_unlocked(long position) const;
         void repopulateShuffleIndices();
-        
+        // Splice a newly-appended track's index into the shuffle order at a
+        // random spot in the not-yet-played remainder. Assumes the lock is held.
+        void insertShuffleIndex_unlocked(long new_track_index);
+        // The shuffle cursor clamped into the current shuffle order's range.
+        // Every read of m_shuffled_indices[] must go through this: an edit can
+        // leave m_shuffle_index past the end of a shrunken order. Assumes the
+        // lock is held.
+        long shuffleCursor_unlocked() const;
+
         std::vector<track> tracks;
         long m_position = 0;
 
@@ -119,6 +131,7 @@ class Playlist
         bool m_shuffle = false;
         std::vector<long> m_shuffled_indices;
         long m_shuffle_index = 0;
+        std::mt19937 m_shuffle_rng; // seeded once in the ctor
 
         std::atomic<uint64_t> m_generation{0}; // bumped on track-list changes
 
