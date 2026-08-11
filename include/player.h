@@ -245,10 +245,13 @@ class Player
         // "L": single-select native chooser; play the chosen file in place of the
         // current track without modifying the playlist (forgotten on next change).
         void openTemporaryTrackDialog();
+        // Where queued tracks land, resolved AFTER the (blocking) chooser closes
+        // so a track transition during the dialog can't leave a stale index.
+        enum class QueueMode { AfterCurrent, AtEnd };
         // Shared chooser for the queue actions: insert the chosen (playlist-
-        // expanded) tracks at `insert_at`; if nothing is playing, start with the
+        // expanded) tracks per `mode`; if nothing is playing, start with the
         // first queued track, otherwise leave the current track playing.
-        void queueTracks(long insert_at, const char* dialog_title);
+        void queueTracks(QueueMode mode, const char* dialog_title);
 #endif
         // Empty the playlist and stop playback.
         void clearPlaylist();
@@ -392,6 +395,11 @@ class Player
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;
         int m_skip_attempts = 0;
+        // Set when tracks are queued into an empty playlist while something
+        // outside the playlist is playing: the cursor then denotes a track that
+        // has not been played yet, so the next advance must load it rather than
+        // step past it. Cleared by requestTrackLoad(), i.e. by any other load.
+        bool m_cursor_unplayed = false;
         std::atomic<LoopMode> m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;

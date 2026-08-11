@@ -649,6 +649,7 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
  */
 void Player::requestTrackLoad(TagLib::String path) {
     Debug::log("loader", "Player::requestTrackLoad(", path.to8Bit(true), ") called.");
+    m_cursor_unplayed = false;
     if (m_loading_track) {
         // Supersede rather than drop: record the latest requested track and
         // issue it when the in-flight load settles. Dropping it silently left
@@ -1067,6 +1068,17 @@ void Player::nextTrack(size_t advance_count) {
         return;
     }
 
+    // Tracks were queued into an empty playlist while something outside it was
+    // playing: the cursor already denotes the first queued track, so play it
+    // instead of advancing past it. Checked before the wrap test below, which
+    // would otherwise stop playback outright when a single track was queued.
+    if (m_cursor_unplayed) {
+        const long pos = playlist->getPosition();
+        m_skip_attempts = 0;
+        requestTrackLoad(playlist->getTrack(pos));
+        return;
+    }
+
     // End-of-playlist handling applies to both shuffle and sequential order:
     // unless we are looping the whole playlist, running past the end stops (or
     // quits when unattended) instead of wrapping.
@@ -1209,7 +1221,7 @@ void Player::openTracksReplacingPlaylist()
  *        track. If nothing is playing, playback starts at the first queued
  *        track. Backs "Queue Track Next..." and "Queue Track...".
  */
-void Player::queueTracks(long insert_at, const char* dialog_title)
+void Player::queueTracks(QueueMode mode, const char* dialog_title)
 {
     if (!playlist) {
         return;
@@ -1229,7 +1241,17 @@ void Player::queueTracks(long insert_at, const char* dialog_title)
         return; // e.g. only empty/invalid playlist files were chosen
     }
 
+    // Resolve the insertion index only now that the (blocking) chooser has
+    // closed. Capturing it before the dialog would misplace the tracks if a
+    // track transition advanced the cursor while the dialog was open.
     const long size = playlist->entries();
+    long insert_at;
+    if (mode == QueueMode::AfterCurrent) {
+        const long pos = playlist->getPosition();
+        insert_at = (pos < 0) ? 0 : pos + 1;
+    } else {
+        insert_at = size;
+    }
     if (insert_at < 0 || insert_at > size) {
         insert_at = size;
     }
@@ -1245,20 +1267,25 @@ void Player::queueTracks(long insert_at, const char* dialog_title)
         playlist->setPosition(insert_at);
         m_skip_attempts = 0;
         requestTrackLoad(playlist->getTrack(insert_at));
+    } else if (size == 0) {
+        // The playlist was empty, so whatever is playing came from outside it
+        // (a temporary track). insertEntries() leaves the cursor on the first
+        // queued track rather than shifting it out of range, and that track has
+        // not been played yet, so the next advance must not step over it.
+        m_cursor_unplayed = true;
     }
 }
 
 // "I": queue after the current track (plays next).
 void Player::queueTracksNext()
 {
-    const long pos = playlist ? playlist->getPosition() : 0;
-    queueTracks(pos < 0 ? 0 : pos + 1, "Queue track(s) next");
+    queueTracks(QueueMode::AfterCurrent, "Queue track(s) next");
 }
 
 // Queue at the end of the playlist.
 void Player::queueTracksEnd()
 {
-    queueTracks(playlist ? playlist->entries() : 0, "Queue track(s)");
+    queueTracks(QueueMode::AtEnd, "Queue track(s)");
 }
 
 /**
