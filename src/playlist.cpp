@@ -853,10 +853,22 @@ void Playlist::savePlaylist(TagLib::String path)
 
     file << "#EXTM3U\n";
 
+    // EXTINF is line-oriented: a CR/LF embedded in a tag would split the line and
+    // corrupt the file (a fragment gets re-read as a bogus track path on load).
+    // Neutralize control characters in the metadata fields to spaces.
+    auto sanitizeField = [](std::string s) {
+        for (char& c : s) {
+            if (static_cast<unsigned char>(c) < 0x20) {
+                c = ' ';
+            }
+        }
+        return s;
+    };
+
     for (const auto& track : tracks) {
         long duration = track.GetLen();
-        std::string artist = track.GetArtist().to8Bit(true);
-        std::string title = track.GetTitle().to8Bit(true);
+        std::string artist = sanitizeField(track.GetArtist().to8Bit(true));
+        std::string title = sanitizeField(track.GetTitle().to8Bit(true));
         std::string track_path = toAbsoluteLocalPath(track.GetFilePath().to8Bit(true));
 
         file << "#EXTINF:" << duration << "," << artist << " - " << title << "\n";
