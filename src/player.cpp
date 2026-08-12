@@ -1164,10 +1164,10 @@ void Player::prevTrack(void) {
     requestTrackLoad(playlist->getTrack(new_pos));
 }
 
-#ifdef HAVE_FILEDIALOG
 namespace {
-// Extensions offered by the open/insert choosers: every demuxable media format
-// plus the playlist containers, so .m3u/.m3u8 files are selectable too.
+// Extensions accepted by the open/insert choosers and by drag-and-drop: every
+// demuxable media format plus the playlist containers, so .m3u/.m3u8 files
+// are selectable/droppable too.
 std::vector<std::string> chooserExtensions()
 {
     std::vector<std::string> exts = MediaFile::getSupportedExtensions();
@@ -1189,6 +1189,109 @@ std::vector<Playlist::Entry> expandChosenPaths(const std::vector<std::string>& p
     return Playlist::resolveInlineSources(sources);
 }
 
+// Lowercased extension (without the dot) of a UTF-8 path; empty if none.
+std::string lowerExtension(const std::string& path)
+{
+    const size_t dot = path.find_last_of('.');
+    if (dot == std::string::npos || path.find_first_of("/\\", dot + 1) != std::string::npos) {
+        return {};
+    }
+    std::string ext = path.substr(dot + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    return ext;
+}
+
+// UTF-8 bytes of a filesystem path. u8string() is std::string under C++17 but
+// std::u8string (char8_t) under C++20; copy the bytes so both compile.
+std::string pathToUtf8(const std::filesystem::path& path)
+{
+    auto u8 = path.u8string();
+    return std::string(u8.begin(), u8.end());
+}
+
+// Expand a drag-and-drop batch into openable paths, in drop order. Directories
+// are walked recursively for supported media files (sorted, so play order
+// doesn't depend on filesystem iteration order); loose files are kept when
+// they are a supported media format or a .m3u/.m3u8 playlist; anything else is
+// silently ignored. Playlists inside dropped directories are NOT collected, so
+// an album folder shipping its own .m3u doesn't yield every track twice.
+std::vector<std::string> expandDroppedPaths(const std::vector<std::string>& dropped)
+{
+    const std::vector<std::string> media_exts = MediaFile::getSupportedExtensions();
+    const std::vector<std::string> loose_exts = chooserExtensions();
+    auto has_ext_in = [](const std::string& path, const std::vector<std::string>& exts) {
+        const std::string ext = lowerExtension(path);
+        return !ext.empty() && std::find(exts.begin(), exts.end(), ext) != exts.end();
+    };
+
+    std::vector<std::string> paths;
+    for (const std::string& item : dropped) {
+        std::error_code ec;
+        const std::filesystem::path fs_item = System::pathFromUtf8(item);
+        if (std::filesystem::is_directory(fs_item, ec)) {
+            std::vector<std::string> found;
+            auto it = std::filesystem::recursive_directory_iterator(
+                fs_item, std::filesystem::directory_options::skip_permission_denied, ec);
+            while (!ec && it != std::filesystem::recursive_directory_iterator()) {
+                std::error_code entry_ec;
+                if (it->is_regular_file(entry_ec)) {
+                    std::string p = pathToUtf8(it->path());
+                    if (has_ext_in(p, media_exts)) {
+                        found.push_back(std::move(p));
+                    }
+                }
+                it.increment(ec);
+            }
+            std::sort(found.begin(), found.end());
+            paths.insert(paths.end(), std::make_move_iterator(found.begin()),
+                         std::make_move_iterator(found.end()));
+        } else if (has_ext_in(item, loose_exts)) {
+            paths.push_back(item);
+        }
+    }
+    return paths;
+}
+} // namespace
+
+/**
+ * @brief Replace the running playlist with the given (playlist-expanded)
+ *        paths and start playing the first resulting track. Shared tail of
+ *        the Ctrl+O chooser and the drag-and-drop path. A batch that expands
+ *        to nothing leaves the current playlist and playback untouched.
+ */
+void Player::openPathsReplacingPlaylist(const std::vector<std::string>& paths)
+{
+    if (!playlist) {
+        return;
+    }
+    std::vector<Playlist::Entry> entries = expandChosenPaths(paths);
+    if (entries.empty()) {
+        return; // e.g. only empty/invalid playlist files
+    }
+    playlist->clear();
+    playlist->insertEntries(0, entries);
+    playlist->setPosition(0);
+    m_skip_attempts = 0;
+    requestTrackLoad(playlist->getTrack(0));
+}
+
+/**
+ * @brief SDL_DROPCOMPLETE: commit the drop batch accumulated in
+ *        m_dropped_paths exactly like "Open" — recurse into directories,
+ *        filter to supported formats, and replace the playlist with the
+ *        result, playing from the first track.
+ */
+void Player::openDroppedPaths()
+{
+    std::vector<std::string> paths = expandDroppedPaths(m_dropped_paths);
+    m_dropped_paths.clear();
+    if (!paths.empty()) {
+        openPathsReplacingPlaylist(paths);
+    }
+}
+
+#ifdef HAVE_FILEDIALOG
+namespace {
 // RAII flag held for the lifetime of a blocking native chooser. See
 // Player::dialogOpen and AppLoopTimer: it stops the app-loop timer from
 // backlogging RUN_GUI_ITERATION events while the dialog owns the main thread.
@@ -1219,17 +1322,7 @@ void Player::openTracksReplacingPlaylist()
     if (paths.empty()) {
         return; // cancelled: keep the existing playlist and playback
     }
-
-    std::vector<Playlist::Entry> entries = expandChosenPaths(paths);
-    if (entries.empty()) {
-        return; // e.g. only empty/invalid playlist files were chosen
-    }
-
-    playlist->clear();
-    playlist->insertEntries(0, entries);
-    playlist->setPosition(0);
-    m_skip_attempts = 0;
-    requestTrackLoad(playlist->getTrack(0));
+    openPathsReplacingPlaylist(paths);
 }
 
 /**
@@ -3150,6 +3243,23 @@ void Player::EventLoop() {
                 // exit if the window is closed
             case SDL_QUIT:
                 done = true;
+                break;
+
+            // Drag-and-drop: SDL brackets a drop with DROPBEGIN/DROPCOMPLETE
+            // and delivers one DROPFILE per item in between. Accumulate the
+            // batch and commit it on DROPCOMPLETE as a single "Open", so a
+            // multi-file drop replaces the playlist once, not once per file.
+            case SDL_DROPBEGIN:
+                m_dropped_paths.clear();
+                break;
+            case SDL_DROPFILE:
+                if (event.drop.file) {
+                    m_dropped_paths.emplace_back(event.drop.file);
+                    SDL_free(event.drop.file);
+                }
+                break;
+            case SDL_DROPCOMPLETE:
+                openDroppedPaths();
                 break;
 
 #ifdef _WIN32

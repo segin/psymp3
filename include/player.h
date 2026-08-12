@@ -261,6 +261,12 @@ class Player
         // first queued track, otherwise leave the current track playing.
         void queueTracks(QueueMode mode, const char* dialog_title);
 #endif
+        // Replace the playlist with the given (playlist-expanded) paths and
+        // play from the first resulting track; shared tail of the Ctrl+O
+        // chooser and drag-and-drop. No-op if the expansion yields nothing.
+        void openPathsReplacingPlaylist(const std::vector<std::string>& paths);
+        // SDL_DROPCOMPLETE: commit the accumulated drop batch like "Open".
+        void openDroppedPaths();
         // Empty the playlist and stop playback.
         void clearPlaylist();
 #ifdef _WIN32
@@ -408,6 +414,9 @@ class Player
         // has not been played yet, so the next advance must load it rather than
         // step past it. Cleared by requestTrackLoad(), i.e. by any other load.
         bool m_cursor_unplayed = false;
+        // Paths accumulated between SDL_DROPBEGIN and SDL_DROPCOMPLETE, then
+        // committed as one "Open" by openDroppedPaths().
+        std::vector<std::string> m_dropped_paths;
         std::atomic<LoopMode> m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;

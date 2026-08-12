@@ -101,6 +101,7 @@ A 7-band graphic equalizer, opened from **Playback → Equalizer…**.
 - Text stays UTF-8 internally once it enters the process: command-line file arguments are normalized before playlist population, Unix file I/O opens `TagLib::String` paths through UTF-8 byte strings, SDL window titles receive UTF-8, and the FreeType font layer measures/renders decoded Unicode codepoints instead of raw UTF-8 bytes.
 - Widget input is hierarchical, clip-aware, and capture-aware.
 - The `I` key inserts files chosen from a native dialog at the current playlist index and jumps playback to the first inserted track; the `L` key plays a chosen file in place of the current track without touching the playlist, so the next track change resumes normal flow and forgets the override. Both keys exist only when a file-dialog backend is compiled in.
+- Dropping files onto the window (SDL `DROPBEGIN`/`DROPFILE`/`DROPCOMPLETE`) acts like "Open": the whole drop batch — directories recursed for supported media files, `.m3u`/`.m3u8` playlists expanded, unsupported files silently ignored — replaces the playlist in one step and plays from its first track. Available even in builds without a file-dialog backend.
 
 ## SDL2 Status
 
