@@ -14,13 +14,13 @@
 FB_PROGRAM_ICON ICON DISCARDABLE "psymp3.ico"
 FileIcon ICON DISCARDABLE "music.ico"
 
-/* Embedded UI font (Bitstream Vera), loaded via FindResource on Windows so the
+/* Embedded UI font (DejaVu Sans), loaded via FindResource on Windows so the
    exe is self-contained (no external vera.ttf needed). See src/player.cpp. */
 IDR_VERA_TTF RCDATA "vera.ttf"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 2,0,0,1074
-PRODUCTVERSION 2,0,0,1074
+FILEVERSION 2,0,0,1075
+PRODUCTVERSION 2,0,0,1075
 FILEOS 0x00040004
 FILETYPE 0x00000001
 BEGIN
@@ -31,7 +31,7 @@ BEGIN
       VALUE "Comments", "This is PsyMP3 version 2-CURRENT\0"
       VALUE "CompanyName", "None\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
-      VALUE "FileVersion", "2, 0, 0, 1074\0"
+      VALUE "FileVersion", "2, 0, 0, 1075\0"
       VALUE "InternalName", "PsyMP3\0"
       VALUE "LegalCopyright", "ISC License\0"
       VALUE "OriginalFilename", "psymp3.exe\0"
