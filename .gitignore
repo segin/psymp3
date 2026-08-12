@@ -37,6 +37,8 @@ tmp/
 **/*.aac
 **/*.wma
 **/*.aiff
+**/*.m3u
+**/*.m3u8
 include/config.h.in
 libs/util/Makefile
 
