@@ -1217,8 +1217,16 @@ std::string pathToUtf8(const std::filesystem::path& path)
 // an album folder shipping its own .m3u doesn't yield every track twice.
 std::vector<std::string> expandDroppedPaths(const std::vector<std::string>& dropped)
 {
-    const std::vector<std::string> media_exts = MediaFile::getSupportedExtensions();
-    const std::vector<std::string> loose_exts = chooserExtensions();
+    // The format registry stores extensions in uppercase ("FLAC", "MP3", ...);
+    // lowercase both sides so the comparison is case-insensitive.
+    auto lowered = [](std::vector<std::string> exts) {
+        for (std::string& e : exts) {
+            std::transform(e.begin(), e.end(), e.begin(), ::tolower);
+        }
+        return exts;
+    };
+    const std::vector<std::string> media_exts = lowered(MediaFile::getSupportedExtensions());
+    const std::vector<std::string> loose_exts = lowered(chooserExtensions());
     auto has_ext_in = [](const std::string& path, const std::vector<std::string>& exts) {
         const std::string ext = lowerExtension(path);
         return !ext.empty() && std::find(exts.begin(), exts.end(), ext) != exts.end();
@@ -1284,6 +1292,8 @@ void Player::openPathsReplacingPlaylist(const std::vector<std::string>& paths)
 void Player::openDroppedPaths()
 {
     std::vector<std::string> paths = expandDroppedPaths(m_dropped_paths);
+    Debug::log("player", "Drag-and-drop: ", m_dropped_paths.size(), " item(s) dropped, ",
+               paths.size(), " openable path(s) after expansion");
     m_dropped_paths.clear();
     if (!paths.empty()) {
         openPathsReplacingPlaylist(paths);
