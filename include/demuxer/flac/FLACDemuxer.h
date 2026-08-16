@@ -320,6 +320,7 @@ private:
     bool m_container_parsed = false;     ///< True if container successfully parsed
     uint64_t m_file_size = 0;            ///< Total file size in bytes
     uint64_t m_audio_data_offset = 0;    ///< File offset where FLAC frames start
+    uint64_t m_audio_data_end = 0;       ///< File offset just past the last audio byte (excludes trailing tags); 0 means use m_file_size
     uint64_t m_current_offset = 0;       ///< Current read position in file
     uint64_t m_current_sample = 0;       ///< Current sample position in stream
     bool m_eof = false;                  ///< End of file reached
@@ -391,7 +392,15 @@ private:
     bool parseCuesheetBlock_unlocked(const FLACMetadataBlock& block);
     bool parsePictureBlock_unlocked(const FLACMetadataBlock& block);
     bool skipMetadataBlock_unlocked(const FLACMetadataBlock& block);
-    
+
+    /**
+     * Detect known non-FLAC tags appended after the audio frames (ID3v1,
+     * APEv2, Lyrics3v2) and set m_audio_data_end just before them, so the last
+     * frame's boundary/CRC is not computed across the trailer. Preserves the
+     * current file position.
+     */
+    void detectTrailingTags_unlocked();
+
     /**
      * @brief Validate streamable subset compliance per RFC 9639 Section 7
      * 

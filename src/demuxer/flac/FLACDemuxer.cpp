@@ -463,11 +463,15 @@ retry_frame_read:
         estimated_frame_size = MAX_FRAME_SIZE;
     }
     
-    // Check available data in file
+    // Check available data in file. Bound reads to the audio region, which
+    // excludes any trailing ID3v1/APEv2/Lyrics3 tag; otherwise the last frame
+    // would span into the trailer and fail its CRC-16.
     // Requirement 24.6: Handle truncated files gracefully
+    const uint64_t audio_end = m_audio_data_end ? m_audio_data_end : m_file_size;
     uint32_t available_bytes = estimated_frame_size;
-    if (m_file_size > 0 && frame.file_offset + estimated_frame_size > m_file_size) {
-        available_bytes = static_cast<uint32_t>(m_file_size - frame.file_offset);
+    if (audio_end > 0 && frame.file_offset < audio_end &&
+        frame.file_offset + estimated_frame_size > audio_end) {
+        available_bytes = static_cast<uint32_t>(audio_end - frame.file_offset);
         FLAC_DEBUG("[readChunk] Requirement 24.6: Adjusted frame size to available bytes: ", available_bytes);
         
         // If very little data available, we're likely at EOF
@@ -609,7 +613,7 @@ retry_frame_read:
             break;
         }
 
-        if (m_file_size > 0 && frame.file_offset + data.size() >= m_file_size) {
+        if (audio_end > 0 && frame.file_offset + data.size() >= audio_end) {
             break;
         }
 
@@ -1118,8 +1122,100 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
     // Record where audio data starts
     m_audio_data_offset = static_cast<uint64_t>(m_handler->tell());
     FLAC_DEBUG("Audio data starts at offset ", m_audio_data_offset);
-    
+
+    // Trim any non-FLAC tags appended after the frames so the last frame's
+    // boundary/CRC is not computed across them.
+    detectTrailingTags_unlocked();
+
     return true;
+}
+
+void FLACDemuxer::detectTrailingTags_unlocked()
+{
+    // Default: audio extends to the end of the file.
+    m_audio_data_end = m_file_size;
+    if (m_file_size == 0 || !m_handler) {
+        return;
+    }
+
+    const off_t saved_pos = m_handler->tell();
+
+    // Peel recognized trailers off the end, newest last. Taggers stack them
+    // (e.g. Lyrics3v2 then ID3v1, or APEv2 then ID3v1), so loop until no known
+    // trailer remains. Never trim past the start of the audio data.
+    bool changed = true;
+    while (changed && m_audio_data_end > m_audio_data_offset) {
+        changed = false;
+        const uint64_t end = m_audio_data_end;
+
+        // ID3v1 / ID3v1.1: exactly 128 bytes, starting with "TAG".
+        if (end - m_audio_data_offset >= 128) {
+            uint8_t magic[3];
+            if (m_handler->seek(static_cast<off_t>(end - 128), SEEK_SET) == 0 &&
+                m_handler->read(magic, 1, 3) == 3 &&
+                magic[0] == 'T' && magic[1] == 'A' && magic[2] == 'G') {
+                m_audio_data_end = end - 128;
+                changed = true;
+                FLAC_DEBUG("[detectTrailingTags] Trimmed 128-byte ID3v1 trailer");
+                continue;
+            }
+        }
+
+        // APEv2 footer: 32 bytes, starting with "APETAGEX". The little-endian
+        // size field at offset 12 covers the tag items plus this 32-byte footer
+        // (an optional 32-byte header may precede the items; bit 31 of the flags
+        // at offset 20 indicates its presence).
+        if (end - m_audio_data_offset >= 32) {
+            uint8_t footer[32];
+            if (m_handler->seek(static_cast<off_t>(end - 32), SEEK_SET) == 0 &&
+                m_handler->read(footer, 1, 32) == 32 &&
+                std::memcmp(footer, "APETAGEX", 8) == 0) {
+                uint64_t tag_size = static_cast<uint64_t>(footer[12]) |
+                                    (static_cast<uint64_t>(footer[13]) << 8) |
+                                    (static_cast<uint64_t>(footer[14]) << 16) |
+                                    (static_cast<uint64_t>(footer[15]) << 24);
+                bool has_header = (footer[23] & 0x80) != 0; // flags byte, bit 31
+                uint64_t total = tag_size + (has_header ? 32 : 0);
+                if (tag_size >= 32 && total <= end - m_audio_data_offset) {
+                    m_audio_data_end = end - total;
+                    changed = true;
+                    FLAC_DEBUG("[detectTrailingTags] Trimmed ", total, "-byte APEv2 trailer");
+                    continue;
+                }
+            }
+        }
+
+        // Lyrics3v2: ends with the 9-byte "LYRICS200" signature, preceded by a
+        // 6-digit ASCII size covering the tag body from "LYRICSBEGIN" (but not
+        // the size field or signature).
+        if (end - m_audio_data_offset >= 15) {
+            uint8_t tail[15]; // 6-digit size + "LYRICS200"
+            if (m_handler->seek(static_cast<off_t>(end - 15), SEEK_SET) == 0 &&
+                m_handler->read(tail, 1, 15) == 15 &&
+                std::memcmp(tail + 6, "LYRICS200", 9) == 0) {
+                bool digits = true;
+                uint64_t body_size = 0;
+                for (int i = 0; i < 6; ++i) {
+                    if (tail[i] < '0' || tail[i] > '9') { digits = false; break; }
+                    body_size = body_size * 10 + static_cast<uint64_t>(tail[i] - '0');
+                }
+                uint64_t total = body_size + 15; // body + size field + signature
+                if (digits && total <= end - m_audio_data_offset) {
+                    m_audio_data_end = end - total;
+                    changed = true;
+                    FLAC_DEBUG("[detectTrailingTags] Trimmed ", total, "-byte Lyrics3v2 trailer");
+                    continue;
+                }
+            }
+        }
+    }
+
+    if (m_audio_data_end != m_file_size) {
+        FLAC_DEBUG("[detectTrailingTags] Audio data ends at ", m_audio_data_end,
+                   " (file size ", m_file_size, ")");
+    }
+
+    m_handler->seek(saved_pos, SEEK_SET);
 }
 
 bool FLACDemuxer::parseMetadataBlockHeader_unlocked(FLACMetadataBlock& block)
@@ -4565,9 +4661,9 @@ uint64_t FLACDemuxer::estimateBytePosition_unlocked(uint64_t target_sample) cons
         return m_audio_data_offset;
     }
     
-    // Requirement 1.2: Calculate audio data size
-    uint64_t audio_data_size = m_file_size - m_audio_data_offset;
-    
+    // Requirement 1.2: Calculate audio data size (excludes any trailing tag)
+    uint64_t audio_data_size = (m_audio_data_end ? m_audio_data_end : m_file_size) - m_audio_data_offset;
+
     if (audio_data_size == 0) {
         FLAC_DEBUG("[estimateBytePosition] audio_data_size is 0, returning audio_data_offset: ", m_audio_data_offset);
         return m_audio_data_offset;
@@ -4633,7 +4729,7 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         return false;
     }
     
-    uint64_t audio_data_size = m_file_size - m_audio_data_offset;
+    uint64_t audio_data_size = (m_audio_data_end ? m_audio_data_end : m_file_size) - m_audio_data_offset;
     if (audio_data_size == 0) {
         FLAC_DEBUG("[seekWithByteEstimation] Cannot estimate: audio data size is 0");
         return false;
