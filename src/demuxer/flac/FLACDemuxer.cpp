@@ -918,6 +918,8 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
     FLAC_DEBUG("Parsing metadata blocks");
     
     bool found_streaminfo = false;
+    bool found_seektable = false;       // RFC 9639 8.5: at most one SEEKTABLE
+    bool found_vorbis_comment = false;  // RFC 9639 8.6: at most one VORBIS_COMMENT
     bool is_first_block = true;  // Track if this is the first metadata block
     bool is_last = false;
     int corrupted_blocks_skipped = 0;  // Track corrupted blocks for Requirement 24.2
@@ -1023,18 +1025,32 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 break;
                 
             case FLACMetadataType::SEEKTABLE:
-                // Non-critical block - failure is not fatal
-                if (!parseSeekTableBlock_unlocked(block)) {
+                // RFC 9639 Section 8.5: at most one SEEKTABLE. Keep the first
+                // and skip any later one instead of letting it replace the
+                // first. Non-critical block - parse failure is not fatal.
+                if (found_seektable) {
+                    FLAC_DEBUG("[parseMetadataBlocks] Duplicate SEEKTABLE, skipping");
+                    skipMetadataBlock_unlocked(block);
+                } else if (!parseSeekTableBlock_unlocked(block)) {
                     FLAC_DEBUG("[parseMetadataBlocks] SEEKTABLE parsing failed, skipping");
                     skipMetadataBlock_unlocked(block);
+                } else {
+                    found_seektable = true;
                 }
                 break;
-                
+
             case FLACMetadataType::VORBIS_COMMENT:
-                // Non-critical block - failure is not fatal
-                if (!parseVorbisCommentBlock_unlocked(block)) {
+                // RFC 9639 Section 8.6: at most one VORBIS_COMMENT. Keep the
+                // first so a later (possibly empty) block cannot erase the real
+                // tags. Non-critical block - parse failure is not fatal.
+                if (found_vorbis_comment) {
+                    FLAC_DEBUG("[parseMetadataBlocks] Duplicate VORBIS_COMMENT, skipping");
+                    skipMetadataBlock_unlocked(block);
+                } else if (!parseVorbisCommentBlock_unlocked(block)) {
                     FLAC_DEBUG("[parseMetadataBlocks] VORBIS_COMMENT parsing failed, skipping");
                     skipMetadataBlock_unlocked(block);
+                } else {
+                    found_vorbis_comment = true;
                 }
                 break;
                 
