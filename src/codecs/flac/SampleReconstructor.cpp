@@ -13,6 +13,21 @@ namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {
 
+namespace {
+// Right-shift by `shift` bits, rounding half away from zero. Arithmetic >>
+// floors toward negative infinity, which biases negative results one LSB too
+// low if the half-LSB is simply subtracted; rounding the magnitude and
+// reapplying the sign keeps rounding symmetric and lets exactly-representable
+// values (multiples of 2^shift) round-trip unchanged.
+inline int32_t roundedDownshift(int32_t sample, uint32_t shift) {
+  const int64_t s = sample;
+  const int64_t half = shift ? (1LL << (shift - 1)) : 0;
+  const int64_t rounded = s >= 0 ? (s + half) >> shift
+                                 : -(((-s) + half) >> shift);
+  return static_cast<int32_t>(rounded);
+}
+} // namespace
+
 SampleReconstructor::SampleReconstructor() {}
 
 SampleReconstructor::~SampleReconstructor() {}
@@ -25,25 +40,18 @@ int32_t SampleReconstructor::upscale8To16(int32_t sample) {
 }
 
 int32_t SampleReconstructor::downscale24To16(int32_t sample) {
-  // Requirement 9.3: Right-shift by 8 bits with rounding
-  // Use symmetric rounding so negative peaks do not bias upward.
-  int64_t rounded = sample >= 0 ? static_cast<int64_t>(sample) + 128
-                                : static_cast<int64_t>(sample) - 128;
-  return static_cast<int32_t>(rounded >> 8);
+  // Requirement 9.3: Right-shift by 8 bits, rounding half away from zero.
+  return roundedDownshift(sample, 8);
 }
 
 int32_t SampleReconstructor::downscale32To16(int32_t sample) {
-  // Requirement 9.4: Right-shift by 16 bits with rounding
-  int64_t rounded = sample >= 0 ? static_cast<int64_t>(sample) + 32768
-                                : static_cast<int64_t>(sample) - 32768;
-  return static_cast<int32_t>(rounded >> 16);
+  // Requirement 9.4: Right-shift by 16 bits, rounding half away from zero.
+  return roundedDownshift(sample, 16);
 }
 
 int32_t SampleReconstructor::downscale20To16(int32_t sample) {
-  // Requirement 9.6: Right-shift by 4 bits with rounding
-  int64_t rounded = sample >= 0 ? static_cast<int64_t>(sample) + 8
-                                : static_cast<int64_t>(sample) - 8;
-  return static_cast<int32_t>(rounded >> 4);
+  // Requirement 9.6: Right-shift by 4 bits, rounding half away from zero.
+  return roundedDownshift(sample, 4);
 }
 
 int32_t SampleReconstructor::upscaleTo16(int32_t sample,
@@ -118,12 +126,8 @@ int32_t SampleReconstructor::convertTo16Bit(int32_t sample,
     if (source_bit_depth < 16) {
       return upscaleTo16(sample, source_bit_depth);
     } else {
-      // Downscale by appropriate amount
-      uint32_t shift_amount = source_bit_depth - 16;
-      int64_t rounding = (shift_amount > 0 && shift_amount < 32) ? (1LL << (shift_amount - 1)) : 0;
-      int64_t adjusted = sample >= 0 ? static_cast<int64_t>(sample) + rounding
-                                     : static_cast<int64_t>(sample) - rounding;
-      return static_cast<int32_t>(adjusted >> shift_amount);
+      // Downscale by appropriate amount, rounding half away from zero.
+      return roundedDownshift(sample, source_bit_depth - 16);
     }
   }
 }
