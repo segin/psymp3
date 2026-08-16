@@ -82,6 +82,7 @@ SYSTEM_LIBS = \
 COMMON_TEST_LIBS = \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/dsp/Equalizer.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/playlist.o \
@@ -1692,6 +1693,9 @@ $(top_builddir)/src/debug.o:
 $(top_builddir)/src/audio.o:
 	$(MAKE) -C $(top_builddir)/src audio.o
 
+$(top_builddir)/src/dsp/Equalizer.o:
+	$(MAKE) -C $(top_builddir)/src dsp/Equalizer.o
+
 $(top_builddir)/src/stream.o:
 	$(MAKE) -C $(top_builddir)/src stream.o
 
@@ -1718,6 +1722,7 @@ test_system_wide_threading_integration_SOURCES = test_system_wide_threading_inte
 test_system_wide_threading_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/dsp/Equalizer.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1734,6 +1739,7 @@ test_threading_performance_regression_SOURCES = test_threading_performance_regre
 test_threading_performance_regression_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/dsp/Equalizer.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1762,6 +1768,7 @@ test_audio_thread_safety_SOURCES = test_audio_thread_safety.cpp
 test_audio_thread_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/dsp/Equalizer.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/core/fft.o \
 	$(top_builddir)/src/core/fft_draw.o \
