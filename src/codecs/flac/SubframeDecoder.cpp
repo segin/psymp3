@@ -244,10 +244,14 @@ bool SubframeDecoder::decodeFixed(int64_t *output, uint32_t block_size,
     return false;
   }
 
-  // Validate that we have enough samples for the predictor
-  if (order > block_size) {
+  // The predictor order MUST be strictly less than the block size: RFC 9639
+  // Section 9.2.7 requires (block size >> partition order) to be larger than
+  // the predictor order, which even at partition order 0 forces block size >
+  // predictor order. Accepting order == block_size would leave the mandatory
+  // coded residual unread and desync the bitstream.
+  if (order >= block_size) {
     Debug::log("subframe_decoder",
-               "Predictor order (%u) exceeds block size (%u)", order,
+               "Predictor order (%u) not less than block size (%u)", order,
                block_size);
     return false;
   }
@@ -309,10 +313,11 @@ bool SubframeDecoder::decodeLPC(int64_t *output, uint32_t block_size,
     return false;
   }
 
-  // Validate that we have enough samples for the predictor
-  if (order > block_size) {
+  // The predictor order MUST be strictly less than the block size (RFC 9639
+  // Section 9.2.7); see decodeFixed for the rationale.
+  if (order >= block_size) {
     Debug::log("subframe_decoder",
-               "Predictor order (%u) exceeds block size (%u)", order,
+               "Predictor order (%u) not less than block size (%u)", order,
                block_size);
     return false;
   }
