@@ -291,7 +291,11 @@ void MemoryOptimizer::startMemoryMonitoring() {
 
 void MemoryOptimizer::stopMemoryMonitoring() {
     // Stop memory pressure monitoring thread
-    m_monitoring_active = false;
+    {
+        std::lock_guard<std::mutex> lock(m_monitoring_mutex);
+        m_monitoring_active = false;
+    }
+    m_monitoring_cv.notify_all();
     if (m_monitoring_thread.joinable()) {
         m_monitoring_thread.join();
     }
@@ -302,9 +306,13 @@ void MemoryOptimizer::monitorMemoryPressure() {
     
     Debug::log("memory", "MemoryOptimizer::monitorMemoryPressure() - Starting memory pressure monitoring");
     
-    while (m_monitoring_active) {
-        // Sleep for monitoring interval
-        std::this_thread::sleep_for(5s);
+    while (true) {
+        {
+            std::unique_lock<std::mutex> lock(m_monitoring_mutex);
+            if (m_monitoring_cv.wait_for(lock, 5s, [this]() { return !m_monitoring_active.load(); })) {
+                break;
+            }
+        }
         
         // Check system memory pressure
         MemoryPressureLevel new_pressure = detectMemoryPressure();

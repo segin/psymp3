@@ -159,6 +159,8 @@ private:
     std::atomic<MemoryPressureLevel> m_memory_pressure_level{MemoryPressureLevel::Normal};
     std::thread m_monitoring_thread;
     std::atomic<bool> m_monitoring_active{false};
+    std::mutex m_monitoring_mutex;
+    std::condition_variable m_monitoring_cv;
     
     // Usage pattern tracking
     struct UsagePattern {

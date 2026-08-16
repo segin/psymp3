@@ -264,6 +264,8 @@ private:
     std::atomic<MemoryPressureLevel> m_memory_pressure_level;   // Current memory pressure level
     std::thread m_monitoring_thread;               // Memory monitoring thread
     std::atomic<bool> m_monitoring_active{false};  // Flag to control monitoring thread
+    std::mutex m_monitoring_mutex;                 // Mutex for monitoring thread CV
+    std::condition_variable m_monitoring_cv;       // CV to wake monitoring thread immediately on stop
     
     // Adaptive pool parameters based on memory pressure
     std::atomic<size_t> m_effective_max_pool_size{16 * 1024 * 1024};  // Effective max pool size

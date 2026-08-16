@@ -133,6 +133,7 @@ private:
     bool m_auto_tracking_enabled;
     unsigned int m_auto_tracking_interval_ms;
     std::thread m_auto_tracking_thread;
+    std::condition_variable m_auto_tracking_cv;
     
     // Memory cleanup management
     bool m_cleanup_requested;

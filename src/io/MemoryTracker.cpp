@@ -267,6 +267,7 @@ void MemoryTracker::stopAutoTracking() {
         
         m_auto_tracking_enabled = false;
     }
+    m_auto_tracking_cv.notify_all();
     
     // Wait for thread to finish
     if (m_auto_tracking_thread.joinable()) {
@@ -329,7 +330,15 @@ void MemoryTracker::notifyCallbacks() {
 void MemoryTracker::autoTrackingThread() {
     Debug::log("memory", "MemoryTracker: Auto-tracking thread started");
     
-    while (m_auto_tracking_enabled) {
+    while (true) {
+        {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            if (m_auto_tracking_cv.wait_for(lock, std::chrono::milliseconds(m_auto_tracking_interval_ms),
+                                            [this]() { return !m_auto_tracking_enabled; })) {
+                break;
+            }
+        }
+        
         // Update memory stats
         update();
         
@@ -349,9 +358,6 @@ void MemoryTracker::autoTrackingThread() {
         if (need_cleanup) {
             requestMemoryCleanup(urgency);
         }
-        
-        // Sleep for the specified interval
-        std::this_thread::sleep_for(std::chrono::milliseconds(m_auto_tracking_interval_ms));
     }
     
     Debug::log("memory", "MemoryTracker: Auto-tracking thread stopped");
