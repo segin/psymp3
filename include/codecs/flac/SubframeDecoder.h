@@ -152,11 +152,13 @@ private:
      * @param residuals Residual values
      * @param count Number of residual samples to decode
      * @param order Predictor order (0-4)
-     * 
+     * @param bit_depth Subframe bit depth; reconstructed samples are clamped
+     *        to this range so malformed input cannot overflow the accumulator
+     *
      * Requirements: 4, 54
      */
     void applyFixedPredictor(int64_t* samples, const int32_t* residuals,
-                            uint32_t count, uint32_t order);
+                            uint32_t count, uint32_t order, uint32_t bit_depth);
     
     /**
      * Apply LPC predictor
@@ -166,12 +168,14 @@ private:
      * @param count Number of residual samples to decode
      * @param order Predictor order (1-32)
      * @param shift Quantization level shift
-     * 
+     * @param bit_depth Subframe bit depth; reconstructed samples are clamped
+     *        to this range so malformed input cannot overflow the accumulator
+     *
      * Requirements: 5, 51, 52, 54
      */
     void applyLPCPredictor(int64_t* samples, const int32_t* residuals,
-                          const int32_t* coeffs, uint32_t count, 
-                          uint32_t order, int32_t shift);
+                          const int32_t* coeffs, uint32_t count,
+                          uint32_t order, int32_t shift, uint32_t bit_depth);
 };
 
 } // namespace FLAC

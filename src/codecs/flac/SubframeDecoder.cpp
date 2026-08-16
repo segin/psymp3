@@ -280,7 +280,8 @@ bool SubframeDecoder::decodeFixed(int64_t *output, uint32_t block_size,
 
     if (success) {
       // Apply fixed predictor to reconstruct samples (Requirement 4, 54)
-      applyFixedPredictor(output, residuals, residual_count, order);
+      applyFixedPredictor(output, residuals, residual_count, order,
+                          header.bit_depth);
     }
 
     delete[] residuals;
@@ -391,7 +392,7 @@ bool SubframeDecoder::decodeLPC(int64_t *output, uint32_t block_size,
     if (success) {
       // Apply LPC predictor to reconstruct samples (Requirement 5, 51, 52, 54)
       applyLPCPredictor(output, residuals, coeffs, residual_count, order,
-                        shift);
+                        shift, header.bit_depth);
     }
 
     delete[] residuals;
@@ -410,11 +411,18 @@ bool SubframeDecoder::decodeLPC(int64_t *output, uint32_t block_size,
 
 void SubframeDecoder::applyFixedPredictor(int64_t *samples,
                                           const int32_t *residuals,
-                                          uint32_t count, uint32_t order) {
+                                          uint32_t count, uint32_t order,
+                                          uint32_t bit_depth) {
   // Apply FIXED predictor formulas (Requirement 4)
   // Samples buffer already contains warm-up samples at positions [0..order-1]
   // We need to reconstruct samples[order..order+count-1] using
   // residuals[0..count-1]
+
+  // For a valid stream every reconstructed sample fits the subframe bit depth,
+  // so clamping is a no-op; on crafted input it stops samples from growing
+  // without bound and overflowing the int64 accumulator (signed-overflow UB).
+  const int64_t sample_min = -(INT64_C(1) << (bit_depth - 1));
+  const int64_t sample_max = (INT64_C(1) << (bit_depth - 1)) - 1;
 
   // Sequential decoding requirement (Requirement 54)
   for (uint32_t i = 0; i < count; i++) {
@@ -460,18 +468,28 @@ void SubframeDecoder::applyFixedPredictor(int64_t *samples,
 
     // Reconstruct sample: s[i] = prediction + residual[i]
     // Samples stay in int64: side subframes of 32-bit streams hold 33-bit values
-    samples[sample_idx] = prediction + residuals[i];
+    int64_t reconstructed = prediction + residuals[i];
+    if (reconstructed < sample_min) reconstructed = sample_min;
+    else if (reconstructed > sample_max) reconstructed = sample_max;
+    samples[sample_idx] = reconstructed;
   }
 }
 
 void SubframeDecoder::applyLPCPredictor(int64_t *samples,
                                         const int32_t *residuals,
                                         const int32_t *coeffs, uint32_t count,
-                                        uint32_t order, int32_t shift) {
+                                        uint32_t order, int32_t shift,
+                                        uint32_t bit_depth) {
   // Apply LPC predictor (Requirement 5, 51, 52)
   // Samples buffer already contains warm-up samples at positions [0..order-1]
   // We need to reconstruct samples[order..order+count-1] using
   // residuals[0..count-1]
+
+  // For a valid stream every reconstructed sample fits the subframe bit depth,
+  // so clamping is a no-op; on crafted input it stops samples from growing
+  // without bound and overflowing the int64 accumulator (signed-overflow UB).
+  const int64_t sample_min = -(INT64_C(1) << (bit_depth - 1));
+  const int64_t sample_max = (INT64_C(1) << (bit_depth - 1)) - 1;
 
   // Sequential decoding requirement (Requirement 54)
   for (uint32_t i = 0; i < count; i++) {
@@ -497,7 +515,10 @@ void SubframeDecoder::applyLPCPredictor(int64_t *samples,
 
     // Add residual to get reconstructed sample (stays in int64; see the
     // FIXED path).
-    samples[sample_idx] = prediction + residuals[i];
+    int64_t reconstructed = prediction + residuals[i];
+    if (reconstructed < sample_min) reconstructed = sample_min;
+    else if (reconstructed > sample_max) reconstructed = sample_max;
+    samples[sample_idx] = reconstructed;
   }
 }
 
