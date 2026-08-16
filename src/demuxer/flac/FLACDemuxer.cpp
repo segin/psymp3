@@ -450,9 +450,13 @@ retry_frame_read:
         return MediaChunk{};
     }
     
-    // Cap at reasonable maximum (1 MB) to prevent excessive memory allocation
-    // Requirement 24.7: Handle allocation failures gracefully
-    static constexpr uint32_t MAX_FRAME_SIZE = 1024 * 1024;
+    // Cap at the largest legal frame to prevent excessive memory allocation
+    // while still admitting valid frames. A frame can hold block_size (up to
+    // 65535) x channels (up to 8) verbatim samples at up to 33 bits (the side
+    // channel of a 32-bit stream), i.e. ~2.06 MiB, plus header/footer overhead.
+    // The previous 1 MiB cap truncated such frames, failing their CRC-16 and
+    // silently dropping them. Requirement 24.7: handle allocation failures.
+    static constexpr uint32_t MAX_FRAME_SIZE = 3 * 1024 * 1024;
     if (estimated_frame_size > MAX_FRAME_SIZE) {
         FLAC_DEBUG("[readChunk] Frame size estimate (", estimated_frame_size, 
                    ") exceeds maximum, capping at ", MAX_FRAME_SIZE);
@@ -548,13 +552,15 @@ retry_frame_read:
     const uint64_t expected_next_sample = frame.sample_offset + frame.block_size;
 
     while (bytes_read > search_start) {
-        // Search for next sync code (0xFF followed by 0xF8 or 0xF9)
-        // Ensure we have enough bytes to check data[i+2] and parse a header.
-        // Use "i + 16 < bytes_read" rather than "i < bytes_read - 16": the
-        // latter underflows to a huge size_t when bytes_read <= 16 (e.g. a
-        // truncated final frame leaving 10-15 trailing bytes), driving an
-        // out-of-bounds read past data.size().
-        for (size_t i = search_start; i + 16 < bytes_read; ++i) {
+        // Search for next sync code (0xFF followed by 0xF8 or 0xF9). We read
+        // data[i], data[i+1] and data[i+2] below, so require i + 2 < bytes_read
+        // (written additively so it never underflows the way "i < bytes_read-16"
+        // would). The previous "i + 16 < bytes_read" bound skipped the last 16
+        // bytes, hiding a legal short final frame (RFC 9639 Section 9.1.6 allows
+        // block sizes 1-15, which encode in as little as ~12 bytes) and causing
+        // the preceding frame to absorb it and fail CRC. parseFrameHeader_unlocked
+        // validates the remaining length, so a near-EOF candidate is safe.
+        for (size_t i = search_start; i + 2 < bytes_read; ++i) {
             if (data[i] == 0xFF && (data[i + 1] == 0xF8 || data[i + 1] == 0xF9)) {
                 // Validate third byte to avoid simple false positives
                 // data[i+2] contains Block Size (high nibble) and Sample Rate (low nibble)
@@ -3811,7 +3817,26 @@ bool FLACDemuxer::parseCodedNumber_unlocked(const uint8_t* buffer, size_t buffer
         // Extract 6 bits of data from continuation byte and add to value
         value = (value << 6) | (cont_byte & 0x3F);
     }
-    
+
+    // Reject overlong encodings (RFC 3629 shortest-form rule, referenced by RFC
+    // 9639 Section 9.1.5): the value MUST use the fewest bytes that can hold it.
+    // kMinValueForBytes[n] is the smallest value that legitimately needs n bytes.
+    static const uint64_t kMinValueForBytes[8] = {
+        0,                  // unused
+        0,                  // 1 byte:  [0, 2^7)
+        UINT64_C(1) << 7,   // 2 bytes: [2^7, 2^11)
+        UINT64_C(1) << 11,  // 3 bytes: [2^11, 2^16)
+        UINT64_C(1) << 16,  // 4 bytes: [2^16, 2^21)
+        UINT64_C(1) << 21,  // 5 bytes: [2^21, 2^26)
+        UINT64_C(1) << 26,  // 6 bytes: [2^26, 2^31)
+        UINT64_C(1) << 31,  // 7 bytes: [2^31, 2^36)
+    };
+    if (value < kMinValueForBytes[num_bytes]) {
+        FLAC_DEBUG("[parseCodedNumber] REJECTED: overlong encoding, value ", value,
+                   " in ", num_bytes, " bytes");
+        return false;
+    }
+
     // Requirement 9.9: For fixed block size stream, interpret as frame number
     // Requirement 9.10: For variable block size stream, interpret as sample number
     coded_number = value;
@@ -3952,7 +3977,7 @@ bool FLACDemuxer::findNextFrameBoundary_unlocked(const FLACFrame& frame, uint64_
     // that follows the current frame. This locates the true frame end instead
     // of the max_frame_size over-estimate.
     static constexpr size_t MIN_FRAME_SIZE = 9;
-    static constexpr size_t MAX_WINDOW = 1024 * 1024;  // matches readChunk MAX_FRAME_SIZE cap
+    static constexpr size_t MAX_WINDOW = 3 * 1024 * 1024;  // matches readChunk MAX_FRAME_SIZE cap
 
     const uint64_t expected_next_sample = frame.sample_offset + frame.block_size;
 
@@ -3986,7 +4011,11 @@ bool FLACDemuxer::findNextFrameBoundary_unlocked(const FLACFrame& frame, uint64_
         }
     }
 
-    for (size_t i = search_start; i + 16 < bytes_read; ++i) {
+    // Require i + 2 < bytes_read (we read data[i..i+2]); the previous
+    // "i + 16 < bytes_read" bound skipped the last 16 bytes and could miss the
+    // boundary of a short final frame. parseFrameHeader_unlocked validates the
+    // remaining length for near-EOF candidates.
+    for (size_t i = search_start; i + 2 < bytes_read; ++i) {
         if (data[i] != 0xFF || (data[i + 1] != 0xF8 && data[i + 1] != 0xF9)) {
             continue;
         }
