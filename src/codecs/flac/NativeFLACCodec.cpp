@@ -391,17 +391,33 @@ bool FLACCodec::initialize_unlocked() {
 
     // Recover the STREAMINFO metadata (block sizes, MD5 signature) from the
     // demuxer-supplied codec_data. Without this, m_has_streaminfo stays false
-    // and whole-stream MD5 verification never runs. Two layouts occur:
+    // and whole-stream MD5 verification never runs. Three layouts occur:
     //   - native FLAC demuxer: the bare 34-byte STREAMINFO body (RFC 9639
     //     Section 8.2), so codec_data.size() == 34.
     //   - FLAC-in-MP4 (dfLa box): FLAC metadata blocks each prefixed with a
     //     4-byte block header (type + 24-bit length); the first block is
     //     STREAMINFO, so its body starts at offset 4.
+    //   - Ogg FLAC (RFC 9639 Section 10.1): the first Ogg packet, verbatim:
+    //     0x7F "FLAC" <major:1> <minor:1> <header-count:2 BE> "fLaC"
+    //     <STREAMINFO block header:4> <STREAMINFO body:34>. The body therefore
+    //     starts at offset 1+4+1+1+2+4+4 == 17.
     // Parsing failure is non-fatal — decoding uses per-frame header parameters.
     const auto& cd = m_stream_info.codec_data;
     size_t streaminfo_offset = SIZE_MAX;
     if (cd.size() == 34) {
         streaminfo_offset = 0;
+    } else if (cd.size() >= 51 && cd[0] == 0x7F &&
+               cd[1] == 'F' && cd[2] == 'L' && cd[3] == 'A' && cd[4] == 'C') {
+        // Ogg FLAC mapping prefix: verify the embedded "fLaC" signature and the
+        // trailing STREAMINFO block header (type 0, length 34).
+        if (cd[9] == 'f' && cd[10] == 'L' && cd[11] == 'a' && cd[12] == 'C' &&
+            (cd[13] & 0x7F) == 0) {
+            uint32_t block_len = (static_cast<uint32_t>(cd[14]) << 16) |
+                                 (static_cast<uint32_t>(cd[15]) << 8) | cd[16];
+            if (block_len == 34) {
+                streaminfo_offset = 17;
+            }
+        }
     } else if (cd.size() >= 38 && (cd[0] & 0x7F) == 0) {
         // Metadata-block form: verify the STREAMINFO block length field is 34.
         uint32_t block_len = (static_cast<uint32_t>(cd[1]) << 16) |
