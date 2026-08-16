@@ -267,17 +267,28 @@ bool MetadataParser::parseSeekTable(std::vector<SeekPoint>& points, uint32_t blo
  * Requirements: 43
  */
 bool MetadataParser::validateSeekTable(const std::vector<SeekPoint>& points) const {
-    // Verify ascending sample number order (excluding placeholders)
+    // RFC 9639 Section 8.5.1: real seek points MUST be sorted in strictly
+    // ascending order by sample number (unique by sample number), and all
+    // placeholder points MUST occur at the end of the table.
+    bool seen_real = false;
+    bool seen_placeholder = false;
     uint64_t last_sample = 0;
     for (const auto& point : points) {
-        if (!point.isPlaceholder()) {
-            if (point.sample_number < last_sample) {
-                return false;  // Not in ascending order
-            }
-            last_sample = point.sample_number;
+        if (point.isPlaceholder()) {
+            seen_placeholder = true;
+            continue;
         }
+        // A real point after any placeholder violates "placeholders at the end".
+        if (seen_placeholder) {
+            return false;
+        }
+        if (seen_real && point.sample_number <= last_sample) {
+            return false;  // Not strictly ascending / duplicate sample number
+        }
+        last_sample = point.sample_number;
+        seen_real = true;
     }
-    
+
     return true;
 }
 
