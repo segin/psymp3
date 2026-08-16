@@ -188,6 +188,19 @@ bool FLACHeaderParser::parseHeader(ogg_packet* packet) {
     unsigned char block_type = data[0] & 0x7F;
     bool last_block = (data[0] & 0x80) != 0;
 
+    // Metadata block type 127 is forbidden (RFC 9639 Section 8.1) specifically
+    // so it cannot be confused with a frame sync code (a frame's first byte is
+    // 0xFF, i.e. type 127 with the last-block bit set). Encountering it means
+    // the metadata sequence has ended and this packet is the first audio frame.
+    // Mark completion and refuse the packet as a header: counting or storing it
+    // would make resetForPlayback() skip a real audio packet during playback.
+    // For well-formed files the previous block's last-block flag already ended
+    // the header phase, so this path is only reached on streams that omit it.
+    if (block_type == 0x7F) {
+        m_last_metadata_seen = true;
+        return false;
+    }
+
     // Length (24-bit BE) of the metadata block body.
     uint32_t block_length = (data[1] << 16) | (data[2] << 8) | data[3];
 
@@ -211,14 +224,23 @@ bool FLACHeaderParser::isHeadersComplete() const {
         return false;
     }
 
-    // With a known packet count, headers are complete once the first packet
-    // plus all m_expected_headers follow-up packets have been consumed.
+    // The metadata blocks' last-block flag ends the header sequence regardless
+    // of the declared packet count. Honoring it first prevents a hostile or
+    // simply incorrect header-packet count (RFC 9639 Section 10.1) from forcing
+    // the demuxer to buffer audio packets as headers until EOF.
+    if (m_last_metadata_seen) {
+        return true;
+    }
+
+    // With a known packet count and no last-block flag yet, headers are
+    // complete once the first packet plus all m_expected_headers follow-up
+    // packets have been consumed.
     if (m_expected_headers > 0) {
         return m_headers_count > m_expected_headers;
     }
 
-    // Count unknown (0x0000): rely on the metadata blocks' last-block flag.
-    return m_last_metadata_seen;
+    // Count unknown (0x0000) and no last-block flag: not yet complete.
+    return false;
 }
 
 CodecInfo FLACHeaderParser::getCodecInfo() const {
