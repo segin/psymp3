@@ -341,12 +341,16 @@ bool BitstreamReader::readUnary(uint32_t &value) {
 
     value++;
 
-    // DoS protection: prevent infinite loops on corrupted data (Requirement 48)
-    // Per ValidationUtils::MAX_UNARY_VALUE
-    if (value > 1000000) {
+    // Guard against runaway loops / counter overflow on corrupted data.
+    // A spec-valid Rice quotient fits within a 32-bit folded value (RFC 9639
+    // Section 9.2.7.3: |residual| < 2^31), so quotients up to nearly 2^32 are
+    // legal; only stop just before the uint32_t counter would wrap. Actual
+    // runaway on malformed input is already bounded by the input buffer, since
+    // ensureBits(1) fails at end of data.
+    if (value == UINT32_MAX) {
       Debug::log("flac_codec",
                  "Unary value exceeds maximum (DoS protection): %u", value);
-      return false; // Unreasonably large unary value - potential DoS attack
+      return false;
     }
   }
 

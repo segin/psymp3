@@ -228,14 +228,11 @@ bool ResidualDecoder::decodeRiceCode(int32_t &value, uint32_t rice_param) {
     return false;
   }
 
-  // Check for excessive quotient (potential DoS or corrupted data). RFC 9639
-  // Section 11 notes that valid-but-faulty encoder output with very long
-  // unary codes exists, so keep the guard aligned with the BitstreamReader
-  // unary cap rather than rejecting merely unusual (spec-legal) values.
-  if (quotient > 1000000) {
-    m_last_error = "Excessive unary quotient in Rice code";
-    return false;
-  }
+  // The quotient's validity is bounded exactly by the folded-value range check
+  // below (RFC 9639 Section 9.2.7.3): a quotient that cannot yield a residual
+  // representable in 32 bits produces folded64 >= 2^32 and is rejected there.
+  // An additional arbitrary cap here would reject spec-valid (if degenerate)
+  // Rice codes, so it is intentionally omitted.
 
   // Read binary remainder
   uint32_t remainder = 0;
