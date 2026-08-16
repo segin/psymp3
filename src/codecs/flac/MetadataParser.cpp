@@ -595,12 +595,18 @@ bool MetadataParser::parseCuesheet(CuesheetMetadata& cuesheet) {
     if (!m_reader->readBits(track_count, 8)) {
         return false;
     }
-    
-    // Sanity check
-    if (track_count > 100) {
+
+    // RFC 9639 Section 8.7: a cuesheet MUST have at least one track (the
+    // lead-out track). The 100-track ceiling is a CD-DA-only constraint (99
+    // audio tracks plus the lead-out); other cuesheets are bounded only by the
+    // 8-bit field.
+    if (track_count < 1) {
         return false;
     }
-    
+    if (cuesheet.is_cd && track_count > 100) {
+        return false;
+    }
+
     cuesheet.tracks.clear();
     cuesheet.tracks.reserve(track_count);
     
@@ -668,17 +674,14 @@ bool MetadataParser::parseCuesheetTrack(CuesheetTrack& track) {
         return false;
     }
     
-    // Read 8-bit index point count
+    // Read 8-bit index point count. The count is an 8-bit field; RFC 9639
+    // Section 8.7.1 imposes no additional limit for non-CD-DA cuesheets, so
+    // the natural 0-255 range is accepted.
     uint32_t index_count;
     if (!m_reader->readBits(index_count, 8)) {
         return false;
     }
-    
-    // Sanity check
-    if (index_count > 100) {
-        return false;
-    }
-    
+
     track.indices.clear();
     track.indices.reserve(index_count);
     
