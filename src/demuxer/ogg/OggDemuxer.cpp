@@ -378,6 +378,7 @@ void OggDemuxer::calculateInitialDuration_unlocked() {
             Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: Calculating duration...");
             OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
             m_cached_duration = static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
+            m_start_granule = engine.getStartGranule();
             m_duration_calculated = true;
             Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: Calculated duration: ", m_cached_duration, "ms");
         }
@@ -517,6 +518,13 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
       if (pit != m_parsers.end()) {
         chunk.timestamp_samples =
             computeTimestampSamples(pit->second->getCodecInfo(), chunk.granule_position);
+        int64_t base = m_start_granule.load();
+        if (base > 0 && stream_id == static_cast<uint32_t>(m_primary_serial)) {
+          chunk.timestamp_samples =
+              (chunk.timestamp_samples >= static_cast<uint64_t>(base))
+                  ? chunk.timestamp_samples - static_cast<uint64_t>(base)
+                  : 0;
+        }
       }
 
       return chunk;
@@ -625,8 +633,15 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
         return (g / 48000) * 1000 + (g % 48000) * 1000 / 48000;
     }
 
-    // Generic sample-based (Vorbis, FLAC, Speex)
-    return (granule / ci.rate) * 1000 + (granule % ci.rate) * 1000 / ci.rate;
+    // Generic sample-based (Vorbis, FLAC, Speex). For the primary stream,
+    // rebase onto the stream start so a mid-stream capture reports positions
+    // from zero (the base is zero for a normal stream, so this is a no-op).
+    uint64_t rel = granule;
+    int64_t base = m_start_granule.load();
+    if (base > 0 && stream_id == static_cast<uint32_t>(m_primary_serial)) {
+        rel = (granule >= static_cast<uint64_t>(base)) ? granule - static_cast<uint64_t>(base) : 0;
+    }
+    return (rel / ci.rate) * 1000 + (rel % ci.rate) * 1000 / ci.rate;
 }
 
 uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const {
@@ -657,7 +672,15 @@ uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) cons
         return (timestamp_ms * 48000 / 1000) + ci.pre_skip;
     }
 
-    return timestamp_ms * ci.rate / 1000;
+    // Convert a stream-relative time back to an absolute granule by re-adding
+    // the primary stream's base (zero for a normal stream), so seeking targets
+    // the correct sample in a mid-stream capture.
+    uint64_t absolute = timestamp_ms * ci.rate / 1000;
+    int64_t base = m_start_granule.load();
+    if (base > 0 && stream_id == static_cast<uint32_t>(m_primary_serial)) {
+        absolute += static_cast<uint64_t>(base);
+    }
+    return absolute;
 }
 
 int OggDemuxer::fetchAndProcessPacket() {

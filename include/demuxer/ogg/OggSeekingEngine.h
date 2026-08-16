@@ -34,6 +34,13 @@ public:
     int64_t getLastGranule();
     double calculateDuration();
 
+    // Sample position of the first sample in the stream. This is 0 for a normal
+    // stream that begins at sample 0 and nonzero only for a mid-stream capture
+    // (a live broadcast joined in progress), whose granule positions are offset
+    // by the join point (RFC 9639 Section 10.1). Subtract it to report
+    // stream-relative durations and positions.
+    int64_t getStartGranule();
+
     // --- Bisection Search (Task 13) ---
     bool seekToGranule(int64_t granule_pos);
     bool seekToTime(double time_seconds);
@@ -50,6 +57,10 @@ private:
     // The first call to getLastGranule() scans the file; subsequent calls return cached value
     int64_t m_cached_last_granule = -1;
     bool m_duration_cached = false;
+
+    // Cached first-sample position of the stream (see getStartGranule()).
+    int64_t m_start_granule = 0;
+    bool m_start_cached = false;
     
     // Internal bisection helper
     bool bisectForward(int64_t target_granule, int64_t begin, int64_t end);

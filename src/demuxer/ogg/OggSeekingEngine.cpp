@@ -142,10 +142,70 @@ int64_t OggSeekingEngine::getLastGranule() {
 }
 
 
+int64_t OggSeekingEngine::getStartGranule() {
+    if (m_start_cached) {
+        return m_start_granule;
+    }
+
+    int64_t saved_pos = m_sync.getLogicalPosition();
+    int serial = m_stream.getSerialNumber();
+
+    m_sync.seek(0);
+
+    // Find the granule positions of the first two data pages of our stream.
+    // Header pages carry granule 0 (RFC 9639 Section 10.1), so the first two
+    // pages with a positive, increasing granule are the first two audio pages.
+    int64_t first_gp = -1;
+    int64_t second_gp = -1;
+    ogg_page page;
+    int scanned = 0;
+    const int MAX_PAGES = 4096; // bound the scan on pathological input
+    while (m_sync.getNextPage(&page) == 1 && scanned < MAX_PAGES) {
+        ++scanned;
+        if (ogg_page_serialno(&page) != serial) {
+            continue;
+        }
+        int64_t gp = ogg_page_granulepos(&page);
+        if (gp <= 0) {
+            continue;
+        }
+        if (first_gp < 0) {
+            first_gp = gp;
+        } else if (gp > first_gp) {
+            second_gp = gp;
+            break;
+        }
+    }
+
+    m_sync.seek(saved_pos);
+
+    // The samples on the first data page are approximated by the granule delta
+    // to the second data page (exact for fixed-block-size streams), so the
+    // stream begins at first_gp - that span. Only honor a base that is
+    // unambiguously a mid-stream join: a stream starting at sample 0 yields a
+    // base at or near zero, and the block-size estimate can drift by a block or
+    // two for variable block sizes, so treat anything below one second as zero
+    // to guarantee normal files are unaffected.
+    int64_t start = 0;
+    if (first_gp > 0 && second_gp > first_gp) {
+        int64_t base = first_gp - (second_gp - first_gp);
+        if (base >= m_sample_rate) {
+            start = base;
+        }
+    }
+
+    m_start_granule = start;
+    m_start_cached = true;
+    Debug::log("ogg", "OggSeekingEngine::getStartGranule() base granule: ", start);
+    return start;
+}
+
 double OggSeekingEngine::calculateDuration() {
     int64_t last = getLastGranule();
     if (last < 0) return 0.0;
-    return granuleToTime(last);
+    int64_t span = last - getStartGranule();
+    if (span < 0) span = last; // defensive: never report negative duration
+    return granuleToTime(span);
 }
 
 // --- Bisection Search ---

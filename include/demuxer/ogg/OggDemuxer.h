@@ -78,6 +78,11 @@ private:
     mutable std::atomic<bool> m_duration_calculated;
     mutable std::atomic<uint64_t> m_cached_duration;
 
+    // First-sample position of the primary stream, nonzero only for a
+    // mid-stream capture (see OggSeekingEngine::getStartGranule()). Subtracted
+    // from reported positions/durations so they are stream-relative.
+    mutable std::atomic<int64_t> m_start_granule{0};
+
     // Async duration calculation
     mutable std::atomic<bool> m_calculating_duration{false};
     mutable std::future<void> m_duration_future;
