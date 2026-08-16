@@ -180,11 +180,10 @@ bool MetadataParser::validateStreamInfo(const StreamInfoMetadata& info) const {
         return false;
     }
     
-    // Sample rate must be > 0
-    if (info.sample_rate == 0) {
-        return false;
-    }
-    
+    // Sample rate 0 is permitted: RFC 9639 Section 8.2 forbids it only "when
+    // the FLAC file contains audio" and explicitly allows 0 for non-audio
+    // content. Do not reject it here.
+
     // Channels must be 1-8
     if (info.channels < 1 || info.channels > 8) {
         return false;
