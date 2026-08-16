@@ -477,6 +477,16 @@ bool FrameParser::parseCodedNumber(FrameHeader &header) {
     return false;
   }
 
+  // RFC 9639 Section 9.1.5: a fixed-block-size frame carries a frame number,
+  // which MUST NOT be larger than 31 bits / 6 encoded bytes. Only a variable-
+  // block-size frame (sample number) may use the 7-byte / 36-bit form.
+  if (num_bytes == 7 && !header.is_variable_block_size) {
+    Debug::log("flac_codec",
+               "7-byte coded number in fixed-block-size frame (frame number "
+               "exceeds 31 bits)");
+    return false;
+  }
+
   // Read continuation bytes (10xxxxxx)
   for (uint32_t i = 1; i < num_bytes; i++) {
     uint32_t cont_byte = 0;
@@ -498,6 +508,27 @@ bool FrameParser::parseCodedNumber(FrameHeader &header) {
 
     // Extract 6 bits and add to value
     value = (value << 6) | (cont_byte & 0x3F);
+  }
+
+  // Reject overlong encodings (RFC 3629 shortest-form rule, as referenced by
+  // RFC 9639 Section 9.1.5): a value MUST use the fewest bytes that can hold
+  // it. The minimum value expressible in num_bytes is the number of payload
+  // bits available in num_bytes-1 bytes.
+  static const uint64_t kMinValueForBytes[8] = {
+      0,             // unused
+      0,             // 1 byte:  [0, 2^7)
+      UINT64_C(1) << 7,   // 2 bytes: [2^7, 2^11)
+      UINT64_C(1) << 11,  // 3 bytes: [2^11, 2^16)
+      UINT64_C(1) << 16,  // 4 bytes: [2^16, 2^21)
+      UINT64_C(1) << 21,  // 5 bytes: [2^21, 2^26)
+      UINT64_C(1) << 26,  // 6 bytes: [2^26, 2^31)
+      UINT64_C(1) << 31,  // 7 bytes: [2^31, 2^36)
+  };
+  if (value < kMinValueForBytes[num_bytes]) {
+    Debug::log("flac_codec",
+               "Overlong coded number encoding: value=%llu in %u bytes",
+               (unsigned long long)value, num_bytes);
+    return false;
   }
 
   header.coded_number = value;
