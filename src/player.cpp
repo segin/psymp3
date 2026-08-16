@@ -2040,14 +2040,14 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
         m_labels.at("title")->setText("Title: Loading...");
         m_labels.at("album")->setText("Album: Loading...");
         m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
-        screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ] :-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
+        screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ]:-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
     } else if (!error_msg.isEmpty()) {
         m_labels.at("artist")->setText("Artist: N/A");
         m_labels.at("title")->setText("Title: Error: " + error_msg);
         m_labels.at("album")->setText("Album: N/A");
         m_labels.at("playlist")->setText("Playlist: N/A");
         m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
     } else if (stream) {
         m_labels.at("artist")->setText("Artist: " + stream->getArtist());
         m_labels.at("title")->setText("Title: " + stream->getTitle());
@@ -2060,7 +2060,7 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
         m_labels.at("album")->setText("Album: ");
         m_labels.at("playlist")->setText("Playlist: 0/0");
         m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ] :-", "PsyMP3 " PSYMP3_VERSION);
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
     }
 
     // These are always updated based on player settings, not track info
@@ -2322,11 +2322,11 @@ bool Player::updateGUI()
                                 + ":" + convertInt((total_len_ms / 1000) % 60, 2)
                                 + "." + convertInt((total_len_ms / 10) % 100, 2));
         screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
-                        (std::string) " -:[ " + artist.to8Bit(true) + " ] :-" + " -- -:[ " +
-                        title.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
+                        (std::string) " -:[ " + artist.to8Bit(true) + " ]:-" + " -- -:[ " +
+                        title.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
     } else {
         m_labels.at("position")->setText("Position: -:--.-- / -:--.--");
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ] :-", "PsyMP3 " PSYMP3_VERSION);
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
     }
     
     // Progress bar frame and fill are now handled by ProgressBarFrameWidget hierarchy
