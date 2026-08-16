@@ -4790,8 +4790,13 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         // Adjust search range - Requirement 3.1, 3.2
         // ====================================================================
         if (frame_sample < target_sample) {
-            // Requirement 3.1: Actual < target, search upper half
-            low_pos = frame_pos + frame_block_size;  // Move past this frame
+            // Requirement 3.1: Actual < target, search upper half. Advance the
+            // lower bound just past this frame's start byte: frame_block_size is
+            // a sample count, not a byte length, so adding it to the byte offset
+            // low_pos mixed dimensions. Moving one byte past frame_pos is enough
+            // to exclude this frame; the next iteration bisects [low_pos,high_pos]
+            // and findFrameAtPosition_unlocked locates the following frame.
+            low_pos = frame_pos + 1;
             FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.1: Searching upper half, new low_pos=", low_pos);
         } else {
             // Requirement 3.2: Actual > target, search lower half
