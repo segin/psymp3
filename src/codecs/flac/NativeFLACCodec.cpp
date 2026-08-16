@@ -515,7 +515,13 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
                 return AudioFrame();
             }
         }
-        
+
+        // Record where this frame's bytes begin. findSync() leaves the reader
+        // byte-aligned at the sync code, which may be past offset 0 when the
+        // codec resynchronized through leading garbage. The frame CRC-16 must
+        // cover exactly this frame (RFC 9639 Section 9.3), not the whole chunk.
+        const size_t frame_start_byte = m_bitstream_reader->getBytePosition();
+
         // Step 3: Parse frame header with error recovery (Requirement 11.2)
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Parsing frame header");
         FrameHeader header;
@@ -666,11 +672,17 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Parsing frame footer");
         FrameFooter footer;
         bool frame_crc_valid = false;
-        if (chunk.data.size() >= 2 && m_crc_validator) {
-            footer.crc16 = (static_cast<uint16_t>(chunk.data[chunk.data.size() - 2]) << 8) |
-                           static_cast<uint16_t>(chunk.data[chunk.data.size() - 1]);
+        // The subframes are fully read, so the reader now sits at the frame's
+        // zero padding; aligning advances it to the CRC-16 footer. The frame
+        // spans [frame_start_byte, frame_end_byte); the 16-bit CRC follows.
+        m_bitstream_reader->alignToByte();
+        const size_t frame_end_byte = m_bitstream_reader->getBytePosition();
+        if (m_crc_validator && frame_end_byte >= frame_start_byte &&
+            frame_end_byte + 2 <= chunk.data.size()) {
+            footer.crc16 = (static_cast<uint16_t>(chunk.data[frame_end_byte]) << 8) |
+                           static_cast<uint16_t>(chunk.data[frame_end_byte + 1]);
             uint16_t computed_crc = m_crc_validator->computeCRC16(
-                chunk.data.data(), chunk.data.size() - 2);
+                chunk.data.data() + frame_start_byte, frame_end_byte - frame_start_byte);
             frame_crc_valid = (computed_crc == footer.crc16);
 
             if (!frame_crc_valid) {
@@ -681,7 +693,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
             }
         } else {
             Debug::log("flac_codec",
-                      "[NativeFLACCodec::decode_unlocked] Cannot validate frame CRC: chunk too small or CRC validator unavailable");
+                      "[NativeFLACCodec::decode_unlocked] Cannot validate frame CRC: frame span out of range or CRC validator unavailable");
         }
 
         if (!frame_crc_valid) {
