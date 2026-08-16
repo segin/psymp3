@@ -19,6 +19,22 @@ AudioCodec::AudioCodec(const StreamInfo& stream_info)
 }
 
 std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& stream_info) {
+#if defined(HAVE_FLAC) && defined(HAVE_OGGDEMUXER)
+    // Ogg FLAC (codec_name "flac" with codec_tag 0, as set by OggDemuxer; the
+    // native FLAC demuxer uses tag 0x43614C66) must go through the
+    // OggFLACPassthroughCodec, which drops the RFC 9639 Section 10.1 mapping
+    // header packets before handing frames to the native decoder. The generic
+    // registered-factory lookup below matches "flac" to the native codec, which
+    // would otherwise sync-scan those header packets as if they were audio when
+    // they are redelivered after a seek to the start of the stream.
+    if (stream_info.codec_name == "flac" && stream_info.codec_tag == 0) {
+        auto codec = std::make_unique<OggFLACPassthroughCodec>(stream_info);
+        if (codec->canDecode(stream_info)) {
+            return codec;
+        }
+    }
+#endif
+
     // Try registered codecs first
     auto it = s_codec_factories.find(stream_info.codec_name);
     if (it != s_codec_factories.end()) {

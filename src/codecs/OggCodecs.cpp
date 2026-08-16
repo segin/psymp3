@@ -81,10 +81,16 @@ AudioFrame OggFLACPassthroughCodec::decode(const MediaChunk& chunk) {
         return AudioFrame{};
     }
 
-    // Check for Ogg FLAC header packet (starts with "fLaC")
-    if (chunk.data.size() >= 4 &&
-        chunk.data[0] == 'f' && chunk.data[1] == 'L' &&
-        chunk.data[2] == 'a' && chunk.data[3] == 'C') {
+    // In the Ogg FLAC mapping (RFC 9639 Section 10.1) each audio packet is a
+    // single FLAC frame, which always begins with the frame sync byte 0xFF
+    // (sync code 0b11111111 111110xx). Any packet that does not begin with 0xFF
+    // is a mapping header packet — the 0x7F "FLAC" identification header or a
+    // metadata block header (VORBIS_COMMENT, PICTURE, SEEKTABLE, ...), whose
+    // low 7 bits are a metadata type of 0-126. These can be redelivered here
+    // after a seek to the start of the stream; decoding them as audio would
+    // churn the decoder through errors or emit a garbage burst from a payload
+    // that happens to contain a valid-looking sync. Drop them.
+    if (chunk.data.empty() || chunk.data[0] != 0xFF) {
         return AudioFrame{};
     }
 
