@@ -126,9 +126,13 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 AC_CHECK_FUNCS([atexit getcwd memset])
 
 # Core mandatory dependencies
-PKG_CHECK_MODULES([SDL], [sdl2 >= 2.0], [], [
-  AC_MSG_ERROR([SDL2 >= 2.0 is required. Install libsdl2-dev or equivalent.])
+PKG_CHECK_MODULES([SDL], [sdl3 >= 3.0], [], [
+  AC_MSG_ERROR([SDL3 >= 3.0 is required. Install libsdl3-dev or equivalent.])
 ])
+# SDL3's sdl3.pc ships no -I in Cflags; its headers live in <includedir>/SDL3
+# and are canonically used as <SDL3/SDL.h>. Append that directory so existing
+# <SDL.h>-style includes continue to resolve during the SDL2->SDL3 migration.
+SDL_CFLAGS="$SDL_CFLAGS -I`$PKG_CONFIG --variable=includedir sdl3`/SDL3"
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])
 PKG_CHECK_MODULES([OPENSSL], [openssl])
@@ -653,7 +657,7 @@ echo "PsyMP3 Configuration Summary"
 echo "=========================================="
 echo ""
 echo "Core Dependencies:"
-echo "  SDL:           yes"
+echo "  SDL:           yes (SDL3)"
 echo "  TagLib:        yes"
 echo "  FreeType2:     yes"
 echo "  OpenSSL:       yes"
