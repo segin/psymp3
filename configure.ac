@@ -551,7 +551,11 @@ fi
 # unrecognized option '-z'"), so use the PE equivalents (ASLR/DEP) there.
 case "$host_os" in
   mingw*|msys*|cygwin*)
-    LDFLAGS="$LDFLAGS -Wl,--dynamicbase,--nxcompat"
+    # -municode selects the wide CRT entry (wWinMainCRTStartup -> wWinMain).
+    # The app defines UNICODE, so <SDL3/SDL_main.h> emits wWinMain (not the
+    # ANSI WinMain); without -municode the linker looks for WinMain and fails
+    # with "undefined symbol: WinMain". SDL3's own CMake adds this for MinGW.
+    LDFLAGS="$LDFLAGS -municode -Wl,--dynamicbase,--nxcompat"
     ;;
   *)
     LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now"
