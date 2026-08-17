@@ -48,15 +48,66 @@ bool widgetBelongsToWindow(const Widget* candidate, const WindowFrameWidget* win
 }
 
 #if defined(_WIN32)
-// Load the UI font, preferring the copy embedded in the exe (RCDATA
-// IDR_VERA_TTF = 2000, see res/psymp3.rc) so the binary is self-contained;
-// fall back to ./vera.ttf then ./res/vera.ttf relative to the CWD. Always
-// returns a non-null Font (an invalid one as last resort) so callers keep the
-// "font is never null" invariant. The file Font ctor throws, so those attempts
-// are guarded.
+// Read a whole file addressed by a wide path into `out`. Uses the wide Win32
+// file API so non-ASCII install paths work (FreeType's narrow FT_New_Face path
+// would not). Returns true only if the entire file was read.
+static bool readFileW(const std::wstring& path, std::vector<uint8_t>& out)
+{
+    HANDLE fh = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (fh == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    bool ok = false;
+    LARGE_INTEGER sz;
+    // Cap at a sane size so a bogus vera.ttf can't request a huge allocation.
+    if (GetFileSizeEx(fh, &sz) && sz.QuadPart > 0 && sz.QuadPart < (64LL << 20)) {
+        out.resize(static_cast<size_t>(sz.QuadPart));
+        DWORD got = 0;
+        ok = ReadFile(fh, out.data(), static_cast<DWORD>(out.size()), &got, nullptr) &&
+             got == out.size();
+        if (!ok) out.clear();
+    }
+    CloseHandle(fh);
+    return ok;
+}
+
+// Load the UI font, preferring an on-disk vera.ttf so users can override the
+// bundled font by dropping one next to the exe (checked first, via a wide path)
+// or in the working directory (./vera.ttf, ./res/vera.ttf). Only when no disk
+// copy is found does it fall back to the copy embedded in the exe (RCDATA
+// IDR_VERA_TTF = 2000, see res/psymp3.rc), keeping the binary self-contained by
+// default. Always returns a non-null Font (an invalid one as last resort) so
+// callers keep the "font is never null" invariant. The file Font ctor throws,
+// so those attempts are guarded. (Windows only — Linux loads from the data dir.)
 std::unique_ptr<Font> loadUiFont(int ptsize)
 {
     HMODULE mod = GetModuleHandleW(nullptr);
+
+    // 1. vera.ttf next to the executable (independent of the working directory).
+    wchar_t exePath[MAX_PATH];
+    DWORD n = GetModuleFileNameW(mod, exePath, MAX_PATH);
+    if (n > 0 && n < MAX_PATH) {
+        if (wchar_t* slash = wcsrchr(exePath, L'\\')) {
+            std::wstring fontPath(exePath, slash + 1); // keep the trailing '\\'
+            fontPath += L"vera.ttf";
+            std::vector<uint8_t> buf;
+            if (readFileW(fontPath, buf)) {
+                auto f = std::make_unique<Font>(buf.data(), buf.size(), ptsize);
+                if (f->isValid()) return f;
+            }
+        }
+    }
+
+    // 2. vera.ttf in the current working directory.
+    for (const char* path : {"./vera.ttf", "./res/vera.ttf"}) {
+        try {
+            auto f = std::make_unique<Font>(TagLib::String(path), ptsize);
+            if (f->isValid()) return f;
+        } catch (const std::exception&) { /* try next source */ }
+    }
+
+    // 3. Fall back to the copy embedded in the exe.
     if (HRSRC res = FindResourceW(mod, MAKEINTRESOURCEW(2000),
                                   reinterpret_cast<LPCWSTR>(RT_RCDATA))) {
         if (HGLOBAL h = LoadResource(mod, res)) {
@@ -68,12 +119,6 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
                 if (f->isValid()) return f;
             }
         }
-    }
-    for (const char* path : {"./vera.ttf", "./res/vera.ttf"}) {
-        try {
-            auto f = std::make_unique<Font>(TagLib::String(path), ptsize);
-            if (f->isValid()) return f;
-        } catch (const std::exception&) { /* try next source */ }
     }
     return std::make_unique<Font>(nullptr, 0, ptsize); // invalid, but non-null
 }

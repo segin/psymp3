@@ -148,7 +148,7 @@ For detailed testing information, see [TESTING.md](TESTING.md).
 
 ## Notes
 
-**Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text through the built-in FreeType path; replace the bundled `vera.ttf` with a font file containing the glyph coverage you want.
+**Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text through the built-in FreeType path; replace the bundled `vera.ttf` with a font file containing the glyph coverage you want. On Windows, dropping a `vera.ttf` next to `psymp3.exe` (or in the working directory) overrides the font embedded in the exe — no rebuild needed.
 
 ---
 
