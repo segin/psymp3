@@ -305,8 +305,11 @@ private:
     
     // Drag state
     bool m_is_dragging;
-    int m_last_mouse_x;
-    int m_last_mouse_y;
+    // Float: SDL3 mouse coordinates are float and become non-integer under
+    // display scaling (e.g. 2x). Keeping the drag baseline in float and
+    // carrying the fractional remainder avoids truncation stalling the drag.
+    float m_last_mouse_x;
+    float m_last_mouse_y;
     
     // Double-click detection for close
     Uint32 m_last_click_time;
@@ -315,8 +318,8 @@ private:
     // Resize state
     bool m_is_resizing;
     int m_resize_edge; // 0=none, 1=left, 2=right, 4=top, 8=bottom, combinations for corners
-    int m_resize_start_x;
-    int m_resize_start_y;
+    float m_resize_start_x;  // float: see m_last_mouse_x
+    float m_resize_start_y;
     int m_resize_start_width;
     int m_resize_start_height;
     int m_resize_start_window_x;

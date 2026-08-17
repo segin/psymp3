@@ -446,24 +446,29 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
     }
     
     if (m_is_dragging) {
-        int dx = event.x - m_last_mouse_x;
-        int dy = event.y - m_last_mouse_y;
-        
-        m_last_mouse_x = event.x;
-        m_last_mouse_y = event.y;
-        
-        if (m_on_drag) {
+        // Emit only the integer part of the accumulated motion and advance the
+        // baseline by exactly that, so the sub-pixel remainder carries to the
+        // next event. Assigning the (float) event coord straight into the
+        // baseline (as before) truncated the remainder away, which stalled
+        // left/up drags under 2x display scaling where the coords are .5-valued.
+        int dx = static_cast<int>(event.x - m_last_mouse_x);
+        int dy = static_cast<int>(event.y - m_last_mouse_y);
+
+        m_last_mouse_x += dx;
+        m_last_mouse_y += dy;
+
+        if (m_on_drag && (dx != 0 || dy != 0)) {
             m_on_drag(dx, dy);
         }
-        
+
         return true;
     }
     
     if (m_is_resizing) {
         // Use the event's logical coordinates for resize tracking so display
         // scaling doesn't desync the deltas from the captured start position.
-        int dx = event.x - m_resize_start_x;
-        int dy = event.y - m_resize_start_y;
+        int dx = static_cast<int>(event.x - m_resize_start_x);
+        int dy = static_cast<int>(event.y - m_resize_start_y);
         
         int new_width = m_resize_start_width;
         int new_height = m_resize_start_height;
