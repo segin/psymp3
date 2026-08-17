@@ -191,7 +191,7 @@ bool TextInputWidget::handleFocusedTextInput(const char* text)
     TextInputWidget& widget = *s_focused_widget;
     const std::string input(text);
 
-    // SDL delivers SDL_TEXTINPUT as UTF-8. Keep printable ASCII (0x20-0x7E) and
+    // SDL delivers SDL_EVENT_TEXT_INPUT as UTF-8. Keep printable ASCII (0x20-0x7E) and
     // every UTF-8 multi-byte byte (>= 0x80); drop only C0 controls and DEL.
     // Insert the whole filtered sequence in one step so a multi-byte codepoint's
     // bytes are never split across separate edits.

@@ -81,14 +81,14 @@ class Player
         Player();
         ~Player();
         void Run(const PlayerOptions& options);
-        static Uint32 AppLoopTimer(Uint32 interval, void* param);
-        static Uint32 AutomatedTestTimer(Uint32 interval, void* param);
-        static Uint32 AutomatedQuitTimer(Uint32 interval, void* param);
+        static Uint32 AppLoopTimer(void* param, SDL_TimerID timerID, Uint32 interval);
+        static Uint32 AutomatedTestTimer(void* param, SDL_TimerID timerID, Uint32 interval);
+        static Uint32 AutomatedQuitTimer(void* param, SDL_TimerID timerID, Uint32 interval);
         /* SDL event synthesis */
         // Returns true if the event was queued; false if SDL dropped it (e.g.
         // queue full). Callers that pass a heap-owned payload must check this.
         static bool synthesizeUserEvent(int uevent, void *data1, void *data2);
-        static void synthesizeKeyEvent(SDLKey kpress);
+        static void synthesizeKeyEvent(SDL_Keycode kpress);
         /* state management */
 
         // Data structure for asynchronous track loading results
@@ -265,7 +265,7 @@ class Player
         // play from the first resulting track; shared tail of the Ctrl+O
         // chooser and drag-and-drop. No-op if the expansion yields nothing.
         void openPathsReplacingPlaylist(const std::vector<std::string>& paths);
-        // SDL_DROPCOMPLETE: commit the accumulated drop batch like "Open".
+        // SDL_EVENT_DROP_COMPLETE: commit the accumulated drop batch like "Open".
         void openDroppedPaths();
         // Empty the playlist and stop playback.
         void clearPlaylist();
@@ -414,7 +414,7 @@ class Player
         // has not been played yet, so the next advance must load it rather than
         // step past it. Cleared by requestTrackLoad(), i.e. by any other load.
         bool m_cursor_unplayed = false;
-        // Paths accumulated between SDL_DROPBEGIN and SDL_DROPCOMPLETE, then
+        // Paths accumulated between SDL_EVENT_DROP_BEGIN and SDL_EVENT_DROP_COMPLETE, then
         // committed as one "Open" by openDroppedPaths().
         std::vector<std::string> m_dropped_paths;
         std::atomic<LoopMode> m_loop_mode;

@@ -22,6 +22,10 @@
  */
 
 #include "psymp3.h"
+// SDL3: SDL_main is header-only (no libSDL3main). Including it in exactly the
+// one translation unit that defines main() redirects main->SDL_main and
+// supplies the platform entry point (WinMain on Windows, with UTF-8 argv).
+#include <SDL3/SDL_main.h>
 
 namespace {
 

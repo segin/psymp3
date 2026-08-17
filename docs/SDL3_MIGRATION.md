@@ -272,6 +272,13 @@ Deduplicated across all seven inventories. **Status legend:** SAME = no change �
 
 ## 4. Decisions Needed
 
+> **RESOLVED (2026-08-17):**
+> - **D6 — no `sdl2-compat` shim.** Full, all-in SDL3 port against real SDL3.
+> - **D3 — audio pull-port.** `SDL_OpenAudioDeviceStream` + an `SDL_AudioStreamCallback`, matching the existing pull/callback functional model.
+> - **D8 — SDL-managed entry (Option A).** `#include <SDL3/SDL_main.h>` in `main.cpp` only (SDL_main is header-only in SDL3; there is no `libSDL3main`).
+> - **D-key — project-local `Keysym` (Option 3).** `struct Keysym { SDL_Keycode sym; SDL_Keymod mod; }` with `using SDL_keysym = Keysym;`, filled from the SDL3 event at the pump; keeps the five key handlers' `.sym`/`.mod` bodies intact and the key API SDL-version-agnostic.
+
+
 | ID | Decision | Options / recommendation |
 |---|---|---|
 | **D1** | Non-text default surface format | SDL2 `CreateRGBSurface(...,32,0,0,0,0)` gave an *opaque* 32-bit surface. Choose `SDL_PIXELFORMAT_XRGB8888` (preserve opaque/no-alpha blend semantics) vs `RGBA32` (uniform with text surfaces). Affects `MapRGB` alpha and blit blending. **Rec: XRGB8888 for the opaque default, RGBA32 for text.** |

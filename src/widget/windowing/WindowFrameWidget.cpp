@@ -185,19 +185,19 @@ WindowFrameWidget::~WindowFrameWidget()
     if (s_instance_count == 0) {
         restoreDefaultCursor();
         if (s_cursor_nwse) {
-            SDL_FreeCursor(s_cursor_nwse);
+            SDL_DestroyCursor(s_cursor_nwse);
             s_cursor_nwse = nullptr;
         }
         if (s_cursor_nesw) {
-            SDL_FreeCursor(s_cursor_nesw);
+            SDL_DestroyCursor(s_cursor_nesw);
             s_cursor_nesw = nullptr;
         }
         if (s_cursor_ew) {
-            SDL_FreeCursor(s_cursor_ew);
+            SDL_DestroyCursor(s_cursor_ew);
             s_cursor_ew = nullptr;
         }
         if (s_cursor_ns) {
-            SDL_FreeCursor(s_cursor_ns);
+            SDL_DestroyCursor(s_cursor_ns);
             s_cursor_ns = nullptr;
         }
         s_default_cursor = SDL_GetCursor();

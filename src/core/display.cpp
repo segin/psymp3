@@ -28,15 +28,16 @@ namespace PsyMP3::Core {
 
 Display::Display() : Surface()
 {
+    // SDL3: SDL_CreateWindow takes only (title, w, h, flags) — position is set
+    // separately and windows are shown by default (no SDL_WINDOW_SHOWN).
     m_window = SDL_CreateWindow("PsyMP3 " PSYMP3_VERSION,
-                                SDL_WINDOWPOS_CENTERED,
-                                SDL_WINDOWPOS_CENTERED,
                                 LOGICAL_WIDTH,
                                 LOGICAL_HEIGHT,
-                                SDL_WINDOW_SHOWN);
+                                0);
     if (!m_window) {
         throw SDLException("Could not create SDL window");
     }
+    SDL_SetWindowPosition(m_window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
     refreshWindowSurface();
     allocateLogicalSurface();
@@ -60,12 +61,13 @@ void Display::setWindowIcon(const uint8_t* rgba, int width, int height)
     // SDL_PIXELFORMAT_RGBA32 gives R,G,B,A byte order regardless of endianness,
     // matching the raw blob. SDL_SetWindowIcon copies the pixels, so the
     // temporary surface (and the caller's buffer) can be released afterwards.
-    SDL_Surface* icon = SDL_CreateRGBSurfaceWithFormatFrom(
-        const_cast<uint8_t*>(rgba), width, height, 32, width * 4,
-        SDL_PIXELFORMAT_RGBA32);
+    // SDL3: SDL_CreateSurfaceFrom(width, height, format, pixels, pitch).
+    SDL_Surface* icon = SDL_CreateSurfaceFrom(
+        width, height, SDL_PIXELFORMAT_RGBA32,
+        const_cast<uint8_t*>(rgba), width * 4);
     if (icon) {
         SDL_SetWindowIcon(m_window, icon);
-        SDL_FreeSurface(icon);
+        SDL_DestroySurface(icon);
         Debug::log("display", "Display::setWindowIcon: set ", width, "x", height, " window icon");
     }
 }
@@ -87,11 +89,12 @@ void Display::Flip()
     if (m_logical_scale == 1) {
         SDL_BlitSurface(m_handle.get(), nullptr, m_window_surface, nullptr);
     } else {
-        // SDL_SoftStretch is documented as nearest-neighbor — exactly what we
-        // want for an integer pixel-double. SDL_BlitScaled may pick a linear
-        // path on some software fast paths, so we use SoftStretch explicitly.
+        // SDL3: SDL_SoftStretch became SDL_StretchSurface with an explicit
+        // scale mode. SDL_SCALEMODE_NEAREST keeps the exact nearest-neighbor
+        // integer pixel-double we want (SDL_BlitSurfaceScaled may pick a linear
+        // path on some software fast paths).
         SDL_Rect dst{0, 0, LOGICAL_WIDTH * m_logical_scale, LOGICAL_HEIGHT * m_logical_scale};
-        SDL_SoftStretch(m_handle.get(), nullptr, m_window_surface, &dst);
+        SDL_StretchSurface(m_handle.get(), nullptr, m_window_surface, &dst, SDL_SCALEMODE_NEAREST);
     }
 
     SDL_UpdateWindowSurface(m_window);
@@ -142,13 +145,12 @@ void Display::allocateLogicalSurface()
 {
     SDL_Surface* surf = nullptr;
     if (m_window_surface) {
-        // Match the window's pixel format so the SoftStretch is zero-conversion.
-        surf = SDL_CreateRGBSurfaceWithFormat(0, LOGICAL_WIDTH, LOGICAL_HEIGHT,
-                                              m_window_surface->format->BitsPerPixel,
-                                              m_window_surface->format->format);
+        // Match the window's pixel format so the stretch is zero-conversion.
+        // SDL3: surface->format is the SDL_PixelFormat enum directly.
+        surf = SDL_CreateSurface(LOGICAL_WIDTH, LOGICAL_HEIGHT, m_window_surface->format);
     }
     if (!surf) {
-        surf = SDL_CreateRGBSurface(0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 32, 0, 0, 0, 0);
+        surf = SDL_CreateSurface(LOGICAL_WIDTH, LOGICAL_HEIGHT, SDL_PIXELFORMAT_XRGB8888);
     }
     if (!surf) {
         throw SDLException("Could not create logical display surface");
@@ -171,11 +173,13 @@ bool Display::handleWindowEvent(const SDL_WindowEvent& event)
         return false;
     }
 
-    switch (event.event) {
-    case SDL_WINDOWEVENT_EXPOSED:
-    case SDL_WINDOWEVENT_RESIZED:
-    case SDL_WINDOWEVENT_SIZE_CHANGED:
-    case SDL_WINDOWEVENT_SHOWN:
+    // SDL3: window events are distinct top-level event types carried in
+    // SDL_WindowEvent.type (there is no more .event sub-field).
+    switch (event.type) {
+    case SDL_EVENT_WINDOW_EXPOSED:
+    case SDL_EVENT_WINDOW_RESIZED:
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+    case SDL_EVENT_WINDOW_SHOWN:
         refreshWindowSurface();
         return true;
     default:

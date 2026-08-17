@@ -588,14 +588,14 @@ Player::~Player() {
 /**
  * @brief Synthesizes and pushes a key down and key up event into the SDL event queue.
  * This is useful for programmatically triggering key press actions.
- * @param kpress The SDLKey symbol for the key to be pressed.
+ * @param kpress The SDL_Keycode symbol for the key to be pressed.
  */
-void Player::synthesizeKeyEvent(SDLKey kpress) {
+void Player::synthesizeKeyEvent(SDL_Keycode kpress) {
     SDL_Event event{};
-    event.type = SDL_KEYDOWN;
-    event.key.keysym.sym = kpress;
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.key = kpress;  // SDL3 flattened keysym onto the event
     SDL_PushEvent(&event);
-    event.type = SDL_KEYUP;
+    event.type = SDL_EVENT_KEY_UP;
     SDL_PushEvent(&event);
 }
 
@@ -610,7 +610,7 @@ void Player::synthesizeKeyEvent(SDLKey kpress) {
 bool Player::synthesizeUserEvent(int code, void *data1, void* data2) {
     SDL_Event event{};
 
-    event.type = SDL_USEREVENT;
+    event.type = SDL_EVENT_USER;
     event.user.code = code;
     event.user.data1 = data1;
     event.user.data2 = data2;
@@ -627,7 +627,7 @@ bool Player::synthesizeUserEvent(int code, void *data1, void* data2) {
  * @param param A user-defined parameter (unused).
  * @return The interval for the next timer call.
  */
-Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
+Uint32 Player::AppLoopTimer(void* param, SDL_TimerID timerID, Uint32 interval) {
     // Skip while a frame is already rendering (guiRunning) OR a modal file dialog
     // has the main thread blocked (dialogOpen). Queuing RUN_GUI_ITERATION in
     // either case just backlogs the event queue, and for a dialog the whole
@@ -1284,7 +1284,7 @@ void Player::openPathsReplacingPlaylist(const std::vector<std::string>& paths)
 }
 
 /**
- * @brief SDL_DROPCOMPLETE: commit the drop batch accumulated in
+ * @brief SDL_EVENT_DROP_COMPLETE: commit the drop batch accumulated in
  *        m_dropped_paths exactly like "Open" — recurse into directories,
  *        filter to supported formats, and replace the playlist with the
  *        result, playing from the first track.
@@ -2524,25 +2524,25 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
     switch (keysym.sym) {
         case SDLK_ESCAPE: // NOLINT(bugprone-branch-clone)
-        case SDLK_q:
+        case SDLK_Q:
             return true; // Signal to exit
 
-        case SDLK_n:
+        case SDLK_N:
             nextTrack();
             break;
 
-        case SDLK_p:
+        case SDLK_P:
             // Shift+P opens the Playlist Manager test window; plain P is Previous
             // Track (P is already taken, so the window uses the shifted chord).
-            if (keysym.mod & KMOD_SHIFT) {
+            if (keysym.mod & SDL_KMOD_SHIFT) {
                 togglePlaylistManager();
             } else {
                 prevTrack();
             }
             break;
 
-        case SDLK_s:
-            if (keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) {
+        case SDLK_S:
+            if (keysym.mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) {
                 synthesizeUserEvent(DO_SAVE_PLAYLIST, nullptr, nullptr);
             } else {
                 setShuffle(!getShuffle());
@@ -2551,17 +2551,17 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
 #ifdef HAVE_FILEDIALOG
-        case SDLK_o:
-            if (keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) {
+        case SDLK_O:
+            if (keysym.mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) {
                 openTracksReplacingPlaylist();
             }
             break;
 
-        case SDLK_i:
+        case SDLK_I:
             queueTracksNext();
             break;
 
-        case SDLK_l:
+        case SDLK_L:
             openTemporaryTrackDialog();
             break;
 #endif
@@ -2580,9 +2580,9 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_3: setIntensity(3); break;
         case SDLK_4: setIntensity(4); break;
 
-        case SDLK_z: setDelay(0.5f); break;
-        case SDLK_x: setDelay(1.0f); break;
-        case SDLK_c: setDelay(2.0f); break;
+        case SDLK_Z: setDelay(0.5f); break;
+        case SDLK_X: setDelay(1.0f); break;
+        case SDLK_C: setDelay(2.0f); break;
 
         case SDLK_LEFT:
             // On the initial key press, capture the current position to seek from.
@@ -2628,19 +2628,19 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             playPause();
             break;
 
-        case SDLK_r:
+        case SDLK_R:
             this->seekTo(0);
             break;
 
-        case SDLK_e:
+        case SDLK_E:
             cycleLoopMode();
             break;
 
-        case SDLK_f:
+        case SDLK_F:
             cycleFFTMode();
             break;
 
-        case SDLK_g:
+        case SDLK_G:
             toggleZoom();
             break;
 
@@ -2653,9 +2653,9 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         // here. The toggleTestWindowH/toggleTestWindowB/createRandomWindows
         // methods are kept so the feature can be re-wired quickly if needed.
 
-        case SDLK_m:
+        case SDLK_M:
         {
-            if (keysym.mod & KMOD_SHIFT) {
+            if (keysym.mod & SDL_KMOD_SHIFT) {
                 toggleMPRISErrorNotifications();
             } else {
                 // Toggle between widget-based and legacy mouse handling
@@ -2856,12 +2856,13 @@ bool Player::Initialize(const PlayerOptions& options) {
     // Initialize only the SDL subsystems needed to bring up the UI promptly.
     // Audio is initialized on demand in Audio::setup() so a stuck backend
     // (for example PipeWire) cannot hang the entire application at startup.
-    if ( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER ) < 0 )
+    // SDL3: SDL_Init returns bool (true on success); the timer subsystem no
+    // longer exists as a separate flag (timers are always available).
+    if ( !SDL_Init( SDL_INIT_VIDEO ) )
     {
         Debug::log("system", "Unable to init SDL: ", SDL_GetError());
         return false;
     }
-    SDL_StartTextInput();
 
 
 
@@ -2894,6 +2895,11 @@ bool Player::Initialize(const PlayerOptions& options) {
         }
     }
 #endif
+    // SDL3: text input is per-window and must be started explicitly on the
+    // window once it exists (SDL2 enabled it globally at init time).
+    if (screen && screen->getWindowHandle()) {
+        SDL_StartTextInput(screen->getWindowHandle());
+    }
     system = std::make_unique<System>();
 #ifdef _WIN32
     System::setMainWindow(screen->getWindowHandle());
@@ -3206,8 +3212,8 @@ bool Player::Initialize(const PlayerOptions& options) {
 /**
  * @brief Runs the SDL main event loop until the application is requested to quit.
  *
- * Processes `SDL_KEYDOWN`, `SDL_KEYUP`, `SDL_MOUSEBUTTON*`, `SDL_MOUSEMOTION`,
- * `SDL_USEREVENT`, and `SDL_QUIT` events, dispatching them to the appropriate
+ * Processes `SDL_EVENT_KEY_DOWN`, `SDL_EVENT_KEY_UP`, `SDL_MOUSEBUTTON*`, `SDL_EVENT_MOUSE_MOTION`,
+ * `SDL_EVENT_USER`, and `SDL_EVENT_QUIT` events, dispatching them to the appropriate
  * handlers. Calls `processDeferredDeletions()` after each event.
  */
 void Player::EventLoop() {
@@ -3229,12 +3235,12 @@ void Player::EventLoop() {
                 const int s = screen->getLogicalScale();
                 if (s > 1) {
                     switch (event.type) {
-                        case SDL_MOUSEBUTTONDOWN:
-                        case SDL_MOUSEBUTTONUP:
+                        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                        case SDL_EVENT_MOUSE_BUTTON_UP:
                             event.button.x /= s;
                             event.button.y /= s;
                             break;
-                        case SDL_MOUSEMOTION:
+                        case SDL_EVENT_MOUSE_MOTION:
                             event.motion.x /= s;
                             event.motion.y /= s;
                             break;
@@ -3245,13 +3251,19 @@ void Player::EventLoop() {
             }
 
             switch (event.type) {
-            case SDL_WINDOWEVENT:
+            // SDL3: window events are distinct top-level types (no SDL_WINDOWEVENT
+            // wrapper). Route the ones that require a window-surface refresh;
+            // handleWindowEvent ignores the rest.
+            case SDL_EVENT_WINDOW_EXPOSED:
+            case SDL_EVENT_WINDOW_RESIZED:
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            case SDL_EVENT_WINDOW_SHOWN:
                 if (handleWindowEvent(event.window)) {
                     synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
                 }
                 break;
                 // exit if the window is closed
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 done = true;
                 break;
 
@@ -3259,16 +3271,17 @@ void Player::EventLoop() {
             // and delivers one DROPFILE per item in between. Accumulate the
             // batch and commit it on DROPCOMPLETE as a single "Open", so a
             // multi-file drop replaces the playlist once, not once per file.
-            case SDL_DROPBEGIN:
+            case SDL_EVENT_DROP_BEGIN:
                 m_dropped_paths.clear();
                 break;
-            case SDL_DROPFILE:
-                if (event.drop.file) {
-                    m_dropped_paths.emplace_back(event.drop.file);
-                    SDL_free(event.drop.file);
+            case SDL_EVENT_DROP_FILE:
+                // SDL3: the path is in event.drop.data and is owned by SDL
+                // (valid for this event only) — copy it, do not free it.
+                if (event.drop.data) {
+                    m_dropped_paths.emplace_back(event.drop.data);
                 }
                 break;
-            case SDL_DROPCOMPLETE:
+            case SDL_EVENT_DROP_COMPLETE:
                 openDroppedPaths();
                 break;
 
@@ -3300,17 +3313,19 @@ void Player::EventLoop() {
 #endif
 
                 // check for keypresses
-            case SDL_KEYDOWN:
+            case SDL_EVENT_KEY_DOWN:
             {
-                done = handleKeyPress(event.key.keysym);
+                // SDL3 flattened SDL_Keysym onto the event; build our
+                // version-agnostic Keysym from event.key.key / event.key.mod.
+                done = handleKeyPress(Keysym{event.key.key, event.key.mod});
                 break;
             }
-            case SDL_TEXTINPUT:
+            case SDL_EVENT_TEXT_INPUT:
             {
                 TextInputWidget::handleFocusedTextInput(event.text.text);
                 break;
             }
-            case SDL_MOUSEBUTTONDOWN:
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
             {
                 TextInputWidget::clearFocusedWidget();
 
@@ -3342,7 +3357,7 @@ void Player::EventLoop() {
                 }
                 break;
             }
-            case SDL_MOUSEMOTION:
+            case SDL_EVENT_MOUSE_MOTION:
             {
                 // Remember where the pointer is (logical coords) so wheel events,
                 // which don't carry a position, can be routed to what's under it.
@@ -3378,7 +3393,7 @@ void Player::EventLoop() {
                 }
                 break;
             }
-            case SDL_MOUSEBUTTONUP:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
             {
                 // Complete a legacy seek drag no matter what is under the cursor.
                 if (m_is_dragging && !Widget::getMouseCapturedWidget()) {
@@ -3411,7 +3426,7 @@ void Player::EventLoop() {
                 }
                 break;
             }
-            case SDL_MOUSEWHEEL:
+            case SDL_EVENT_MOUSE_WHEEL:
             {
                 int delta = event.wheel.y; // +1 per notch up / away from the user
                 if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
@@ -3427,12 +3442,12 @@ void Player::EventLoop() {
                 }
                 break;
             }
-            case SDL_KEYUP:
+            case SDL_EVENT_KEY_UP:
             {
-                handleKeyUp(event.key.keysym);
+                handleKeyUp(Keysym{event.key.key, event.key.mod});
                 break;
             }
-            case SDL_USEREVENT:
+            case SDL_EVENT_USER:
             {
                 if (event.user.code == AUTOMATED_SKIP_TRACK) {
                     nextTrack();
@@ -3467,7 +3482,9 @@ void Player::Cleanup() {
     if (m_app_loop_timer_id) {
         SDL_RemoveTimer(m_app_loop_timer_id);
     }
-    SDL_StopTextInput();
+    if (screen && screen->getWindowHandle()) {
+        SDL_StopTextInput(screen->getWindowHandle());  // SDL3: per-window
+    }
 #ifdef _WIN32
     if (system) system->progressState(TBPF_NOPROGRESS);
     if (system) system->updateProgress(0, 0);
@@ -3545,7 +3562,7 @@ LoopMode Player::getLoopMode() const {
  * @param param    Pointer to the `Player` instance.
  * @return The interval for the next callback.
  */
-Uint32 Player::AutomatedTestTimer(Uint32 interval, void* param) {
+Uint32 Player::AutomatedTestTimer(void* param, SDL_TimerID timerID, Uint32 interval) {
     Player* player = static_cast<Player*>(param);
     if (player) {
         player->synthesizeUserEvent(AUTOMATED_SKIP_TRACK, nullptr, nullptr);
@@ -3569,7 +3586,7 @@ Uint32 Player::AutomatedTestTimer(Uint32 interval, void* param) {
  * @param param    Pointer to the `Player` instance.
  * @return The interval for the next callback.
  */
-Uint32 Player::AutomatedQuitTimer(Uint32 interval, void* param) {
+Uint32 Player::AutomatedQuitTimer(void* param, SDL_TimerID timerID, Uint32 interval) {
     Player* player = static_cast<Player*>(param);
     if (player) {
         player->synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
@@ -3754,10 +3771,10 @@ bool Player::handleWindowMouseEvents(const SDL_Event& event)
         int mouse_x = 0, mouse_y = 0;
 
         // Get mouse coordinates based on event type
-        if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+        if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
             mouse_x = event.button.x;
             mouse_y = event.button.y;
-        } else if (event.type == SDL_MOUSEMOTION) {
+        } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
             mouse_x = event.motion.x;
             mouse_y = event.motion.y;
         } else {
@@ -3780,11 +3797,11 @@ bool Player::handleWindowMouseEvents(const SDL_Event& event)
             int relative_x = mouse_x - window_rect.x();
             int relative_y = mouse_y - window_rect.y();
 
-            if (event.type == SDL_MOUSEBUTTONDOWN) {
+            if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
                 window->handleMouseDown(event.button, relative_x, relative_y);
-            } else if (event.type == SDL_MOUSEMOTION) {
+            } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
                 window->handleMouseMotion(event.motion, relative_x, relative_y);
-            } else if (event.type == SDL_MOUSEBUTTONUP) {
+            } else if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
                 window->handleMouseUp(event.button, relative_x, relative_y);
             }
 
@@ -3797,7 +3814,7 @@ bool Player::handleWindowMouseEvents(const SDL_Event& event)
         }
     }
 
-    if (event.type == SDL_MOUSEMOTION && !handled_any_window && captured == nullptr) {
+    if (event.type == SDL_EVENT_MOUSE_MOTION && !handled_any_window && captured == nullptr) {
         WindowFrameWidget::restoreDefaultCursor();
     }
 

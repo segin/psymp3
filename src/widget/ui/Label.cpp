@@ -418,9 +418,15 @@ void Label::applyEdgeFade(Surface& surface, float left_fade_strength) const
     }
 
     const bool must_lock = SDL_MUSTLOCK(handle);
-    if (must_lock && SDL_LockSurface(handle) != 0) {
+    // SDL3: SDL_LockSurface returns bool (true on success); bail on failure.
+    if (must_lock && !SDL_LockSurface(handle)) {
         return;
     }
+
+    // SDL3: unpack/pack pixels via an SDL_PixelFormatDetails* resolved from the
+    // surface's format enum.
+    const SDL_PixelFormatDetails* fmt = SDL_GetPixelFormatDetails(handle->format);
+    const int bpp = SDL_BYTESPERPIXEL(handle->format);
 
     for (int y = 0; y < surface.height(); ++y) {
         auto* row = static_cast<uint8_t*>(handle->pixels) + y * handle->pitch;
@@ -439,20 +445,20 @@ void Label::applyEdgeFade(Surface& surface, float left_fade_strength) const
 
             fade = std::clamp(fade, 0.0f, 1.0f);
             uint32_t pixel = 0;
-            std::memcpy(&pixel, row + x * handle->format->BytesPerPixel, handle->format->BytesPerPixel);
+            std::memcpy(&pixel, row + x * bpp, bpp);
 
             uint8_t r = 0;
             uint8_t g = 0;
             uint8_t b = 0;
             uint8_t a = 0;
-            SDL_GetRGBA(pixel, handle->format, &r, &g, &b, &a);
+            SDL_GetRGBA(pixel, fmt, nullptr, &r, &g, &b, &a);
             if (a == 0) {
                 continue;
             }
 
             a = static_cast<uint8_t>(static_cast<float>(a) * fade);
-            pixel = SDL_MapRGBA(handle->format, r, g, b, a);
-            std::memcpy(row + x * handle->format->BytesPerPixel, &pixel, handle->format->BytesPerPixel);
+            pixel = SDL_MapRGBA(fmt, nullptr, r, g, b, a);
+            std::memcpy(row + x * bpp, &pixel, bpp);
         }
     }
 

@@ -41,7 +41,7 @@ public:
             return;
         }
 
-        SDL_GetClipRect(m_surface, &m_previous_clip);
+        SDL_GetSurfaceClipRect(m_surface, &m_previous_clip);
 
         Rect previous_rect(m_previous_clip.x, m_previous_clip.y,
                            static_cast<uint16_t>(m_previous_clip.w),
@@ -54,13 +54,13 @@ public:
             next_rect.width(),
             next_rect.height()
         };
-        SDL_SetClipRect(m_surface, &sdl_clip);
+        SDL_SetSurfaceClipRect(m_surface, &sdl_clip);
     }
 
     ~ClipRectGuard()
     {
         if (m_active) {
-            SDL_SetClipRect(m_surface, &m_previous_clip);
+            SDL_SetSurfaceClipRect(m_surface, &m_previous_clip);
         }
     }
 
@@ -437,11 +437,11 @@ void Widget::invalidateArea(const Rect& area)
 bool Widget::handleEvent(const SDL_Event& event, int relative_x, int relative_y)
 {
     switch (event.type) {
-        case SDL_MOUSEBUTTONDOWN:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
             return handleMouseDown(event.button, relative_x, relative_y);
-        case SDL_MOUSEBUTTONUP:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
             return handleMouseUp(event.button, relative_x, relative_y);
-        case SDL_MOUSEMOTION:
+        case SDL_EVENT_MOUSE_MOTION:
             return handleMouseMotion(event.motion, relative_x, relative_y);
         default:
             return false;

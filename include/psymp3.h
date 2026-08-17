@@ -232,7 +232,10 @@ inline int closeSocket(int sock) {
 #include <lm.h>
 #include <shlobj.h>
 #include <shobjidl.h>
-#include <SDL_syswm.h>
+// SDL3 removed SDL_syswm.h. The Win32 HWND is now obtained via
+// SDL_GetWindowProperties (SDL_PROP_WINDOW_WIN32_HWND_POINTER) and native
+// messages via SDL_SetWindowsMessageHook — see the Phase 4 migration in
+// system.cpp / player.cpp.
 #elif defined(__linux__)
 #include <sys/prctl.h>
 #elif defined(__FreeBSD__)
@@ -264,11 +267,18 @@ typedef struct ssl_method_st SSL_METHOD;
 typedef struct bio_st BIO;
 
 // Third-party library headers
-#include <SDL.h>
-#include <SDL_thread.h>
-#include <SDL_mutex.h>
+#include <SDL3/SDL.h>
 
-using SDL_keysym = SDL_Keysym;
+// SDL3 removed SDL_Keysym (its fields were flattened onto SDL_KeyboardEvent).
+// Keep a small, SDL-version-agnostic key descriptor so the key handlers stay
+// decoupled from SDL's event layout; the event pump fills it from the SDL3
+// event (event.key.key / event.key.mod). Preserving the .sym/.mod field names
+// keeps the existing handler bodies intact.
+struct Keysym {
+    SDL_Keycode sym;
+    SDL_Keymod  mod;
+};
+using SDL_keysym = Keysym;
 using SDLKey = SDL_Keycode;
 
 

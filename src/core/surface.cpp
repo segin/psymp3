@@ -29,7 +29,7 @@ namespace PsyMP3::Core {
 /**
  * @brief Default constructor — creates a Surface with a null handle.
  */
-Surface::Surface() : m_handle(nullptr, SDL_FreeSurface)
+Surface::Surface() : m_handle(nullptr, SDL_DestroySurface)
 {
     // Default constructor creates a null handle.
 }
@@ -37,7 +37,7 @@ Surface::Surface() : m_handle(nullptr, SDL_FreeSurface)
 /**
  * @brief Wraps an existing, non-owned SDL_Surface pointer.
  *
- * A no-op deleter is used so that `SDL_FreeSurface` is never called on the
+ * A no-op deleter is used so that `SDL_DestroySurface` is never called on the
  * wrapped pointer; the caller retains ownership.
  *
  * @param non_owned_sfc Pointer to an existing SDL_Surface that must outlive this object.
@@ -45,7 +45,7 @@ Surface::Surface() : m_handle(nullptr, SDL_FreeSurface)
 Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Surface*){ /* do nothing */ })
 {
     // This constructor wraps a pointer but does not take ownership.
-    // The custom empty deleter ensures SDL_FreeSurface is not called on it.
+    // The custom empty deleter ensures SDL_DestroySurface is not called on it.
 }
 
 void Surface::wrapNonOwnedSurface(SDL_Surface* non_owned_sfc)
@@ -63,7 +63,7 @@ void Surface::wrapNonOwnedSurface(SDL_Surface* non_owned_sfc)
  * @param height Height in pixels.
  */
 Surface::Surface(int width, int height)
-    : m_handle(SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
+    : m_handle(SDL_CreateSurface(width, height, SDL_PIXELFORMAT_XRGB8888), SDL_DestroySurface)
 {
     if (!m_handle) {
         throw SDLException("Could not create RGB surface");
@@ -81,27 +81,15 @@ Surface::Surface(int width, int height)
  * @param for_text If `true`, use endian-aware RGBA masks; otherwise use SDL defaults.
  */
 Surface::Surface(int width, int height, bool for_text)
-    : m_handle(nullptr, SDL_FreeSurface)
+    : m_handle(nullptr, SDL_DestroySurface)
 {
     if (for_text) {
-        // Use proper RGBA masks based on endianness for text surfaces
-        Uint32 rmask, gmask, bmask, amask;
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
-        rmask = 0xff000000;
-        gmask = 0x00ff0000;
-        bmask = 0x0000ff00;
-        amask = 0x000000ff;
-#else
-        rmask = 0x000000ff;
-        gmask = 0x0000ff00;
-        bmask = 0x00ff0000;
-        amask = 0xff000000;
-#endif
-        
-        m_handle.reset(SDL_CreateRGBSurface(0, width, height, 32,
-                                            rmask, gmask, bmask, amask));
+        // SDL_PIXELFORMAT_RGBA32 is the endian-aware 32-bit RGBA alias, giving
+        // the same channel layout the manual masks used to compute so FreeType
+        // alpha blending is correct on all platforms.
+        m_handle.reset(SDL_CreateSurface(width, height, SDL_PIXELFORMAT_RGBA32));
     } else {
-        m_handle.reset(SDL_CreateRGBSurface(0, width, height, 32, 0, 0, 0, 0));
+        m_handle.reset(SDL_CreateSurface(width, height, SDL_PIXELFORMAT_XRGB8888));
     }
     
     if (!m_handle) {
@@ -185,7 +173,7 @@ bool Surface::isValid() const
 uint32_t Surface::MapRGB(uint8_t r, uint8_t g, uint8_t b)
 {
     if (!m_handle) return 0;
-    return SDL_MapRGB(m_handle->format, r, g, b);
+    return SDL_MapSurfaceRGB(m_handle.get(), r, g, b);
 }
 
 /**
@@ -199,7 +187,7 @@ uint32_t Surface::MapRGB(uint8_t r, uint8_t g, uint8_t b)
 uint32_t Surface::MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return 0;
-    return SDL_MapRGBA(m_handle->format, r, g, b, a);
+    return SDL_MapSurfaceRGBA(m_handle.get(), r, g, b, a);
 }
 
 /**
@@ -209,7 +197,7 @@ uint32_t Surface::MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 void Surface::FillRect(uint32_t color)
 {
     if (!m_handle) return;
-    SDL_FillRect(m_handle.get(), 0, color);
+    SDL_FillSurfaceRect(m_handle.get(), 0, color);
 }
 
 void Surface::applyRelativeOpacity(float opacity)
@@ -217,6 +205,9 @@ void Surface::applyRelativeOpacity(float opacity)
     if (!m_handle || !m_handle->pixels) return;
     SDLLockGuard lock(m_handle.get());
 
+    // SDL3: pixel pack/unpack works off an SDL_PixelFormatDetails*, resolved
+    // once from the surface's format enum (no palette for these RGBA formats).
+    const SDL_PixelFormatDetails* fmt = SDL_GetPixelFormatDetails(m_handle->format);
     const int w = m_handle->w;
     const int h = m_handle->h;
     for (int y = 0; y < h; ++y) {
@@ -224,10 +215,10 @@ void Surface::applyRelativeOpacity(float opacity)
             static_cast<uint8_t*>(m_handle->pixels) + y * m_handle->pitch);
         for (int x = 0; x < w; ++x) {
             uint8_t r, g, b, a;
-            SDL_GetRGBA(row[x], m_handle->format, &r, &g, &b, &a);
+            SDL_GetRGBA(row[x], fmt, nullptr, &r, &g, &b, &a);
             if (a > 0) {
                 a = static_cast<uint8_t>(a * opacity);
-                row[x] = SDL_MapRGBA(m_handle->format, r, g, b, a);
+                row[x] = SDL_MapRGBA(fmt, nullptr, r, g, b, a);
             }
         }
     }
@@ -250,7 +241,7 @@ void Surface::Flip()
 void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
 {
     // No bounds checking here, expecting caller to handle it.
-    int bpp = m_handle->format->BytesPerPixel;
+    int bpp = SDL_BYTESPERPIXEL(m_handle->format);
     uint8_t *p = (uint8_t *)m_handle->pixels + y * m_handle->pitch + x * bpp;
 
     switch (bpp) {
@@ -335,7 +326,7 @@ void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
     x1 = std::max<int16_t>(x1, 0);
     x2 = std::min<int16_t>(x2, m_handle->w - 1);
 
-    int bpp = m_handle->format->BytesPerPixel;
+    int bpp = SDL_BYTESPERPIXEL(m_handle->format);
     uint8_t *row_start = (uint8_t *)m_handle->pixels + y * m_handle->pitch + x1 * bpp;
 
     // Optimize for common cases
@@ -376,7 +367,7 @@ void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
     y1 = std::max<int16_t>(y1, 0);
     y2 = std::min<int16_t>(y2, m_handle->h - 1);
 
-    int bpp = m_handle->format->BytesPerPixel;
+    int bpp = SDL_BYTESPERPIXEL(m_handle->format);
     uint8_t *p = (uint8_t *)m_handle->pixels + y1 * m_handle->pitch + x * bpp;
 
     for (int16_t y = y1; y <= y2; ++y) {
@@ -500,7 +491,7 @@ void Surface::box_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint3
 /**
  * @brief Fills an axis-aligned rectangle with automatic surface locking.
  *
- * Uses `SDL_FillRect` for surfaces that do not require locking, falling back
+ * Uses `SDL_FillSurfaceRect` for surfaces that do not require locking, falling back
  * to the scanline method for surfaces that do.
  *
  * @param x1    Left x-coordinate.
@@ -512,17 +503,17 @@ void Surface::box_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint3
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    // Use SDL_FillRect for efficiency when we can avoid locking overhead
+    // Use SDL_FillSurfaceRect for efficiency when we can avoid locking overhead
     if (SDL_MUSTLOCK(m_handle.get())) {
         SDL_LockSurface(m_handle.get());
         box_unlocked(x1, y1, x2, y2, color);
         SDL_UnlockSurface(m_handle.get());
     } else {
-        // For surfaces that don't need locking, use SDL_FillRect directly
+        // For surfaces that don't need locking, use SDL_FillSurfaceRect directly
         if (x1 > x2) std::swap(x1, x2);
         if (y1 > y2) std::swap(y1, y2);
         SDL_Rect rect = { x1, y1, static_cast<Uint16>(x2 - x1 + 1), static_cast<Uint16>(y2 - y1 + 1) };
-        SDL_FillRect(m_handle.get(), &rect, color);
+        SDL_FillSurfaceRect(m_handle.get(), &rect, color);
     }
 }
 
@@ -915,7 +906,7 @@ uint32_t Surface::get_pixel_unlocked(int16_t x, int16_t y)
         return 0;
     }
     
-    int bpp = m_handle->format->BytesPerPixel;
+    int bpp = SDL_BYTESPERPIXEL(m_handle->format);
     uint8_t *p = (uint8_t *)m_handle->pixels + y * m_handle->pitch + x * bpp;
 
     switch (bpp) {

@@ -483,7 +483,7 @@ bool MenuBarWidget::handleKey(const SDL_keysym& keysym)
 {
     // --- closed: Alt+<mnemonic> opens the matching menu ---
     if (m_open < 0) {
-        if ((keysym.mod & (KMOD_LALT | KMOD_RALT))
+        if ((keysym.mod & (SDL_KMOD_LALT | SDL_KMOD_RALT))
             && keysym.sym >= 'a' && keysym.sym <= 'z') {
             for (int i = 0; i < static_cast<int>(m_menus.size()); ++i) {
                 if (mnemonicChar(m_menus[i].name) == static_cast<int>(keysym.sym)) {

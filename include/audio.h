@@ -62,7 +62,10 @@ public:
 
 private:
     void setup();
-    static void callback(void *userdata, Uint8 *buf, int len);
+    // SDL3 audio-stream "get more data" callback (pull model): assemble PCM
+    // into a scratch buffer and push it with SDL_PutAudioStreamData.
+    static void SDLCALL callback(void *userdata, SDL_AudioStream *stream,
+                                 int additional_amount, int total_amount);
     static void toFloat(int channels, const int16_t *in, float *out,
                         size_t in_frames, size_t out_frames);
     static std::pair<std::vector<int16_t>, bool> primeStream(Stream* stream, size_t max_samples);
@@ -98,7 +101,7 @@ private:
     int m_channels = 0; // 0 until setup() succeeds
     int m_device_rate = 0;
     int m_device_channels = 0;
-    SDL_AudioDeviceID m_device_id = 0;
+    SDL_AudioStream* m_stream = nullptr;  // SDL3: owns the bound playback device
     std::atomic<float> m_volume{1.0f};
     std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};

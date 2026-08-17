@@ -872,7 +872,7 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
 /**
  * @brief Sets the priority of the calling thread.
  *
- * This is a cross-platform wrapper around SDL_SetThreadPriority.
+ * This is a cross-platform wrapper around SDL_SetCurrentThreadPriority.
  *
  * @param priority The desired thread priority.
  */
@@ -894,7 +894,7 @@ void System::setThreadPriority(ThreadPriority priority) {
     break;
   }
 
-  if (SDL_SetThreadPriority(sdl_priority) < 0) {
+  if (!SDL_SetCurrentThreadPriority(sdl_priority)) {  // SDL3: returns bool
     Debug::log("system", "Warning: Failed to set thread priority: ", SDL_GetError());
   } else {
     Debug::log("system", "Thread priority set successfully");

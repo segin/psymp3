@@ -37,7 +37,7 @@ bool ensureSDLAudioSubsystem()
         }
 
         Debug::log("audio", "Audio::setup: Initializing SDL audio subsystem on demand");
-        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+        if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {  // SDL3: returns bool
             Debug::log("audio", "Unable to init SDL audio subsystem: ", SDL_GetError());
             init_ok = false;
             return;
@@ -112,9 +112,10 @@ Audio::~Audio() {
         m_decoder_thread.join();
     }
     
-    if (m_device_id != 0) {
-        SDL_CloseAudioDevice(m_device_id);
-        m_device_id = 0;
+    if (m_stream) {
+        // SDL3: destroying the stream unbinds and closes its device.
+        SDL_DestroyAudioStream(m_stream);
+        m_stream = nullptr;
     }
 }
 
@@ -125,7 +126,7 @@ Audio::~Audio() {
  * of the current stream and registers the static `callback` function to be called by SDL.
  */
 void Audio::setup() {
-    SDL_AudioSpec desired{}, obtained{};
+    SDL_AudioSpec desired{};
 
     if (!ensureSDLAudioSubsystem()) {
         // No usable audio backend (no ALSA/Pulse/PipeWire, etc.). Throw like the
@@ -142,9 +143,9 @@ void Audio::setup() {
 
     // Use m_current_stream_raw_ptr to get rate and channels
     desired.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
-    desired.format = AUDIO_S16; /* Always, I hope */
+    desired.format = SDL_AUDIO_S16; /* native-endian signed 16-bit */
     desired.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
-    Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: AUDIO_S16");
+    Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: SDL_AUDIO_S16");
 
     // A stream reporting zero rate or channels is malformed; opening the device
     // would let the audio callback divide by zero (SIGFPE). Throw so the caller
@@ -155,42 +156,30 @@ void Audio::setup() {
                                     std::to_string(m_rate) + ", channels=" +
                                     std::to_string(m_channels) + ")");
     }
-    desired.samples = 512; /* 512 sample frames for FFT / low-latency callback pacing */
-    desired.callback = callback;
-    desired.userdata = this;
-    
-    m_device_id = SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, 0);
-    if (m_device_id == 0) {
+
+    // SDL3: open the default playback device with our source format and attach
+    // the pull callback. SDL converts from this format (m_rate, m_channels,
+    // S16) to the device's native format internally, so we always feed PCM in
+    // our own format and there is no separate "obtained" spec to reconcile.
+    m_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+                                         &desired, callback, this);
+    if (!m_stream) {
         // Surface the failure instead of leaving a half-built Audio whose
         // callback never runs (silent, non-advancing "Playing" wedge). The
         // Player construction sites catch this and skip the track.
         throw InvalidMediaException(std::string("Unable to open audio device: ") + SDL_GetError());
-    } else {
-        // Log what SDL actually gave us
-        Debug::log("audio", "Audio::setup: Obtained format - rate: ", obtained.freq, "Hz, channels: ", static_cast<int>(obtained.channels),
-                  ", format: ", (obtained.format == AUDIO_S16 ? "AUDIO_S16" : "OTHER"), ", samples: ", obtained.samples);
-        
-        // Check for format mismatch
-        if (obtained.freq != desired.freq) {
-            Debug::log("audio", "WARNING: Sample rate mismatch! Requested ", desired.freq, "Hz but got ", obtained.freq, "Hz");
-        }
-        if (obtained.channels != desired.channels) {
-            Debug::log("audio", "WARNING: Channel count mismatch! Requested ", static_cast<int>(desired.channels), " but got ", static_cast<int>(obtained.channels));
-        }
-        if (obtained.format != desired.format) {
-            Debug::log("audio", "WARNING: Audio format mismatch! Requested AUDIO_S16 but got format ", obtained.format);
-        }
-        if (obtained.samples != desired.samples) {
-            // Not fatal: the FFT path in callback() adapts to the negotiated
-            // buffer size rather than assuming 512 frames. Logged for visibility.
-            Debug::log("audio", "WARNING: Audio buffer size mismatch! Requested ", desired.samples, " sample frames but got ", obtained.samples);
-        }
+    }
 
-        // Keep the stream format separate from the device format. The player
-        // position math and stream reuse checks are based on decoded PCM, not
-        // the backend's obtained device configuration.
-        m_device_rate = obtained.freq;
-        m_device_channels = obtained.channels;
+    // Report the device's actual negotiated format for diagnostics/consumers.
+    SDL_AudioSpec device_spec{};
+    if (SDL_GetAudioDeviceFormat(SDL_GetAudioStreamDevice(m_stream), &device_spec, nullptr)) {
+        m_device_rate = device_spec.freq;
+        m_device_channels = device_spec.channels;
+        Debug::log("audio", "Audio::setup: Device format - rate: ", device_spec.freq,
+                   "Hz, channels: ", static_cast<int>(device_spec.channels));
+    } else {
+        m_device_rate = m_rate;
+        m_device_channels = m_channels;
     }
 
     // The equalizer processes decoded PCM at the stream's own rate/channels
@@ -204,8 +193,10 @@ void Audio::setup() {
  */
 void Audio::play(bool go) {
     m_playing = go;
-    if (m_device_id != 0) {
-        SDL_PauseAudioDevice(m_device_id, go ? 0 : 1);
+    if (m_stream) {
+        // SDL3: resume/pause the device the stream is bound to.
+        if (go) SDL_ResumeAudioStreamDevice(m_stream);
+        else    SDL_PauseAudioStreamDevice(m_stream);
     }
     
     // Notify decoder thread about playback state change
@@ -489,7 +480,8 @@ void Audio::decoderThreadLoop() {
  * @param buf A pointer to the hardware audio buffer to be filled.
  * @param len The length of the buffer in bytes.
  */
-void Audio::callback(void *userdata, Uint8 *buf, int len) {
+void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
+                             int additional_amount, int /*total_amount*/) {
     // Name the audio thread on its first run.
     // 'thread_local' ensures this is only done once per thread.
     thread_local bool thread_name_set = false;
@@ -499,6 +491,19 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         System::pinThreadToRole(System::CpuRole::Playback);
         thread_name_set = true;
     }
+
+    // SDL3 pull model: we are asked for `additional_amount` more bytes and hand
+    // no output buffer. Assemble PCM into a reused thread-local scratch buffer
+    // (the same fill/FFT/volume/EQ pipeline as before) and push it to `stream`.
+    if (additional_amount <= 0) {
+        return;
+    }
+    const int len = additional_amount;
+    thread_local std::vector<uint8_t> scratch;
+    if (static_cast<int>(scratch.size()) < len) {
+        scratch.resize(static_cast<size_t>(len));
+    }
+    Uint8 *buf = scratch.data();
 
     Audio *self = static_cast<Audio *>(userdata);
     size_t bytes_copied = 0;
@@ -588,6 +593,9 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         size_t eq_frames = (bytes_copied / sizeof(int16_t)) / static_cast<size_t>(self->m_channels);
         self->m_eq.process(reinterpret_cast<int16_t*>(buf), eq_frames, self->m_channels);
     }
+
+    // SDL3: hand the assembled PCM (data + any silence fill) to the stream.
+    SDL_PutAudioStreamData(stream, buf, len);
 }
 
 /**
