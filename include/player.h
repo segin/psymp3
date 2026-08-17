@@ -275,6 +275,9 @@ class Player
         void installWin32Menu();
         void handleWin32MenuCommand(unsigned int cmd_id);
         void syncWin32MenuState(); // reflect current fft mode / delay / intensity as radio checks
+        // SDL3: native window messages arrive through this hook (installed via
+        // SDL_SetWindowsMessageHook) instead of SDL_SYSWMEVENT.
+        static bool SDLCALL win32MessageHook(void* userdata, MSG* msg);
 #endif
         // Reflect Playing vs. not on the Windows taskbar thumbnail-toolbar
         // play/pause button. Compiles to a no-op off Windows, so call sites need

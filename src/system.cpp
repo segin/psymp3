@@ -574,13 +574,10 @@ HWND System::getHwnd() {
     return 0;
   }
 
-  SDL_SysWMinfo wmi{};
-  SDL_VERSION(&wmi.version);
-
-  if (!SDL_GetWindowWMInfo(s_main_window, &wmi))
-    return 0;
-
-  return wmi.info.win.window;
+  // SDL3: the HWND is exposed as a window property (SDL_syswm.h is gone).
+  return static_cast<HWND>(SDL_GetPointerProperty(
+      SDL_GetWindowProperties(s_main_window),
+      SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
 }
 
 /**

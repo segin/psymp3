@@ -1631,18 +1631,49 @@ void Player::updateTaskbarPlayState()
 }
 
 #ifdef _WIN32
+// SDL3 replacement for the old SDL_SYSWMEVENT pump case. Called by SDL for
+// native window messages on the main thread during event pumping. Native menu
+// bar clicks arrive as WM_COMMAND (HIWORD(wParam)==0 for menus); taskbar
+// thumbnail-toolbar clicks arrive as WM_COMMAND with HIWORD==THBN_CLICKED. The
+// transport/menu handlers mostly enqueue user events, so calling them here is
+// consistent with the previous deferred behavior. Return true to let SDL
+// continue processing the message.
+bool SDLCALL Player::win32MessageHook(void* userdata, MSG* msg)
+{
+    Player* self = static_cast<Player*>(userdata);
+    if (self && msg) {
+        if (msg->message == System::taskbarButtonCreatedMessage()) {
+            // The taskbar button now exists (first show, or Explorer restarted)
+            // -- (re)add the transport thumb buttons.
+            if (self->system) {
+                self->system->setupThumbBar();
+                self->system->updateThumbBarPlayState(self->state == PlayerState::Playing);
+            }
+        } else if (msg->message == WM_COMMAND && HIWORD(msg->wParam) == THBN_CLICKED) {
+            switch (LOWORD(msg->wParam)) {
+                case PSYMP3_THUMB_PREV:      self->prevTrack(); break;
+                case PSYMP3_THUMB_PLAYPAUSE: self->playPause(); break;
+                case PSYMP3_THUMB_NEXT:      self->nextTrack(); break;
+            }
+        } else if (msg->message == WM_COMMAND && HIWORD(msg->wParam) == 0) {
+            self->handleWin32MenuCommand(LOWORD(msg->wParam));
+        }
+    }
+    return true;
+}
+
 void Player::installWin32Menu()
 {
     SDL_Window* win = screen ? screen->getWindowHandle() : nullptr;
     if (!win) {
         return;
     }
-    SDL_SysWMinfo wmi;
-    SDL_VERSION(&wmi.version);
-    if (!SDL_GetWindowWMInfo(win, &wmi) || wmi.subsystem != SDL_SYSWM_WINDOWS) {
+    // SDL3: obtain the HWND from window properties (SDL_syswm.h is gone).
+    HWND hwnd = static_cast<HWND>(SDL_GetPointerProperty(
+        SDL_GetWindowProperties(win), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+    if (!hwnd) {
         return;
     }
-    HWND hwnd = wmi.info.win.window;
 
     HMENU bar = CreateMenu();
 
@@ -1684,9 +1715,10 @@ void Player::installWin32Menu()
     m_win32_intensity_menu = intensity_menu;
 
     SetMenu(hwnd, bar);
-    // Route native window messages (WM_COMMAND) to us via SDL, and re-assert the
-    // client size so the menu bar doesn't eat into the visualization area.
-    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+    // SDL3: SDL_SYSWMEVENT is gone; native window messages (WM_COMMAND) reach
+    // us through a Windows message hook instead. Re-assert the client size so
+    // the menu bar doesn't eat into the visualization area.
+    SDL_SetWindowsMessageHook(win32MessageHook, this);
     screen->reapplyWindowSize();
     syncWin32MenuState();
 }
@@ -2905,10 +2937,10 @@ bool Player::Initialize(const PlayerOptions& options) {
     System::setMainWindow(screen->getWindowHandle());
     Debug::log("system", "System::getHwnd: ", std::hex, System::getHwnd());
     system->InitializeIPC(this);
-    // Route native window messages (WM_COMMAND from the taskbar thumb buttons,
-    // and the shell's TaskbarButtonCreated) to us through SDL. The native menu
-    // bar isn't installed on this branch, so enable it here rather than there.
-    SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+    // SDL3: route native window messages (WM_COMMAND from the taskbar thumb
+    // buttons, and the shell's TaskbarButtonCreated) to us through a Windows
+    // message hook (SDL_SYSWMEVENT no longer exists).
+    SDL_SetWindowsMessageHook(win32MessageHook, this);
     // Try once now; if the taskbar button doesn't exist yet the shell will send
     // TaskbarButtonCreated later and the SYSWMEVENT handler retries.
     system->setupThumbBar();
@@ -3274,6 +3306,14 @@ void Player::EventLoop() {
             case SDL_EVENT_DROP_BEGIN:
                 m_dropped_paths.clear();
                 break;
+            case SDL_EVENT_DROP_POSITION:
+                // SDL3 payoff: fired continuously while files are dragged over
+                // the window, carrying the cursor position (event.drop.x/y) and
+                // event.drop.windowID. This is the hook the Playlist Manager
+                // will use to render the live insertion bar during an external
+                // drag — the drop-target hit-testing and blue-bar UI are the
+                // follow-up feature work this migration unblocks.
+                break;
             case SDL_EVENT_DROP_FILE:
                 // SDL3: the path is in event.drop.data and is owned by SDL
                 // (valid for this event only) — copy it, do not free it.
@@ -3285,32 +3325,9 @@ void Player::EventLoop() {
                 openDroppedPaths();
                 break;
 
-#ifdef _WIN32
-            case SDL_SYSWMEVENT:
-                // Native menu bar clicks arrive as WM_COMMAND (HIWORD(wParam)==0
-                // for menus, 1 for accelerators). Taskbar thumbnail-toolbar
-                // clicks also arrive as WM_COMMAND but with HIWORD==THBN_CLICKED.
-                if (event.syswm.msg && event.syswm.msg->subsystem == SDL_SYSWM_WINDOWS) {
-                    const auto& w = event.syswm.msg->msg.win;
-                    if (w.msg == System::taskbarButtonCreatedMessage()) {
-                        // The taskbar button now exists (first show, or Explorer
-                        // restarted) -- (re)add the transport thumb buttons.
-                        if (system) {
-                            system->setupThumbBar();
-                            system->updateThumbBarPlayState(state == PlayerState::Playing);
-                        }
-                    } else if (w.msg == WM_COMMAND && HIWORD(w.wParam) == THBN_CLICKED) {
-                        switch (LOWORD(w.wParam)) {
-                            case PSYMP3_THUMB_PREV:      prevTrack(); break;
-                            case PSYMP3_THUMB_PLAYPAUSE: playPause(); break;
-                            case PSYMP3_THUMB_NEXT:      nextTrack(); break;
-                        }
-                    } else if (w.msg == WM_COMMAND && HIWORD(w.wParam) == 0) {
-                        handleWin32MenuCommand(LOWORD(w.wParam));
-                    }
-                }
-                break;
-#endif
+                // SDL3: native Windows messages (WM_COMMAND from the menu bar
+                // and taskbar thumb buttons, TaskbarButtonCreated) are handled
+                // in win32MessageHook rather than as SDL_SYSWMEVENT here.
 
                 // check for keypresses
             case SDL_EVENT_KEY_DOWN:
