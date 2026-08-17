@@ -113,8 +113,16 @@ Audio::~Audio() {
     }
     
     if (m_stream) {
-        // SDL3: destroying the stream unbinds and closes its device.
-        SDL_DestroyAudioStream(m_stream);
+        // SDL3: destroying the stream unbinds and closes its device. But
+        // SDL_Quit()/SDL_QuitSubSystem(SDL_INIT_AUDIO) already frees every audio
+        // stream, and this destructor can run afterwards (the Audio object
+        // outlives Player::Cleanup()'s SDL_Quit()). Handing an already-freed
+        // stream back to SDL_DestroyAudioStream dereferences freed memory and
+        // crashes — unlike SDL2's integer-ID SDL_CloseAudioDevice, which was a
+        // safe no-op. Only destroy while the audio subsystem is still up.
+        if (SDL_WasInit(SDL_INIT_AUDIO)) {
+            SDL_DestroyAudioStream(m_stream);
+        }
         m_stream = nullptr;
     }
 }
