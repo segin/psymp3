@@ -223,8 +223,12 @@ inline int closeSocket(int sock) {
 }
 #endif
 #if defined(_WIN32)
-#define _UNICODE
-#define UNICODE
+// Define with an explicit value (not empty): SDL3's <SDL3/SDL_main.h> tests
+// `#if defined(UNICODE) && UNICODE`, which is a syntax error ("expected value")
+// when UNICODE expands to nothing. The Windows headers only test defined-ness,
+// so a value of 1 satisfies both.
+#define _UNICODE 1
+#define UNICODE 1
 #include <windows.h>
 #include <psapi.h>
 #include <initguid.h>
