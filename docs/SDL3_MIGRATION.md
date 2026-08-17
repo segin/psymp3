@@ -1,6 +1,6 @@
 # SDL2 → SDL3 Migration Plan — PsyMP3
 
-> **Status:** Authoritative migration plan. Phase 0 (build system: `configure.ac` `sdl2`→`sdl3`, includes `<SDL.h>`→`<SDL3/SDL.h>`) is already in progress in parallel. This document governs the **code** migration that follows.
+> **Status (2026-08-17):** IMPLEMENTED on branch `sdl3-migration`. Phases 0–5 are done; the Linux unity build and the Windows x86_64 llvm-mingw cross-build are both green under `-Werror`, linking real SDL3 (3.4.14). Remaining: full 3-arch Windows confirmation and the Playlist Manager live-drop-bar *feature* (the `SDL_EVENT_DROP_POSITION` case + plumbing is landed; the UI is follow-up work). This document is retained as the record of the migration.
 > **Target:** SDL 3.4.14 (`/usr/include/SDL3`).
 > **Scope:** Derived from seven subsystem inventories, each verified against the installed SDL3 headers.
 
