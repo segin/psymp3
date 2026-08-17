@@ -326,6 +326,15 @@ void ListViewWidget::cancelDrag()
     invalidate();
 }
 
+void ListViewWidget::setDropIndicator(int gap)
+{
+    if (gap == m_drop_indicator) {
+        return;
+    }
+    m_drop_indicator = gap;
+    invalidate();
+}
+
 int ListViewWidget::rowAt(int relative_y) const
 {
     if (relative_y < BORDER || m_row_height <= 0) {
@@ -412,9 +421,12 @@ void ListViewWidget::draw(Surface& surface)
         }
     }
 
-    // Drag-to-reorder drop marker: a 2px line at the insertion gap.
-    if (m_dragging && m_drag_gap >= m_top && m_drag_gap <= m_top + rows) {
-        int my = BORDER + (m_drag_gap - m_top) * m_row_height;
+    // Insertion marker (2px blue line at the gap): shown for an internal
+    // drag-to-reorder and, identically, for an external file drag hovering over
+    // the list (m_drop_indicator, set via setDropIndicator()).
+    const int marker_gap = m_dragging ? m_drag_gap : m_drop_indicator;
+    if (marker_gap >= m_top && marker_gap <= m_top + rows) {
+        int my = BORDER + (marker_gap - m_top) * m_row_height;
         int y0 = std::min(my, h - BORDER - 2);
         surface.hline(BORDER, BORDER + content_w - 1, y0, 0, 0, 200, 255);
         surface.hline(BORDER, BORDER + content_w - 1, y0 + 1, 0, 0, 200, 255);

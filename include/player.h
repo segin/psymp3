@@ -265,8 +265,17 @@ class Player
         // play from the first resulting track; shared tail of the Ctrl+O
         // chooser and drag-and-drop. No-op if the expansion yields nothing.
         void openPathsReplacingPlaylist(const std::vector<std::string>& paths);
-        // SDL_EVENT_DROP_COMPLETE: commit the accumulated drop batch like "Open".
+        // SDL_EVENT_DROP_COMPLETE: commit the accumulated drop batch. Inserts at
+        // the Playlist Manager's hovered gap when the drop landed on its list;
+        // otherwise replaces the playlist like "Open".
         void openDroppedPaths();
+        // Live drop bar: map an SDL drop point (window pixels) to an insertion
+        // gap in the open Playlist Manager's list, returning false if the point
+        // is not over that list. Drives both the hover indicator and the insert.
+        bool dropPointToListGap(float win_x, float win_y, int& out_gap) const;
+        // Recompute m_pm_drop_gap and the list's blue insertion bar from an SDL
+        // drop point (window pixels); clears both when not over the list.
+        void updateDropIndicator(float win_x, float win_y);
         // Empty the playlist and stop playback.
         void clearPlaylist();
 #ifdef _WIN32
@@ -441,6 +450,13 @@ class Player
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
         std::unique_ptr<WindowFrameWidget> m_test_window_p;
+        // The Playlist Manager's list (non-owning; valid while m_test_window_p is
+        // open) and the insertion gap under an in-progress external file drag
+        // (-1 when the drag is not over the list). Used for the live drop bar;
+        // the list auto-refreshes from the playlist generation counter after an
+        // insert, so no client back-pointer is needed.
+        ListViewWidget* m_pm_list = nullptr;
+        int m_pm_drop_gap = -1;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
 
         // Equalizer window (hosted in m_random_windows so it reuses the frame

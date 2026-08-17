@@ -50,6 +50,14 @@ public:
     void ensureVisible(int index);
     // Abandon any in-progress drag-to-reorder (e.g. the list changed underneath).
     void cancelDrag();
+    // External file drag-and-drop: show the blue insertion bar at `gap`
+    // (0..itemCount) without an internal reorder drag; -1 hides it. gapAt()
+    // (below) maps a widget-relative y to a gap for hit-testing the drop point.
+    void setDropIndicator(int gap);
+    int  getDropIndicator() const { return m_drop_indicator; }
+    // Insertion gap (0..itemCount) for a widget-relative y — public wrapper of
+    // gapAt() for hit-testing an external file drop.
+    int  dropGapAt(int relative_y) const { return gapAt(relative_y); }
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
     // Fired when a row is double-clicked (the row index).
     void setOnActivate(std::function<void(int)> cb) { m_on_activate = std::move(cb); }
@@ -114,6 +122,7 @@ private:
     int m_drag_start_y = 0;
     bool m_dragging = false;
     int m_drag_gap = -1;
+    int m_drop_indicator = -1; // external-drop insertion gap (blue bar); -1 = none
 
     // Double-click detection for row activation.
     static constexpr Uint32 DOUBLE_CLICK_MS = 500;

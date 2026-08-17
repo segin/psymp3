@@ -355,6 +355,10 @@ public:
         layout(width, height);
     }
 
+    // The list widget, exposed so the Player can drive the external-drop
+    // insertion bar (SDL_EVENT_DROP_POSITION) and hit-test the drop point.
+    ListViewWidget* list() const { return m_list; }
+
     // Rebuild the list from the playlist, then select `desired_sel` (clamped) and
     // scroll it into view. Used on open and after every edit.
     void reload(int desired_sel)
@@ -1295,8 +1299,73 @@ void Player::openDroppedPaths()
     Debug::log("player", "Drag-and-drop: ", m_dropped_paths.size(), " item(s) dropped, ",
                paths.size(), " openable path(s) after expansion");
     m_dropped_paths.clear();
-    if (!paths.empty()) {
-        openPathsReplacingPlaylist(paths);
+
+    // Consume the hover gap and clear the live insertion bar regardless of
+    // outcome.
+    const int gap = m_pm_drop_gap;
+    m_pm_drop_gap = -1;
+    if (m_pm_list) {
+        m_pm_list->setDropIndicator(-1);
+    }
+
+    if (paths.empty()) {
+        return;
+    }
+
+    if (gap >= 0 && m_pm_list && playlist) {
+        // Dropped onto the Playlist Manager's list: insert the files at the
+        // hovered gap instead of replacing the playlist. insertEntries keeps
+        // the playback cursor on the current track (so playback is undisturbed)
+        // and bumps the playlist generation, so the manager's per-frame check
+        // reloads the list view automatically.
+        std::vector<Playlist::Entry> entries = expandChosenPaths(paths);
+        if (!entries.empty()) {
+            playlist->insertEntries(gap, entries);
+        }
+        return;
+    }
+
+    openPathsReplacingPlaylist(paths);
+}
+
+bool Player::dropPointToListGap(float win_x, float win_y, int& out_gap) const
+{
+    if (!m_test_window_p || !m_pm_list) {
+        return false;
+    }
+    ListViewWidget* list = m_pm_list;
+    Widget* client = m_test_window_p->getClientArea();
+    if (!client) {
+        return false;
+    }
+    // SDL drop coordinates are in window pixels; the widget tree works in
+    // logical coordinates, so divide by the display scale as the mouse path does.
+    const int scale = screen ? std::max(1, screen->getLogicalScale()) : 1;
+    const int lx = static_cast<int>(win_x / scale);
+    const int ly = static_cast<int>(win_y / scale);
+
+    // Absolute logical rect of the list = window frame origin + client-area
+    // offset within the frame + list offset within the client.
+    const Rect win = m_test_window_p->getPos();
+    const Rect cpos = client->getPos();
+    const Rect lpos = list->getPos();
+    const int list_x = win.x() + cpos.x() + lpos.x();
+    const int list_y = win.y() + cpos.y() + lpos.y();
+
+    if (lx < list_x || lx >= list_x + lpos.width() ||
+        ly < list_y || ly >= list_y + lpos.height()) {
+        return false;
+    }
+    out_gap = list->dropGapAt(ly - list_y);
+    return true;
+}
+
+void Player::updateDropIndicator(float win_x, float win_y)
+{
+    int gap = -1;
+    m_pm_drop_gap = dropPointToListGap(win_x, win_y, gap) ? gap : -1;
+    if (m_pm_list) {
+        m_pm_list->setDropIndicator(m_pm_drop_gap);
     }
 }
 
@@ -3307,19 +3376,22 @@ void Player::EventLoop() {
                 m_dropped_paths.clear();
                 break;
             case SDL_EVENT_DROP_POSITION:
-                // SDL3 payoff: fired continuously while files are dragged over
-                // the window, carrying the cursor position (event.drop.x/y) and
-                // event.drop.windowID. This is the hook the Playlist Manager
-                // will use to render the live insertion bar during an external
-                // drag — the drop-target hit-testing and blue-bar UI are the
-                // follow-up feature work this migration unblocks.
+                // SDL3: fired continuously while files are dragged over the
+                // window. Track the cursor over the open Playlist Manager's list
+                // and render the live blue insertion bar; request a repaint so it
+                // follows the pointer.
+                updateDropIndicator(event.drop.x, event.drop.y);
+                synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
                 break;
             case SDL_EVENT_DROP_FILE:
                 // SDL3: the path is in event.drop.data and is owned by SDL
-                // (valid for this event only) — copy it, do not free it.
+                // (valid for this event only) — copy it, do not free it. The
+                // per-file position is the authoritative drop point, so refresh
+                // the target gap from it in case no DROP_POSITION preceded.
                 if (event.drop.data) {
                     m_dropped_paths.emplace_back(event.drop.data);
                 }
+                updateDropIndicator(event.drop.x, event.drop.y);
                 break;
             case SDL_EVENT_DROP_COMPLETE:
                 openDroppedPaths();
@@ -3953,6 +4025,8 @@ void Player::togglePlaylistManager()
     if (m_test_window_p) {
         deferWidgetDeletion(std::move(m_test_window_p));
         m_test_window_p = nullptr;
+        m_pm_list = nullptr;
+        m_pm_drop_gap = -1;
         showToast("Playlist Manager: Closed");
         return;
     }
@@ -3967,6 +4041,8 @@ void Player::togglePlaylistManager()
 
     auto client = std::make_unique<PlaylistManagerClient>(client_w, client_h, font.get(), this);
     PlaylistManagerClient* client_ptr = client.get();
+    m_pm_list = client_ptr->list();  // for the external-drop insertion bar
+    m_pm_drop_gap = -1;
     m_test_window_p->setClientArea(std::move(client));
     m_test_window_p->refresh();
 
@@ -3989,6 +4065,8 @@ void Player::togglePlaylistManager()
             deferWidgetDeletion(std::move(m_test_window_p));
             m_test_window_p = nullptr;
         }
+        m_pm_list = nullptr;
+        m_pm_drop_gap = -1;
         showToast("Playlist Manager: Closed");
     });
 
