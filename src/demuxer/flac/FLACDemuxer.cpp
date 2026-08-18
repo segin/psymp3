@@ -120,6 +120,14 @@ uint64_t FLACDemuxer::getPosition() const
     return getPosition_unlocked();
 }
 
+uint64_t FLACDemuxer::getGranulePosition(uint32_t stream_id) const
+{
+    // DemuxedStream::seekTo() re-bases its sample counter from this after a
+    // seek; the base-class default of 0 would restamp all frames from zero.
+    (void)stream_id;
+    return getAtomicCurrentSample();
+}
+
 
 // ============================================================================
 // Private Unlocked Implementations (assume locks are held)
@@ -688,6 +696,11 @@ retry_frame_read:
     
     MediaChunk chunk(1, std::move(data));
     chunk.timestamp_samples = frame.sample_offset;
+    // Ogg-style granule (first sample past this frame). DemuxedStream derives
+    // absolute frame timestamps only from granule_position; without it every
+    // seek resets the delivered timestamps to 0, which collapses
+    // Stream::getPosition() and makes the next keyboard seek start from ~0.
+    chunk.granule_position = frame.sample_offset + frame.block_size;
     chunk.is_keyframe = true;  // All FLAC frames are keyframes (independent)
     chunk.file_offset = frame.file_offset;
     
