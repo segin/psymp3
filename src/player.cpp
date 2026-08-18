@@ -2210,9 +2210,7 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
     }
 
     // These are always updated based on player settings, not track info
-    m_labels.at("scale")->setText("log scale = " + std::to_string(scalefactor));
-    m_labels.at("decay")->setText("decay = " + std::to_string(decayfactor));
-    m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
+    applyDebugLabels();
 
 #ifdef _WIN32
     // Keep the native menu's radio checks in sync with keyboard-driven changes
@@ -2548,7 +2546,7 @@ bool Player::updateGUI()
         if (elapsed >= 1000) {
             int fps = static_cast<int>(fps_frame_count * 1000.0 / elapsed + 0.5);
             auto it = m_labels.find("fps");
-            if (it != m_labels.end())
+            if (it != m_labels.end() && m_show_debug)
                 it->second->setText("FPS: " + std::to_string(fps));
             fps_window_start = now;
             fps_frame_count = 0;
@@ -3185,10 +3183,10 @@ bool Player::Initialize(const PlayerOptions& options) {
         hud_panel_ptr->addChild(std::move(indicators));
     }
     // Shifted down by the menu-bar height so the in-app menu bar doesn't cover them.
-    add_label(app_widget,     "scale",    Rect(545, MenuBarWidget::BAR_H + 0, 95, 16));
-    add_label(app_widget,     "decay",    Rect(545, MenuBarWidget::BAR_H + 15, 95, 16));
-    add_label(app_widget,     "fft_mode", Rect(545, MenuBarWidget::BAR_H + 30, 95, 16));
-    add_label(app_widget,     "fps",      Rect(545, MenuBarWidget::BAR_H + 45, 95, 16));
+    add_label(app_widget,     "scale",    Rect(525, MenuBarWidget::BAR_H + 0, 115, 16));
+    add_label(app_widget,     "decay",    Rect(525, MenuBarWidget::BAR_H + 15, 115, 16));
+    add_label(app_widget,     "fft_mode", Rect(525, MenuBarWidget::BAR_H + 30, 115, 16));
+    add_label(app_widget,     "fps",      Rect(525, MenuBarWidget::BAR_H + 45, 115, 16));
 
     app_widget.addChild(std::move(hud_panel));
 
@@ -3314,6 +3312,8 @@ bool Player::Initialize(const PlayerOptions& options) {
         settings_items.push_back(MI::sep());
         settings_items.push_back(MI::leaf("2x &Zoom", [this]{ toggleZoom(); },
             [this]{ return screen && screen->getLogicalScale() == 2; }, "G"));
+        settings_items.push_back(MI::leaf("Show &Debug", [this]{ toggleShowDebug(); },
+            [this]{ return m_show_debug; }));
         menu_bar->addMenu("&Settings", std::move(settings_items));
 
         // Help: the About dialog (also on F1).
@@ -4203,6 +4203,8 @@ void Player::loadSettings()
                                                                           : LoopMode::None;
         } else if (key == "persist_playlist") {
             m_persist_playlist = (value == "1" || value == "true");
+        } else if (key == "show_debug") {
+            m_show_debug = (value == "1" || value == "true");
         } else if (key == "zoom") {
             if (parseSettingDouble(value, v)) {
                 m_pending_scale = (static_cast<int>(v) >= 2) ? 2 : 1;
@@ -4249,6 +4251,7 @@ void Player::saveSettings() const
     f << "shuffle=" << (getShuffle() ? 1 : 0) << "\n";
     f << "loop_mode=" << static_cast<int>(getLoopMode()) << "\n";
     f << "persist_playlist=" << (m_persist_playlist ? 1 : 0) << "\n";
+    f << "show_debug=" << (m_show_debug ? 1 : 0) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
 }
@@ -4276,6 +4279,31 @@ void Player::togglePersistPlaylist()
     m_persist_playlist = !m_persist_playlist;
     saveSettings(); // persist the setting itself immediately
     showToast(m_persist_playlist ? "Persist Playlist: On" : "Persist Playlist: Off");
+}
+
+void Player::applyDebugLabels()
+{
+    if (m_show_debug) {
+        char decay_buf[24];
+        snprintf(decay_buf, sizeof(decay_buf), "decay = %.1f", decayfactor);
+        m_labels.at("scale")->setText("log scale = " + std::to_string(scalefactor));
+        m_labels.at("decay")->setText(decay_buf);
+        m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
+        // The FPS label repopulates on its next one-second measurement tick.
+    } else {
+        m_labels.at("scale")->setText("");
+        m_labels.at("decay")->setText("");
+        m_labels.at("fft_mode")->setText("");
+        m_labels.at("fps")->setText("");
+    }
+}
+
+void Player::toggleShowDebug()
+{
+    m_show_debug = !m_show_debug;
+    saveSettings(); // persist the setting itself immediately
+    applyDebugLabels();
+    showToast(m_show_debug ? "Show Debug: On" : "Show Debug: Off");
 }
 
 void Player::toggleEqualizerWindow()

@@ -229,6 +229,10 @@ class Player
         bool getPersistPlaylist() const { return m_persist_playlist; }
         void togglePersistPlaylist();
 
+        // "Show Debug" (Settings menu): gates the scale/decay/FFT-mode/FPS
+        // overlay labels in the top-right corner. Persisted in psymp3.conf.
+        void toggleShowDebug();
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
@@ -312,6 +316,7 @@ class Player
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void seekToInternal(unsigned long pos, bool monitor_seek_errors);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
+        void applyDebugLabels(); // set or blank the debug overlay per m_show_debug
         
         // Initialization and cleanup
         bool Initialize(const PlayerOptions& options);
@@ -500,6 +505,7 @@ class Player
         // Persisted playback options. Shuffle/loop are applied once the playlist
         // exists (see the pending-* members), matching how zoom is deferred.
         bool m_persist_playlist = false;
+        bool m_show_debug = false;
         bool m_pending_shuffle = false;
         LoopMode m_pending_loop_mode = LoopMode::None;
         bool m_session_playlist_saved = false; // avoid double-saving at teardown
