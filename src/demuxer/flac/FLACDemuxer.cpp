@@ -818,27 +818,18 @@ bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
         FLAC_DEBUG("[seekTo] Byte estimation seek failed, falling back to beginning");
     }
     
-    // Strategy 4: Fallback to beginning
-    // This is the last resort when all other strategies fail
-    FLAC_DEBUG("[seekTo] All seek strategies failed, seeking to beginning");
-    
-    if (m_handler->seek(static_cast<off_t>(m_audio_data_offset), SEEK_SET) != 0) {
-        // Requirement 22.5: Maintain current position on seek failure
-        FLAC_DEBUG("[seekTo] Failed to seek to beginning, restoring position");
-        m_current_offset = saved_offset;
-        updateCurrentSample_unlocked(saved_sample);
-        updateEOF_unlocked(saved_eof);
-        reportError("IO", "Failed to seek to beginning for fallback");
-        return false;
-    }
-    
-    m_current_offset = m_audio_data_offset;
-    updateCurrentSample_unlocked(0);
-    updateEOF_unlocked(false);
-    
-    FLAC_DEBUG("[seekTo] Seek complete, now at sample ", m_current_sample, 
-               " (offset ", m_current_offset, ")");
-    return true;
+    // All strategies failed. Do NOT silently restart the track: resetting to
+    // sample 0 and reporting success made the player jump to the beginning on
+    // any failed seek (the reported "restart on arrow-key seek" bug). Seeking to
+    // timestamp 0 is already handled at the top of this function, so a failure
+    // here means "couldn't reach the target" — restore the pre-seek position and
+    // report failure so the caller keeps playing where it was.
+    FLAC_DEBUG("[seekTo] All seek strategies failed; restoring position and reporting failure");
+    m_current_offset = saved_offset;
+    updateCurrentSample_unlocked(saved_sample);
+    updateEOF_unlocked(saved_eof);
+    m_handler->seek(static_cast<off_t>(saved_offset), SEEK_SET); // restore the file cursor
+    return false;
 }
 
 bool FLACDemuxer::isEOF_unlocked() const
@@ -5190,12 +5181,15 @@ bool FLACDemuxer::parseFramesToSample_unlocked(uint64_t target_sample)
         if (findNextFrameBoundary_unlocked(frame, next_offset)) {
             m_current_offset = next_offset;
         } else {
-            uint32_t frame_size = calculateFrameSize_unlocked(frame);
-            if (frame_size == 0) {
-                frame_size = 64;  // Conservative fallback
-            }
-            m_current_offset = frame.file_offset + frame_size;
-            FLAC_DEBUG("[parseFramesToSample] Next sync not found; using size estimate ", frame_size);
+            // Boundary not located. Do NOT jump by calculateFrameSize_unlocked's
+            // max_frame_size estimate: it overshoots every frame smaller than the
+            // stream maximum and skips past the frame that contains the target,
+            // so the walk runs past the target and fails (which then restarts the
+            // track via the caller's fallback). Instead advance just past this
+            // frame's 2-byte sync so the next findNextFrame_unlocked re-scans and
+            // lands on the true next frame — slower, but it never skips a frame.
+            m_current_offset = frame.file_offset + 2;
+            FLAC_DEBUG("[parseFramesToSample] Next sync not found; re-scanning from ", m_current_offset);
         }
 
         // Update position to end of this frame
