@@ -284,18 +284,25 @@ void ChainedStream::seekTo(unsigned long pos)
         }
     }
 
-    // 3. Open the target track. This replaces the current stream.
-    try {
-        m_current_stream = MediaFile::open(m_paths[target_track_index]);
-    } catch (const std::exception& e) {
-        Debug::log("demuxer", "ChainedStream::seekTo: Failed to open track ", m_paths[target_track_index], ": ", e.what());
-        m_current_stream.reset();
-        m_eof = true; // Can't play anymore.
-        return;
+    // 3. Open the target track unless it is the one already playing: a reopen
+    //    discards the demuxer's frame index and the codec state and re-parses
+    //    the whole container, which is far too heavy for the repeated seeks of
+    //    a held arrow key.
+    const bool same_track = m_current_stream && m_current_track_index > 0 &&
+                            (m_current_track_index - 1) == target_track_index;
+    if (!same_track) {
+        try {
+            m_current_stream = MediaFile::open(m_paths[target_track_index]);
+        } catch (const std::exception& e) {
+            Debug::log("demuxer", "ChainedStream::seekTo: Failed to open track ", m_paths[target_track_index], ": ", e.what());
+            m_current_stream.reset();
+            m_eof = true; // Can't play anymore.
+            return;
+        }
+        m_current_track_index = target_track_index + 1; // Next call to openNextTrack will open track after this one.
     }
 
     // 4. Update state variables to reflect the new track.
-    m_current_track_index = target_track_index + 1; // Next call to openNextTrack will open track after this one.
     m_samples_played_in_previous_tracks = cumulative_samples; // This is the sum of samples before the target track.
 
     // 5. Seek within the newly opened track.
