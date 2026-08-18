@@ -2479,21 +2479,36 @@ bool Player::updateGUI()
 
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
-        // This implements a continuous seek while arrow keys are held down.
-        const long long seek_increment_ms = 500; // Seek by 500ms per frame
+        // Continuous seek while an arrow key is held. Advance the target by
+        // wall-clock time (~8s of audio per real second held) so the scrub speed
+        // doesn't depend on frame rate, and throttle the actual (expensive) seek
+        // so we don't hammer the demuxer with a full seek every frame — that
+        // repeated re-seeking is what made FLAC seeks fail (and restart) so often.
+        const uint32_t now = SDL_GetTicks();
+        if (m_seek_last_tick_ms == 0) {
+            m_seek_last_tick_ms = now;
+        }
+        const uint32_t dt = now - m_seek_last_tick_ms;
+        m_seek_last_tick_ms = now;
+        const long long delta_ms = (8000LL * dt) / 1000; // 8000 ms audio / 1000 ms real
 
         if (m_seek_direction == 1) { // backwards
-            long long signed_pos = m_seek_position_ms;
-            signed_pos -= seek_increment_ms;
+            long long signed_pos = static_cast<long long>(m_seek_position_ms) - delta_ms;
             m_seek_position_ms = (signed_pos < 0) ? 0 : static_cast<unsigned long>(signed_pos);
         } else if (m_seek_direction == 2) { // forwards
-            m_seek_position_ms += seek_increment_ms;
+            m_seek_position_ms += delta_ms;
             if (total_len_ms > 0 && m_seek_position_ms > total_len_ms) {
                 m_seek_position_ms = total_len_ms;
             }
         }
-        seekTo(m_seek_position_ms); // Request the asynchronous seek
-        current_pos_ms = m_seek_position_ms; // Update local var for instant visual feedback
+        current_pos_ms = m_seek_position_ms; // instant visual feedback every frame
+
+        // Throttle: issue an actual seek at most ~every 100 ms; the final commit
+        // to the exact target happens on key release (handleKeyUp).
+        if (now - m_seek_last_exec_ms >= 100) {
+            m_seek_last_exec_ms = now;
+            seekTo(m_seek_position_ms);
+        }
     }
 
     // Update progress bar widget
@@ -2915,16 +2930,22 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
         case SDLK_LEFT:
-            if (m_seek_left_indicator) {
+        case SDLK_RIGHT:
+            if (keysym.sym == SDLK_LEFT && m_seek_left_indicator) {
                 m_seek_left_indicator->fadeOut();
             }
-            m_seek_direction = 0;
-            break;
-        case SDLK_RIGHT:
-            if (m_seek_right_indicator) {
+            if (keysym.sym == SDLK_RIGHT && m_seek_right_indicator) {
                 m_seek_right_indicator->fadeOut();
             }
-            m_seek_direction = 0;
+            // Commit a final seek to the exact scrub target — the render-loop
+            // throttle may have skipped the last accumulated position — then
+            // reset the throttle timers so the next hold starts fresh.
+            if (m_seek_direction != 0) {
+                m_seek_direction = 0;
+                seekTo(m_seek_position_ms);
+            }
+            m_seek_last_tick_ms = 0;
+            m_seek_last_exec_ms = 0;
             break;
         default:
             break;

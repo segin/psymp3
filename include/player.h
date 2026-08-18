@@ -376,9 +376,13 @@ class Player
         Uint16 m_drag_start_x = 0;
         unsigned long m_drag_position_ms = 0;
         
-        // For keyboard seeking
+        // For keyboard seeking. The scrub target advances by wall-clock time
+        // (framerate-independent) and the actual, expensive seek is throttled;
+        // m_seek_last_tick_ms times the advance, m_seek_last_exec_ms the throttle.
         uint8_t m_seek_direction = 0;
         unsigned long m_seek_position_ms = 0;
+        uint32_t m_seek_last_tick_ms = 0;
+        uint32_t m_seek_last_exec_ms = 0;
 
         // UI Widget tree
         Widget* m_ui_root; // Reference to ApplicationWidget singleton
