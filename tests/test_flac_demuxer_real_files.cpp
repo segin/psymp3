@@ -445,7 +445,7 @@ int main() {
         std::cout << "\nNo FLAC files found in " << TEST_DATA_DIR << std::endl;
         std::cout << "Skipping real file tests (this is OK if no test files are available)" << std::endl;
         std::cout << "\n✓ Test suite completed (no files to test)" << std::endl;
-        return 0;
+        return 77; // automake SKIP
     }
     
     std::cout << "\nDiscovered " << flac_files.size() << " FLAC file(s) in " << TEST_DATA_DIR << ":" << std::endl;

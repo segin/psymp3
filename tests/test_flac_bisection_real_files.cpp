@@ -38,6 +38,8 @@ static constexpr uint64_t SEEK_TOLERANCE_MS = 250;
 
 // Test file paths - files in tests/data directory
 static const std::vector<std::string> TEST_FILES = {
+    "data/fixture.flac",
+    "tests/data/fixture.flac",
     "tests/data/RADIO GA GA.flac",
     "tests/data/04 Time.flac",
     "tests/data/11 Everlong.flac",
@@ -495,7 +497,7 @@ int main() {
             std::cout << "  - " << f << std::endl;
         }
         std::cout << "\nSkipping real file tests (no test data available)" << std::endl;
-        return 0;  // Not a failure, just no test data
+        return 77; // automake SKIP
     }
     
     std::cout << "\nFound " << available_files.size() << " test file(s):" << std::endl;

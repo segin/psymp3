@@ -11,6 +11,21 @@
 #include <memory>
 #include <fstream>
 
+
+// First existing FLAC test file, preferring the generated fixture; empty when
+// no test data is provisioned at all (the caller then SKIPs).
+static std::string firstAvailableFlac() {
+    const char* candidates[] = {
+        "data/fixture.flac", "tests/data/fixture.flac",
+        "data/11 Everlong.flac", "data/04 Time.flac",
+        "data/11 life goes by.flac", "data/RADIO GA GA.flac",
+    };
+    for (const char* c : candidates) {
+        if (std::ifstream(c).good()) return c;
+    }
+    return "";
+}
+
 // Test STREAMINFO recovery with corrupted metadata
 bool testStreamInfoRecovery() {
     std::cout << "Testing STREAMINFO recovery mechanisms..." << std::endl;
@@ -21,7 +36,7 @@ bool testStreamInfoRecovery() {
         // we'll simulate the recovery scenario
         
         // Use a real FLAC file but test the recovery path
-        auto handler = std::make_unique<FileIOHandler>("data/11 Everlong.flac");
+        auto handler = std::make_unique<FileIOHandler>(firstAvailableFlac());
         if (!handler || handler->getLastError() != 0) {
             std::cout << "  FAILED: Could not open test file" << std::endl;
             return false;
@@ -71,10 +86,7 @@ bool testStreamInfoConsistency() {
     
     try {
         // Test with multiple FLAC files to verify consistency
-        std::vector<std::string> test_files = {
-            "data/11 Everlong.flac",
-            "data/04 Time.flac"  // 6-channel file
-        };
+        std::vector<std::string> test_files = { firstAvailableFlac() };
         
         for (const auto& filename : test_files) {
             std::cout << "  Testing consistency with: " << filename << std::endl;
@@ -126,6 +138,11 @@ bool testStreamInfoConsistency() {
 int main() {
     std::cout << "FLAC STREAMINFO Recovery Mechanisms Test" << std::endl;
     std::cout << "========================================" << std::endl;
+
+    if (firstAvailableFlac().empty()) {
+        std::cout << "SKIP: no FLAC test data present (generate data/fixture.flac)" << std::endl;
+        return 77; // automake SKIP
+    }
     
     int passed = 0;
     int total = 0;

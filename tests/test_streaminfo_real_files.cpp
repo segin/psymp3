@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <fstream>
 
 // Test STREAMINFO parsing with real FLAC files
 bool testStreamInfoWithFile(const std::string& filename) {
@@ -93,17 +94,31 @@ int main() {
     std::cout << "FLAC STREAMINFO Real File Verification Test" << std::endl;
     std::cout << "===========================================" << std::endl;
     
-    // List of FLAC files to test
-    std::vector<std::string> test_files = {
+    // List of FLAC files to test. The generated fixture comes first; the
+    // personal library files are legacy fallbacks for local runs. Files that
+    // do not exist are skipped rather than counted as failures.
+    std::vector<std::string> candidate_files = {
+        "data/fixture.flac",
+        "tests/data/fixture.flac",
         "data/11 Everlong.flac",
-        "data/11 life goes by.flac", 
+        "data/11 life goes by.flac",
         "data/RADIO GA GA.flac",
         "data/04 Time.flac"  // 6-channel file for multichannel testing
     };
-    
+    std::vector<std::string> test_files;
+    for (const auto& f : candidate_files) {
+        if (std::ifstream(f).good()) {
+            test_files.push_back(f);
+        }
+    }
+    if (test_files.empty()) {
+        std::cout << "SKIP: no FLAC test data present (generate data/fixture.flac)" << std::endl;
+        return 77; // automake SKIP
+    }
+
     int passed = 0;
     int total = 0;
-    
+
     for (const auto& filename : test_files) {
         total++;
         if (testStreamInfoWithFile(filename)) {

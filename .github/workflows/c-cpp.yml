@@ -40,7 +40,8 @@ jobs:
           libdbus-1-dev \
           dbus-daemon \
           zlib1g-dev \
-          libflac-dev
+          libflac-dev \
+          flac
         # taglib 2 renamed the -dev package; fall back for older suites.
         apt-get install -y libtag-dev || apt-get install -y libtag1-dev
         # No Qt/GTK on purpose: CI is the one build that exercises the
@@ -66,6 +67,16 @@ jobs:
       run: |
         make -j$(nproc)
         echo "Build completed successfully"
+
+    - name: Generate FLAC test fixture
+      run: |
+        # The real-file FLAC tests skip without fixtures; give them a synthetic
+        # one (10s of stereo noise) so that coverage actually runs in CI.
+        mkdir -p tests/data
+        head -c 1764000 /dev/urandom > /tmp/noise.raw
+        flac --force-raw-format --channels=2 --bps=16 --sample-rate=44100 \
+             --sign=signed --endian=little -o tests/data/fixture.flac /tmp/noise.raw
+        ls -la tests/data/
 
     - name: Run tests (if any)
       run: |
