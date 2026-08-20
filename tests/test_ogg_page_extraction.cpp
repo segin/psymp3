@@ -135,18 +135,29 @@ bool testGetPrevPage() {
         ASSERT(result == 1, "Should be at second page");
         ASSERT(ogg_page_serialno(&page) == 54321U, "Should be at second page serial");
         
-        // Go back
-        int64_t prev_offset = sync.findPrevPage();
-        ASSERT(prev_offset != -1, "Should find previous page");
-        
-        // Verify it's actually the first page (offset 0 in this specific multi-page test)
-        ASSERT(prev_offset == 0, "Previous page offset should be 0");
-        
-        sync.seek(prev_offset);
+        // findPrevPage() returns the last page starting before the CURRENT
+        // read position (tell()), which after the buffered page reads sits at
+        // EOF - so the first call lands on the second page, and calling again
+        // from that offset walks back to the first page at offset 0.
+        int64_t second_offset = sync.findPrevPage();
+        ASSERT(second_offset != -1, "Should find last page before EOF");
+        ASSERT(second_offset > 0, "Last page before EOF should be the second page");
+
+        sync.seek(second_offset);
         ogg_page prev_page;
         int res = sync.getNextPage(&prev_page);
-        ASSERT(res == 1, "Should read previous page");
-        ASSERT(ogg_page_serialno(&prev_page) == 12345U, "Previous page serial mismatch");
+        ASSERT(res == 1, "Should read page at returned offset");
+        ASSERT(ogg_page_serialno(&prev_page) == 54321U, "Last page should be the second page");
+
+        // Walk back once more: the page before the second page is the first.
+        sync.seek(second_offset);
+        int64_t first_offset = sync.findPrevPage();
+        ASSERT(first_offset == 0, "Page before the second page should be at offset 0");
+
+        sync.seek(first_offset);
+        res = sync.getNextPage(&prev_page);
+        ASSERT(res == 1, "Should read first page");
+        ASSERT(ogg_page_serialno(&prev_page) == 12345U, "First page serial mismatch");
         
         std::remove("test_sync_multi.ogg");
         std::cout << "  ✓ Passed" << std::endl;

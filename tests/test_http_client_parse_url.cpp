@@ -137,8 +137,12 @@ protected:
         // 16. Basic Auth (currently fails)
         ASSERT_FALSE(HTTPClient::parseURL("http://user:pass@example.com/path", host, port, path, isHttps), "Basic Auth URLs are not currently supported");
 
-        // 17. IPv6 (currently fails)
-        ASSERT_FALSE(HTTPClient::parseURL("http://[::1]:8080/path", host, port, path, isHttps), "IPv6 URLs are not currently supported");
+        // 17. Bracketed IPv6 literal: the address's colons must not be
+        // mistaken for the port separator; only the part after ']' is a port.
+        ASSERT_TRUE(HTTPClient::parseURL("http://[::1]:8080/path", host, port, path, isHttps), "Bracketed IPv6 URL should parse");
+        ASSERT_EQUALS(std::string("::1"), host, "IPv6 host should be extracted without brackets");
+        ASSERT_EQUALS(8080, port, "IPv6 URL port should be 8080");
+        ASSERT_EQUALS(std::string("/path"), path, "IPv6 URL path should be /path");
 
         // 18. Empty scheme
         ASSERT_FALSE(HTTPClient::parseURL("://example.com", host, port, path, isHttps), "Empty scheme should fail");

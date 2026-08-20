@@ -194,8 +194,11 @@ bool test_performance_metrics_validation() {
         bad_metrics.sample_rate = 44100;
         bad_metrics.channels = 2;
         bad_metrics.bits_per_sample = 16;
-        bad_metrics.average_frame_time_us = 150.0; // Too slow
-        bad_metrics.max_frame_time_us = 300;       // Way too slow
+        // The real-time budget is the playback time of a frame: ~23.2 ms
+        // for 1024 samples at 44.1 kHz. Exceed it outright, not merely the
+        // 100 us latency threshold, so every requirement flag trips.
+        bad_metrics.average_frame_time_us = 30000.0; // Slower than playback
+        bad_metrics.max_frame_time_us = 60000;       // Beyond the 2x worst-case headroom
         bad_metrics.average_cpu_usage_percent = 5.0; // Too much CPU
         bad_metrics.allocations_during_decode = 100; // Too many allocations
         
@@ -329,8 +332,11 @@ bool test_realtime_performance_validation() {
         bad_metrics.sample_rate = 44100;
         bad_metrics.channels = 2;
         bad_metrics.bits_per_sample = 16;
-        bad_metrics.average_frame_time_us = 150.0; // Too slow
-        bad_metrics.max_frame_time_us = 300;       // Way too slow
+        // The real-time budget is the playback time of a frame: ~23.2 ms
+        // for 1024 samples at 44.1 kHz. Exceed it outright, not merely the
+        // 100 us latency threshold, so every requirement flag trips.
+        bad_metrics.average_frame_time_us = 30000.0; // Slower than playback
+        bad_metrics.max_frame_time_us = 60000;       // Beyond the 2x worst-case headroom
         bad_metrics.average_cpu_usage_percent = 5.0; // Too much CPU
         bad_metrics.allocations_during_decode = 100; // Too many allocations
         

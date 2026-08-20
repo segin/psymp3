@@ -133,10 +133,13 @@ bool test_mpris_metadata() {
     ASSERT_EQ(static_cast<int64_t>(180000000), dict["mpris:length"].get<int64_t>());
     ASSERT_EQ(std::string("file:///path/to/art.jpg"), dict["mpris:artUrl"].get<std::string>());
     
-    // Test clearing metadata
+    // Test clearing metadata. The dict is never fully empty: MPRIS2 requires
+    // mpris:trackid in Metadata, so a synthesized default path remains.
     metadata.clear();
     ASSERT_TRUE(metadata.isEmpty());
-    ASSERT_EQ(0u, metadata.toDBusDict().size());
+    auto cleared_dict = metadata.toDBusDict();
+    ASSERT_EQ(1u, cleared_dict.size());
+    ASSERT_TRUE(cleared_dict.find("mpris:trackid") != cleared_dict.end());
     
     return true;
 }
@@ -272,10 +275,13 @@ bool test_metadata_partial_data() {
     
     ASSERT_FALSE(metadata.isEmpty());
     
+    // Two set fields plus the always-present mpris:trackid (MPRIS2 requires
+    // it, so a default path is synthesized even when no track id is set).
     auto dict = metadata.toDBusDict();
-    ASSERT_EQ(2u, dict.size());
+    ASSERT_EQ(3u, dict.size());
     ASSERT_TRUE(dict.find("xesam:artist") != dict.end());
     ASSERT_TRUE(dict.find("mpris:length") != dict.end());
+    ASSERT_TRUE(dict.find("mpris:trackid") != dict.end());
     ASSERT_TRUE(dict.find("xesam:title") == dict.end());
     ASSERT_TRUE(dict.find("xesam:album") == dict.end());
     
