@@ -40,6 +40,7 @@ SDL_Cursor* WindowFrameWidget::s_cursor_ew = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
 SDL_Cursor* WindowFrameWidget::s_default_cursor = nullptr;
 WindowFrameWidget* WindowFrameWidget::s_active_window = nullptr;
+WindowFrameWidget* WindowFrameWidget::s_open_menu_window = nullptr;
 // Default maximize area = the full 640x404 base canvas; the Player narrows this
 // to the region below the menu bar via setMaximizeArea().
 Rect WindowFrameWidget::s_maximize_bounds = Rect(0, 0, 640, 404);
@@ -184,6 +185,9 @@ WindowFrameWidget::~WindowFrameWidget()
     if (s_active_window == this) {
         s_active_window = nullptr;
     }
+    if (s_open_menu_window == this) {
+        s_open_menu_window = nullptr;
+    }
     s_instance_count--;
     if (s_instance_count == 0) {
         // The last window standing is usually destroyed during Player teardown,
@@ -215,6 +219,15 @@ WindowFrameWidget::~WindowFrameWidget()
     }
 }
 
+void WindowFrameWidget::BlitTo(Surface& target)
+{
+    Widget::BlitTo(target); // frame surface, then children (clipped)
+    if (m_system_menu_open) {
+        const Rect pos = getPos();
+        drawSystemMenu(target, pos.x(), pos.y());
+    }
+}
+
 void WindowFrameWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
 {
     Widget::recursiveBlitTo(target, parent_absolute_pos); // frame, then children
@@ -224,6 +237,32 @@ void WindowFrameWidget::recursiveBlitTo(Surface& target, const Rect& parent_abso
                        parent_absolute_pos.x() + pos.x(),
                        parent_absolute_pos.y() + pos.y());
     }
+}
+
+bool WindowFrameWidget::dismissOpenSystemMenuAt(int x, int y)
+{
+    WindowFrameWidget* w = s_open_menu_window;
+    if (!w) {
+        return false;
+    }
+    const Rect pos = w->getPos();
+    const int rx = x - pos.x();
+    const int ry = y - pos.y();
+    // Clicks inside the menu (item selection) or on the titlebar icon (its
+    // toggle closes the menu itself) stay with the owner.
+    if (rx >= w->m_system_menu_x && rx < w->m_system_menu_x + SYSTEM_MENU_WIDTH &&
+        ry >= w->m_system_menu_y && ry < w->m_system_menu_y + SYSTEM_MENU_HEIGHT) {
+        return false;
+    }
+    const Rect icon = w->getControlMenuBounds();
+    if (rx >= icon.x() && rx < icon.x() + icon.width() &&
+        ry >= icon.y() && ry < icon.y() + icon.height()) {
+        return false;
+    }
+    w->m_system_menu_open = false;
+    s_open_menu_window = nullptr;
+    w->rebuildSurface(); // un-invert the titlebar icon
+    return true;
 }
 
 void WindowFrameWidget::requestClose()
@@ -278,6 +317,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 // widget, after which no members may be touched). Greyed items
                 // close the menu without acting, exactly like classic Windows.
                 m_system_menu_open = false;
+                s_open_menu_window = nullptr;
                 rebuildSurface();
                 if (hit >= 0 && !systemMenuItemEnabled(hit)) {
                     return true;
@@ -343,6 +383,9 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                     // Double-click detected - close window
                     m_double_click_pending = false;
                     m_system_menu_open = false;
+                    if (s_open_menu_window == this) {
+                        s_open_menu_window = nullptr;
+                    }
                     if (m_on_close) {
                         // Copy the callback to the stack before invoking: it may
                         // destroy this widget (and thus the m_on_close member),
@@ -358,6 +401,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                     m_double_click_pending = true;
                     
                     m_system_menu_open = !m_system_menu_open;
+                    s_open_menu_window = m_system_menu_open ? this : nullptr;
                     if (m_system_menu_open) {
                         m_system_menu_x = control_menu_bounds.x();
                         m_system_menu_y = control_menu_bounds.y() + control_menu_bounds.height();

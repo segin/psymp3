@@ -3556,6 +3556,14 @@ void Player::EventLoop() {
             }
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             {
+                // An open control menu swallows the click that dismisses it:
+                // clicking anywhere in PsyMP3 outside the menu (and outside its
+                // titlebar icon, whose own toggle closes it) just closes it.
+                if (WindowFrameWidget::dismissOpenSystemMenuAt(
+                        static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
+                    break;
+                }
+
                 TextInputWidget::clearFocusedWidget();
                 ListViewWidget::clearFocusedWidget();
                 ButtonWidget::clearFocusedWidget();

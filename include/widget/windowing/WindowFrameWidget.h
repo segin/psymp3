@@ -101,7 +101,7 @@ public:
      * @param relative_y Y coordinate relative to this widget
      * @return true if the event was handled
      */
-    virtual bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
+    virtual bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     
     /**
      * @brief Handles mouse motion events.
@@ -110,7 +110,7 @@ public:
      * @param relative_y Y coordinate relative to this widget
      * @return true if the event was handled
      */
-    virtual bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y);
+    virtual bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
     
     /**
      * @brief Handles mouse button up events.
@@ -119,12 +119,12 @@ public:
      * @param relative_y Y coordinate relative to this widget
      * @return true if the event was handled
      */
-    virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
+    virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
 
     /**
      * @brief Forwards a mouse wheel event to the client area under the cursor.
      */
-    virtual bool handleMouseWheel(int delta, int relative_x, int relative_y);
+    virtual bool handleMouseWheel(int delta, int relative_x, int relative_y) override;
 
     /**
      * @brief Gets the window title.
@@ -159,7 +159,7 @@ public:
      * @brief Gets the z-order level of this window.
      * @return Z-order level (higher values are in front)
      */
-    int getZOrder() const { return m_z_order; }
+    int getZOrder() const override { return m_z_order; }
 
     /**
      * @brief Returns whether this frame is currently the active window.
@@ -190,8 +190,17 @@ public:
 
     // Composites the frame and children, then draws the open control menu on
     // top: the menu overlays the client area (a child), so painting it into the
-    // frame's own surface would leave it covered.
+    // frame's own surface would leave it covered. BlitTo is the path the
+    // Player's window renderer actually uses; recursiveBlitTo covers frames
+    // nested as ordinary children.
+    void BlitTo(Surface& target) override;
     void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
+
+    // If a control menu is open and the (logical, app-space) click point lies
+    // outside both the menu and its owner's titlebar icon, dismiss the menu
+    // and return true — the dismissing click is consumed. The icon is spared
+    // so its own click-toggle still closes the menu.
+    static bool dismissOpenSystemMenuAt(int x, int y);
     // Close this window exactly as its titlebar close control would (fires the
     // owner's on-close callback, which typically destroys the widget).
     void requestClose();
@@ -311,6 +320,7 @@ private:
     static SDL_Cursor* s_cursor_ns;
     static SDL_Cursor* s_default_cursor;
     static WindowFrameWidget* s_active_window;
+    static WindowFrameWidget* s_open_menu_window; // frame with its control menu open
     // Shared area maximized windows fill (set by the Player).
     static Rect s_maximize_bounds;
     
