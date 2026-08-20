@@ -70,7 +70,7 @@ private:
     bool m_capture_on_down;
 };
 
-SDL_MouseButtonEvent makeMouseButtonEvent(Uint32 type, Uint8 button = SDL_BUTTON_LEFT)
+SDL_MouseButtonEvent makeMouseButtonEvent(SDL_EventType type, Uint8 button = SDL_BUTTON_LEFT)
 {
     SDL_MouseButtonEvent event{};
     event.type = type;
@@ -81,7 +81,7 @@ SDL_MouseButtonEvent makeMouseButtonEvent(Uint32 type, Uint8 button = SDL_BUTTON
 SDL_MouseMotionEvent makeMouseMotionEvent()
 {
     SDL_MouseMotionEvent event{};
-    event.type = SDL_MOUSEMOTION;
+    event.type = SDL_EVENT_MOUSE_MOTION;
     return event;
 }
 
@@ -145,7 +145,7 @@ protected:
         child->setPos(Rect(-10, 0, 40, 20));
         parent->addChild(std::move(child));
 
-        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_MOUSEBUTTONDOWN);
+        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);
         bool handled = parent->handleMouseDown(down, 0, 5);
 
         ASSERT_TRUE(handled, "Parent should dispatch to the partially visible child");
@@ -177,9 +177,9 @@ protected:
         panel->addChild(std::move(child));
         root->addChild(std::move(panel));
 
-        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_MOUSEBUTTONDOWN);
+        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);
         SDL_MouseMotionEvent motion = makeMouseMotionEvent();
-        SDL_MouseButtonEvent up = makeMouseButtonEvent(SDL_MOUSEBUTTONUP);
+        SDL_MouseButtonEvent up = makeMouseButtonEvent(SDL_EVENT_MOUSE_BUTTON_UP);
 
         ASSERT_TRUE(root->handleMouseDown(down, 75, 65), "Root should deliver the mouse-down event to the nested child");
         ASSERT_TRUE(child_ptr->hasMouseCapture(), "Nested child should capture the mouse during the drag");
@@ -212,9 +212,9 @@ protected:
         frame.setClientArea(std::move(client));
 
         const Rect client_pos = frame.getClientArea()->getPos();
-        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_MOUSEBUTTONDOWN);
+        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);
         SDL_MouseMotionEvent motion = makeMouseMotionEvent();
-        SDL_MouseButtonEvent up = makeMouseButtonEvent(SDL_MOUSEBUTTONUP);
+        SDL_MouseButtonEvent up = makeMouseButtonEvent(SDL_EVENT_MOUSE_BUTTON_UP);
 
         ASSERT_TRUE(frame.handleMouseDown(down, client_pos.x() + 7, client_pos.y() + 9),
                     "Frame should forward client-area mouse-down events");
@@ -261,9 +261,9 @@ protected:
         window->addChild(std::move(panel));
         app.addWindow(std::move(window));
 
-        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_MOUSEBUTTONDOWN);
+        SDL_MouseButtonEvent down = makeMouseButtonEvent(SDL_EVENT_MOUSE_BUTTON_DOWN);
         SDL_MouseMotionEvent motion = makeMouseMotionEvent();
-        SDL_MouseButtonEvent up = makeMouseButtonEvent(SDL_MOUSEBUTTONUP);
+        SDL_MouseButtonEvent up = makeMouseButtonEvent(SDL_EVENT_MOUSE_BUTTON_UP);
 
         ASSERT_TRUE(app.handleMouseDown(down, 84, 71), "Application should deliver the initial mouse-down to the window subtree");
         ASSERT_TRUE(child_ptr->hasMouseCapture(), "Nested window child should capture the mouse");

@@ -45,8 +45,12 @@ size_t countNonBlackPixels(::Surface& surface)
     }
 
     const bool must_lock = SDL_MUSTLOCK(handle);
-    if (must_lock && SDL_LockSurface(handle) != 0) {
+    if (must_lock && !SDL_LockSurface(handle)) {
         throw std::runtime_error(std::string("SDL_LockSurface failed: ") + SDL_GetError());
+    }
+    const SDL_PixelFormatDetails* fmt = SDL_GetPixelFormatDetails(handle->format);
+    if (!fmt) {
+        throw std::runtime_error(std::string("SDL_GetPixelFormatDetails failed: ") + SDL_GetError());
     }
 
     size_t count = 0;
@@ -54,12 +58,12 @@ size_t countNonBlackPixels(::Surface& surface)
         auto* row = static_cast<uint8_t*>(handle->pixels) + y * handle->pitch;
         for (int x = 0; x < handle->w; ++x) {
             uint32_t pixel = 0;
-            std::memcpy(&pixel, row + x * handle->format->BytesPerPixel, handle->format->BytesPerPixel);
+            std::memcpy(&pixel, row + x * fmt->bytes_per_pixel, fmt->bytes_per_pixel);
 
             uint8_t r = 0;
             uint8_t g = 0;
             uint8_t b = 0;
-            SDL_GetRGB(pixel, handle->format, &r, &g, &b);
+            SDL_GetRGB(pixel, fmt, nullptr, &r, &g, &b);
             if (r != 0 || g != 0 || b != 0) {
                 ++count;
             }
@@ -81,8 +85,12 @@ size_t countNonTransparentPixels(::Surface& surface)
     }
 
     const bool must_lock = SDL_MUSTLOCK(handle);
-    if (must_lock && SDL_LockSurface(handle) != 0) {
+    if (must_lock && !SDL_LockSurface(handle)) {
         throw std::runtime_error(std::string("SDL_LockSurface failed: ") + SDL_GetError());
+    }
+    const SDL_PixelFormatDetails* fmt = SDL_GetPixelFormatDetails(handle->format);
+    if (!fmt) {
+        throw std::runtime_error(std::string("SDL_GetPixelFormatDetails failed: ") + SDL_GetError());
     }
 
     size_t count = 0;
@@ -90,10 +98,10 @@ size_t countNonTransparentPixels(::Surface& surface)
         auto* row = static_cast<uint8_t*>(handle->pixels) + y * handle->pitch;
         for (int x = 0; x < handle->w; ++x) {
             uint32_t pixel = 0;
-            std::memcpy(&pixel, row + x * handle->format->BytesPerPixel, handle->format->BytesPerPixel);
+            std::memcpy(&pixel, row + x * fmt->bytes_per_pixel, fmt->bytes_per_pixel);
 
             uint8_t a = 0;
-            SDL_GetRGBA(pixel, handle->format, nullptr, nullptr, nullptr, &a);
+            SDL_GetRGBA(pixel, fmt, nullptr, nullptr, nullptr, nullptr, &a);
             if (a != 0) {
                 ++count;
             }
@@ -121,8 +129,12 @@ size_t countNonBlackPixelsInRect(::Surface& surface, int x0, int y0, int width, 
     }
 
     const bool must_lock = SDL_MUSTLOCK(handle);
-    if (must_lock && SDL_LockSurface(handle) != 0) {
+    if (must_lock && !SDL_LockSurface(handle)) {
         throw std::runtime_error(std::string("SDL_LockSurface failed: ") + SDL_GetError());
+    }
+    const SDL_PixelFormatDetails* fmt = SDL_GetPixelFormatDetails(handle->format);
+    if (!fmt) {
+        throw std::runtime_error(std::string("SDL_GetPixelFormatDetails failed: ") + SDL_GetError());
     }
 
     size_t count = 0;
@@ -130,12 +142,12 @@ size_t countNonBlackPixelsInRect(::Surface& surface, int x0, int y0, int width, 
         auto* row = static_cast<uint8_t*>(handle->pixels) + y * handle->pitch;
         for (int x = x0; x < x1; ++x) {
             uint32_t pixel = 0;
-            std::memcpy(&pixel, row + x * handle->format->BytesPerPixel, handle->format->BytesPerPixel);
+            std::memcpy(&pixel, row + x * fmt->bytes_per_pixel, fmt->bytes_per_pixel);
 
             uint8_t r = 0;
             uint8_t g = 0;
             uint8_t b = 0;
-            SDL_GetRGB(pixel, handle->format, &r, &g, &b);
+            SDL_GetRGB(pixel, fmt, nullptr, &r, &g, &b);
             if (r != 0 || g != 0 || b != 0) {
                 ++count;
             }
