@@ -1642,8 +1642,12 @@ bool FLACCodec::testValidateReservedBitDepthValues(uint16_t bits_per_sample) con
 
 FLAC__int32 FLACCodec::testApplyProperSignExtension(FLAC__int32 sample, uint16_t source_bits) const {
     if (source_bits == 32) return sample;
-    FLAC__int32 sign_bit = 1 << (source_bits - 1);
-    return (sample ^ sign_bit) - sign_bit;
+    // Mask to the source width before folding the sign bit down so the
+    // operation is idempotent: raw bit patterns (0x80 @ 8 bits) and values
+    // that are already sign-extended (-128 as int32) both map to -128.
+    uint32_t raw = static_cast<uint32_t>(sample) & ((1u << source_bits) - 1u);
+    uint32_t sign_bit = 1u << (source_bits - 1);
+    return static_cast<FLAC__int32>((raw ^ sign_bit) - sign_bit);
 }
 
 bool FLACCodec::testValidateBitPerfectReconstruction(const FLAC__int32* original, 
