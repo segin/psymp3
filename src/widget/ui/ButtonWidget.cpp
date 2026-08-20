@@ -318,11 +318,18 @@ void ButtonWidget::drawButtonBackground(Surface& surface, bool pressed)
     // default). Symbol buttons (scrollbar arrows, titlebar controls) keep the
     // plain bevel their parents frame.
     if (!m_text.isEmpty()) {
-        // Black outline, outer ring corners notched.
+        // Black outline, outer ring corners notched. The notched corner pixels
+        // are punched fully transparent (Surface::pixel writes raw, unblended
+        // values) so the parent's background shows through, rather than
+        // leaving the face-grey fill behind on light backgrounds.
         surface.hline(1, width - 2, 0, 0, 0, 0, 255);
         surface.hline(1, width - 2, height - 1, 0, 0, 0, 255);
         surface.vline(0, 1, height - 2, 0, 0, 0, 255);
         surface.vline(width - 1, 1, height - 2, 0, 0, 0, 255);
+        surface.pixel(0, 0, 0, 0, 0, 0);
+        surface.pixel(width - 1, 0, 0, 0, 0, 0);
+        surface.pixel(0, height - 1, 0, 0, 0, 0);
+        surface.pixel(width - 1, height - 1, 0, 0, 0, 0);
         const int in = drawsBoldBorder() ? 2 : 1; // bevel inset = border width
         if (in == 2) {
             surface.rectangle(1, 1, width - 2, height - 2, 0, 0, 0, 255);
@@ -507,13 +514,14 @@ void ButtonWidget::drawButtonText(Surface& surface, bool enabled)
     const int text_y = std::max(2, (pos.height() - text_surface->height()) / 2 + offset);
     surface.Blit(*text_surface, Rect(text_x, text_y, text_surface->width(), text_surface->height()));
 
-    // Keyboard focus: the classic dotted rectangle, traced along the button
-    // face just inside the bevels (inside the white above, the grey below).
+    // Keyboard focus: the classic dotted rectangle. Vertically it sits on the
+    // face just inside the bevels (inside the white above, the grey below);
+    // horizontally it hugs the label's bounding box.
     if (s_focused_widget == this) {
         const int in = drawsBoldBorder() ? 2 : 1; // border width, as drawn
-        const int x0 = in + 2;
+        const int x0 = text_x - 3;
         const int y0 = in + 2;
-        const int x1 = pos.width() - 3 - in;
+        const int x1 = text_x + text_surface->width() + 2;
         const int y1 = pos.height() - 3 - in;
         for (int x = x0; x <= x1; ++x) {
             if (((x + y0) & 1) == 0) surface.pixel(x, y0, 0, 0, 0, 255);

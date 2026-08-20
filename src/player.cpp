@@ -268,7 +268,7 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
     });
     client->addChild(std::move(checkbox));
 
-    auto button = std::make_unique<ButtonWidget>(72, 22);
+    auto button = std::make_unique<ButtonWidget>(72, 24);
     button->setText(TagLib::String("Apply"), font);
     button->setPos(Rect(12, 104, 72, 22));
     button->setOnClick([checkbox_ptr]() {
@@ -494,7 +494,7 @@ public:
 
 private:
     static constexpr int MARGIN = 8;
-    static constexpr int BUTTON_H = 22;
+    static constexpr int BUTTON_H = 24;
     static constexpr int BUTTON_GAP = 6;
     static constexpr int NUM_BUTTONS = 5;
     static constexpr Uint32 RELOAD_DEBOUNCE_MS = 100; // cap external-refresh rate

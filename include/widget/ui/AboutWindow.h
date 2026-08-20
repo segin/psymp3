@@ -63,7 +63,7 @@ private:
     static constexpr int kPad = 12;          // margin around the text block
     static constexpr int kButtonStrip = 36;  // reserved bottom area for the button
     static constexpr int kButtonW = 72;
-    static constexpr int kButtonH = 22;
+    static constexpr int kButtonH = 24;
     static constexpr int kScrollStep = 28;   // px per wheel notch
     static constexpr int kScrollbarW = 16;   // matches ListViewWidget::SCROLLBAR_WIDTH
     static constexpr int kScrollbarGap = 2;  // gap between text and scrollbar
