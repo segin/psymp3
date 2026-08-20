@@ -13,6 +13,8 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+ListViewWidget* ListViewWidget::s_focused_widget = nullptr;
+
 ListViewWidget::ListViewWidget(int width, int height, Core::Font* font)
     : DrawableWidget(width, height)
     , m_font(font)
@@ -50,7 +52,69 @@ ListViewWidget::ListViewWidget(int width, int height, Core::Font* font)
     relayout();
 }
 
-ListViewWidget::~ListViewWidget() = default;
+ListViewWidget::~ListViewWidget()
+{
+    // Keyboard focus falls back to the main program when the focused list dies.
+    if (s_focused_widget == this) {
+        s_focused_widget = nullptr;
+    }
+}
+
+void ListViewWidget::focus()
+{
+    if (s_focused_widget == this) {
+        return;
+    }
+    if (s_focused_widget) {
+        s_focused_widget->blur();
+    }
+    s_focused_widget = this;
+    invalidate(); // show the focus dots
+}
+
+void ListViewWidget::blur()
+{
+    if (s_focused_widget == this) {
+        s_focused_widget = nullptr;
+        invalidate(); // hide the focus dots
+    }
+}
+
+void ListViewWidget::clearFocusedWidget()
+{
+    if (s_focused_widget) {
+        s_focused_widget->blur();
+    }
+}
+
+bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
+{
+    if (!s_focused_widget) {
+        return false;
+    }
+    ListViewWidget& w = *s_focused_widget;
+    if (w.m_items.empty()) {
+        return false;
+    }
+    switch (keysym.sym) {
+        case SDLK_UP:
+        case SDLK_DOWN: {
+            int sel = w.m_selected;
+            if (sel < 0) {
+                sel = w.m_top; // no cursor yet: start on the top visible row
+            } else {
+                sel += (keysym.sym == SDLK_DOWN) ? 1 : -1;
+            }
+            sel = std::max(0, std::min(sel, static_cast<int>(w.m_items.size()) - 1));
+            // setSelectedIndex() no-ops at the ends and, via ensureVisible(),
+            // scrolls exactly one row when the cursor crosses a viewport edge.
+            w.setSelectedIndex(sel);
+            return true;
+        }
+        default:
+            return false;
+    }
+}
 
 int ListViewWidget::listAreaWidth() const
 {
@@ -227,6 +291,7 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
 
     // Right-click a row: select it and raise the context menu at the cursor.
     if (event.button == SDL_BUTTON_RIGHT && isEnabled() && in_rows) {
+        focus();
         int row = rowAt(relative_y);
         if (row >= 0) {
             setSelectedIndex(row);
@@ -244,6 +309,7 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
     // on the same row within the double-click window activates it.
     if (relative_x >= BORDER && relative_x < BORDER + listAreaWidth() &&
         relative_y >= BORDER && relative_y < BORDER + listAreaHeight()) {
+        focus();
         int row = rowAt(relative_y);
         if (row >= 0) {
             Uint32 now = SDL_GetTicks();
@@ -280,7 +346,11 @@ bool ListViewWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int re
             return true;
         }
         m_dragging = true;
-        int gap = gapAt(relative_y);
+        // Above/below the rows: arm the edge auto-scroll (speed follows the
+        // pointer's current distance past the edge; see autoScrollTick()) and
+        // pin the marker to the visible boundary instead of a hidden gap.
+        updateScrollZone(relative_y);
+        int gap = (m_scroll_zone == 0) ? gapAt(relative_y) : edgeGap();
         if (gap != m_drag_gap) {
             m_drag_gap = gap;
             invalidate();
@@ -300,6 +370,8 @@ bool ListViewWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relati
         m_drag_from = -1;
         m_dragging = false;
         m_drag_gap = -1;
+        m_scroll_zone = 0;
+        m_scroll_distance = 0;
         invalidate();
         if (dragged && m_on_reorder) {
             // gap is the insertion slot (0..count); after removing `from`, a slot
@@ -323,16 +395,101 @@ void ListViewWidget::cancelDrag()
     m_drag_from = -1;
     m_dragging = false;
     m_drag_gap = -1;
+    m_scroll_zone = 0;
+    m_scroll_distance = 0;
     invalidate();
 }
 
 void ListViewWidget::setDropIndicator(int gap)
 {
+    if (gap < 0) {
+        // The external drag ended or left the list: stop any edge auto-scroll.
+        m_scroll_zone = 0;
+        m_scroll_distance = 0;
+    }
     if (gap == m_drop_indicator) {
         return;
     }
     m_drop_indicator = gap;
     invalidate();
+}
+
+void ListViewWidget::updateScrollZone(int relative_y)
+{
+    const int top_edge = BORDER;
+    const int bottom_edge = BORDER + listAreaHeight();
+    if (relative_y < top_edge) {
+        m_scroll_zone = -1;
+        m_scroll_distance = top_edge - relative_y;
+    } else if (relative_y >= bottom_edge) {
+        m_scroll_zone = 1;
+        m_scroll_distance = relative_y - bottom_edge + 1;
+    } else {
+        m_scroll_zone = 0;
+        m_scroll_distance = 0;
+    }
+}
+
+int ListViewWidget::edgeGap() const
+{
+    // The insertion gap at the visible boundary the auto-scroll is crossing.
+    return (m_scroll_zone < 0)
+        ? m_top
+        : std::min(m_top + visibleRows(), static_cast<int>(m_items.size()));
+}
+
+int ListViewWidget::externalDropHover(int relative_x, int relative_y)
+{
+    if (relative_x < 0 || relative_x >= getPos().width()) {
+        m_scroll_zone = 0;
+        m_scroll_distance = 0;
+        return -1;
+    }
+    updateScrollZone(relative_y);
+    if (m_scroll_zone == 0) {
+        return gapAt(relative_y);
+    }
+    // Beyond an edge: pin the insertion gap to the visible boundary; the
+    // auto-scroll tick keeps it pinned as the content crawls past.
+    return edgeGap();
+}
+
+void ListViewWidget::autoScrollTick()
+{
+    if (m_scroll_zone == 0 || m_items.empty()) {
+        return;
+    }
+    // The interval follows the pointer's CURRENT distance past the edge: just
+    // past it crawls (~6 rows/s), and it accelerates smoothly to a cap of about
+    // one row per 30 ms (~33 rows/s) at 65px out — moving the pointer back
+    // toward the edge slows the crawl again.
+    const Uint32 interval = static_cast<Uint32>(std::max(30, 160 - 2 * m_scroll_distance));
+    const Uint32 now = SDL_GetTicks();
+    if (now - m_last_autoscroll_ms < interval) {
+        return;
+    }
+    m_last_autoscroll_ms = now;
+    const int old_top = m_top;
+    setTop(m_top + m_scroll_zone);
+    if (m_top == old_top) {
+        return; // already at the end in this direction
+    }
+    // Keep the active insertion marker pinned to the boundary gap.
+    if (m_dragging) {
+        m_drag_gap = edgeGap();
+    } else if (m_drop_indicator >= 0) {
+        m_drop_indicator = edgeGap();
+    }
+    invalidate();
+}
+
+void ListViewWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    // Rendering runs once per frame, so it doubles as the auto-scroll clock:
+    // the list keeps crawling while the drag pointer holds still past an edge
+    // (neither mouse-motion nor drop-position events arrive without movement).
+    autoScrollTick();
+    DrawableWidget::recursiveBlitTo(target, parent_absolute_pos);
 }
 
 int ListViewWidget::rowAt(int relative_y) const
@@ -417,6 +574,23 @@ void ListViewWidget::draw(Surface& surface)
                 // SDL clips the blit to this surface; the scrollbar column then
                 // covers any overrun past the content width.
                 surface.Blit(*text, Rect(BORDER + 2, ty, text->width(), text->height()));
+            }
+        }
+
+        // Classic keyboard-focus rectangle: while this list holds keyboard
+        // focus, the cursor row gets a 1px dotted outline over its highlight.
+        if (selected && s_focused_widget == this) {
+            const int x0 = BORDER;
+            const int x1 = BORDER + content_w - 1;
+            const int y0 = row_y;
+            const int y1 = row_y + m_row_height - 1;
+            for (int x = x0; x <= x1; ++x) {
+                if (((x + y0) & 1) == 0) surface.pixel(x, y0, 255, 255, 255, 255);
+                if (((x + y1) & 1) == 0) surface.pixel(x, y1, 255, 255, 255, 255);
+            }
+            for (int y = y0 + 1; y < y1; ++y) {
+                if (((x0 + y) & 1) == 0) surface.pixel(x0, y, 255, 255, 255, 255);
+                if (((x1 + y) & 1) == 0) surface.pixel(x1, y, 255, 255, 255, 255);
             }
         }
     }

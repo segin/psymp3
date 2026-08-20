@@ -1346,8 +1346,13 @@ void Player::openDroppedPaths()
     m_dropped_paths.clear();
 
     // Consume the hover gap and clear the live insertion bar regardless of
-    // outcome.
-    const int gap = m_pm_drop_gap;
+    // outcome. Prefer the widget's indicator: the edge auto-scroll keeps it
+    // pinned to the moving boundary while the list crawls under a stationary
+    // pointer, whereas m_pm_drop_gap only updates on DROP_POSITION events.
+    int gap = m_pm_drop_gap;
+    if (m_pm_list && m_pm_list->getDropIndicator() >= 0) {
+        gap = m_pm_list->getDropIndicator();
+    }
     m_pm_drop_gap = -1;
     if (m_pm_list) {
         m_pm_list->setDropIndicator(-1);
@@ -1407,8 +1412,23 @@ bool Player::dropPointToListGap(float win_x, float win_y, int& out_gap) const
 
 void Player::updateDropIndicator(float win_x, float win_y)
 {
-    int gap = -1;
-    m_pm_drop_gap = dropPointToListGap(win_x, win_y, gap) ? gap : -1;
+    m_pm_drop_gap = -1;
+    if (m_test_window_p && m_pm_list) {
+        Widget* client = m_test_window_p->getClientArea();
+        if (client) {
+            // Same window-to-widget mapping as dropPointToListGap(), but without
+            // its bounds check: the widget wants out-of-bounds coordinates too,
+            // to drive the edge auto-scroll while the pointer hovers above or
+            // below the rows (the returned gap is pinned to the visible edge).
+            const int scale = screen ? std::max(1, screen->getLogicalScale()) : 1;
+            const Rect win = m_test_window_p->getPos();
+            const Rect cpos = client->getPos();
+            const Rect lpos = m_pm_list->getPos();
+            const int rel_x = static_cast<int>(win_x / scale) - (win.x() + cpos.x() + lpos.x());
+            const int rel_y = static_cast<int>(win_y / scale) - (win.y() + cpos.y() + lpos.y());
+            m_pm_drop_gap = m_pm_list->externalDropHover(rel_x, rel_y);
+        }
+    }
     if (m_pm_list) {
         m_pm_list->setDropIndicator(m_pm_drop_gap);
     }
@@ -2664,6 +2684,12 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
+    // A focused list view (click-to-focus, like the text inputs) claims Up/Down
+    // for cursor movement, so they don't reach the global volume keys below.
+    if (ListViewWidget::handleFocusedKeyPress(keysym)) {
+        return false;
+    }
+
     // While the equalizer window is open, offer keys to its menu first so its
     // Alt+<mnemonic> accelerators and open-menu navigation work. m_eq_client is
     // non-null only while that window is open; its menu returns false unless it
@@ -3483,6 +3509,7 @@ void Player::EventLoop() {
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             {
                 TextInputWidget::clearFocusedWidget();
+                ListViewWidget::clearFocusedWidget();
 
                 // Dispatch by visual priority: a window-owned mouse capture is
                 // authoritative (routed even while a menu is open, so a drag's
@@ -3518,6 +3545,17 @@ void Player::EventLoop() {
                 // which don't carry a position, can be routed to what's under it.
                 m_last_mouse_x = event.motion.x;
                 m_last_mouse_y = event.motion.y;
+
+                // A normal motion event means no OS drag is in progress (during
+                // one, the pointer is grabbed and only DROP_* events arrive), so
+                // clear any insertion bar / edge auto-scroll left behind by a
+                // drag that exited the window without dropping.
+                if (m_pm_drop_gap >= 0) {
+                    m_pm_drop_gap = -1;
+                    if (m_pm_list) {
+                        m_pm_list->setDropIndicator(-1);
+                    }
+                }
 
                 // The legacy seek drag holds no widget capture; keep feeding it
                 // directly so moving over a window mid-drag doesn't freeze it.

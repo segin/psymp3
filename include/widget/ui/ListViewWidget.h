@@ -58,6 +58,21 @@ public:
     // Insertion gap (0..itemCount) for a widget-relative y — public wrapper of
     // gapAt() for hit-testing an external file drop.
     int  dropGapAt(int relative_y) const { return gapAt(relative_y); }
+    // Keyboard focus, using the same click-to-focus scheme as TextInputWidget:
+    // clicking the row area takes focus; while focused, the selected row shows
+    // the classic dotted focus rectangle and Up/Down move the cursor (scrolling
+    // one row when it crosses the viewport edge). Focus returns to the main
+    // program when the user clicks elsewhere or the focused list is destroyed.
+    static void clearFocusedWidget();
+    static bool handleFocusedKeyPress(const SDL_keysym& keysym);
+
+    // External file-drag hover: derives the insertion gap for a pointer at
+    // widget-relative (x, y) AND drives the edge auto-scroll (the list crawls
+    // while the pointer holds above/below the rows, at a speed set by how far
+    // past the edge it is). Returns the gap to use — pinned to the visible
+    // boundary while beyond an edge — or -1 when x is outside the widget.
+    int externalDropHover(int relative_x, int relative_y);
+
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
     // Fired when a row is double-clicked (the row index).
     void setOnActivate(std::function<void(int)> cb) { m_on_activate = std::move(cb); }
@@ -82,6 +97,8 @@ public:
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
     bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseWheel(int delta, int relative_x, int relative_y) override;
+    // Rendering runs once per frame, so it doubles as the auto-scroll clock.
+    void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
 
 protected:
     void draw(Surface& surface) override;
@@ -104,6 +121,12 @@ private:
     int  rowAt(int relative_y) const; // item index under a y coordinate, or -1
     int  gapAt(int relative_y) const; // insertion gap index (0..count) for a drag
 
+    void focus();
+    void blur();
+    void updateScrollZone(int relative_y); // derive zone/distance from pointer y
+    void autoScrollTick();                 // clock-driven edge scrolling
+    int  edgeGap() const;                  // insertion gap at the crossed edge
+
     Core::Font* m_font;
     std::vector<TagLib::String> m_items;
     int m_selected;           // -1 = none
@@ -123,6 +146,16 @@ private:
     bool m_dragging = false;
     int m_drag_gap = -1;
     int m_drop_indicator = -1; // external-drop insertion gap (blue bar); -1 = none
+
+    // The list holding keyboard focus (dotted focus rect + Up/Down cursor).
+    static ListViewWidget* s_focused_widget;
+
+    // Drag edge auto-scroll: -1/+1 while the drag pointer sits above/below the
+    // rows, 0 otherwise. Speed follows the CURRENT distance past the edge, so
+    // drifting farther accelerates the crawl and drifting back slows it.
+    int m_scroll_zone = 0;
+    int m_scroll_distance = 0;
+    Uint32 m_last_autoscroll_ms = 0;
 
     // Double-click detection for row activation.
     static constexpr Uint32 DOUBLE_CLICK_MS = 500;
