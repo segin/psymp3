@@ -4,18 +4,23 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 #include <thread>
 #include <vector>
 #include <chrono>
 
 /**
  * @brief Test FLAC demuxer thread safety with public/private lock pattern
+ *
+ * The container is deliberately never parsed: the point is that the public
+ * accessors are safe to call concurrently even on a freshly constructed
+ * demuxer. FileIOHandler throws on a missing file, so main() skips (77)
+ * when no fixture is available rather than opening a bogus path.
  */
-bool test_flac_demuxer_thread_safety() {
+bool test_flac_demuxer_thread_safety(const std::string& fixture) {
     Debug::log("test", "Testing FLAC demuxer thread safety");
-    
-    // Create a simple test file handler (we'll use a null handler for this test)
-    auto handler = std::make_unique<FileIOHandler>("nonexistent.flac");
+
+    auto handler = std::make_unique<FileIOHandler>(fixture);
     
     // Create FLAC demuxer
     FLACDemuxer demuxer(std::move(handler));
@@ -81,8 +86,9 @@ bool test_flac_demuxer_thread_safety() {
 
 int main() {
     Debug::log("test", "Starting FLAC demuxer threading test");
-    
-    bool success = test_flac_demuxer_thread_safety();
+
+    FLACTestDataUtils::validateTestDataAvailable("FLAC demuxer threading"); // exits 77 if none
+    bool success = test_flac_demuxer_thread_safety(FLACTestDataUtils::findAvailableTestFile());
     
     if (success) {
         Debug::log("test", "FLAC demuxer threading test PASSED");

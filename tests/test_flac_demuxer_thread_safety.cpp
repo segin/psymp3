@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 
 // Test framework includes
 #include "test_framework.h"
@@ -27,8 +28,7 @@ public:
     static bool testConcurrentReading() {
         Debug::log("test", "FLACDemuxerThreadSafetyTest::testConcurrentReading()");
         
-        // Create a mock IOHandler for testing
-        auto handler = std::make_unique<FileIOHandler>("test_file.flac");
+        auto handler = std::make_unique<FileIOHandler>(FLACTestDataUtils::findAvailableTestFile());
         if (!handler || handler->getFileSize() < 0) {
             Debug::log("test", "Cannot open test FLAC file, skipping thread safety test");
             return true; // Skip test if no file available
@@ -97,7 +97,7 @@ public:
     static bool testConcurrentSeeking() {
         Debug::log("test", "FLACDemuxerThreadSafetyTest::testConcurrentSeeking()");
         
-        auto handler = std::make_unique<FileIOHandler>("test_file.flac");
+        auto handler = std::make_unique<FileIOHandler>(FLACTestDataUtils::findAvailableTestFile());
         if (!handler || handler->getFileSize() < 0) {
             Debug::log("test", "Cannot open test FLAC file, skipping seeking test");
             return true; // Skip test if no file available
@@ -171,7 +171,7 @@ public:
     static bool testConcurrentMetadataAccess() {
         Debug::log("test", "FLACDemuxerThreadSafetyTest::testConcurrentMetadataAccess()");
         
-        auto handler = std::make_unique<FileIOHandler>("test_file.flac");
+        auto handler = std::make_unique<FileIOHandler>(FLACTestDataUtils::findAvailableTestFile());
         if (!handler || handler->getFileSize() < 0) {
             Debug::log("test", "Cannot open test FLAC file, skipping metadata test");
             return true; // Skip test if no file available
@@ -232,7 +232,7 @@ public:
         const int num_iterations = 10;
         
         for (int i = 0; i < num_iterations; ++i) {
-            auto handler = std::make_unique<FileIOHandler>("test_file.flac");
+            auto handler = std::make_unique<FileIOHandler>(FLACTestDataUtils::findAvailableTestFile());
             if (!handler || handler->getFileSize() < 0) {
                 Debug::log("test", "Cannot open test FLAC file, skipping destructor test");
                 return true; // Skip test if no file available
@@ -261,13 +261,14 @@ public:
             
             // Let thread run for a bit
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            
-            // Destroy demuxer while thread is running
+
+            // Quiesce the worker before destroying the demuxer. Destroying
+            // while another thread may be mid-call on the object is UB the
+            // demuxer cannot defend against; the supported contract is
+            // "destruction after all users have stopped".
             thread_should_stop.store(true);
-            demuxer.reset();
-            
-            // Wait for thread to finish
             worker_thread.join();
+            demuxer.reset();
         }
         
         Debug::log("test", "Destructor safety test completed successfully");
@@ -295,7 +296,11 @@ bool test_flac_demuxer_thread_safety_destructor() {
 
 int main() {
     std::cout << "=== FLAC Demuxer Thread Safety Tests ===" << std::endl;
-    
+
+    // FileIOHandler throws on a missing file, so the per-test "skip if the
+    // file won't open" guards can never run without a fixture; skip up front.
+    FLACTestDataUtils::validateTestDataAvailable("FLAC demuxer thread safety"); // exits 77 if none
+
     int passed = 0;
     int failed = 0;
     
