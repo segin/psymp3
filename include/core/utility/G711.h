@@ -30,10 +30,13 @@ inline int16_t alaw2linear(uint8_t alawbyte)
 	sign = (alawbyte & 0x80);
 	exponent = (alawbyte >> 4) & 0x07;
 	mantissa = alawbyte & 0x0F;
+	// The +8 places the output at the quantization interval midpoint
+	// (ITU-T G.711 Table 2); A-law is mid-riser, so 0x55/0xD5 decode to
+	// -8/+8 - there is no zero output.
 	if(exponent == 0)
-		sample = mantissa << 4;
+		sample = (mantissa << 4) + 8;
 	else
-		sample = ( (mantissa << 4) | 0x100 ) << (exponent - 1);
+		sample = ( (mantissa << 4) + 0x108 ) << (exponent - 1);
 
 	if(sign == 0)
 		sample = -sample;

@@ -344,9 +344,11 @@ void ALawCodec::initializeALawTable() {
         // Validate critical values for ITU-T G.711 compliance
         Debug::log("codec", "ALawCodec: Validating computed A-law values");
         
-        // A-law has a zero code in each sign half.
-        if (ALAW_TO_PCM[0x55] != 0 || ALAW_TO_PCM[0xD5] != 0) {
-            Debug::log("codec", "ALawCodec: Warning - expected zero codes (0x55=", ALAW_TO_PCM[0x55], ", 0xD5=", ALAW_TO_PCM[0xD5], ")");
+        // A-law is a mid-riser quantizer: there is no zero output, and the
+        // codes closest to silence (0x55/0xD5) decode to -8/+8 (G.711
+        // Table 2, the +8 interval-midpoint offset).
+        if (ALAW_TO_PCM[0x55] != -8 || ALAW_TO_PCM[0xD5] != 8) {
+            Debug::log("codec", "ALawCodec: Warning - near-silence codes wrong (0x55=", ALAW_TO_PCM[0x55], ", 0xD5=", ALAW_TO_PCM[0xD5], ", expected -8/+8)");
         }
         
         // Validate sign bit handling around representative non-zero values.
