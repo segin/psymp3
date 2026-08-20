@@ -308,13 +308,15 @@ bool testRiceSampleDecoding() {
             "Zero residual with parameter 3"
         },
         {
-            {0x8E}, // 0b10001110 (quotient=0, remainder=6 for parameter=3)
+            {0xE0}, // 0b11100000: unary quotient 0 = '1' (RFC 9639: zeros
+                    // terminated by a one), then 3-bit remainder 0b110 = 6
             3,
             {3}, // folded=6, decoded=3
             "Positive residual +3 with parameter 3"
         },
         {
-            {0x8A}, // 0b10001010 (quotient=0, remainder=2 for parameter=3)
+            {0x90}, // 0b10010000: unary quotient 0 = '1', then 3-bit
+                    // remainder 0b001 = 1 (zigzag-folded -1)
             3,
             {-1}, // folded=2, decoded=-1
             "Negative residual -1 with parameter 3"
