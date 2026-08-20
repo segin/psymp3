@@ -25,13 +25,15 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 
 ### Windows
 - Windows 10 or later
-- MSYS2 environment recommended for building
+- Official builds are cross-compiled with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw)
+  (x86_64, i686, and ARM64), statically linked against SDL3; building under
+  MSYS2 is also possible
 
 ### Linux/BSD
 **Core dependencies** (always required):
-- SDL2 2.0 or later (`sdl2`)
+- SDL3 3.0 or later (`sdl3`)
 - FreeType2 (`freetype2`)
-- taglib 1.6 or later (`taglib`)
+- taglib 1.6 or later (`taglib`; taglib 2.x works too)
 - OpenSSL 1.0 or later (`openssl`)
 - libcurl 7.20.0 or later (`libcurl`)
 
@@ -58,9 +60,6 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
   **GTK 4** (`gtk4`) → **GTK+ 3** (`gtk+-3.0`) → **GTK+ 2** (`gtk+-2.0`).
   Without any of these, the file dialogs are unavailable but PsyMP3 still
   builds and plays files given on the command line.
-
-### Windows / ARM
-- Supported via llvm-mingw (experimental)
 
 ### Build Requirements
 - C++17 compliant compiler (GCC 9+, Clang 10+, MSVC 2019+)
