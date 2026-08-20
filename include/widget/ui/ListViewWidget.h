@@ -110,7 +110,7 @@ protected:
     void onResize(int new_width, int new_height) override;
 
 private:
-    static constexpr int SCROLLBAR_WIDTH = 16;
+    static constexpr int SCROLLBAR_WIDTH = 17;
     static constexpr int BORDER = 1;          // sunken frame thickness
     static constexpr int ROW_PADDING = 2;     // extra pixels added to glyph height
 

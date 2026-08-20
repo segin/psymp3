@@ -65,7 +65,7 @@ private:
     static constexpr int kButtonW = 72;
     static constexpr int kButtonH = 24;
     static constexpr int kScrollStep = 28;   // px per wheel notch
-    static constexpr int kScrollbarW = 16;   // matches ListViewWidget::SCROLLBAR_WIDTH
+    static constexpr int kScrollbarW = 17;   // matches ListViewWidget::SCROLLBAR_WIDTH
     static constexpr int kScrollbarGap = 2;  // gap between text and scrollbar
     static constexpr int kMinContentWidth = 596; // → ~620px window
 };

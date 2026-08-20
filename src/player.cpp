@@ -276,7 +276,7 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
     });
     client->addChild(std::move(button));
 
-    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 124, ScrollbarOrientation::Vertical);
+    auto scrollbar = std::make_unique<ScrollbarWidget>(17, 124, ScrollbarOrientation::Vertical);
     scrollbar->setPos(Rect(142, 10, 16, 124));
     scrollbar->setOnChange([scroll_label_ptr](double value) {
         int percent = static_cast<int>(std::round(value * 100.0));

@@ -21,9 +21,10 @@ constexpr Uint32 kRepeatIntervalMs = 60;  // between subsequent repeats
 
 void drawWin31Button(::Surface& surface, const Rect& rect, bool pressed)
 {
-    // Windows 3.1 scrollbar piece: grey face inside a 1px black outline, with
-    // a 1px white top/left highlight and 1px grey bottom/right shadow; pressed
-    // pieces sink (a grey shadow along the inside top/left, no highlight).
+    // Windows 3.1 scrollbar piece, per reference: grey face inside a 1px black
+    // outline, a 1px white top/left highlight, and a chunky 2px grey
+    // bottom/right shadow stepped where they meet; pressed pieces sink (a grey
+    // shadow along the inside top/left, no highlight).
     const int x1 = rect.x(), y1 = rect.y();
     const int x2 = rect.x() + rect.width() - 1, y2 = rect.y() + rect.height() - 1;
     surface.box(x1, y1, x2, y2, 192, 192, 192, 255);
@@ -35,7 +36,9 @@ void drawWin31Button(::Surface& surface, const Rect& rect, bool pressed)
         surface.hline(x1 + 1, x2 - 2, y1 + 1, 255, 255, 255, 255);
         surface.vline(x1 + 1, y1 + 1, y2 - 2, 255, 255, 255, 255);
         surface.hline(x1 + 1, x2 - 1, y2 - 1, 128, 128, 128, 255);
+        surface.hline(x1 + 2, x2 - 1, y2 - 2, 128, 128, 128, 255);
         surface.vline(x2 - 1, y1 + 1, y2 - 1, 128, 128, 128, 255);
+        surface.vline(x2 - 2, y1 + 2, y2 - 2, 128, 128, 128, 255);
     }
 }
 
@@ -49,9 +52,10 @@ void drawArrowGlyph(::Surface& surface, const Rect& rect, ButtonSymbol symbol, u
     const int cy = rect.y() + rect.height() / 2;
     const uint8_t c = shade; // 0 = black (enabled), 128 = grey (disabled)
 
-    // Windows 3.1 arrows: a triangular head with a short square stem (tail).
+    // Windows 3.1 arrows, pixel-counted from reference screenshots: a 3x3px
+    // square stem and a triangular head stepping 7 -> 5 -> 3 -> 1.
     switch (symbol) {
-        case ButtonSymbol::ScrollUp: // head up, 7px base, stem below
+        case ButtonSymbol::ScrollUp: // head up, stem below
             surface.pixel(cx, cy - 3, c, c, c, 255);
             surface.hline(cx - 1, cx + 1, cy - 2, c, c, c, 255);
             surface.hline(cx - 2, cx + 2, cy - 1, c, c, c, 255);
@@ -171,19 +175,19 @@ bool ScrollbarWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int r
     }
 
     Rect pos = getPos();
-    const int arrow_extent = (m_orientation == ScrollbarOrientation::Vertical) ? pos.width() : pos.height();
-    const int thumb_extent = (m_orientation == ScrollbarOrientation::Vertical)
-        ? std::max(pos.width() - 2, 12)
-        : std::max(pos.height() - 2, 12);
-    const int travel = ((m_orientation == ScrollbarOrientation::Vertical) ? pos.height() : pos.width()) - (2 * arrow_extent) - thumb_extent;
+    const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
+    const int piece = vert ? pos.width() : pos.height();
+    const int length = vert ? pos.height() : pos.width();
+    const int origin = piece - 1;
+    const int travel = length - 3 * piece + 2; // see getThumbRect()
 
     if (travel <= 0) {
         return true;
     }
 
-    const int coordinate = (m_orientation == ScrollbarOrientation::Vertical) ? relative_y : relative_x;
+    const int coordinate = vert ? relative_y : relative_x;
     const int thumb_origin = coordinate - m_drag_offset;
-    const double normalized = static_cast<double>(thumb_origin - arrow_extent) / static_cast<double>(travel);
+    const double normalized = static_cast<double>(thumb_origin - origin) / static_cast<double>(travel);
     setValue(normalized);
     return true;
 }
@@ -245,15 +249,16 @@ double ScrollbarWidget::valueAtCoordinate(int relative_x, int relative_y) const
 {
     Rect pos = getPos();
     const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
-    const int arrow_extent = vert ? pos.width() : pos.height();
-    const int thumb_extent = vert ? std::max(pos.width() - 2, 12) : std::max(pos.height() - 2, 12);
-    const int travel = (vert ? pos.height() : pos.width()) - (2 * arrow_extent) - thumb_extent;
+    const int piece = vert ? pos.width() : pos.height();
+    const int length = vert ? pos.height() : pos.width();
+    const int origin = piece - 1;
+    const int travel = length - 3 * piece + 2; // see getThumbRect()
     if (travel <= 0) {
         return m_value;
     }
     const int coord = vert ? relative_y : relative_x;
     // Value that centres the thumb under the cursor.
-    return clampValue(static_cast<double>(coord - arrow_extent - thumb_extent / 2) /
+    return clampValue(static_cast<double>(coord - origin - piece / 2) /
                       static_cast<double>(travel));
 }
 
@@ -336,18 +341,19 @@ Rect ScrollbarWidget::getIncrementArrowRect() const
 
 Rect ScrollbarWidget::getThumbRect() const
 {
+    // Windows 3.1 thumb: a fixed square piece spanning the full bar width, one
+    // bar-width long, sharing its separator lines with the arrow buttons at
+    // the travel ends (so travel = length - 3*piece + 2 shared lines).
     Rect pos = getPos();
-    const int arrow_extent = (m_orientation == ScrollbarOrientation::Vertical) ? pos.width() : pos.height();
-    const int thumb_extent = (m_orientation == ScrollbarOrientation::Vertical)
-        ? std::max(pos.width() - 2, 12)
-        : std::max(pos.height() - 2, 12);
-    const int track_extent = ((m_orientation == ScrollbarOrientation::Vertical) ? pos.height() : pos.width()) - (2 * arrow_extent);
-    const int travel = std::max(0, track_extent - thumb_extent);
-    const int thumb_offset = arrow_extent + static_cast<int>(std::round(m_value * travel));
+    const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
+    const int piece = vert ? pos.width() : pos.height();
+    const int length = vert ? pos.height() : pos.width();
+    const int origin = piece - 1; // overlaps the decrement button's inner line
+    const int travel = std::max(0, length - 3 * piece + 2);
+    const int off = origin + static_cast<int>(std::round(m_value * travel));
 
-    return (m_orientation == ScrollbarOrientation::Vertical)
-        ? Rect(1, thumb_offset, pos.width() - 2, thumb_extent)
-        : Rect(thumb_offset, 1, thumb_extent, pos.height() - 2);
+    return vert ? Rect(0, off, pos.width(), piece)
+                : Rect(off, 0, piece, pos.height());
 }
 
 void ScrollbarWidget::notifyChange()
