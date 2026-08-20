@@ -1215,40 +1215,50 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
     Rect window_pos = getPos();
     int total_width = window_pos.width();
     int total_height = window_pos.height();
-    int corner_size = CORNER_RESIZE_SIZE;
-    
+
     // Resize area includes: 1px outer + 2px resize frame + 1px inner border = 4px total
     int resize_area_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1; // Include inner border
-    
+
     int edge = 0;
-    
-    // Check for corner areas first (larger hit areas for easier grabbing)
-    if (x < corner_size && y < corner_size) {
-        return 1 | 4; // Top-left corner
-    }
-    if (x >= total_width - corner_size && y < corner_size) {
-        return 2 | 4; // Top-right corner
-    }
-    if (x < corner_size && y >= total_height - corner_size) {
-        return 1 | 8; // Bottom-left corner
-    }
-    if (x >= total_width - corner_size && y >= total_height - corner_size) {
-        return 2 | 8; // Bottom-right corner
-    }
-    
+
     // Check for edge areas (includes inner border for grabbing)
     if (x < resize_area_width) {
         edge |= 1; // Left edge
     } else if (x >= total_width - resize_area_width) {
         edge |= 2; // Right edge
     }
-    
+
     if (y < resize_area_width) {
         edge |= 4; // Top edge
     } else if (y >= total_height - resize_area_width) {
         edge |= 8; // Bottom edge
     }
-    
+
+    if (edge == 0) {
+        return 0;
+    }
+
+    // Promote edge hits into corner hits across the full drawn corner piece.
+    // The corner pieces run from the window corner to the notch lines
+    // (NOTCH_OFFSET past the inner border), so the diagonal-resize zone is the
+    // matching L-shaped region of the frame band — not just the small square
+    // where the two bands overlap.
+    int corner_reach = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + NOTCH_OFFSET;
+    if (edge & (4 | 8)) { // On the top/bottom band: near a vertical notch?
+        if (x <= corner_reach) {
+            edge |= 1;
+        } else if (x >= total_width - 1 - corner_reach) {
+            edge |= 2;
+        }
+    }
+    if (edge & (1 | 2)) { // On the left/right band: near a horizontal notch?
+        if (y <= corner_reach) {
+            edge |= 4;
+        } else if (y >= total_height - 1 - corner_reach) {
+            edge |= 8;
+        }
+    }
+
     return edge;
 }
 

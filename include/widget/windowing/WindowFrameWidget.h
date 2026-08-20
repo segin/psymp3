@@ -266,7 +266,6 @@ private:
     static constexpr Uint32 DOUBLE_CLICK_TIME_MS = 500;
     
     // Resize edge detection
-    static constexpr int CORNER_RESIZE_SIZE = 6;
     
     // Notch positioning
     static constexpr int NOTCH_OFFSET = 19;
