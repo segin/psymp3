@@ -315,6 +315,11 @@ private:
     // m_is_dragging is also set and mouse-up does not end the drag.
     bool m_menu_move_mode = false;
     bool m_menu_move_pending = false; // Move chosen; baseline set on first motion
+
+    // Titlebar button press tracking: buttons sink on mouse-down and only fire
+    // on release inside their bounds; releasing elsewhere cancels.
+    int m_pressed_titlebar_button = 0;   // 0 none, 1 minimize, 2 maximize
+    bool m_titlebar_button_hover = false; // pointer inside the pressed button
     // Float: SDL3 mouse coordinates are float and become non-integer under
     // display scaling (e.g. 2x). Keeping the drag baseline in float and
     // carrying the fractional remainder avoids truncation stalling the drag.

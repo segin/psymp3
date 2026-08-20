@@ -378,26 +378,27 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 }
             }
             
-            // Check for minimize button click
+            // Titlebar buttons: pressing sinks the button and captures the
+            // mouse; the action fires on release inside the button
+            // (handleMouseUp), and releasing elsewhere cancels — proper
+            // push-button behaviour.
             Rect minimize_bounds = getMinimizeButtonBounds();
             if (relative_x >= minimize_bounds.x() && relative_x < minimize_bounds.x() + minimize_bounds.width() &&
                 relative_y >= minimize_bounds.y() && relative_y < minimize_bounds.y() + minimize_bounds.height()) {
-                if (m_on_minimize) {
-                    auto on_minimize = m_on_minimize;
-                    on_minimize();
-                }
+                m_pressed_titlebar_button = 1;
+                m_titlebar_button_hover = true;
+                captureMouse();
+                rebuildSurface();
                 return true;
             }
-            
-            // Check for maximize button click
+
             Rect maximize_bounds = getMaximizeButtonBounds();
             if (relative_x >= maximize_bounds.x() && relative_x < maximize_bounds.x() + maximize_bounds.width() &&
                 relative_y >= maximize_bounds.y() && relative_y < maximize_bounds.y() + maximize_bounds.height()) {
-                toggleMaximize();
-                if (m_on_maximize) {
-                    auto on_maximize = m_on_maximize;
-                    on_maximize();
-                }
+                m_pressed_titlebar_button = 2;
+                m_titlebar_button_hover = true;
+                captureMouse();
+                rebuildSurface();
                 return true;
             }
             
@@ -468,6 +469,20 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
 
 bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
+    // A held titlebar button tracks the pointer: it un-sinks when the pointer
+    // leaves its bounds and re-sinks when it returns, like real Windows.
+    if (m_pressed_titlebar_button != 0) {
+        const Rect b = (m_pressed_titlebar_button == 1) ? getMinimizeButtonBounds()
+                                                        : getMaximizeButtonBounds();
+        const bool inside = relative_x >= b.x() && relative_x < b.x() + b.width() &&
+                            relative_y >= b.y() && relative_y < b.y() + b.height();
+        if (inside != m_titlebar_button_hover) {
+            m_titlebar_button_hover = inside;
+            rebuildSurface();
+        }
+        return true;
+    }
+
     // An open control menu is modal for hover: feed it and stop.
     if (m_control_menu && m_control_menu->isOpen() &&
         !m_is_dragging && !m_is_resizing) {
@@ -645,6 +660,36 @@ bool WindowFrameWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
             // next mouse-down does.
             return true;
         }
+
+        // A pressed titlebar button commits on release inside its bounds and
+        // cancels on release anywhere else.
+        if (m_pressed_titlebar_button != 0) {
+            const int which = m_pressed_titlebar_button;
+            const Rect b = (which == 1) ? getMinimizeButtonBounds()
+                                        : getMaximizeButtonBounds();
+            const bool inside = relative_x >= b.x() && relative_x < b.x() + b.width() &&
+                                relative_y >= b.y() && relative_y < b.y() + b.height();
+            m_pressed_titlebar_button = 0;
+            m_titlebar_button_hover = false;
+            releaseMouse();
+            rebuildSurface();
+            if (inside) {
+                if (which == 1) {
+                    if (m_on_minimize) {
+                        auto on_minimize = m_on_minimize;
+                        on_minimize();
+                    }
+                } else {
+                    toggleMaximize();
+                    if (m_on_maximize) {
+                        auto on_maximize = m_on_maximize;
+                        on_maximize();
+                    }
+                }
+            }
+            return true;
+        }
+
         // Swallow releases while the control menu is open (e.g. the release of
         // the click that opened it) so they don't leak to the client area.
         if (m_control_menu && m_control_menu->handleMouseUp(event, relative_x, relative_y)) {
@@ -1193,28 +1238,32 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     // Draw minimize button if minimizable
     if (m_minimizable) {
         Rect minimize_bounds = getMinimizeButtonBounds();
-        
+        const bool pressed = (m_pressed_titlebar_button == 1) && m_titlebar_button_hover;
+        const int off = pressed ? 1 : 0; // the glyph rides the sunken face
+
         // Draw 1px border between titlebar blue area and minimize button
         surface.vline(minimize_bounds.x() - 1, minimize_bounds.y(), minimize_bounds.y() + BUTTON_SIZE - 1, 64, 64, 64, 255);
-        
+
         // Draw button background and 3D bevel
-        drawButton(surface, minimize_bounds.x(), minimize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
-        
+        drawButton(surface, minimize_bounds.x(), minimize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, pressed);
+
         // Draw minimize symbol (downward pointing triangle ▼)
-        int min_center_x = minimize_bounds.x() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
-        int min_center_y = minimize_bounds.y() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
+        int min_center_x = minimize_bounds.x() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET + off;
+        int min_center_y = minimize_bounds.y() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET + off;
         drawDownTriangle(surface, min_center_x, min_center_y, TRIANGLE_SIZE);
     }
-    
+
     // Draw maximize button if maximizable
     if (m_maximizable) {
         Rect maximize_bounds = getMaximizeButtonBounds();
-        
-        // Draw button background and 3D bevel
-        drawButton(surface, maximize_bounds.x(), maximize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
+        const bool pressed = (m_pressed_titlebar_button == 2) && m_titlebar_button_hover;
+        const int off = pressed ? 1 : 0;
 
-        int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
-        int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
+        // Draw button background and 3D bevel
+        drawButton(surface, maximize_bounds.x(), maximize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, pressed);
+
+        int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET + off;
+        int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET + off;
         if (m_maximized) {
             // Maximized: the button restores. Show the up+down "restore" glyph.
             drawRestoreSymbol(surface, max_center_x, max_center_y, TRIANGLE_SIZE);
