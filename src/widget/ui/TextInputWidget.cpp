@@ -175,11 +175,27 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
         case SDLK_RETURN:
         case SDLK_KP_ENTER:
             return true;
+        case SDLK_ESCAPE:
+            // Blur rather than fall through: the global handler treats a
+            // leaked Escape as quit-the-program.
+            widget.blur();
+            return true;
         default:
             break;
     }
 
-    return false;
+    // Swallow everything else so the global shortcuts (Q quits, Space pauses,
+    // N skips, ...) cannot fire while the user is typing; the printable keys
+    // arrive separately as SDL_EVENT_TEXT_INPUT. Only two families escape a
+    // focused box: Alt chords, so the menu-bar mnemonics stay reachable, and
+    // the function keys, which carry no text meaning.
+    if (keysym.mod & SDL_KMOD_ALT) {
+        return false;
+    }
+    if (keysym.sym >= SDLK_F1 && keysym.sym <= SDLK_F12) {
+        return false;
+    }
+    return true;
 }
 
 bool TextInputWidget::handleFocusedTextInput(const char* text)
