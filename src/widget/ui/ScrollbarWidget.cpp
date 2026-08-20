@@ -21,17 +21,21 @@ constexpr Uint32 kRepeatIntervalMs = 60;  // between subsequent repeats
 
 void drawWin31Button(::Surface& surface, const Rect& rect, bool pressed)
 {
-    surface.box(rect.x(), rect.y(), rect.x() + rect.width() - 1, rect.y() + rect.height() - 1, 192, 192, 192, 255);
+    // Windows 3.1 scrollbar piece: grey face inside a 1px black outline, with
+    // a 1px white top/left highlight and 1px grey bottom/right shadow; pressed
+    // pieces sink (a grey shadow along the inside top/left, no highlight).
+    const int x1 = rect.x(), y1 = rect.y();
+    const int x2 = rect.x() + rect.width() - 1, y2 = rect.y() + rect.height() - 1;
+    surface.box(x1, y1, x2, y2, 192, 192, 192, 255);
+    surface.rectangle(x1, y1, x2, y2, 0, 0, 0, 255);
     if (pressed) {
-        surface.hline(rect.x(), rect.x() + rect.width() - 1, rect.y(), 128, 128, 128, 255);
-        surface.vline(rect.x(), rect.y(), rect.y() + rect.height() - 1, 128, 128, 128, 255);
-        surface.hline(rect.x(), rect.x() + rect.width() - 1, rect.y() + rect.height() - 1, 255, 255, 255, 255);
-        surface.vline(rect.x() + rect.width() - 1, rect.y(), rect.y() + rect.height() - 1, 255, 255, 255, 255);
+        surface.hline(x1 + 1, x2 - 1, y1 + 1, 128, 128, 128, 255);
+        surface.vline(x1 + 1, y1 + 1, y2 - 1, 128, 128, 128, 255);
     } else {
-        surface.hline(rect.x(), rect.x() + rect.width() - 2, rect.y(), 255, 255, 255, 255);
-        surface.vline(rect.x(), rect.y(), rect.y() + rect.height() - 2, 255, 255, 255, 255);
-        surface.hline(rect.x(), rect.x() + rect.width() - 1, rect.y() + rect.height() - 1, 128, 128, 128, 255);
-        surface.vline(rect.x() + rect.width() - 1, rect.y(), rect.y() + rect.height() - 1, 128, 128, 128, 255);
+        surface.hline(x1 + 1, x2 - 2, y1 + 1, 255, 255, 255, 255);
+        surface.vline(x1 + 1, y1 + 1, y2 - 2, 255, 255, 255, 255);
+        surface.hline(x1 + 1, x2 - 1, y2 - 1, 128, 128, 128, 255);
+        surface.vline(x2 - 1, y1 + 1, y2 - 1, 128, 128, 128, 255);
     }
 }
 
@@ -45,30 +49,43 @@ void drawArrowGlyph(::Surface& surface, const Rect& rect, ButtonSymbol symbol, u
     const int cy = rect.y() + rect.height() / 2;
     const uint8_t c = shade; // 0 = black (enabled), 128 = grey (disabled)
 
+    // Windows 3.1 arrows: a triangular head with a short square stem (tail).
     switch (symbol) {
-        case ButtonSymbol::ScrollUp: // apex up, 7px base
-            surface.pixel(cx, cy - 2, c, c, c, 255);
-            surface.hline(cx - 1, cx + 1, cy - 1, c, c, c, 255);
-            surface.hline(cx - 2, cx + 2, cy,     c, c, c, 255);
-            surface.hline(cx - 3, cx + 3, cy + 1, c, c, c, 255);
-            break;
-        case ButtonSymbol::ScrollDown: // apex down, 7px base
-            surface.hline(cx - 3, cx + 3, cy - 1, c, c, c, 255);
-            surface.hline(cx - 2, cx + 2, cy,     c, c, c, 255);
+        case ButtonSymbol::ScrollUp: // head up, 7px base, stem below
+            surface.pixel(cx, cy - 3, c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy - 2, c, c, c, 255);
+            surface.hline(cx - 2, cx + 2, cy - 1, c, c, c, 255);
+            surface.hline(cx - 3, cx + 3, cy,     c, c, c, 255);
             surface.hline(cx - 1, cx + 1, cy + 1, c, c, c, 255);
-            surface.pixel(cx, cy + 2, c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy + 2, c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy + 3, c, c, c, 255);
             break;
-        case ButtonSymbol::ScrollLeft: // apex left, 7px base
-            surface.pixel(cx - 2, cy, c, c, c, 255);
-            surface.vline(cx - 1, cy - 1, cy + 1, c, c, c, 255);
-            surface.vline(cx,     cy - 2, cy + 2, c, c, c, 255);
-            surface.vline(cx + 1, cy - 3, cy + 3, c, c, c, 255);
+        case ButtonSymbol::ScrollDown: // stem above, head down
+            surface.hline(cx - 1, cx + 1, cy - 3, c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy - 2, c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy - 1, c, c, c, 255);
+            surface.hline(cx - 3, cx + 3, cy,     c, c, c, 255);
+            surface.hline(cx - 2, cx + 2, cy + 1, c, c, c, 255);
+            surface.hline(cx - 1, cx + 1, cy + 2, c, c, c, 255);
+            surface.pixel(cx, cy + 3, c, c, c, 255);
             break;
-        case ButtonSymbol::ScrollRight: // apex right, 7px base
-            surface.vline(cx - 1, cy - 3, cy + 3, c, c, c, 255);
-            surface.vline(cx,     cy - 2, cy + 2, c, c, c, 255);
+        case ButtonSymbol::ScrollLeft: // head left, stem to the right
+            surface.pixel(cx - 3, cy, c, c, c, 255);
+            surface.vline(cx - 2, cy - 1, cy + 1, c, c, c, 255);
+            surface.vline(cx - 1, cy - 2, cy + 2, c, c, c, 255);
+            surface.vline(cx,     cy - 3, cy + 3, c, c, c, 255);
             surface.vline(cx + 1, cy - 1, cy + 1, c, c, c, 255);
-            surface.pixel(cx + 2, cy, c, c, c, 255);
+            surface.vline(cx + 2, cy - 1, cy + 1, c, c, c, 255);
+            surface.vline(cx + 3, cy - 1, cy + 1, c, c, c, 255);
+            break;
+        case ButtonSymbol::ScrollRight: // stem to the left, head right
+            surface.vline(cx - 3, cy - 1, cy + 1, c, c, c, 255);
+            surface.vline(cx - 2, cy - 1, cy + 1, c, c, c, 255);
+            surface.vline(cx - 1, cy - 1, cy + 1, c, c, c, 255);
+            surface.vline(cx,     cy - 3, cy + 3, c, c, c, 255);
+            surface.vline(cx + 1, cy - 2, cy + 2, c, c, c, 255);
+            surface.vline(cx + 2, cy - 1, cy + 1, c, c, c, 255);
+            surface.pixel(cx + 3, cy, c, c, c, 255);
             break;
         default:
             break;
@@ -361,12 +378,28 @@ void ScrollbarWidget::rebuildSurface()
     drawWin31Button(*surface, dec_arrow, enabled && m_pressed && m_pressed_part == ScrollbarPart::DecrementArrow);
     drawWin31Button(*surface, inc_arrow, enabled && m_pressed && m_pressed_part == ScrollbarPart::IncrementArrow);
 
-    // Track: white when enabled, flat grey when disabled.
-    const uint8_t track = enabled ? 255 : 192;
-    if (m_orientation == ScrollbarOrientation::Vertical) {
-        surface->box(1, dec_arrow.height(), pos.width() - 2, inc_arrow.y() - 1, track, track, track, 255);
-    } else {
-        surface->box(dec_arrow.width(), 1, inc_arrow.x() - 1, pos.height() - 2, track, track, track, 255);
+    // Shaft: the Windows 3.1 50% dither of white and face grey — it reads as a
+    // pale grainy grey at native size. Flat grey when there is nothing to
+    // scroll.
+    {
+        int x1, y1, x2, y2;
+        if (m_orientation == ScrollbarOrientation::Vertical) {
+            x1 = 1; y1 = dec_arrow.height();
+            x2 = pos.width() - 2; y2 = inc_arrow.y() - 1;
+        } else {
+            x1 = dec_arrow.width(); y1 = 1;
+            x2 = inc_arrow.x() - 1; y2 = pos.height() - 2;
+        }
+        if (enabled) {
+            for (int y = y1; y <= y2; ++y) {
+                for (int x = x1; x <= x2; ++x) {
+                    const uint8_t v = (((x + y) & 1) == 0) ? 255 : 192;
+                    surface->pixel(x, y, v, v, v, 255);
+                }
+            }
+        } else {
+            surface->box(x1, y1, x2, y2, 192, 192, 192, 255);
+        }
     }
 
     // Press-and-hold indicator: dither the track segment between the pressed
@@ -391,9 +424,11 @@ void ScrollbarWidget::rebuildSurface()
                 x1 = thumb.x() + thumb.width(); x2 = inc_arrow.x() - 1;
             }
         }
+        // Inverted (dark) dither, the classic pressed-shaft look.
         for (int y = y1; y <= y2; ++y) {
             for (int x = x1; x <= x2; ++x) {
-                if (((x + y) & 1) == 0) surface->pixel(x, y, 128, 128, 128, 255);
+                const uint8_t v = (((x + y) & 1) == 0) ? 0 : 128;
+                surface->pixel(x, y, v, v, v, 255);
             }
         }
     }
@@ -411,6 +446,10 @@ void ScrollbarWidget::rebuildSurface()
     drawArrowGlyph(*surface, inc_arrow,
                    m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollDown : ButtonSymbol::ScrollRight,
                    glyph_shade);
+
+    // The whole control sits in a 1px black frame, like the Windows 3.1
+    // original (the buttons' own outlines merge into it at the ends).
+    surface->rectangle(0, 0, pos.width() - 1, pos.height() - 1, 0, 0, 0, 255);
 
     setSurface(std::move(surface));
 }
