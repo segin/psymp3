@@ -233,7 +233,7 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(AAC_LIBS) $(SPEEX_LIBS) $(G722_LIBS)
+	$(SYSTEM_LIBS) $(G722_LIBS)
 
 # Legacy variable for backward compatibility (deprecated - use FULL_CODEC_LIBS)
 COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
