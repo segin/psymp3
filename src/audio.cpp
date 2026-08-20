@@ -201,7 +201,11 @@ void Audio::setup() {
  */
 void Audio::play(bool go) {
     m_playing = go;
-    if (m_stream) {
+    // Same shutdown hazard as ~Audio's SDL_DestroyAudioStream guard: SDL_Quit()
+    // frees every audio stream, and ~Audio calls play(false) afterwards — the
+    // pause would then lock a destroyed device mutex and abort. Only touch the
+    // stream while the audio subsystem is still up.
+    if (m_stream && SDL_WasInit(SDL_INIT_AUDIO)) {
         // SDL3: resume/pause the device the stream is bound to.
         if (go) SDL_ResumeAudioStreamDevice(m_stream);
         else    SDL_PauseAudioStreamDevice(m_stream);
