@@ -5,16 +5,20 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 
 #ifdef HAVE_FLAC
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <flac_file>" << std::endl;
-        return 1;
+    // With no argument (the `make check` invocation), fall back to the
+    // generated fixture, skipping (77) when none is provisioned.
+    std::string flac_file;
+    if (argc == 2) {
+        flac_file = argv[1];
+    } else {
+        FLACTestDataUtils::validateTestDataAvailable("FLAC codec simple debug"); // exits 77 if none
+        flac_file = FLACTestDataUtils::findAvailableTestFile();
     }
-    
-    std::string flac_file = argv[1];
     std::cout << "=== Simple FLAC Codec Debug ===" << std::endl;
     std::cout << "File: " << flac_file << std::endl;
     

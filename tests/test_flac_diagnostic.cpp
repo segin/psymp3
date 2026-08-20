@@ -8,12 +8,14 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 
-// Test file path
-const char* TEST_FLAC_FILE = "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac";
+// Test file path, resolved from the available fixtures at startup (main
+// exits 77 = SKIP when none are present).
+std::string TEST_FLAC_FILE;
 
 /**
  * @brief Check if test file exists and get basic info
@@ -298,7 +300,10 @@ int main() {
     std::cout << "============================" << std::endl;
     std::cout << "Using RFC 9639 as reference specification" << std::endl;
     std::cout << std::endl;
-    
+
+    FLACTestDataUtils::validateTestDataAvailable("FLAC diagnostic"); // exits 77 if none
+    TEST_FLAC_FILE = FLACTestDataUtils::findAvailableTestFile();
+
     bool all_passed = true;
     
     // Run diagnostic tests in order
