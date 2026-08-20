@@ -110,7 +110,6 @@ All user interaction, aside from clicking the 'close' button for the window, is 
 | `R` | Restart the current track from the beginning |
 | `N` | Seek to the next track |
 | `P` | Seek to the previous track |
-| `H` | Toggle Test Window |
 
 ### Command-line Options
 
