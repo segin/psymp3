@@ -38,11 +38,15 @@ jobs:
           libspeex-dev \
           libspandsp-dev \
           libdbus-1-dev \
-          zlib1g-dev
+          zlib1g-dev \
+          libflac-dev
         # taglib 2 renamed the -dev package; fall back for older suites.
         apt-get install -y libtag-dev || apt-get install -y libtag1-dev
         # No Qt/GTK on purpose: CI is the one build that exercises the
         # no-file-dialog configure path (local and Windows builds have Qt).
+        # libflac-dev is NOT a decoder dependency (the native decoder needs no
+        # libFLAC): the RFC 9639 compliance validator test uses its headers as
+        # the reference-implementation type definitions.
 
     - name: Checkout repository
       uses: actions/checkout@v4
