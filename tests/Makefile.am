@@ -77,7 +77,8 @@ SYSTEM_LIBS = \
 	$(VORBIS_LIBS) \
 	$(OGG_LIBS) \
 	$(AAC_LIBS) \
-	$(SPEEX_LIBS)
+	$(SPEEX_LIBS) \
+	$(G722_LIBS)
 
 # Common library set for tests (mirrors main binary linking)
 # Order: architecture layers top-down, objects first, then archives
@@ -232,7 +233,7 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(AAC_LIBS)
+	$(AAC_LIBS) $(SPEEX_LIBS) $(G722_LIBS)
 
 # Legacy variable for backward compatibility (deprecated - use FULL_CODEC_LIBS)
 COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
