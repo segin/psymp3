@@ -38,6 +38,7 @@ jobs:
           libspeex-dev \
           libspandsp-dev \
           libdbus-1-dev \
+          dbus-daemon \
           zlib1g-dev \
           libflac-dev
         # taglib 2 renamed the -dev package; fall back for older suites.
@@ -69,7 +70,8 @@ jobs:
     - name: Run tests (if any)
       run: |
         if make -n check 2>/dev/null; then
-          make check
+          # The MPRIS tests need a session bus, which the container lacks.
+          dbus-run-session -- make check
           echo "Tests completed successfully"
         else
           echo "No tests available to run"
@@ -85,7 +87,7 @@ jobs:
         fi
 
     - name: Upload build artifacts
-      if: success()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: psymp3-build-${{ github.sha }}
