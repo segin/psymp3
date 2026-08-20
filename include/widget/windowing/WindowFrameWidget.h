@@ -183,6 +183,18 @@ public:
      * @param callback Function to call when window should close
      */
     void setOnClose(std::function<void()> callback) { m_on_close = callback; }
+
+    // The frame that last took activation (new window or titlebar/client click);
+    // null when none. Used for window-scoped shortcuts like Ctrl+F4.
+    static WindowFrameWidget* activeWindow() { return s_active_window; }
+
+    // Composites the frame and children, then draws the open control menu on
+    // top: the menu overlays the client area (a child), so painting it into the
+    // frame's own surface would leave it covered.
+    void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
+    // Close this window exactly as its titlebar close control would (fires the
+    // owner's on-close callback, which typically destroys the widget).
+    void requestClose();
     
     /**
      * @brief Sets minimize button callback.
@@ -253,9 +265,9 @@ private:
     
     // System menu constants
     static constexpr int SYSTEM_MENU_WIDTH = 120;
-    // Top margin (4) + six 16px items (96) + one 4px separator = 104. Matches the
-    // real content laid out by drawSystemMenu(); 140 left a blank grey strip.
-    static constexpr int SYSTEM_MENU_HEIGHT = 104;
+    // Top margin (4) + five 16px items (80) + one 4px separator = 88. Matches the
+    // real content laid out by drawSystemMenu().
+    static constexpr int SYSTEM_MENU_HEIGHT = 88;
     static constexpr int SYSTEM_MENU_SHADOW_OFFSET = 2;
     static constexpr int SYSTEM_MENU_BORDER_MARGIN = 8;
     static constexpr int SYSTEM_MENU_ITEM_HEIGHT = 16;
@@ -304,6 +316,10 @@ private:
     
     // Drag state
     bool m_is_dragging;
+    // Control-menu "Move" mode: the window follows the pointer (as a normal
+    // titlebar drag does) until the next click settles it. While set,
+    // m_is_dragging is also set and mouse-up does not end the drag.
+    bool m_menu_move_mode = false;
     // Float: SDL3 mouse coordinates are float and become non-integer under
     // display scaling (e.g. 2x). Keeping the drag baseline in float and
     // carrying the fractional remainder avoids truncation stalling the drag.
@@ -416,7 +432,15 @@ private:
      * @brief Draws the system menu with Windows 3.1 styling.
      * @param surface Surface to draw on
      */
-    void drawSystemMenu(Surface& surface) const;
+    void drawSystemMenu(Surface& surface, int offset_x, int offset_y) const;
+
+    /**
+     * @brief Whether a control-menu item is currently applicable.
+     * Shared by drawSystemMenu() (grey text) and the click hit-test (no-op), so
+     * the two can never disagree. Items: 0 Restore, 1 Move, 2 Minimize,
+     * 3 Maximize, 5 Close (4 is the separator).
+     */
+    bool systemMenuItemEnabled(int item) const;
     
     /**
      * @brief Draws a Windows 3.1 style button with 3D bevel effects.

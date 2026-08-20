@@ -215,9 +215,40 @@ WindowFrameWidget::~WindowFrameWidget()
     }
 }
 
+void WindowFrameWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    Widget::recursiveBlitTo(target, parent_absolute_pos); // frame, then children
+    if (m_system_menu_open) {
+        const Rect pos = getPos();
+        drawSystemMenu(target,
+                       parent_absolute_pos.x() + pos.x(),
+                       parent_absolute_pos.y() + pos.y());
+    }
+}
+
+void WindowFrameWidget::requestClose()
+{
+    if (m_on_close) {
+        // Copy the callback to the stack before invoking: it may destroy this
+        // widget (and thus the m_on_close member), which would free the
+        // std::function mid-call. After the call, `this` may be dangling.
+        auto on_close = m_on_close;
+        on_close();
+    }
+}
+
 bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     if (event.button == SDL_BUTTON_LEFT) {
+        // A click while the control-menu "Move" mode is active settles the
+        // window at its current position and consumes the click.
+        if (m_menu_move_mode) {
+            m_menu_move_mode = false;
+            m_is_dragging = false;
+            releaseMouse();
+            return true;
+        }
+
         setActiveWindow(this);
 
         // If the control (system) menu is open, hit-test its items first: it is
@@ -225,7 +256,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
         // consulted before the client routing further down. The item layout here
         // must mirror drawSystemMenu(): top margin, then the text items and the
         // one separator, in this exact order:
-        //   0 Restore, 1 Move, 2 Size, 3 Minimize, 4 Maximize, 5 separator, 6 Close
+        //   0 Restore, 1 Move, 2 Minimize, 3 Maximize, 4 separator, 5 Close
         if (m_system_menu_open) {
             const bool inside_menu =
                 relative_x >= m_system_menu_x && relative_x < m_system_menu_x + SYSTEM_MENU_WIDTH &&
@@ -233,8 +264,8 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             if (inside_menu) {
                 int hit = -1;               // index of the text item under the cursor
                 int item_y = m_system_menu_y + SYSTEM_MENU_TOP_MARGIN;
-                for (int i = 0; i < 7; ++i) {
-                    const bool is_separator = (i == 5);
+                for (int i = 0; i < 6; ++i) {
+                    const bool is_separator = (i == 4);
                     const int h = is_separator ? SYSTEM_MENU_SEPARATOR_HEIGHT : SYSTEM_MENU_ITEM_HEIGHT;
                     if (!is_separator && relative_y >= item_y && relative_y < item_y + h) {
                         hit = i;
@@ -244,45 +275,52 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 }
 
                 // Close the menu before dispatching (an action may destroy this
-                // widget, after which no members may be touched).
+                // widget, after which no members may be touched). Greyed items
+                // close the menu without acting, exactly like classic Windows.
                 m_system_menu_open = false;
                 rebuildSurface();
+                if (hit >= 0 && !systemMenuItemEnabled(hit)) {
+                    return true;
+                }
 
                 switch (hit) {
-                    case 0: // Restore
-                        if (m_maximized) {
-                            toggleMaximize();
-                            if (m_on_maximize) {
-                                auto on_maximize = m_on_maximize;
-                                on_maximize();
-                            }
-                        }
-                        // A non-maximized window has nothing to restore from here
-                        // (un-minimizing is driven elsewhere) — no-op.
-                        break;
-                    case 3: // Minimize — same action as the titlebar minimize button
-                        if (m_on_minimize) {
-                            auto on_minimize = m_on_minimize;
-                            on_minimize();
-                        }
-                        break;
-                    case 4: // Maximize — same action as the titlebar maximize button
+                    case 0: // Restore — leave the maximized state
                         toggleMaximize();
                         if (m_on_maximize) {
                             auto on_maximize = m_on_maximize;
                             on_maximize();
                         }
                         break;
-                    case 6: // Close — same action as the titlebar double-click close
+                    case 1: // Move — the window follows the pointer until the
+                            // next click settles it (mouse take on the classic
+                            // keyboard move mode).
+                        m_menu_move_mode = true;
+                        m_is_dragging = true;
+                        m_last_mouse_x = event.x;
+                        m_last_mouse_y = event.y;
+                        captureMouse();
+                        if (m_on_drag_start) {
+                            m_on_drag_start();
+                        }
+                        break;
+                    case 2: // Minimize — same action as the titlebar minimize button
+                        if (m_on_minimize) {
+                            auto on_minimize = m_on_minimize;
+                            on_minimize();
+                        }
+                        break;
+                    case 3: // Maximize — same action as the titlebar maximize button
+                        toggleMaximize();
+                        if (m_on_maximize) {
+                            auto on_maximize = m_on_maximize;
+                            on_maximize();
+                        }
+                        break;
+                    case 5: // Close — same action as the titlebar double-click close
                         if (m_on_close) {
                             auto on_close = m_on_close;
                             on_close();
                         }
-                        break;
-                    case 1: // Move
-                    case 2: // Size
-                        // Keyboard-driven move/size mode is not implemented; the
-                        // menu closes with no action rather than inventing a new op.
                         break;
                     default:
                         break;
@@ -585,6 +623,12 @@ bool WindowFrameWidget::handleMouseWheel(int delta, int relative_x, int relative
 bool WindowFrameWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     if (event.button == SDL_BUTTON_LEFT) {
+        if (m_menu_move_mode) {
+            // Control-menu Move: the release of the click that picked "Move"
+            // (and any release mid-move) does not settle the window — only the
+            // next mouse-down does.
+            return true;
+        }
         if (m_is_dragging) {
             m_is_dragging = false;
             releaseMouse(); // Release mouse capture
@@ -806,11 +850,10 @@ void WindowFrameWidget::rebuildSurface()
     // Draw window control buttons
     drawWindowControls(*frame_surface);
     
-    // Draw system menu if open
-    if (m_system_menu_open) {
-        drawSystemMenu(*frame_surface);
-    }
-    
+    // The system menu is NOT drawn here: it overlays the client area, which is
+    // a child widget composited above this frame surface — anything painted
+    // here would be covered. recursiveBlitTo() draws it after the children.
+
     // Set the surface
     setSurface(std::move(frame_surface));
 }
@@ -1083,35 +1126,43 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
 {
     // Draw control menu box (full height square on left)
     Rect control_menu_bounds = getControlMenuBounds();
-    
-    // Control menu background (light gray) - fill the entire 18x18 area
-    surface.box(control_menu_bounds.x(), control_menu_bounds.y(), 
-               control_menu_bounds.x() + CONTROL_MENU_SIZE - 1, 
-               control_menu_bounds.y() + CONTROL_MENU_SIZE - 1, 
-               192, 192, 192, 255);
-    
+
+    // While the control menu is open, the icon renders inverted (dark box,
+    // black bar with white outline swapped) as pressed-state feedback.
+    const bool inv = m_system_menu_open;
+    const Uint8 bg   = inv ? 63 : 192;   // box fill
+    const Uint8 bar  = inv ? 0 : 255;    // the wide horizontal bar
+    const Uint8 line = inv ? 255 : 0;    // the bar's outline
+    const Uint8 shad = inv ? 127 : 128;  // drop shadow
+
+    // Control menu background - fill the entire 18x18 area
+    surface.box(control_menu_bounds.x(), control_menu_bounds.y(),
+               control_menu_bounds.x() + CONTROL_MENU_SIZE - 1,
+               control_menu_bounds.y() + CONTROL_MENU_SIZE - 1,
+               bg, bg, bg, 255);
+
     // Control menu has no border (as per user requirements)
-    
+
     // Draw the specific Windows 3.1 control menu icon:
     // 1x11px white line starting from (3, 8) inside the control, proceeding to (13, 8)
     // with 1px black border around this line
     // and grey drop shadow starting at (3, 10), proceeding to (15, 10), then turning 90 degrees upward to end at (15, 8)
-    
+
     int icon_base_x = control_menu_bounds.x() + CONTROL_ICON_X_OFFSET;
     int icon_base_y = control_menu_bounds.y() + CONTROL_ICON_Y_OFFSET;
-    
-    // Draw the white line from offset position
-    surface.hline(icon_base_x, icon_base_x + CONTROL_ICON_WIDTH, icon_base_y, 255, 255, 255, 255);
-    
-    // Draw 1px black border around the white line
-    surface.hline(icon_base_x - 1, icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y - 1, 0, 0, 0, 255); // Top border
-    surface.hline(icon_base_x - 1, icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y + 1, 0, 0, 0, 255); // Bottom border
-    surface.pixel(icon_base_x - 1, icon_base_y, 0, 0, 0, 255); // Left border
-    surface.pixel(icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y, 0, 0, 0, 255); // Right border
-    
+
+    // Draw the bar from offset position
+    surface.hline(icon_base_x, icon_base_x + CONTROL_ICON_WIDTH, icon_base_y, bar, bar, bar, 255);
+
+    // Draw 1px outline around the bar
+    surface.hline(icon_base_x - 1, icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y - 1, line, line, line, 255); // Top border
+    surface.hline(icon_base_x - 1, icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y + 1, line, line, line, 255); // Bottom border
+    surface.pixel(icon_base_x - 1, icon_base_y, line, line, line, 255); // Left border
+    surface.pixel(icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y, line, line, line, 255); // Right border
+
     // Draw grey drop shadow
-    surface.hline(icon_base_x, icon_base_x + CONTROL_SHADOW_WIDTH, icon_base_y + CONTROL_SHADOW_Y_OFFSET - CONTROL_ICON_Y_OFFSET, 128, 128, 128, 255); // Horizontal shadow line
-    surface.vline(icon_base_x + CONTROL_SHADOW_WIDTH, icon_base_y, icon_base_y + CONTROL_SHADOW_Y_OFFSET - CONTROL_ICON_Y_OFFSET, 128, 128, 128, 255); // Vertical shadow line
+    surface.hline(icon_base_x, icon_base_x + CONTROL_SHADOW_WIDTH, icon_base_y + CONTROL_SHADOW_Y_OFFSET - CONTROL_ICON_Y_OFFSET, shad, shad, shad, 255); // Horizontal shadow line
+    surface.vline(icon_base_x + CONTROL_SHADOW_WIDTH, icon_base_y, icon_base_y + CONTROL_SHADOW_Y_OFFSET - CONTROL_ICON_Y_OFFSET, shad, shad, shad, 255); // Vertical shadow line
     
     // Draw 1px black vertical separator line between control menu and titlebar proper
     surface.vline(control_menu_bounds.x() + CONTROL_MENU_SIZE, control_menu_bounds.y(), 
@@ -1159,62 +1210,88 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     }
 }
 
-void WindowFrameWidget::drawSystemMenu(Surface& surface) const
+void WindowFrameWidget::drawSystemMenu(Surface& surface, int offset_x, int offset_y) const
 {
-    
+    // The menu position is widget-relative; the offset shifts it into the
+    // coordinate space of the surface being drawn on (the composite target).
+    const int menu_x = m_system_menu_x + offset_x;
+    const int menu_y = m_system_menu_y + offset_y;
+
     // Draw dark grey drop shadow first
-    surface.box(m_system_menu_x + SYSTEM_MENU_SHADOW_OFFSET, m_system_menu_y + SYSTEM_MENU_SHADOW_OFFSET,
-               m_system_menu_x + SYSTEM_MENU_WIDTH + SYSTEM_MENU_SHADOW_OFFSET - 1, 
-               m_system_menu_y + SYSTEM_MENU_HEIGHT + SYSTEM_MENU_SHADOW_OFFSET - 1,
+    surface.box(menu_x + SYSTEM_MENU_SHADOW_OFFSET, menu_y + SYSTEM_MENU_SHADOW_OFFSET,
+               menu_x + SYSTEM_MENU_WIDTH + SYSTEM_MENU_SHADOW_OFFSET - 1,
+               menu_y + SYSTEM_MENU_HEIGHT + SYSTEM_MENU_SHADOW_OFFSET - 1,
                64, 64, 64, 255);
-    
+
     // Draw main menu background (light grey)
-    surface.box(m_system_menu_x, m_system_menu_y,
-               m_system_menu_x + SYSTEM_MENU_WIDTH - 1, m_system_menu_y + SYSTEM_MENU_HEIGHT - 1,
+    surface.box(menu_x, menu_y,
+               menu_x + SYSTEM_MENU_WIDTH - 1, menu_y + SYSTEM_MENU_HEIGHT - 1,
                192, 192, 192, 255);
-    
+
     // Draw black border around menu
-    surface.rectangle(m_system_menu_x, m_system_menu_y,
-                     m_system_menu_x + SYSTEM_MENU_WIDTH - 1, m_system_menu_y + SYSTEM_MENU_HEIGHT - 1,
+    surface.rectangle(menu_x, menu_y,
+                     menu_x + SYSTEM_MENU_WIDTH - 1, menu_y + SYSTEM_MENU_HEIGHT - 1,
                      0, 0, 0, 255);
-    
+
     // Menu item positioning
-    int current_y = m_system_menu_y + SYSTEM_MENU_TOP_MARGIN;
-    
-    // Define menu items with their text and separators
+    int current_y = menu_y + SYSTEM_MENU_TOP_MARGIN;
+
+    // Item order must mirror the click hit-test in handleMouseDown().
     const char* menu_items[] = {
         "Restore",
         "Move",
-        "Size",
         "Minimize",
         "Maximize",
         "",  // Separator
-        "Close    Alt+F4"
+        "Close"
     };
-    
-    // Draw menu items
+
+    // Draw menu items; inapplicable ones render greyed (systemMenuItemEnabled
+    // keeps this in agreement with the click handling).
     for (size_t i = 0; i < sizeof(menu_items) / sizeof(menu_items[0]); i++) {
         if (strlen(menu_items[i]) == 0) {
             // Draw separator line (white bar in black border)
             int sep_y = current_y + SYSTEM_MENU_SEPARATOR_HEIGHT / 2;
-            surface.hline(m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN, m_system_menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y - 1, 0, 0, 0, 255);
-            surface.hline(m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN, m_system_menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y, 255, 255, 255, 255);
-            surface.hline(m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN, m_system_menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y + 1, 0, 0, 0, 255);
+            surface.hline(menu_x + SYSTEM_MENU_BORDER_MARGIN, menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y - 1, 0, 0, 0, 255);
+            surface.hline(menu_x + SYSTEM_MENU_BORDER_MARGIN, menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y, 255, 255, 255, 255);
+            surface.hline(menu_x + SYSTEM_MENU_BORDER_MARGIN, menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y + 1, 0, 0, 0, 255);
             current_y += SYSTEM_MENU_SEPARATOR_HEIGHT;
         } else {
-            // Render the item label as black text on the light-grey menu.
             if (m_font) {
+                const bool enabled = systemMenuItemEnabled(static_cast<int>(i));
+                const Uint8 shade = enabled ? 0 : 128; // black, or grey when off
                 auto text_surface = m_font->Render(
-                    TagLib::String(menu_items[i], TagLib::String::UTF8), 0, 0, 0);
+                    TagLib::String(menu_items[i], TagLib::String::UTF8), shade, shade, shade);
                 if (text_surface) {
-                    int text_x = m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN;
+                    int text_x = menu_x + SYSTEM_MENU_BORDER_MARGIN;
                     int text_y = current_y + (SYSTEM_MENU_ITEM_HEIGHT - text_surface->height()) / 2;
                     surface.Blit(*text_surface,
                                  Rect(text_x, text_y, text_surface->width(), text_surface->height()));
                 }
+                // Close carries its accelerator, right-aligned in the row.
+                if (strcmp(menu_items[i], "Close") == 0) {
+                    auto accel = m_font->Render(TagLib::String("Ctrl+F4"), shade, shade, shade);
+                    if (accel) {
+                        int ax = menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN - accel->width();
+                        int ay = current_y + (SYSTEM_MENU_ITEM_HEIGHT - accel->height()) / 2;
+                        surface.Blit(*accel, Rect(ax, ay, accel->width(), accel->height()));
+                    }
+                }
             }
             current_y += SYSTEM_MENU_ITEM_HEIGHT;
         }
+    }
+}
+
+bool WindowFrameWidget::systemMenuItemEnabled(int item) const
+{
+    switch (item) {
+        case 0:  return m_maximized;                    // Restore
+        case 1:  return !m_maximized;                   // Move (maximized is pinned)
+        case 2:  return m_minimizable;                  // Minimize
+        case 3:  return m_maximizable && !m_maximized;  // Maximize
+        case 5:  return true;                           // Close
+        default: return false;                          // separator / out of range
     }
 }
 

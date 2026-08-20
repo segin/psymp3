@@ -2842,6 +2842,17 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             showAboutWindow();
             break;
 
+        case SDLK_F4:
+            // Ctrl+F4 closes the active in-app window (Equalizer, Playlist
+            // Manager, About, ...) via its on-close callback, exactly like the
+            // titlebar close control — the classic MDI child-close chord.
+            if (keysym.mod & SDL_KMOD_CTRL) {
+                if (WindowFrameWidget* win = WindowFrameWidget::activeWindow()) {
+                    win->requestClose();
+                }
+            }
+            break;
+
         // The H, B, and J keys (test window H, test window B, random windows)
         // are deliberately disabled: their handlers are intentionally omitted
         // here. The toggleTestWindowH/toggleTestWindowB/createRandomWindows
