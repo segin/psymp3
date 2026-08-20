@@ -62,6 +62,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Failed to parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Test initialization
                 if (demuxer->isEOF()) {
@@ -104,6 +109,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Failed to parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Try to extract basic stream information
                 // This would typically involve reading the STREAMINFO block
@@ -139,6 +149,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Failed to parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 int frameCount = 0;
                 int maxFrames = 50; // Limit for testing
@@ -190,6 +205,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Failed to parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 size_t fileSize = FLACTestDataUtils::getFileSize(file);
                 
@@ -242,11 +262,17 @@ private:
                 
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Failed to parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 int frameCount = 0;
                 while (frameCount < 20 && !demuxer->isEOF()) {
                     auto chunk = demuxer->readChunk();
-                    if (!chunk.data.empty()) frameCount++;
+                    if (chunk.data.empty()) break; // EOF or error: no more data is coming
+                    frameCount++;
                 }
                 
                 auto end = std::chrono::high_resolution_clock::now();
@@ -284,6 +310,10 @@ private:
         try {
             auto handler = std::make_unique<FileIOHandler>(file);
             auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+            if (!demuxer->parseContainer()) {
+                std::cout << "    ✗ Failed to parse container" << std::endl;
+                return false;
+            }
             
             // Test seeking beyond duration
             uint64_t duration = demuxer->getDuration();
@@ -321,6 +351,10 @@ private:
             for (int i = 0; i < 3; ++i) {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Failed to parse container" << std::endl;
+                    return false;
+                }
                 demuxers.push_back(std::move(demuxer));
             }
             
@@ -359,6 +393,10 @@ private:
             for (int i = 0; i < 10; ++i) {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Failed to parse container" << std::endl;
+                    return false;
+                }
                 
                 // Read a few frames
                 for (int j = 0; j < 5 && !demuxer->isEOF(); ++j) {

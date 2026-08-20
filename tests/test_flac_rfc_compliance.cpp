@@ -162,6 +162,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Cannot parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Try to read first frame and validate its structure
                 auto chunk = demuxer->readChunk();
@@ -204,6 +209,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Cannot parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Read multiple frames to validate sync patterns
                 int frameCount = 0;
@@ -255,6 +265,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Cannot parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Read frames and validate block sizes are within RFC limits
                 int frameCount = 0;
@@ -306,6 +321,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Cannot parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Read a frame to trigger sample rate validation
                 auto chunk = demuxer->readChunk();
@@ -340,6 +360,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Cannot parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Read a frame to trigger channel configuration validation
                 auto chunk = demuxer->readChunk();
@@ -374,6 +399,11 @@ private:
             try {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                if (!demuxer->parseContainer()) {
+                    std::cout << "    ✗ Cannot parse container" << std::endl;
+                    allPassed = false;
+                    continue;
+                }
                 
                 // Read a frame to trigger bit depth validation
                 auto chunk = demuxer->readChunk();
