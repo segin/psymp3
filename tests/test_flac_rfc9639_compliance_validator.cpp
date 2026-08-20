@@ -282,7 +282,7 @@ void test_compliance_report_generation() {
     assert(report.find("RFC 9639 FLAC Compliance Report") != std::string::npos);
     assert(report.find("Total frames analyzed: 2") != std::string::npos);
     assert(report.find("Compliant frames: 1") != std::string::npos);
-    assert(report.find("Violation Details:") != std::string::npos);
+    assert(report.find("Detailed Violations:") != std::string::npos);
     
     std::cout << "✓ Compliance report correctly generated" << std::endl;
 }

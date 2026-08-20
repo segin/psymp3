@@ -20,8 +20,9 @@
 #include <cstring>
 #include <algorithm>
 
-// Test data directory
-static const char* TEST_DATA_DIR = "tests/data";
+// Test data directory candidates: the harness runs with cwd at tests/,
+// where the fixtures live in "data"; "tests/data" covers top-level runs.
+static const char* TEST_DATA_DIRS[] = {"data", "tests/data"};
 
 // Simple assertion macro
 #define TEST_ASSERT(condition, message) \
@@ -47,32 +48,36 @@ static bool isFLACFile(const std::string& filename) {
  */
 static std::vector<std::string> discoverFLACFiles() {
     std::vector<std::string> flac_files;
-    
-    DIR* dir = opendir(TEST_DATA_DIR);
-    if (!dir) {
-        std::cerr << "Warning: Could not open " << TEST_DATA_DIR << std::endl;
-        return flac_files;
-    }
-    
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        std::string filename = entry->d_name;
-        
-        // Skip . and ..
-        if (filename == "." || filename == "..") continue;
-        
-        // Check for .flac extension
-        if (isFLACFile(filename)) {
-            std::string full_path = std::string(TEST_DATA_DIR) + "/" + filename;
-            flac_files.push_back(full_path);
+
+    for (const char* data_dir : TEST_DATA_DIRS) {
+        DIR* dir = opendir(data_dir);
+        if (!dir) {
+            continue;
         }
+
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            std::string filename = entry->d_name;
+
+            // Skip . and ..
+            if (filename == "." || filename == "..") continue;
+
+            // Check for .flac extension
+            if (isFLACFile(filename)) {
+                flac_files.push_back(std::string(data_dir) + "/" + filename);
+            }
+        }
+
+        closedir(dir);
+
+        // The directories are alternate paths to the same fixtures; stop at
+        // the first one that exists so files are not tested twice.
+        if (!flac_files.empty()) break;
     }
-    
-    closedir(dir);
-    
+
     // Sort for consistent ordering
     std::sort(flac_files.begin(), flac_files.end());
-    
+
     return flac_files;
 }
 
@@ -442,13 +447,13 @@ int main() {
     std::vector<std::string> flac_files = discoverFLACFiles();
     
     if (flac_files.empty()) {
-        std::cout << "\nNo FLAC files found in " << TEST_DATA_DIR << std::endl;
+        std::cout << "\nNo FLAC files found in the test data directories" << std::endl;
         std::cout << "Skipping real file tests (this is OK if no test files are available)" << std::endl;
         std::cout << "\n✓ Test suite completed (no files to test)" << std::endl;
         return 77; // automake SKIP
     }
     
-    std::cout << "\nDiscovered " << flac_files.size() << " FLAC file(s) in " << TEST_DATA_DIR << ":" << std::endl;
+    std::cout << "\nDiscovered " << flac_files.size() << " FLAC file(s):" << std::endl;
     for (const auto& file : flac_files) {
         std::cout << "  - " << file << std::endl;
     }
