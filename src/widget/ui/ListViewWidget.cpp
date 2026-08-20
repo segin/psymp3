@@ -111,6 +111,15 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
             w.setSelectedIndex(sel);
             return true;
         }
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+            // Enter activates the cursor row, exactly like a double-click (in
+            // the Playlist Manager that jumps playback to the track).
+            if (w.m_selected >= 0 && w.m_on_activate) {
+                auto on_activate = w.m_on_activate;
+                on_activate(w.m_selected);
+            }
+            return true;
         default:
             return false;
     }

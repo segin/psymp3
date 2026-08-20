@@ -233,6 +233,11 @@ class Player
         // overlay labels in the top-right corner. Persisted in psymp3.conf.
         void toggleShowDebug();
 
+        // Keyboard focus traversal (Tab/Shift+Tab) across the active window's
+        // controls, and Enter's fallback to that window's default button.
+        bool focusNextWidget(bool backwards);
+        bool activateDefaultButton();
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;

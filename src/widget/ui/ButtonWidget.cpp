@@ -30,6 +30,127 @@ namespace UI {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+ButtonWidget* ButtonWidget::s_focused_widget = nullptr;
+std::vector<ButtonWidget*> ButtonWidget::s_default_buttons;
+
+ButtonWidget::~ButtonWidget()
+{
+    if (s_focused_widget == this) {
+        s_focused_widget = nullptr;
+    }
+    auto it = std::find(s_default_buttons.begin(), s_default_buttons.end(), this);
+    if (it != s_default_buttons.end()) {
+        s_default_buttons.erase(it);
+    }
+}
+
+void ButtonWidget::takeFocus()
+{
+    if (s_focused_widget == this) {
+        return;
+    }
+    ButtonWidget* prev = s_focused_widget;
+    s_focused_widget = this;
+    if (prev) {
+        prev->cancelKeyPress();
+        prev->rebuildSurface();
+    }
+    rebuildSurface();
+    // The bold border migrates from any default button to the focused one.
+    for (ButtonWidget* d : s_default_buttons) {
+        if (d != this && d != prev) d->rebuildSurface();
+    }
+}
+
+void ButtonWidget::clearFocusedWidget()
+{
+    if (!s_focused_widget) {
+        return;
+    }
+    ButtonWidget* prev = s_focused_widget;
+    s_focused_widget = nullptr;
+    prev->cancelKeyPress();
+    prev->rebuildSurface();
+    // ...and back to the default button once no button holds focus.
+    for (ButtonWidget* d : s_default_buttons) {
+        if (d != prev) d->rebuildSurface();
+    }
+}
+
+void ButtonWidget::setDefault(bool is_default)
+{
+    if (m_default == is_default) {
+        return;
+    }
+    m_default = is_default;
+    auto it = std::find(s_default_buttons.begin(), s_default_buttons.end(), this);
+    if (is_default && it == s_default_buttons.end()) {
+        s_default_buttons.push_back(this);
+    } else if (!is_default && it != s_default_buttons.end()) {
+        s_default_buttons.erase(it);
+    }
+    rebuildSurface();
+}
+
+void ButtonWidget::activate()
+{
+    if (m_enabled && m_on_click) {
+        // Copy first: the callback may destroy this button (e.g. About's Ok).
+        auto on_click = m_on_click;
+        on_click();
+    }
+}
+
+bool ButtonWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
+{
+    if (!s_focused_widget) {
+        return false;
+    }
+    switch (keysym.sym) {
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+            // Enter activates immediately on key-down.
+            s_focused_widget->activate();
+            return true;
+        case SDLK_SPACE:
+            // Space sinks the button and holds it pressed; the activation
+            // happens on release (handleFocusedKeyUp), like real Windows.
+            // Key auto-repeat lands here again — the flag makes it a no-op.
+            if (!s_focused_widget->m_key_pressed) {
+                s_focused_widget->m_key_pressed = true;
+                s_focused_widget->m_pressed = true;
+                s_focused_widget->rebuildSurface();
+            }
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool ButtonWidget::handleFocusedKeyUp(const SDL_keysym& keysym)
+{
+    if (!s_focused_widget || keysym.sym != SDLK_SPACE ||
+        !s_focused_widget->m_key_pressed) {
+        return false;
+    }
+    ButtonWidget& w = *s_focused_widget;
+    w.m_key_pressed = false;
+    w.m_pressed = false;
+    w.rebuildSurface();
+    w.activate(); // may destroy the button; touch nothing afterwards
+    return true;
+}
+
+void ButtonWidget::cancelKeyPress()
+{
+    // Focus left while Space was held: the press is abandoned, not committed.
+    if (m_key_pressed) {
+        m_key_pressed = false;
+        m_pressed = false;
+        rebuildSurface();
+    }
+}
+
 ButtonWidget::ButtonWidget(int width, int height, ButtonSymbol symbol)
     : Widget()
     , m_symbol(symbol)
@@ -55,8 +176,11 @@ bool ButtonWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relati
     
     // Check if click is within button bounds
     Rect pos = getPos();
-    if (relative_x >= 0 && relative_x < pos.width() && 
+    if (relative_x >= 0 && relative_x < pos.width() &&
         relative_y >= 0 && relative_y < pos.height()) {
+        if (isFocusable()) {
+            takeFocus(); // clicking a push button also gives it keyboard focus
+        }
         m_pressed = true;
 
         // Grab the mouse so the matching up event is delivered here even if the
@@ -182,10 +306,48 @@ void ButtonWidget::drawButtonBackground(Surface& surface, bool pressed)
     Rect pos = getPos();
     int width = pos.width();
     int height = pos.height();
-    
+
     // Button background (light gray)
     surface.box(0, 0, width - 1, height - 1, 192, 192, 192, 255);
-    
+
+    // Text push buttons render in the authentic Windows 3.1 style: a black
+    // outline with the corner pixels notched (rounded), a 1px white highlight
+    // inside the top/left, and a chunky 2px grey shadow inside the
+    // bottom/right, stepped where the bevels meet. The outline doubles to 2px
+    // on the button Enter activates (the focused one, else the window's
+    // default). Symbol buttons (scrollbar arrows, titlebar controls) keep the
+    // plain bevel their parents frame.
+    if (!m_text.isEmpty()) {
+        // Black outline, outer ring corners notched.
+        surface.hline(1, width - 2, 0, 0, 0, 0, 255);
+        surface.hline(1, width - 2, height - 1, 0, 0, 0, 255);
+        surface.vline(0, 1, height - 2, 0, 0, 0, 255);
+        surface.vline(width - 1, 1, height - 2, 0, 0, 0, 255);
+        const int in = drawsBoldBorder() ? 2 : 1; // bevel inset = border width
+        if (in == 2) {
+            surface.rectangle(1, 1, width - 2, height - 2, 0, 0, 0, 255);
+        }
+
+        if (pressed) {
+            // Pushed in: a single grey shadow along the inside top/left; the
+            // label shifts one pixel down-right (see drawButtonText).
+            surface.hline(in, width - 1 - in, in, 128, 128, 128, 255);
+            surface.vline(in, in, height - 1 - in, 128, 128, 128, 255);
+        } else {
+            // 2px white top/left highlight, stepped at the far ends.
+            surface.hline(in, width - 2 - in, in, 255, 255, 255, 255);
+            surface.hline(in, width - 3 - in, in + 1, 255, 255, 255, 255);
+            surface.vline(in, in, height - 2 - in, 255, 255, 255, 255);
+            surface.vline(in + 1, in, height - 3 - in, 255, 255, 255, 255);
+            // 2px grey bottom/right shadow, stepped at the meeting corners.
+            surface.hline(in, width - 1 - in, height - 1 - in, 128, 128, 128, 255);
+            surface.hline(in + 1, width - 1 - in, height - 2 - in, 128, 128, 128, 255);
+            surface.vline(width - 1 - in, in, height - 1 - in, 128, 128, 128, 255);
+            surface.vline(width - 2 - in, in + 1, height - 2 - in, 128, 128, 128, 255);
+        }
+        return;
+    }
+
     if (pressed) {
         // Pressed button - inverted bevel (dark on top/left, light on bottom/right)
         // Top and left shadow (dark gray) - with 45-degree corner cut
@@ -344,6 +506,24 @@ void ButtonWidget::drawButtonText(Surface& surface, bool enabled)
     const int text_x = std::max(2, (pos.width() - text_surface->width()) / 2 + offset);
     const int text_y = std::max(2, (pos.height() - text_surface->height()) / 2 + offset);
     surface.Blit(*text_surface, Rect(text_x, text_y, text_surface->width(), text_surface->height()));
+
+    // Keyboard focus: the classic dotted rectangle, traced along the button
+    // face just inside the bevels (inside the white above, the grey below).
+    if (s_focused_widget == this) {
+        const int in = drawsBoldBorder() ? 2 : 1; // border width, as drawn
+        const int x0 = in + 2;
+        const int y0 = in + 2;
+        const int x1 = pos.width() - 3 - in;
+        const int y1 = pos.height() - 3 - in;
+        for (int x = x0; x <= x1; ++x) {
+            if (((x + y0) & 1) == 0) surface.pixel(x, y0, 0, 0, 0, 255);
+            if (((x + y1) & 1) == 0) surface.pixel(x, y1, 0, 0, 0, 255);
+        }
+        for (int y = y0 + 1; y < y1; ++y) {
+            if (((x0 + y) & 1) == 0) surface.pixel(x0, y, 0, 0, 0, 255);
+            if (((x1 + y) & 1) == 0) surface.pixel(x1, y, 0, 0, 0, 255);
+        }
+    }
 }
 
 } // namespace UI

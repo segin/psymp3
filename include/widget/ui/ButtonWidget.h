@@ -70,7 +70,22 @@ public:
     /**
      * @brief Virtual destructor.
      */
-    virtual ~ButtonWidget() = default;
+    virtual ~ButtonWidget();
+
+    // Keyboard focus and the Windows 3.1 default-button convention. The
+    // focused button draws a dotted rectangle around its label and is pressed
+    // by Space/Enter. The bold 2px black border marks the button Enter will
+    // activate: the focused button while one has focus, otherwise the
+    // window's default button (setDefault).
+    static ButtonWidget* focusedWidget() { return s_focused_widget; }
+    static void clearFocusedWidget();
+    static bool handleFocusedKeyPress(const SDL_keysym& keysym);
+    static bool handleFocusedKeyUp(const SDL_keysym& keysym);
+    void takeFocus();
+    bool isFocusable() const { return m_enabled && !m_text.isEmpty(); }
+    void setDefault(bool is_default);
+    bool isDefault() const { return m_default; }
+    void activate(); // fire the click callback, as a mouse click would
     
     /**
      * @brief Handles mouse button down events.
@@ -148,10 +163,23 @@ private:
     bool m_pressed;
     bool m_hovered;
     bool m_enabled;
+    bool m_default = false; // this window's Enter-activated button (bold border)
+    bool m_key_pressed = false; // sunken via a held Space (commits on release)
+    void cancelKeyPress();
     bool m_global_mouse_tracking;
     Font* m_font;
     TagLib::String m_text;
     std::function<void()> m_on_click;
+
+    // The button holding keyboard focus, and every default button (the latter
+    // so the bold border can be repainted when focus moves on/off buttons).
+    static ButtonWidget* s_focused_widget;
+    static std::vector<ButtonWidget*> s_default_buttons;
+    bool drawsBoldBorder() const
+    {
+        return s_focused_widget == this ||
+               (m_default && s_focused_widget == nullptr);
+    }
     
     /**
      * @brief Rebuilds the button surface based on current state.

@@ -68,6 +68,8 @@ public:
     // program when the user clicks elsewhere or the focused list is destroyed.
     static void clearFocusedWidget();
     static bool handleFocusedKeyPress(const SDL_keysym& keysym);
+    static ListViewWidget* focusedWidget() { return s_focused_widget; }
+    void takeFocus() { focus(); } // Tab-traversal entry point
 
     // External file-drag hover: derives the insertion gap for a pointer at
     // widget-relative (x, y) AND drives the edge auto-scroll (the list crawls

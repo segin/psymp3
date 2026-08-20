@@ -40,9 +40,11 @@ AboutWindow::AboutWindow(::Font* font)
     m_scrollbar = sb.get();
     addChild(std::move(sb));
 
-    // "Ok" button along the bottom, centered; dismisses the dialog.
+    // "Ok" button along the bottom, centered; dismisses the dialog. It is the
+    // dialog's default button (bold border; Enter activates it).
     auto btn = std::make_unique<ButtonWidget>(kButtonW, kButtonH);
     btn->setText("Ok", font);
+    btn->setDefault(true);
     btn->setOnClick([this] { if (m_on_ok) m_on_ok(); });
     m_ok = btn.get();
     addChild(std::move(btn));

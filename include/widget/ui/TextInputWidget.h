@@ -31,6 +31,8 @@ public:
     static void clearFocusedWidget();
     static bool handleFocusedKeyPress(const SDL_keysym& keysym);
     static bool handleFocusedTextInput(const char* text);
+    static TextInputWidget* focusedWidget() { return s_focused_widget; }
+    void takeFocus() { focus(); } // Tab-traversal entry point
 
 private:
     void focus();

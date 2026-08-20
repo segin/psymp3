@@ -2689,13 +2689,36 @@ void Player::toggleZoom()
  */
 bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
+    // Tab / Shift+Tab cycle keyboard focus through the active window's
+    // controls (text inputs, lists, push buttons), Windows-style. Checked
+    // before the focused-widget handlers so a text box can't swallow Tab.
+    if (keysym.sym == SDLK_TAB) {
+        if (focusNextWidget((keysym.mod & SDL_KMOD_SHIFT) != 0)) {
+            return false;
+        }
+    }
+
     if (TextInputWidget::handleFocusedKeyPress(keysym)) {
         return false;
     }
 
     // A focused list view (click-to-focus, like the text inputs) claims Up/Down
-    // for cursor movement, so they don't reach the global volume keys below.
+    // for cursor movement, so they don't reach the global volume keys below,
+    // and Enter to activate the cursor row.
     if (ListViewWidget::handleFocusedKeyPress(keysym)) {
+        return false;
+    }
+
+    // A focused push button claims Enter (activate now) and Space (press;
+    // activation on release, in handleKeyUp).
+    if (ButtonWidget::handleFocusedKeyPress(keysym)) {
+        return false;
+    }
+
+    // Enter that no focused control claimed: the active window's default
+    // button (the one wearing the bold border) fires.
+    if ((keysym.sym == SDLK_RETURN || keysym.sym == SDLK_KP_ENTER) &&
+        activateDefaultButton()) {
         return false;
     }
 
@@ -2972,6 +2995,11 @@ void Player::handleMouseButtonUp(const SDL_MouseButtonEvent& event)
  */
 void Player::handleKeyUp(const SDL_keysym& keysym)
 {
+    // A focused button pressed with Space commits its activation on release.
+    if (ButtonWidget::handleFocusedKeyUp(keysym)) {
+        return;
+    }
+
     switch (keysym.sym) {
         case SDLK_LEFT:
         case SDLK_RIGHT:
@@ -3530,6 +3558,7 @@ void Player::EventLoop() {
             {
                 TextInputWidget::clearFocusedWidget();
                 ListViewWidget::clearFocusedWidget();
+                ButtonWidget::clearFocusedWidget();
 
                 // Dispatch by visual priority: a window-owned mouse capture is
                 // authoritative (routed even while a menu is open, so a drag's
@@ -4354,6 +4383,83 @@ void Player::applyDebugLabels()
         m_labels.at("fft_mode")->setText("");
         m_labels.at("fps")->setText("");
     }
+}
+
+namespace {
+// Depth-first walk of a widget subtree collecting the focusable controls in
+// creation order — which is the tab order, like resource order in Windows.
+void collectFocusables(Widget* root, std::vector<Widget*>& out)
+{
+    for (const auto& child : root->getChildren()) {
+        Widget* c = child.get();
+        if (auto* b = dynamic_cast<ButtonWidget*>(c)) {
+            if (b->isFocusable()) out.push_back(c);
+        } else if (dynamic_cast<ListViewWidget*>(c) ||
+                   dynamic_cast<TextInputWidget*>(c)) {
+            out.push_back(c);
+        }
+        collectFocusables(c, out);
+    }
+}
+} // namespace
+
+bool Player::focusNextWidget(bool backwards)
+{
+    WindowFrameWidget* win = WindowFrameWidget::activeWindow();
+    if (!win || !win->getClientArea()) {
+        return false;
+    }
+    std::vector<Widget*> order;
+    collectFocusables(win->getClientArea(), order);
+    if (order.empty()) {
+        return false;
+    }
+
+    Widget* current = nullptr;
+    if (ButtonWidget::focusedWidget())         current = ButtonWidget::focusedWidget();
+    else if (ListViewWidget::focusedWidget())  current = ListViewWidget::focusedWidget();
+    else if (TextInputWidget::focusedWidget()) current = TextInputWidget::focusedWidget();
+
+    const int n = static_cast<int>(order.size());
+    int idx = -1;
+    for (int i = 0; i < n; ++i) {
+        if (order[i] == current) { idx = i; break; }
+    }
+    // Nothing focused (or focus in another window): start at an end.
+    const int next = (idx < 0) ? (backwards ? n - 1 : 0)
+                               : (idx + (backwards ? n - 1 : 1)) % n;
+
+    TextInputWidget::clearFocusedWidget();
+    ListViewWidget::clearFocusedWidget();
+    ButtonWidget::clearFocusedWidget();
+    Widget* target = order[next];
+    if (auto* b = dynamic_cast<ButtonWidget*>(target)) {
+        b->takeFocus();
+    } else if (auto* l = dynamic_cast<ListViewWidget*>(target)) {
+        l->takeFocus();
+    } else if (auto* t = dynamic_cast<TextInputWidget*>(target)) {
+        t->takeFocus();
+    }
+    return true;
+}
+
+bool Player::activateDefaultButton()
+{
+    WindowFrameWidget* win = WindowFrameWidget::activeWindow();
+    if (!win || !win->getClientArea()) {
+        return false;
+    }
+    std::vector<Widget*> order;
+    collectFocusables(win->getClientArea(), order);
+    for (Widget* w : order) {
+        if (auto* b = dynamic_cast<ButtonWidget*>(w)) {
+            if (b->isDefault()) {
+                b->activate();
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void Player::toggleShowDebug()
