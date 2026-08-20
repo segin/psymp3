@@ -57,48 +57,46 @@ void test_right_side_stereo() {
 void test_mid_side_stereo() {
     ChannelDecorrelator decorrelator;
     
-    // Mid-side: left = mid + (side>>1), right = mid - (side>>1)
+    // RFC 9639 §4.2 mid-side reconstruction: mid is shifted left 1 bit and
+    // the side channel's LSB ORed in, then left = (mid+side)>>1 and
+    // right = (mid-side)>>1. With even side values the LSB term is 0.
     int64_t mid[] = {100, 200, 300, 400};
     int64_t side[] = {20, 40, 60, 80};
     int64_t* channels[] = {mid, side};
-    
+
     ASSERT_TRUE(decorrelator.decorrelate(channels, 4, 2, ChannelAssignment::MID_SIDE),
                 "Should decorrelate mid-side");
-    
-    // After decorrelation:
-    // left = mid + (side>>1) = 100 + 10 = 110
-    // right = mid - (side>>1) = 100 - 10 = 90
-    ASSERT_EQUALS(110, mid[0], "Left = 100 + (20>>1) = 110");
-    ASSERT_EQUALS(90, side[0], "Right = 100 - (20>>1) = 90");
-    ASSERT_EQUALS(220, mid[1], "Left = 200 + (40>>1) = 220");
-    ASSERT_EQUALS(180, side[1], "Right = 200 - (40>>1) = 180");
+
+    // mid=100, side=20: mid<<1 = 200; left = (200+20)>>1 = 110, right = (200-20)>>1 = 90
+    ASSERT_EQUALS(110, mid[0], "Left = (200+20)>>1 = 110");
+    ASSERT_EQUALS(90, side[0], "Right = (200-20)>>1 = 90");
+    ASSERT_EQUALS(220, mid[1], "Left = (400+40)>>1 = 220");
+    ASSERT_EQUALS(180, side[1], "Right = (400-40)>>1 = 180");
 }
 
 // Test mid-side with odd side values
 void test_mid_side_odd_values() {
     ChannelDecorrelator decorrelator;
     
-    // Test proper rounding with odd side values
+    // An odd side sample means the encoder's mid channel (floor((L+R)/2))
+    // dropped a set LSB; RFC 9639 §4.2 restores it: "if a side channel
+    // sample is odd, 1 has to be added to the corresponding mid channel
+    // sample after it has been shifted left by 1 bit".
     int64_t mid[] = {100, 200};
     int64_t side[] = {21, 41};  // Odd values
     int64_t* channels[] = {mid, side};
-    
+
     ASSERT_TRUE(decorrelator.decorrelate(channels, 2, 2, ChannelAssignment::MID_SIDE),
                 "Should handle odd side values");
-    
-    // For odd side values, the arithmetic right shift rounds down
-    // 21 >> 1 = 10 (rounds down from 10.5)
-    // left = 100 + 10 = 110
-    // right = 100 - 10 = 90
-    // But due to the way mid-side works with odd values:
-    // left = mid + (side>>1) = 100 + 10 = 110
-    // right = mid - (side>>1) = 100 - 10 = 90
-    // However, to maintain lossless property: left + right = 2*mid
-    // So: 110 + 89 = 199, but 2*100 = 200
-    // The implementation may adjust for this
-    ASSERT_EQUALS(110, mid[0], "Left with odd side value");
-    // Accept either 89 or 90 depending on rounding implementation
-    ASSERT_TRUE(side[0] == 89 || side[0] == 90, "Right with odd side value (rounding)");
+
+    // mid=100, side=21: (100<<1)|1 = 201; left = (201+21)>>1 = 111,
+    // right = (201-21)>>1 = 90. Losslessness check: 111-90 = 21 = side,
+    // floor((111+90)/2) = 100 = mid.
+    ASSERT_EQUALS(111, mid[0], "Left with odd side value");
+    ASSERT_EQUALS(90, side[0], "Right with odd side value");
+    // mid=200, side=41: (200<<1)|1 = 401; left = 221, right = 180.
+    ASSERT_EQUALS(221, mid[1], "Left with odd side value (second sample)");
+    ASSERT_EQUALS(180, side[1], "Right with odd side value (second sample)");
 }
 
 // Test independent channels (no decorrelation)
