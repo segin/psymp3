@@ -98,8 +98,8 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/core/truetype.o \
 	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
 	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
-	$(top_builddir)/src/widget/ui/libpsymp3-widget-ui.a \
 	$(top_builddir)/src/widget/windowing/libpsymp3-widget-windowing.a \
+	$(top_builddir)/src/widget/ui/libpsymp3-widget-ui.a \
 	$(top_builddir)/src/widget/foundation/libpsymp3-widget-foundation.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
