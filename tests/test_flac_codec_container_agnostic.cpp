@@ -161,12 +161,14 @@ public:
     }
     
     static StreamInfo createInvalidStreamInfo() {
+        // Zero values are valid (streamable subset mode: parameters come
+        // from frame headers), so "invalid" means out of range per RFC 9639.
         StreamInfo info;
         info.codec_type = "audio";
         info.codec_name = "flac";
-        info.sample_rate = 0; // Invalid
-        info.channels = 0; // Invalid
-        info.bits_per_sample = 0; // Invalid
+        info.sample_rate = 1048576; // > 20-bit maximum (1048575 Hz)
+        info.channels = 9;          // > maximum of 8
+        info.bits_per_sample = 33;  // > maximum of 32
         return info;
     }
 };

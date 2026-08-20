@@ -118,39 +118,62 @@ bool test_invalid_streaminfo_rejection() {
     Debug::log("test", "[test_invalid_streaminfo_rejection] Testing invalid StreamInfo rejection");
     
     try {
-        // Test 1: Invalid sample rate
+        // Zero values are NOT invalid: the codec accepts them as streamable
+        // subset mode (parameters are extracted from frame headers when
+        // synchronizing mid-stream). Rejection applies to values that are
+        // out of range per RFC 9639: sample rate > 1048575 Hz, more than 8
+        // channels, bit depth outside 4-32.
+
+        // Test 1: Out-of-range sample rate
         StreamInfo invalid_rate;
         invalid_rate.codec_type = "audio";
         invalid_rate.codec_name = "flac";
-        invalid_rate.sample_rate = 0; // Invalid
+        invalid_rate.sample_rate = 1048576; // > RFC 9639 20-bit maximum
         invalid_rate.channels = 2;
         invalid_rate.bits_per_sample = 16;
-        
+
         FLACCodec codec1(invalid_rate);
-        
+
         if (codec1.initialize()) {
-            Debug::log("test", "[test_invalid_streaminfo_rejection] Codec should reject zero sample rate");
+            Debug::log("test", "[test_invalid_streaminfo_rejection] Codec should reject out-of-range sample rate");
             return false;
         }
-        
-        Debug::log("test", "[test_invalid_streaminfo_rejection] Zero sample rate rejection: SUCCESS");
-        
-        // Test 2: Invalid channels
+
+        Debug::log("test", "[test_invalid_streaminfo_rejection] Out-of-range sample rate rejection: SUCCESS");
+
+        // Test 2: Out-of-range channel count
         StreamInfo invalid_channels;
         invalid_channels.codec_type = "audio";
         invalid_channels.codec_name = "flac";
         invalid_channels.sample_rate = 44100;
-        invalid_channels.channels = 0; // Invalid
+        invalid_channels.channels = 9; // RFC 9639 maximum is 8
         invalid_channels.bits_per_sample = 16;
-        
+
         FLACCodec codec2(invalid_channels);
-        
+
         if (codec2.initialize()) {
-            Debug::log("test", "[test_invalid_streaminfo_rejection] Codec should reject zero channels");
+            Debug::log("test", "[test_invalid_streaminfo_rejection] Codec should reject more than 8 channels");
             return false;
         }
-        
-        Debug::log("test", "[test_invalid_streaminfo_rejection] Zero channels rejection: SUCCESS");
+
+        Debug::log("test", "[test_invalid_streaminfo_rejection] Excess channel rejection: SUCCESS");
+
+        // Test 2b: Zero values must be ACCEPTED (streamable subset mode)
+        StreamInfo subset_info;
+        subset_info.codec_type = "audio";
+        subset_info.codec_name = "flac";
+        subset_info.sample_rate = 0;
+        subset_info.channels = 0;
+        subset_info.bits_per_sample = 0;
+
+        FLACCodec subset_codec(subset_info);
+
+        if (!subset_codec.initialize()) {
+            Debug::log("test", "[test_invalid_streaminfo_rejection] Codec should accept zero values (streamable subset)");
+            return false;
+        }
+
+        Debug::log("test", "[test_invalid_streaminfo_rejection] Streamable subset acceptance: SUCCESS");
         
         // Test 3: Wrong codec name
         StreamInfo wrong_codec;
