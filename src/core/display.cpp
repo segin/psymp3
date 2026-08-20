@@ -47,10 +47,14 @@ Display::Display() : Surface()
 
 Display::~Display()
 {
-    if (m_window) {
+    // Player::Cleanup()'s SDL_Quit() destroys every window before this
+    // destructor runs; destroying it again dereferences freed SDL memory
+    // (same shutdown hazard as ~Audio's stream and ~WindowFrameWidget's
+    // cursors). Only destroy while the video subsystem is still up.
+    if (m_window && SDL_WasInit(SDL_INIT_VIDEO)) {
         SDL_DestroyWindow(m_window);
-        m_window = nullptr;
     }
+    m_window = nullptr;
 }
 
 void Display::setWindowIcon(const uint8_t* rgba, int width, int height)
