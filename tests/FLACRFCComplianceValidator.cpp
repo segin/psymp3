@@ -247,7 +247,8 @@ FrameComplianceAnalysis BitLevelAnalyzer::analyzeFrameHeader(const uint8_t* data
         analysis.blocking_strategy_valid = true; // Both values (0,1) are valid per RFC
         
         // Block size (bits 4-7 of byte 1)
-        uint8_t block_size_bits = (byte1 >> 4) & 0x0F;
+        // Block size lives in the high nibble of byte 2 (byte 1 is still sync).
+        uint8_t block_size_bits = (byte2 >> 4) & 0x0F;
         size_t violations_before = analysis.violations.size();
         uint32_t block_size = validateBlockSizeEncoding(block_size_bits, data, analysis.violations, frame_number, byte_offset);
         (void)block_size; // Suppress unused variable warning
@@ -266,8 +267,8 @@ FrameComplianceAnalysis BitLevelAnalyzer::analyzeFrameHeader(const uint8_t* data
             analysis.is_compliant = false;
         }
         
-        // Channel assignment (bits 4-7 of byte 2)
-        uint8_t channel_assignment = (byte2 >> 4) & 0x0F;
+        // Channel assignment (bits 4-7 of byte 3)
+        uint8_t channel_assignment = (byte3 >> 4) & 0x0F;
         uint8_t channels = (channel_assignment < 8) ? (channel_assignment + 1) : 2;
         violations_before = analysis.violations.size();
         validateChannelAssignment(channel_assignment, channels, analysis.violations, frame_number, byte_offset);
@@ -367,12 +368,12 @@ bool BitLevelAnalyzer::validateFrameHeader(const uint8_t* data, size_t size,
     // Validate that no forbidden bit patterns exist
     // RFC 9639 specifies several reserved/forbidden values
     
-    uint8_t byte1 = data[1];
     uint8_t byte2 = data[2];
     uint8_t byte3 = data[3];
     
-    // Check for reserved block size values
-    uint8_t block_size_bits = (byte1 >> 4) & 0x0F;
+    // Check for reserved block size values (high nibble of byte 2; byte 1 is
+    // still part of the sync sequence).
+    uint8_t block_size_bits = (byte2 >> 4) & 0x0F;
     if (block_size_bits == 0x00) {
         RFCViolationReport violation;
         violation.severity = RFCViolationSeverity::ERROR;
