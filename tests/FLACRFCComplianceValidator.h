@@ -374,6 +374,12 @@ public:
     void addViolation(const RFCViolationReport& violation);
     
 private:
+    /**
+     * @brief getViolationStats() body; assumes m_violation_mutex and
+     *        m_stats_mutex are both held (Public/Private Lock Pattern)
+     */
+    ViolationStats getViolationStats_unlocked() const;
+
     // Validation state
     bool m_real_time_validation_enabled;
     uint64_t m_performance_threshold_us;

@@ -605,8 +605,8 @@ std::string BitLevelAnalyzer::dumpFrameHeader(const uint8_t* data, size_t size) 
     dump << "Blocking strategy: " << static_cast<int>(blocking_strategy);
     dump << (blocking_strategy == 0 ? " (fixed)" : " (variable)") << "\n";
     
-    // Block size
-    uint8_t block_size_bits = (data[1] >> 4) & 0x0F;
+    // Block size (high nibble of byte 2; byte 1 is still sync)
+    uint8_t block_size_bits = (data[2] >> 4) & 0x0F;
     dump << "Block size encoding: 0x" << std::hex << static_cast<int>(block_size_bits);
     if (block_size_bits < 16 && block_size_table[block_size_bits] > 0) {
         dump << " (" << std::dec << block_size_table[block_size_bits] << " samples)";
@@ -633,8 +633,8 @@ std::string BitLevelAnalyzer::dumpFrameHeader(const uint8_t* data, size_t size) 
     }
     dump << "\n";
     
-    // Channel assignment
-    uint8_t channel_assignment = (data[2] >> 4) & 0x0F;
+    // Channel assignment (high nibble of byte 3)
+    uint8_t channel_assignment = (data[3] >> 4) & 0x0F;
     dump << "Channel assignment: " << std::dec << static_cast<int>(channel_assignment);
     if (channel_assignment < 8) {
         dump << " (" << (channel_assignment + 1) << " independent channels)";
@@ -897,8 +897,8 @@ std::string FLACRFCComplianceValidator::generateComplianceReport() const {
     report << "RFC 9639 FLAC Compliance Report\n";
     report << "===============================\n\n";
     
-    // Summary statistics
-    auto stats = getViolationStats();
+    // Summary statistics (both locks are already held here)
+    auto stats = getViolationStats_unlocked();
     report << "Summary:\n";
     report << "--------\n";
     report << "Total frames analyzed: " << stats.total_frames_analyzed << "\n";
@@ -926,20 +926,23 @@ std::string FLACRFCComplianceValidator::generateComplianceReport() const {
 FLACRFCComplianceValidator::ViolationStats FLACRFCComplianceValidator::getViolationStats() const {
     std::lock_guard<std::mutex> violation_lock(m_violation_mutex);
     std::lock_guard<std::mutex> stats_lock(m_stats_mutex);
-    
+    return getViolationStats_unlocked();
+}
+
+FLACRFCComplianceValidator::ViolationStats FLACRFCComplianceValidator::getViolationStats_unlocked() const {
     ViolationStats stats;
-    
+
     stats.total_frames_analyzed = m_total_frames_analyzed;
     stats.compliant_frames = m_compliant_frames;
     stats.non_compliant_frames = m_total_frames_analyzed - m_compliant_frames;
     stats.total_violations = m_violation_history.size();
-    
+
     // Count violations by severity
     stats.critical_violations = 0;
     stats.error_violations = 0;
     stats.warning_violations = 0;
     stats.info_violations = 0;
-    
+
     for (const auto& violation : m_violation_history) {
         switch (violation.severity) {
             case RFCViolationSeverity::CRITICAL:
@@ -956,35 +959,14 @@ FLACRFCComplianceValidator::ViolationStats FLACRFCComplianceValidator::getViolat
                 break;
         }
     }
-    
+
     // Calculate compliance percentage
     if (stats.total_frames_analyzed > 0) {
         stats.compliance_percentage = (static_cast<double>(stats.compliant_frames) / stats.total_frames_analyzed) * 100.0;
     } else {
         stats.compliance_percentage = 0.0;
     }
-    
-    return stats;
-    
-    // Count violations by severity
-    stats.critical_violations = 0;
-    stats.error_violations = 0;
-    stats.warning_violations = 0;
-    stats.info_violations = 0;
-    
-    for (const auto& violation : m_violation_history) {
-        switch (violation.severity) {
-            case RFCViolationSeverity::CRITICAL: stats.critical_violations++; break;
-            case RFCViolationSeverity::ERROR: stats.error_violations++; break;
-            case RFCViolationSeverity::WARNING: stats.warning_violations++; break;
-            case RFCViolationSeverity::INFO: stats.info_violations++; break;
-        }
-    }
-    
-    // Calculate compliance percentage
-    stats.compliance_percentage = (m_total_frames_analyzed > 0) ? 
-        (static_cast<double>(m_compliant_frames) * 100.0 / m_total_frames_analyzed) : 0.0;
-    
+
     return stats;
 }
 
