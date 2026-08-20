@@ -30,8 +30,12 @@ endif
 CODEC_LIBS =
 DEMUXER_LIBS =
 
-# MP3 codec and demuxer are always available (bundled minimp3)
+# MP3/MP2/ALAC codecs and the MP3 demuxer are always available (bundled
+# minimp3, kjmp2, and Apple ALAC — mirrors CODEC_LIBS in src/Makefile.am;
+# CodecRegistration.o references all three unconditionally).
 CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
+CODEC_LIBS += $(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a
+CODEC_LIBS += $(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/mp3/libpsymp3-demuxer-mp3.a
 
 if HAVE_FLAC
@@ -198,6 +202,8 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a \
 	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
@@ -205,6 +211,8 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a \
 	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
@@ -1483,12 +1491,16 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
@@ -2542,6 +2554,8 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 #	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 #	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 #	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 #	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 #	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
@@ -2554,6 +2568,8 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 #	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
 #	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 #	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
 #	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
 #	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
@@ -2974,6 +2990,8 @@ test_opus_integration_LDADD = \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(AM_LDFLAGS)
 
 test_opus_compatibility_performance_SOURCES = test_opus_compatibility_performance.cpp
@@ -3007,6 +3025,8 @@ test_opus_compatibility_performance_LDADD = \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(AM_LDFLAGS)
 
 # MPRIS Mock Framework Tests
