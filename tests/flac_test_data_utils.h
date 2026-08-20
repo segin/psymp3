@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
+#include <cstdint>
 
 /**
  * @brief Common test data file paths for FLAC validation
@@ -109,6 +110,42 @@ public:
         std::cout << std::endl;
     }
     
+    /**
+     * @brief Append a 34-byte STREAMINFO block body laid out per RFC 9639
+     *
+     * Field order: min/max blocksize (16+16 bits, fixed at 4096 here),
+     * min/max framesize (24+24, zero = unknown), then the 64-bit group
+     * sample rate (20) | channels-1 (3) | bps-1 (5) | total samples (36),
+     * then a zeroed MD5 signature (128). Synthetic-file builders in several
+     * tests share this so the bit packing can't drift per test.
+     */
+    static void appendStreamInfoBody(std::vector<uint8_t>& data,
+                                     uint32_t sample_rate,
+                                     uint8_t channels,
+                                     uint8_t bits_per_sample,
+                                     uint64_t total_samples) {
+        // min/max block size (16 bits each): 4096 samples
+        data.push_back(0x10); data.push_back(0x00);
+        data.push_back(0x10); data.push_back(0x00);
+
+        // min/max frame size (24 bits each): 0 = unknown
+        for (int i = 0; i < 6; i++) data.push_back(0x00);
+
+        // 64-bit group: sample_rate(20) | channels-1(3) | bps-1(5) | total(36)
+        uint8_t bps = bits_per_sample - 1;
+        data.push_back((sample_rate >> 12) & 0xFF);
+        data.push_back((sample_rate >> 4) & 0xFF);
+        data.push_back(((sample_rate & 0x0F) << 4) | ((channels - 1) << 1) | ((bps >> 4) & 0x01));
+        data.push_back(((bps & 0x0F) << 4) | ((total_samples >> 32) & 0x0F));
+        data.push_back((total_samples >> 24) & 0xFF);
+        data.push_back((total_samples >> 16) & 0xFF);
+        data.push_back((total_samples >> 8) & 0xFF);
+        data.push_back(total_samples & 0xFF);
+
+        // MD5 signature (16 bytes): zeroed for synthetic data
+        for (int i = 0; i < 16; i++) data.push_back(0x00);
+    }
+
     /**
      * @brief Validate that at least one test file is available
      * @param testName Name of the test for error reporting

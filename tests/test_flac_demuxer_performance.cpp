@@ -9,6 +9,7 @@
 
 #include "psymp3.h"
 #include "test_framework.h"
+#include "flac_test_data_utils.h"
 #include <chrono>
 #include <thread>
 #include <atomic>
@@ -60,42 +61,7 @@ public:
         data.push_back(0x00);
         data.push_back(0x22); // 34 bytes
         
-        // STREAMINFO block data
-        // min_block_size (16 bits) - 4096
-        data.push_back(0x10);
-        data.push_back(0x00);
-        
-        // max_block_size (16 bits) - 4096
-        data.push_back(0x10);
-        data.push_back(0x00);
-        
-        // min_frame_size (24 bits) - 0 (unknown)
-        data.push_back(0x00);
-        data.push_back(0x00);
-        data.push_back(0x00);
-        
-        // max_frame_size (24 bits) - 0 (unknown)
-        data.push_back(0x00);
-        data.push_back(0x00);
-        data.push_back(0x00);
-        
-        // sample_rate (20 bits), channels-1 (3 bits), bits_per_sample-1 (5 bits)
-        uint32_t sr_ch_bps = (sample_rate << 12) | ((channels - 1) << 9) | (16 - 1);
-        data.push_back((sr_ch_bps >> 16) & 0xFF);
-        data.push_back((sr_ch_bps >> 8) & 0xFF);
-        data.push_back(sr_ch_bps & 0xFF);
-        
-        // total_samples (36 bits)
-        data.push_back((total_samples >> 28) & 0xFF);
-        data.push_back((total_samples >> 20) & 0xFF);
-        data.push_back((total_samples >> 12) & 0xFF);
-        data.push_back((total_samples >> 4) & 0xFF);
-        data.push_back((total_samples << 4) & 0xF0);
-        
-        // MD5 signature (16 bytes) - zeros
-        for (int i = 0; i < 16; i++) {
-            data.push_back(0x00);
-        }
+        FLACTestDataUtils::appendStreamInfoBody(data, sample_rate, channels, 16, total_samples);
         
         // SEEKTABLE metadata block (last)
         data.push_back(0x83); // is_last=1, type=3
@@ -164,10 +130,7 @@ public:
         data.push_back(0x00);
         data.push_back(0x22);
         
-        // Basic STREAMINFO data
-        for (int i = 0; i < 34; i++) {
-            data.push_back(i < 4 ? 0x10 : 0x00);
-        }
+        FLACTestDataUtils::appendStreamInfoBody(data, 44100, 2, 16, 44100);
         
         // Large VORBIS_COMMENT block (last)
         data.push_back(0x84); // is_last=1, type=4
