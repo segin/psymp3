@@ -23,18 +23,40 @@ void ContextMenuWidget::setEntries(std::vector<Entry> entries)
 {
     m_entries = std::move(entries);
 
-    // Popup width = widest label + padding on both sides.
+    // Popup width = widest label (plus its accelerator column) + padding.
     int max_w = 0;
     if (m_font && m_font->isValid()) {
         for (const auto& e : m_entries) {
+            if (e.separator) continue;
+            int w = 0;
             auto surf = m_font->RenderLCD(TagLib::String(e.label, TagLib::String::UTF8),
                                           0, 0, 0, 192, 192, 192);
-            if (surf && surf->width() > max_w) max_w = surf->width();
+            if (surf) w = surf->width();
+            if (!e.accel.empty()) {
+                auto accel = m_font->RenderLCD(TagLib::String(e.accel, TagLib::String::UTF8),
+                                               0, 0, 0, 192, 192, 192);
+                if (accel) w += ACCEL_GAP + accel->width();
+            }
+            if (w > max_w) max_w = w;
         }
     }
     m_width_px = max_w + 2 * PAD + 2; // + the 1px borders
     if (m_width_px < 40) m_width_px = 40;
     invalidate();
+}
+
+int ContextMenuWidget::entryHeight(int i) const
+{
+    return m_entries[static_cast<size_t>(i)].separator ? SEP_H : ITEM_H;
+}
+
+int ContextMenuWidget::entriesHeight() const
+{
+    int h = 0;
+    for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
+        h += entryHeight(i);
+    }
+    return h;
 }
 
 void ContextMenuWidget::openAt(int x, int y)
@@ -48,17 +70,23 @@ void ContextMenuWidget::openAt(int x, int y)
 
 void ContextMenuWidget::close()
 {
-    if (m_open) {
-        m_open = false;
-        m_hover = -1;
-        invalidate();
+    if (!m_open) {
+        return;
+    }
+    m_open = false;
+    m_hover = -1;
+    invalidate();
+    if (m_on_close) {
+        // Copy first: the callback belongs to the owner and may mutate us.
+        auto on_close = m_on_close;
+        on_close();
     }
 }
 
 Rect ContextMenuWidget::popupRect() const
 {
     int w = m_width_px;
-    int h = static_cast<int>(m_entries.size()) * ITEM_H + 2; // + 1px borders
+    int h = entriesHeight() + 2; // + 1px borders
     int x = m_x;
     int y = m_y;
     Rect me = getPos();
@@ -77,13 +105,17 @@ int ContextMenuWidget::itemAt(int x, int y) const
     }
     int rel = y - (r.y() + 1); // items start one pixel below the top border
     if (rel < 0) {
-        return -1; // on the top border, not an item (integer -1/ITEM_H would be 0)
+        return -1; // on the top border, not an item
     }
-    int idx = rel / ITEM_H;
-    if (idx < 0 || idx >= static_cast<int>(m_entries.size())) {
-        return -1;
+    int acc = 0;
+    for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
+        const int h = entryHeight(i);
+        if (rel < acc + h) {
+            return m_entries[static_cast<size_t>(i)].separator ? -1 : i;
+        }
+        acc += h;
     }
-    return idx;
+    return -1;
 }
 
 bool ContextMenuWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
@@ -149,9 +181,17 @@ void ContextMenuWidget::draw(Surface& surface)
     surface.hline(x1, x2, y2, 128, 128, 128, 255);
     surface.vline(x2, y1, y2, 128, 128, 128, 255);
 
+    int iy = y1 + 1;
     for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
         const Entry& e = m_entries[i];
-        int iy = y1 + 1 + i * ITEM_H;
+        if (e.separator) {
+            // Etched separator: dark line with a white line beneath.
+            const int sy = iy + SEP_H / 2 - 1;
+            surface.hline(x1 + 2, x2 - 2, sy, 128, 128, 128, 255);
+            surface.hline(x1 + 2, x2 - 2, sy + 1, 255, 255, 255, 255);
+            iy += SEP_H;
+            continue;
+        }
         bool hi = (i == m_hover) && e.enabled;
         if (hi) {
             surface.box(x1 + 1, iy, x2 - 1, iy + ITEM_H - 1, 0, 0, 128, 255);
@@ -165,7 +205,17 @@ void ContextMenuWidget::draw(Surface& surface)
                 int ty = iy + (ITEM_H - text->height()) / 2;
                 surface.Blit(*text, Rect(x1 + PAD, ty, text->width(), text->height()));
             }
+            if (!e.accel.empty()) {
+                auto accel = m_font->RenderLCD(TagLib::String(e.accel, TagLib::String::UTF8),
+                                               fg, fg, fg, bg_r, bg_g, bg_b);
+                if (accel && accel->width() > 0) {
+                    int ay = iy + (ITEM_H - accel->height()) / 2;
+                    surface.Blit(*accel, Rect(x2 - PAD - accel->width(), ay,
+                                              accel->width(), accel->height()));
+                }
+            }
         }
+        iy += ITEM_H;
     }
 }
 

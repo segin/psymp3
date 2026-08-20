@@ -34,6 +34,8 @@ public:
         std::string label;
         std::function<void()> action;
         bool enabled = true;
+        std::string accel;      // optional right-aligned accelerator text
+        bool separator = false; // etched separator row (other fields ignored)
     };
 
     ContextMenuWidget(int width, int height, Core::Font* font);
@@ -44,6 +46,10 @@ public:
     void openAt(int x, int y);
     void close();
     bool isOpen() const { return m_open; }
+    // Fired whenever the popup closes, by any path (item, dismissal, close()).
+    // Owners use it to sync state that mirrors the open menu (e.g. the window
+    // frame's inverted titlebar icon).
+    void setOnClose(std::function<void()> cb) { m_on_close = std::move(cb); }
     // Resize the full-window overlay to a new container size.
     void resize(int width, int height) { onResize(width, height); }
 
@@ -55,11 +61,15 @@ protected:
     void draw(Surface& surface) override;
 
 private:
-    static constexpr int ITEM_H = 18;   // item row height
+    static constexpr int ITEM_H = 18;    // item row height
+    static constexpr int SEP_H = 7;      // separator row height
     static constexpr int PAD = 6;        // horizontal text padding
+    static constexpr int ACCEL_GAP = 16; // min gap between label and accel
 
     Rect popupRect() const;              // clamped to stay within the widget
     int itemAt(int x, int y) const;      // entry index under a point, or -1
+    int entryHeight(int i) const;        // row height (item vs separator)
+    int entriesHeight() const;           // sum of all row heights
 
     Core::Font* m_font;
     std::vector<Entry> m_entries;
@@ -68,6 +78,7 @@ private:
     int m_y = 0;
     int m_hover = -1;
     int m_width_px = 40;                 // computed from the entry labels
+    std::function<void()> m_on_close;
 };
 
 } // namespace UI

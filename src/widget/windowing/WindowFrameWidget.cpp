@@ -125,9 +125,6 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     , m_resize_start_y(0)
     , m_resize_start_width(0)
     , m_resize_start_height(0)
-    , m_system_menu_open(false)
-    , m_system_menu_x(0)
-    , m_system_menu_y(0)
     , m_resizable(true)
     , m_minimizable(true)
     , m_maximizable(true)
@@ -219,50 +216,84 @@ WindowFrameWidget::~WindowFrameWidget()
     }
 }
 
-void WindowFrameWidget::BlitTo(Surface& target)
-{
-    Widget::BlitTo(target); // frame surface, then children (clipped)
-    if (m_system_menu_open) {
-        const Rect pos = getPos();
-        drawSystemMenu(target, pos.x(), pos.y());
-    }
-}
-
-void WindowFrameWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
-{
-    Widget::recursiveBlitTo(target, parent_absolute_pos); // frame, then children
-    if (m_system_menu_open) {
-        const Rect pos = getPos();
-        drawSystemMenu(target,
-                       parent_absolute_pos.x() + pos.x(),
-                       parent_absolute_pos.y() + pos.y());
-    }
-}
-
 bool WindowFrameWidget::dismissOpenSystemMenuAt(int x, int y)
 {
+    // Clicks inside the owning frame are routed to it normally (the overlay
+    // child handles selection/dismissal, the icon its toggle); only a click
+    // outside the frame needs this app-level dismissal — and it is consumed.
     WindowFrameWidget* w = s_open_menu_window;
     if (!w) {
         return false;
     }
     const Rect pos = w->getPos();
-    const int rx = x - pos.x();
-    const int ry = y - pos.y();
-    // Clicks inside the menu (item selection) or on the titlebar icon (its
-    // toggle closes the menu itself) stay with the owner.
-    if (rx >= w->m_system_menu_x && rx < w->m_system_menu_x + SYSTEM_MENU_WIDTH &&
-        ry >= w->m_system_menu_y && ry < w->m_system_menu_y + SYSTEM_MENU_HEIGHT) {
+    if (x >= pos.x() && x < pos.x() + pos.width() &&
+        y >= pos.y() && y < pos.y() + pos.height()) {
         return false;
     }
-    const Rect icon = w->getControlMenuBounds();
-    if (rx >= icon.x() && rx < icon.x() + icon.width() &&
-        ry >= icon.y() && ry < icon.y() + icon.height()) {
-        return false;
-    }
-    w->m_system_menu_open = false;
-    s_open_menu_window = nullptr;
-    w->rebuildSurface(); // un-invert the titlebar icon
+    w->closeControlMenu();
     return true;
+}
+
+void WindowFrameWidget::openControlMenu()
+{
+    const Rect pos = getPos();
+    if (!m_control_menu) {
+        auto menu = std::make_unique<UI::ContextMenuWidget>(pos.width(), pos.height(), m_font);
+        m_control_menu = menu.get();
+        m_control_menu->setPos(Rect(0, 0, pos.width(), pos.height()));
+        m_control_menu->setOnClose([this] {
+            // Any close path (item, dismissal, toggle) lands here exactly once.
+            if (s_open_menu_window == this) {
+                s_open_menu_window = nullptr;
+            }
+            rebuildSurface(); // un-invert the titlebar icon
+        });
+        addChild(std::move(menu)); // last child: composites above the client
+    } else {
+        m_control_menu->resize(pos.width(), pos.height());
+    }
+
+    using Entry = UI::ContextMenuWidget::Entry;
+    std::vector<Entry> entries;
+    entries.push_back(Entry{"Restore", [this] {
+        toggleMaximize();
+        if (m_on_maximize) { auto cb = m_on_maximize; cb(); }
+    }, m_maximized});
+    entries.push_back(Entry{"Move", [this] {
+        // The window follows the pointer until the next click settles it
+        // (mouse take on the classic keyboard move mode). The baseline is
+        // taken from the first motion event, since the menu click that chose
+        // this item is not a meaningful drag origin.
+        m_menu_move_mode = true;
+        m_menu_move_pending = true;
+        m_is_dragging = true;
+        captureMouse();
+        if (m_on_drag_start) { m_on_drag_start(); }
+    }, !m_maximized});
+    entries.push_back(Entry{"Minimize", [this] {
+        if (m_on_minimize) { auto cb = m_on_minimize; cb(); }
+    }, m_minimizable});
+    entries.push_back(Entry{"Maximize", [this] {
+        toggleMaximize();
+        if (m_on_maximize) { auto cb = m_on_maximize; cb(); }
+    }, m_maximizable && !m_maximized});
+    Entry sep;
+    sep.separator = true;
+    entries.push_back(std::move(sep));
+    entries.push_back(Entry{"Close", [this] { requestClose(); }, true, "Ctrl+F4"});
+    m_control_menu->setEntries(std::move(entries));
+
+    const Rect icon = getControlMenuBounds();
+    m_control_menu->openAt(icon.x(), icon.y() + icon.height());
+    s_open_menu_window = this;
+    rebuildSurface(); // invert the titlebar icon
+}
+
+void WindowFrameWidget::closeControlMenu()
+{
+    if (m_control_menu) {
+        m_control_menu->close(); // its on-close callback syncs icon and static
+    }
 }
 
 void WindowFrameWidget::requestClose()
@@ -290,81 +321,18 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
 
         setActiveWindow(this);
 
-        // If the control (system) menu is open, hit-test its items first: it is
-        // drawn below the titlebar and overlaps the client area, so it must be
-        // consulted before the client routing further down. The item layout here
-        // must mirror drawSystemMenu(): top margin, then the text items and the
-        // one separator, in this exact order:
-        //   0 Restore, 1 Move, 2 Minimize, 3 Maximize, 4 separator, 5 Close
-        if (m_system_menu_open) {
-            const bool inside_menu =
-                relative_x >= m_system_menu_x && relative_x < m_system_menu_x + SYSTEM_MENU_WIDTH &&
-                relative_y >= m_system_menu_y && relative_y < m_system_menu_y + SYSTEM_MENU_HEIGHT;
-            if (inside_menu) {
-                int hit = -1;               // index of the text item under the cursor
-                int item_y = m_system_menu_y + SYSTEM_MENU_TOP_MARGIN;
-                for (int i = 0; i < 6; ++i) {
-                    const bool is_separator = (i == 4);
-                    const int h = is_separator ? SYSTEM_MENU_SEPARATOR_HEIGHT : SYSTEM_MENU_ITEM_HEIGHT;
-                    if (!is_separator && relative_y >= item_y && relative_y < item_y + h) {
-                        hit = i;
-                        break;
-                    }
-                    item_y += h;
-                }
-
-                // Close the menu before dispatching (an action may destroy this
-                // widget, after which no members may be touched). Greyed items
-                // close the menu without acting, exactly like classic Windows.
-                m_system_menu_open = false;
-                s_open_menu_window = nullptr;
-                rebuildSurface();
-                if (hit >= 0 && !systemMenuItemEnabled(hit)) {
-                    return true;
-                }
-
-                switch (hit) {
-                    case 0: // Restore — leave the maximized state
-                        toggleMaximize();
-                        if (m_on_maximize) {
-                            auto on_maximize = m_on_maximize;
-                            on_maximize();
-                        }
-                        break;
-                    case 1: // Move — the window follows the pointer until the
-                            // next click settles it (mouse take on the classic
-                            // keyboard move mode).
-                        m_menu_move_mode = true;
-                        m_is_dragging = true;
-                        m_last_mouse_x = event.x;
-                        m_last_mouse_y = event.y;
-                        captureMouse();
-                        if (m_on_drag_start) {
-                            m_on_drag_start();
-                        }
-                        break;
-                    case 2: // Minimize — same action as the titlebar minimize button
-                        if (m_on_minimize) {
-                            auto on_minimize = m_on_minimize;
-                            on_minimize();
-                        }
-                        break;
-                    case 3: // Maximize — same action as the titlebar maximize button
-                        toggleMaximize();
-                        if (m_on_maximize) {
-                            auto on_maximize = m_on_maximize;
-                            on_maximize();
-                        }
-                        break;
-                    case 5: // Close — same action as the titlebar double-click close
-                        if (m_on_close) {
-                            auto on_close = m_on_close;
-                            on_close();
-                        }
-                        break;
-                    default:
-                        break;
-                }
+        // While the control menu is open, the titlebar icon keeps first claim
+        // (its toggle closes the menu and its double-click still closes the
+        // window); every other press goes to the popup overlay, which either
+        // activates an item or dismisses itself — consuming the click both
+        // ways, like a modal Windows menu.
+        if (m_control_menu && m_control_menu->isOpen()) {
+            const Rect icon = getControlMenuBounds();
+            const bool on_icon =
+                relative_x >= icon.x() && relative_x < icon.x() + icon.width() &&
+                relative_y >= icon.y() && relative_y < icon.y() + icon.height();
+            if (!on_icon && m_control_menu->handleMouseDown(event, relative_x, relative_y)) {
+                // An item's action may have destroyed this widget; touch nothing.
                 return true;
             }
         }
@@ -382,10 +350,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 if (m_double_click_pending && (current_time - m_last_click_time) < DOUBLE_CLICK_TIME_MS) {
                     // Double-click detected - close window
                     m_double_click_pending = false;
-                    m_system_menu_open = false;
-                    if (s_open_menu_window == this) {
-                        s_open_menu_window = nullptr;
-                    }
+                    closeControlMenu();
                     if (m_on_close) {
                         // Copy the callback to the stack before invoking: it may
                         // destroy this widget (and thus the m_on_close member),
@@ -396,20 +361,16 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                     }
                     return true;
                 } else {
-                    // Single click - toggle system menu
+                    // Single click - toggle the control menu
                     m_last_click_time = current_time;
                     m_double_click_pending = true;
-                    
-                    m_system_menu_open = !m_system_menu_open;
-                    s_open_menu_window = m_system_menu_open ? this : nullptr;
-                    if (m_system_menu_open) {
-                        m_system_menu_x = control_menu_bounds.x();
-                        m_system_menu_y = control_menu_bounds.y() + control_menu_bounds.height();
+
+                    if (m_control_menu && m_control_menu->isOpen()) {
+                        closeControlMenu();
+                    } else {
+                        openControlMenu();
                     }
-                    
-                    // Rebuild surface to show/hide menu
-                    rebuildSurface();
-                    
+
                     if (m_on_control_menu) {
                         m_on_control_menu();
                     }
@@ -501,18 +462,29 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
     if (Widget::handleMouseDown(event, relative_x, relative_y)) {
         return true;
     }
-    
-    // Close system menu if clicking anywhere else
-    if (m_system_menu_open) {
-        m_system_menu_open = false;
-        rebuildSurface();
-    }
-    
+
     return false;
 }
 
 bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
+    // An open control menu is modal for hover: feed it and stop.
+    if (m_control_menu && m_control_menu->isOpen() &&
+        !m_is_dragging && !m_is_resizing) {
+        m_control_menu->handleMouseMotion(event, relative_x, relative_y);
+        return true;
+    }
+
+    // Control-menu Move: the first motion establishes the drag baseline (the
+    // click that picked the item is not a meaningful origin), then the normal
+    // dragging path below takes over.
+    if (m_menu_move_mode && m_menu_move_pending) {
+        m_last_mouse_x = event.x;
+        m_last_mouse_y = event.y;
+        m_menu_move_pending = false;
+        return true;
+    }
+
     // Set appropriate cursor based on location
     if (!m_is_dragging && !m_is_resizing && m_resizable) {
         int resize_edge = getResizeEdge(relative_x, relative_y);
@@ -673,6 +645,11 @@ bool WindowFrameWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
             // next mouse-down does.
             return true;
         }
+        // Swallow releases while the control menu is open (e.g. the release of
+        // the click that opened it) so they don't leak to the client area.
+        if (m_control_menu && m_control_menu->handleMouseUp(event, relative_x, relative_y)) {
+            return true;
+        }
         if (m_is_dragging) {
             m_is_dragging = false;
             releaseMouse(); // Release mouse capture
@@ -700,8 +677,10 @@ void WindowFrameWidget::setTitle(const std::string& title)
 
 void WindowFrameWidget::setClientArea(std::unique_ptr<Widget> client_widget)
 {
-    // Remove existing client area from children
+    // Remove existing client area from children. This also destroys the
+    // control-menu overlay child; it is lazily recreated on next open.
     m_children.clear();
+    m_control_menu = nullptr;
     
     // Add new client area
     m_client_area = client_widget.get();
@@ -894,9 +873,8 @@ void WindowFrameWidget::rebuildSurface()
     // Draw window control buttons
     drawWindowControls(*frame_surface);
     
-    // The system menu is NOT drawn here: it overlays the client area, which is
-    // a child widget composited above this frame surface — anything painted
-    // here would be covered. recursiveBlitTo() draws it after the children.
+    // The control menu is not drawn here: it is a ContextMenuWidget overlay
+    // child, added after the client area so it composites above it.
 
     // Set the surface
     setSurface(std::move(frame_surface));
@@ -1173,7 +1151,7 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
 
     // While the control menu is open, the icon renders inverted (dark box,
     // black bar with white outline swapped) as pressed-state feedback.
-    const bool inv = m_system_menu_open;
+    const bool inv = m_control_menu && m_control_menu->isOpen();
     const Uint8 bg   = inv ? 63 : 192;   // box fill
     const Uint8 bar  = inv ? 0 : 255;    // the wide horizontal bar
     const Uint8 line = inv ? 255 : 0;    // the bar's outline
@@ -1251,91 +1229,6 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
         Rect minimize_bounds = getMinimizeButtonBounds();
         int separator_x = minimize_bounds.x() + minimize_bounds.width();
         surface.vline(separator_x, minimize_bounds.y(), minimize_bounds.y() + minimize_bounds.height() - 1, 0, 0, 0, 255);
-    }
-}
-
-void WindowFrameWidget::drawSystemMenu(Surface& surface, int offset_x, int offset_y) const
-{
-    // The menu position is widget-relative; the offset shifts it into the
-    // coordinate space of the surface being drawn on (the composite target).
-    const int menu_x = m_system_menu_x + offset_x;
-    const int menu_y = m_system_menu_y + offset_y;
-
-    // Draw dark grey drop shadow first
-    surface.box(menu_x + SYSTEM_MENU_SHADOW_OFFSET, menu_y + SYSTEM_MENU_SHADOW_OFFSET,
-               menu_x + SYSTEM_MENU_WIDTH + SYSTEM_MENU_SHADOW_OFFSET - 1,
-               menu_y + SYSTEM_MENU_HEIGHT + SYSTEM_MENU_SHADOW_OFFSET - 1,
-               64, 64, 64, 255);
-
-    // Draw main menu background (light grey)
-    surface.box(menu_x, menu_y,
-               menu_x + SYSTEM_MENU_WIDTH - 1, menu_y + SYSTEM_MENU_HEIGHT - 1,
-               192, 192, 192, 255);
-
-    // Draw black border around menu
-    surface.rectangle(menu_x, menu_y,
-                     menu_x + SYSTEM_MENU_WIDTH - 1, menu_y + SYSTEM_MENU_HEIGHT - 1,
-                     0, 0, 0, 255);
-
-    // Menu item positioning
-    int current_y = menu_y + SYSTEM_MENU_TOP_MARGIN;
-
-    // Item order must mirror the click hit-test in handleMouseDown().
-    const char* menu_items[] = {
-        "Restore",
-        "Move",
-        "Minimize",
-        "Maximize",
-        "",  // Separator
-        "Close"
-    };
-
-    // Draw menu items; inapplicable ones render greyed (systemMenuItemEnabled
-    // keeps this in agreement with the click handling).
-    for (size_t i = 0; i < sizeof(menu_items) / sizeof(menu_items[0]); i++) {
-        if (strlen(menu_items[i]) == 0) {
-            // Draw separator line (white bar in black border)
-            int sep_y = current_y + SYSTEM_MENU_SEPARATOR_HEIGHT / 2;
-            surface.hline(menu_x + SYSTEM_MENU_BORDER_MARGIN, menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y - 1, 0, 0, 0, 255);
-            surface.hline(menu_x + SYSTEM_MENU_BORDER_MARGIN, menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y, 255, 255, 255, 255);
-            surface.hline(menu_x + SYSTEM_MENU_BORDER_MARGIN, menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y + 1, 0, 0, 0, 255);
-            current_y += SYSTEM_MENU_SEPARATOR_HEIGHT;
-        } else {
-            if (m_font) {
-                const bool enabled = systemMenuItemEnabled(static_cast<int>(i));
-                const Uint8 shade = enabled ? 0 : 128; // black, or grey when off
-                auto text_surface = m_font->Render(
-                    TagLib::String(menu_items[i], TagLib::String::UTF8), shade, shade, shade);
-                if (text_surface) {
-                    int text_x = menu_x + SYSTEM_MENU_BORDER_MARGIN;
-                    int text_y = current_y + (SYSTEM_MENU_ITEM_HEIGHT - text_surface->height()) / 2;
-                    surface.Blit(*text_surface,
-                                 Rect(text_x, text_y, text_surface->width(), text_surface->height()));
-                }
-                // Close carries its accelerator, right-aligned in the row.
-                if (strcmp(menu_items[i], "Close") == 0) {
-                    auto accel = m_font->Render(TagLib::String("Ctrl+F4"), shade, shade, shade);
-                    if (accel) {
-                        int ax = menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN - accel->width();
-                        int ay = current_y + (SYSTEM_MENU_ITEM_HEIGHT - accel->height()) / 2;
-                        surface.Blit(*accel, Rect(ax, ay, accel->width(), accel->height()));
-                    }
-                }
-            }
-            current_y += SYSTEM_MENU_ITEM_HEIGHT;
-        }
-    }
-}
-
-bool WindowFrameWidget::systemMenuItemEnabled(int item) const
-{
-    switch (item) {
-        case 0:  return m_maximized;                    // Restore
-        case 1:  return !m_maximized;                   // Move (maximized is pinned)
-        case 2:  return m_minimizable;                  // Minimize
-        case 3:  return m_maximizable && !m_maximized;  // Maximize
-        case 5:  return true;                           // Close
-        default: return false;                          // separator / out of range
     }
 }
 
