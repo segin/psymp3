@@ -3872,6 +3872,7 @@ test_playlist_shuffle_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/playlist.o \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
