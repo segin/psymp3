@@ -10,46 +10,42 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    # SDL3 is not packaged in Ubuntu 24.04 (the current ubuntu-latest image),
+    # so build inside Debian trixie, which ships libsdl3-dev (and taglib 2,
+    # which configure's `taglib >= 1.6` check accepts).
+    container: debian:trixie
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
+        apt-get update
+        apt-get install -y \
           build-essential \
+          git \
           autoconf \
           automake \
           libtool \
           pkg-config \
           autoconf-archive \
-          libsdl1.2-dev \
-          libsdl-gfx1.2-dev \
-          libsdl-ttf2.0-dev \
-          libtag1-dev \
+          libsdl3-dev \
+          libfreetype-dev \
+          libssl-dev \
+          libcurl4-openssl-dev \
+          libogg-dev \
           libvorbis-dev \
           libopus-dev \
-          libopusfile-dev \
-          libogg-dev \
-          libflac-dev \
-          libflac++-dev \
-          libfreetype6-dev \
-          zlib1g-dev \
+          libfaad-dev \
+          libspeex-dev \
+          libspandsp-dev \
           libdbus-1-dev \
-          libcurl4-openssl-dev \
-          libssl-dev
+          zlib1g-dev
+        # taglib 2 renamed the -dev package; fall back for older suites.
+        apt-get install -y libtag-dev || apt-get install -y libtag1-dev
+        # No Qt/GTK on purpose: CI is the one build that exercises the
+        # no-file-dialog configure path (local and Windows builds have Qt).
 
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/apt
-          /var/cache/apt
-        key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/c-cpp.yml') }}
-        restore-keys: |
-          ${{ runner.os }}-apt-
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
     - name: Generate configure script
       run: |
