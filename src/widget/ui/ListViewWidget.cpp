@@ -202,7 +202,7 @@ void ListViewWidget::clearItems()
     invalidate();
 }
 
-void ListViewWidget::setSelectedIndex(int index)
+void ListViewWidget::setSelectedIndex(int index, bool ensure_visible)
 {
     if (index < -1 || index >= static_cast<int>(m_items.size())) {
         index = -1;
@@ -211,7 +211,9 @@ void ListViewWidget::setSelectedIndex(int index)
         return;
     }
     m_selected = index;
-    ensureVisible(m_selected);
+    if (ensure_visible) {
+        ensureVisible(m_selected);
+    }
     invalidate();
     if (m_on_selection_changed) {
         m_on_selection_changed(m_selected);

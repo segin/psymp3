@@ -44,8 +44,11 @@ public:
     size_t itemCount() const { return m_items.size(); }
 
     // Selection. getSelectedIndex() returns -1 when nothing is selected.
+    // ensure_visible scrolls the new selection into view; pass false to move
+    // the selection without disturbing the viewport (e.g. a background list
+    // refresh that must not yank the view away from where the user left it).
     int getSelectedIndex() const { return m_selected; }
-    void setSelectedIndex(int index);
+    void setSelectedIndex(int index, bool ensure_visible = true);
     // Scroll so the given row is within the visible area (no-op if already shown).
     void ensureVisible(int index);
     // Abandon any in-progress drag-to-reorder (e.g. the list changed underneath).

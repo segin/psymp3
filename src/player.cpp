@@ -310,10 +310,11 @@ public:
         m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
         // Double-click a row to jump playback to that track.
         m_list->setOnActivate([this](int i) { m_player->playlistManagerJumpTo(i); });
-        // Drag a row to reorder the playlist; keep the moved row selected.
+        // Drag a row to reorder the playlist; keep the moved row selected but
+        // leave the viewport where the drop happened.
         m_list->setOnReorder([this](int from, int to) {
             m_player->playlistManagerMove(from, to);
-            reload(to);
+            reload(to, /*keep_viewport=*/true);
         });
         // Right-click a row for a context menu of the same actions as the buttons.
         m_list->setOnContextMenu([this](int row, int rx, int ry) {
@@ -404,18 +405,23 @@ public:
     // insertion bar (SDL_EVENT_DROP_POSITION) and hit-test the drop point.
     ListViewWidget* list() const { return m_list; }
 
-    // Rebuild the list from the playlist, then select `desired_sel` (clamped) and
-    // scroll it into view. Used on open and after every edit.
-    void reload(int desired_sel)
+    // Rebuild the list from the playlist, then select `desired_sel` (clamped).
+    // By default the selection is scrolled into view (open, button edits);
+    // keep_viewport leaves the scroll position strictly alone — used for
+    // refreshes triggered by drag-and-drop and other background changes, where
+    // snapping back to the highlighted row would yank the view away from where
+    // the user just was.
+    void reload(int desired_sel, bool keep_viewport = false)
     {
         std::vector<TagLib::String> labels = m_player->playlistManagerLabels();
         // Keep the viewport where it is; setSelectedIndex() below only scrolls if
-        // the new selection actually falls outside it.
+        // the new selection actually falls outside it (and not even then when
+        // keep_viewport is set).
         m_list->setItems(labels, /*preserve_scroll=*/true);
         if (!labels.empty()) {
             int s = desired_sel < 0 ? 0 : desired_sel;
             if (s >= static_cast<int>(labels.size())) s = static_cast<int>(labels.size()) - 1;
-            m_list->setSelectedIndex(s);
+            m_list->setSelectedIndex(s, /*ensure_visible=*/!keep_viewport);
         }
         updateButtonStates();
         // Remember the generation we just synced to, so the per-frame check below
@@ -434,10 +440,13 @@ public:
             Uint32 now = SDL_GetTicks();
             if (now - m_last_reload_ms >= RELOAD_DEBOUNCE_MS) {
                 // Abandon any in-progress drag and close the context menu: their
-                // captured indices refer to the pre-change list.
+                // captured indices refer to the pre-change list. This path fires
+                // for changes made outside the manager's own buttons — external
+                // file drops, the startup populator, Open Track — so the view
+                // must stay where the user left it, not snap to the selection.
                 m_list->cancelDrag();
                 m_context->close();
-                reload(m_list->getSelectedIndex());
+                reload(m_list->getSelectedIndex(), /*keep_viewport=*/true);
                 m_last_reload_ms = now;
             }
         }
