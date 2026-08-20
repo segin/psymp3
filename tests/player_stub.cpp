@@ -11,6 +11,7 @@
 
 // Global variable to track loop mode for testing
 LoopMode g_last_loop_mode = LoopMode::None;
+bool g_last_shuffle = false;
 
 Player::Player() {
     // Dummy constructor for testing
@@ -89,6 +90,10 @@ void Player::showNotification(const std::string& message, NotificationType type)
 
 void Player::setLoopMode(LoopMode mode) {
     g_last_loop_mode = mode;
+}
+
+void Player::setShuffle(bool shuffle) {
+    g_last_shuffle = shuffle;
 }
 
 LoopMode Player::getLoopMode() const {
