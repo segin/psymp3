@@ -186,24 +186,32 @@ WindowFrameWidget::~WindowFrameWidget()
     }
     s_instance_count--;
     if (s_instance_count == 0) {
-        restoreDefaultCursor();
-        if (s_cursor_nwse) {
-            SDL_DestroyCursor(s_cursor_nwse);
-            s_cursor_nwse = nullptr;
+        // The last window standing is usually destroyed during Player teardown,
+        // after SDL_Quit() has already freed every cursor. Destroying them again
+        // is a double free that silently corrupts the heap (the abort then fires
+        // later, in whatever free() trips over the damage — seen as a crash in
+        // the Playlist Manager's label teardown). Same guard as ~Audio's stream
+        // teardown: only touch SDL cursor state while video is still up.
+        if (SDL_WasInit(SDL_INIT_VIDEO)) {
+            restoreDefaultCursor();
+            if (s_cursor_nwse) {
+                SDL_DestroyCursor(s_cursor_nwse);
+            }
+            if (s_cursor_nesw) {
+                SDL_DestroyCursor(s_cursor_nesw);
+            }
+            if (s_cursor_ew) {
+                SDL_DestroyCursor(s_cursor_ew);
+            }
+            if (s_cursor_ns) {
+                SDL_DestroyCursor(s_cursor_ns);
+            }
+            s_default_cursor = SDL_GetCursor();
         }
-        if (s_cursor_nesw) {
-            SDL_DestroyCursor(s_cursor_nesw);
-            s_cursor_nesw = nullptr;
-        }
-        if (s_cursor_ew) {
-            SDL_DestroyCursor(s_cursor_ew);
-            s_cursor_ew = nullptr;
-        }
-        if (s_cursor_ns) {
-            SDL_DestroyCursor(s_cursor_ns);
-            s_cursor_ns = nullptr;
-        }
-        s_default_cursor = SDL_GetCursor();
+        s_cursor_nwse = nullptr;
+        s_cursor_nesw = nullptr;
+        s_cursor_ew = nullptr;
+        s_cursor_ns = nullptr;
     }
 }
 
