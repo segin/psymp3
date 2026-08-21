@@ -331,7 +331,7 @@ protected:
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag for v2.2");
         ASSERT_EQUALS(static_cast<uint8_t>(2), tag->majorVersion(), "majorVersion should be 2");
         ASSERT_EQUALS(static_cast<uint8_t>(0), tag->minorVersion(), "minorVersion should be 0");
-        ASSERT_EQUALS(std::string("ID3v2.2"), tag->formatName(), "formatName should be ID3v2.2");
+        ASSERT_EQUALS(std::string("ID3v2.2.0"), tag->formatName(), "formatName should be ID3v2.2.0");
     }
 };
 
@@ -346,7 +346,9 @@ protected:
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag for v2.3");
         ASSERT_EQUALS(static_cast<uint8_t>(3), tag->majorVersion(), "majorVersion should be 3");
         ASSERT_EQUALS(static_cast<uint8_t>(0), tag->minorVersion(), "minorVersion should be 0");
-        ASSERT_EQUALS(std::string("ID3v2.3"), tag->formatName(), "formatName should be ID3v2.3");
+        // formatName reports the full version triple, mirroring the spec
+        // document titles ("ID3 tag version 2.3.0").
+        ASSERT_EQUALS(std::string("ID3v2.3.0"), tag->formatName(), "formatName should be ID3v2.3.0");
     }
 };
 
@@ -361,7 +363,7 @@ protected:
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag for v2.4");
         ASSERT_EQUALS(static_cast<uint8_t>(4), tag->majorVersion(), "majorVersion should be 4");
         ASSERT_EQUALS(static_cast<uint8_t>(0), tag->minorVersion(), "minorVersion should be 0");
-        ASSERT_EQUALS(std::string("ID3v2.4"), tag->formatName(), "formatName should be ID3v2.4");
+        ASSERT_EQUALS(std::string("ID3v2.4.0"), tag->formatName(), "formatName should be ID3v2.4.0");
     }
 };
 
