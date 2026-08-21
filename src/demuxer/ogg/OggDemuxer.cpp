@@ -198,6 +198,10 @@ bool OggDemuxer::parseContainer() {
           reportError("Format", "Could not find a valid Ogg bitstream",
                       result, DemuxerErrorRecovery::NONE);
       }
+      // Mirror into the base class flag so the generic isParsed() API
+      // agrees; m_ogg_mutex is distinct from the base state mutex, so
+      // taking it inside setParsed() cannot self-deadlock.
+      if (!m_streams.empty()) setParsed(true);
       return !m_streams.empty(); // OK if we found at least one stream
     }
     page_count++;
@@ -328,6 +332,7 @@ bool OggDemuxer::parseContainer() {
     resetForPlayback_unlocked();
   }
 
+  if (!m_streams.empty()) setParsed(true);
   return !m_streams.empty();
 }
 
