@@ -91,10 +91,14 @@ std::vector<uint8_t> createOggPage(int serial, int seq, int64_t granule, bool bo
     // Packet data
     data.insert(data.end(), payload.begin(), payload.end());
 
-    // Calculate checksum
+    // Calculate checksum. The fixed Ogg header is 26 bytes (capture 4,
+    // version 1, type 1, granule 8, serial 4, sequence 4, CRC 4), then the
+    // segment-count byte and the table; the old "27 + 1" put header_len one
+    // byte past that, so the CRC spanned the wrong bytes and libogg
+    // rejected every page this helper ever produced.
     ogg_page page;
     page.header = data.data();
-    page.header_len = 27 + 1 + segments; // Fixed + SegCountByte + SegTable
+    page.header_len = 26 + 1 + segments;
     page.body = data.data() + page.header_len;
     page.body_len = payload.size();
 
@@ -115,6 +119,23 @@ public:
     DelayedMockIOHandler(int delay_ms) : m_delay_ms(delay_ms) {
         auto vorbis_header = createVorbisIDHeader();
         m_head_page = createOggPage(1234, 0, 0, true, false, vorbis_header);
+
+        // Vorbis requires the full ID/comment/setup handshake before the
+        // stream counts as parsed; append minimal comment and setup header
+        // pages (empty vendor + framing bit; setup validation is deferred
+        // to decoder initialization).
+        std::vector<uint8_t> comment_header = {
+            0x03, 'v', 'o', 'r', 'b', 'i', 's',
+            0x00, 0x00, 0x00, 0x00,  // vendor_length = 0
+            0x00, 0x00, 0x00, 0x00,  // user_comment_list_length = 0
+            0x01                     // framing bit
+        };
+        auto comment_page = createOggPage(1234, 1, 0, false, false, comment_header);
+        m_head_page.insert(m_head_page.end(), comment_page.begin(), comment_page.end());
+
+        std::vector<uint8_t> setup_header = {0x05, 'v', 'o', 'r', 'b', 'i', 's', 0x01};
+        auto setup_page = createOggPage(1234, 2, 0, false, false, setup_header);
+        m_head_page.insert(m_head_page.end(), setup_page.begin(), setup_page.end());
 
         // Use a dummy payload for tail page
         std::vector<uint8_t> dummy_payload(1, 0xAA);
