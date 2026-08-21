@@ -262,23 +262,53 @@ int main() {
     try {
         // Test basic functionality
         MPRISManagerBasicTest basic_test;
-        basic_test.runTest();
+        // run() drives the full setUp/runTest/tearDown lifecycle;
+        // calling runTest() directly skips setUp and crashes.
+        auto basic_test_info = basic_test.run();
+        if (basic_test_info.result != TestFramework::TestResult::PASSED) {
+            printf("✗ %s failed: %s\n", basic_test_info.name.c_str(), basic_test_info.failure_message.c_str());
+            return 1;
+        }
         printf("✓ Basic test passed\n");
         
         MPRISManagerMetadataTest metadata_test;
-        metadata_test.runTest();
+        // run() drives the full setUp/runTest/tearDown lifecycle;
+        // calling runTest() directly skips setUp and crashes.
+        auto metadata_test_info = metadata_test.run();
+        if (metadata_test_info.result != TestFramework::TestResult::PASSED) {
+            printf("✗ %s failed: %s\n", metadata_test_info.name.c_str(), metadata_test_info.failure_message.c_str());
+            return 1;
+        }
         printf("✓ Metadata test passed\n");
         
         MPRISManagerStatusTest status_test;
-        status_test.runTest();
+        // run() drives the full setUp/runTest/tearDown lifecycle;
+        // calling runTest() directly skips setUp and crashes.
+        auto status_test_info = status_test.run();
+        if (status_test_info.result != TestFramework::TestResult::PASSED) {
+            printf("✗ %s failed: %s\n", status_test_info.name.c_str(), status_test_info.failure_message.c_str());
+            return 1;
+        }
         printf("✓ Status test passed\n");
         
         MPRISManagerPositionTest position_test;
-        position_test.runTest();
+        // run() drives the full setUp/runTest/tearDown lifecycle;
+        // calling runTest() directly skips setUp and crashes.
+        auto position_test_info = position_test.run();
+        if (position_test_info.result != TestFramework::TestResult::PASSED) {
+            printf("✗ %s failed: %s\n", position_test_info.name.c_str(), position_test_info.failure_message.c_str());
+            return 1;
+        }
         printf("✓ Position test passed\n");
         
         MPRISManagerErrorTest error_test;
-        error_test.runTest();
+        // run() drives the full setUp/runTest/tearDown lifecycle;
+        // calling runTest() directly skips setUp and crashes.
+        auto error_test_info = error_test.run();
+        if (error_test_info.result != TestFramework::TestResult::PASSED) {
+            printf("✗ %s failed: %s\n", error_test_info.name.c_str(), error_test_info.failure_message.c_str());
+            return 1;
+        }
         printf("✓ Error test passed\n");
         
         printf("All MPRISManager integration tests passed!\n");
