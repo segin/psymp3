@@ -90,7 +90,19 @@ public:
      * @brief Attempt manual reconnection
      * @return Result indicating success or error message
      */
-    Result<void> attemptReconnection();
+    /**
+     * @brief Attempt to reconnect to the bus.
+     * @param force Skip the attempt-budget/backoff gate. Use for explicit,
+     *        user- or caller-initiated reconnects; automatic retry loops
+     *        must leave this false so a dead bus is not hammered.
+     */
+    Result<void> attemptReconnection(bool force = false);
+
+    /**
+     * @brief Bus name actually acquired (well-known or .instance<pid>
+     *        fallback); empty when not connected
+     */
+    std::string getAcquiredServiceName() const;
     
     /**
      * @brief Check if auto-reconnect is enabled
@@ -109,6 +121,7 @@ public:
      * @param api The DBusAPIWrapper struct containing function pointers
      */
     static void setDBusAPI(const DBusAPIWrapper& api);
+    static const DBusAPIWrapper& getDBusAPI() { return s_dbus_api; }
 
     /**
      * @brief Unrefs a connection using the currently configured API wrapper
@@ -125,7 +138,7 @@ private:
     bool isConnected_unlocked() const;
     DBusConnection* getConnection_unlocked();
     void enableAutoReconnect_unlocked(bool enable);
-    Result<void> attemptReconnection_unlocked();
+    Result<void> attemptReconnection_unlocked(bool force = false);
     bool isAutoReconnectEnabled_unlocked() const;
     std::chrono::seconds getTimeSinceLastReconnectAttempt_unlocked() const;
     
@@ -141,6 +154,10 @@ private:
     
     // Connection state
     DBusConnectionPtr m_connection;
+    // The bus name actually acquired: the well-known MPRIS name, or the
+    // spec-mandated org.mpris.MediaPlayer2.psymp3.instance<pid> fallback
+    // when another instance already owns it. Empty when not connected.
+    std::string m_acquired_service_name;
     std::atomic<bool> m_connected{false};
     
     // Reconnection management
