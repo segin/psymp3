@@ -114,6 +114,26 @@ psymp3_LDADD = \
 	$(OPENSSL_LIBS) \
 	$(CURL_LIBS) \
 	$(WINSOCK_LIBS)
+
+# The test suite links individual objects (../src/audio.o, ../src/system.o,
+# ...), but the unity build emits no rules for them - `make check` in a
+# --enable-final tree silently linked whatever stale leftovers a previous
+# regular build left behind (or failed outright on a clean tree). Shadow
+# those sources in a check-only convenience library: automake then emits
+# the plain per-file object rules the tests expect (no per-target flags, so
+# the objects keep their unprefixed names), and check_LIBRARIES keeps them
+# out of `make all`.
+check_LIBRARIES = libpsymp3-checkobjs.a
+libpsymp3_checkobjs_a_SOURCES = \
+ audio.cpp \
+ dsp/Equalizer.cpp \
+ debug.cpp core/display.cpp \
+ core/font.cpp \
+ mediafile.cpp \
+ playlist.cpp \
+ stream.cpp core/surface.cpp \
+ system.cpp \
+ track.cpp core/truetype.cpp
 else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
