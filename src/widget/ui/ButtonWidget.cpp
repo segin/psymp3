@@ -181,6 +181,7 @@ bool ButtonWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relati
         if (isFocusable()) {
             takeFocus(); // clicking a push button also gives it keyboard focus
         }
+        m_held = true;
         m_pressed = true;
 
         // Grab the mouse so the matching up event is delivered here even if the
@@ -202,9 +203,10 @@ bool ButtonWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative
         return false;
     }
     
-    if (m_pressed) {
-        // Clear the pressed state and release the capture taken in
-        // handleMouseDown, regardless of where the release landed.
+    if (m_held) {
+        // Clear the gesture and release the capture taken in handleMouseDown,
+        // regardless of where the release landed.
+        m_held = false;
         m_pressed = false;
         releaseMouse();
 
@@ -214,16 +216,18 @@ bool ButtonWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative
         bool mouse_over_button = (relative_x >= 0 && relative_x < pos.width() &&
                                  relative_y >= 0 && relative_y < pos.height());
 
+        rebuildSurface();
         if (mouse_over_button) {
             if (m_on_click) {
-                m_on_click();
+                // Copy-free is fine for position, but the callback may destroy
+                // this button; call last and touch nothing afterwards.
+                auto on_click = m_on_click;
+                on_click();
             }
         }
-
-        rebuildSurface();
         return true;
     }
-    
+
     return false;
 }
 
@@ -236,14 +240,21 @@ bool ButtonWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int rela
     // Update hover state
     Rect pos = getPos();
     bool was_hovered = m_hovered;
-    m_hovered = (relative_x >= 0 && relative_x < pos.width() && 
+    m_hovered = (relative_x >= 0 && relative_x < pos.width() &&
                 relative_y >= 0 && relative_y < pos.height());
-    
-    if (was_hovered != m_hovered) {
+
+    // A held mouse press tracks the pointer: the button un-sinks while the
+    // pointer is dragged off it and re-sinks when it returns, so the user can
+    // see that releasing off-button cancels. (Keyboard presses are exempt —
+    // they are not pointer gestures.)
+    if (m_held && m_pressed != m_hovered) {
+        m_pressed = m_hovered;
+        rebuildSurface();
+    } else if (was_hovered != m_hovered) {
         rebuildSurface();
     }
-    
-    return m_hovered;
+
+    return m_hovered || m_held;
 }
 
 void ButtonWidget::setSymbol(ButtonSymbol symbol)

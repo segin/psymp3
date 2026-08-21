@@ -165,6 +165,7 @@ private:
     bool m_enabled;
     bool m_default = false; // this window's Enter-activated button (bold border)
     bool m_key_pressed = false; // sunken via a held Space (commits on release)
+    bool m_held = false;        // mouse press gesture active (capture held)
     void cancelKeyPress();
     bool m_global_mouse_tracking;
     Font* m_font;
