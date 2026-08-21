@@ -120,6 +120,14 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
                 on_activate(w.m_selected);
             }
             return true;
+        case SDLK_DELETE:
+            // Delete removes the cursor row (in the Playlist Manager, the same
+            // action as its Delete button).
+            if (w.m_selected >= 0 && w.m_on_delete) {
+                auto on_delete = w.m_on_delete;
+                on_delete(w.m_selected);
+            }
+            return true;
         default:
             return false;
     }

@@ -81,6 +81,9 @@ public:
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
     // Fired when a row is double-clicked (the row index).
     void setOnActivate(std::function<void(int)> cb) { m_on_activate = std::move(cb); }
+    // Fired when Delete is pressed while this list has keyboard focus and a
+    // row is selected (the row index).
+    void setOnDelete(std::function<void(int)> cb) { m_on_delete = std::move(cb); }
     // Fired when a row is drag-reordered: (from index, to index) after adjusting
     // for the removal, so it maps directly onto a move(from, to) operation.
     void setOnReorder(std::function<void(int from, int to)> cb) { m_on_reorder = std::move(cb); }
@@ -140,6 +143,7 @@ private:
     ScrollbarWidget* m_scrollbar; // owned via addChild(); non-owning pointer
     std::function<void(int)> m_on_selection_changed;
     std::function<void(int)> m_on_activate;
+    std::function<void(int)> m_on_delete;
     std::function<void(int, int)> m_on_reorder;
     std::function<void(int, int, int)> m_on_context;
 
