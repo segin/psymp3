@@ -31,9 +31,17 @@ protected:
         }
 
         track raw_track(TagLib::String(path, TagLib::String::UTF8));
+        // Construction is deliberately lazy (no disk access); the behavior
+        // under test lives in loadTags(), which must skip TagLib for raw
+        // audio while synthesizing duration from the payload size.
+        raw_track.loadTags();
 
         ASSERT_TRUE(raw_track.GetArtist().isEmpty(), "Raw tracks should not synthesize artist metadata");
-        ASSERT_TRUE(raw_track.GetTitle().isEmpty(), "Raw tracks should not synthesize title metadata");
+        // The safety property is that no TagLib::FileRef is created for raw
+        // audio; the title deliberately falls back to the filename stem as a
+        // display placeholder (see the track constructor).
+        ASSERT_EQUALS(TagLib::String("psymp3-raw-tag-safety"), raw_track.GetTitle(),
+                      "Raw tracks should use the filename stem as placeholder title");
         ASSERT_TRUE(raw_track.GetAlbum().isEmpty(), "Raw tracks should not synthesize album metadata");
         ASSERT_EQUALS(1u, raw_track.GetLen(), "Raw tracks should synthesize duration without querying TagLib");
 
