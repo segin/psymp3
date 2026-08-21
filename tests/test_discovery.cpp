@@ -42,7 +42,16 @@ namespace TestFramework {
                     info.metadata = parseTestMetadata(file_path);
                     info.is_built = isTestBuilt(info);
                     info.last_modified = getFileModTime(file_path);
-                    
+
+                    // parseTestMetadata leaves the struct's built-in timeout
+                    // unless the source carries a test-timeout annotation;
+                    // treat that untouched value as "use the configured
+                    // default" so setDefaultTimeout() actually takes effect
+                    // (it was stored but never applied to any test).
+                    if (info.metadata.timeout == TestMetadata().timeout) {
+                        info.metadata.timeout = m_default_timeout;
+                    }
+
                     // Apply custom timeout if set
                     auto timeout_it = m_custom_timeouts.find(info.name);
                     if (timeout_it != m_custom_timeouts.end()) {
