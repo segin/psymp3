@@ -224,8 +224,10 @@ bool ISODemuxer::parseContainer() {
         if (streamingManager->isStreaming()) {
             Debug::log("iso", "ISODemuxer: Detected streaming source, checking for progressive download");
             if (HandleProgressiveDownload()) {
-                m_parsed = true;
-                return !audioTracks.empty();
+                // Only report parsed when tracks actually materialized (see
+                // the matching fix at the end of this function).
+                m_parsed = !audioTracks.empty();
+                return m_parsed;
             }
         }
         
@@ -436,14 +438,16 @@ bool ISODemuxer::parseContainer() {
             m_duration_ms = std::max(m_duration_ms, track_duration_ms);
         }
         
-        m_parsed = true;
-        
-        // Final validation - ensure we have at least one valid track
+        // Final validation - ensure we have at least one valid track. The
+        // parsed flag must only be set on success: setting it first left a
+        // failed parse reporting isParsed()==true, and a retried
+        // parseContainer() short-circuited straight to success.
         if (audioTracks.empty()) {
             reportError("NoAudioTracks", "No valid audio tracks found in container");
             return false;
         }
-        
+
+        m_parsed = true;
         return true;
         
     } catch (const std::bad_alloc& e) {
