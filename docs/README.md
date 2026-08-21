@@ -58,10 +58,6 @@ This directory contains comprehensive documentation for PsyMP3 development, arch
 
 ## Testing Documentation
 
-### Test Summaries
-- [Integration Summary](INTEGRATION_SUMMARY.md) - System integration testing results
-- [MPRIS Comprehensive Tests Summary](MPRIS_COMPREHENSIVE_TESTS_SUMMARY.md) - MPRIS testing results
-
 ### Threading Safety Testing
 - [Threading Safety Analysis Tools](threading-safety-analysis-tools.md) - Tools for threading analysis
 - [Threading Safety Maintenance](threading-safety-maintenance.md) - Ongoing threading safety practices
