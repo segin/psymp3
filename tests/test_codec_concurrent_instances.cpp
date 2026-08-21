@@ -67,6 +67,7 @@ void testConcurrentInstances(const std::string& codec_name, size_t num_instances
                 try {
                     // Create stream info
                     StreamInfo stream_info;
+                    stream_info.codec_type = "audio"; // canDecode() requires it
                     stream_info.codec_name = codec_name;
                     stream_info.sample_rate = 8000;
                     stream_info.channels = 1;
@@ -202,6 +203,7 @@ void testInstanceLifecycle(const std::string& codec_name) {
                     for (int j = 0; j < 50; ++j) {
                         // Create codec
                         StreamInfo stream_info;
+                        stream_info.codec_type = "audio"; // canDecode() requires it
                         stream_info.codec_name = codec_name;
                         stream_info.sample_rate = 8000;
                         stream_info.channels = 1;
@@ -326,6 +328,7 @@ void testMixedConcurrentInstances() {
                 threads.emplace_back([&, i]() {
                     try {
                         StreamInfo stream_info;
+                        stream_info.codec_type = "audio"; // canDecode() requires it
                         stream_info.codec_name = "mulaw";
                         stream_info.sample_rate = 8000;
                         stream_info.channels = 1;
@@ -360,6 +363,7 @@ void testMixedConcurrentInstances() {
                 threads.emplace_back([&, i]() {
                     try {
                         StreamInfo stream_info;
+                        stream_info.codec_type = "audio"; // canDecode() requires it
                         stream_info.codec_name = "alaw";
                         stream_info.sample_rate = 8000;
                         stream_info.channels = 1;
@@ -417,6 +421,10 @@ void testMixedConcurrentInstances() {
 }
 
 int main() {
+    // The registry is only populated by MediaFactory in the player;
+    // standalone test binaries must register codecs themselves or
+    // CodecRegistry::createCodec() comes back empty.
+    registerAllCodecs();
     try {
         std::cout << "=== Codec Concurrent Instance Tests ===" << std::endl;
         
