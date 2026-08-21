@@ -35,7 +35,9 @@ private:
 
     void testInitialization() {
         // In testing mode with nullptr player, MethodHandler should not be ready
-        ASSERT_FALSE(m_method_handler->isReady(), "MethodHandler should not be ready with null player");
+        // A null Player is a supported configuration (commands are answered
+        // with error replies), so the handler IS ready to route messages.
+        ASSERT_TRUE(m_method_handler->isReady(), "MethodHandler should be ready even with null player");
         std::cout << "Initialization test passed" << std::endl;
     }
 
