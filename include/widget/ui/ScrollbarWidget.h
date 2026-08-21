@@ -88,6 +88,7 @@ private:
 
     // Track press-and-hold auto-repeat state.
     bool m_track_repeating = false;   // holding on the track, paging toward cursor
+    bool m_arrow_repeating = false;   // holding an arrow button, line-stepping
     int m_track_x = 0;                // last known cursor position (widget-relative)
     int m_track_y = 0;
     Uint32 m_next_repeat_ms = 0;      // SDL_GetTicks() time of the next page step

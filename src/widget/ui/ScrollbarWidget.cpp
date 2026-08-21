@@ -122,10 +122,18 @@ bool ScrollbarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rel
 
     switch (m_pressed_part) {
         case ScrollbarPart::DecrementArrow:
-            setValue(m_value - m_line_step);
-            break;
         case ScrollbarPart::IncrementArrow:
-            setValue(m_value + m_line_step);
+            // Step once now, then auto-repeat after the initial delay for as
+            // long as the button is held (pausing while the cursor is off the
+            // arrow, as Windows does). Capturing keeps the gesture alive.
+            setValue(m_pressed_part == ScrollbarPart::DecrementArrow
+                         ? m_value - m_line_step
+                         : m_value + m_line_step);
+            m_arrow_repeating = true;
+            m_track_x = relative_x;
+            m_track_y = relative_y;
+            captureMouse();
+            m_next_repeat_ms = SDL_GetTicks() + kRepeatInitialMs;
             break;
         case ScrollbarPart::TrackBeforeThumb:
         case ScrollbarPart::TrackAfterThumb:
@@ -162,9 +170,9 @@ bool ScrollbarWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int r
 {
     (void)event;
 
-    if (m_track_repeating) {
-        // Follow the cursor: paging continues toward its new position and stops
-        // once the thumb catches up to it.
+    if (m_track_repeating || m_arrow_repeating) {
+        // Follow the cursor: track paging continues toward its new position,
+        // and arrow repeat pauses while the cursor is off the button.
         m_track_x = relative_x;
         m_track_y = relative_y;
         return true;
@@ -201,13 +209,14 @@ bool ScrollbarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relat
         return false;
     }
 
-    if (m_dragging_thumb || m_track_repeating) {
+    if (m_dragging_thumb || m_track_repeating || m_arrow_repeating) {
         releaseMouse();
     }
 
     m_pressed = false;
     m_dragging_thumb = false;
     m_track_repeating = false;
+    m_arrow_repeating = false;
     m_pressed_part = ScrollbarPart::None;
     rebuildSurface();
     return true;
@@ -284,7 +293,7 @@ void ScrollbarWidget::setSteps(double line_step, double page_step)
 
 void ScrollbarWidget::tickAutoRepeat()
 {
-    if (!m_track_repeating) {
+    if (!m_track_repeating && !m_arrow_repeating) {
         return;
     }
     const Uint32 now = SDL_GetTicks();
@@ -292,7 +301,22 @@ void ScrollbarWidget::tickAutoRepeat()
         return;
     }
     m_next_repeat_ms = now + kRepeatIntervalMs;
-    pageTowardCursor();
+
+    if (m_track_repeating) {
+        pageTowardCursor();
+        return;
+    }
+
+    // Arrow repeat pauses while the cursor is off the pressed button and
+    // resumes when it returns, like the Windows original.
+    if (hitTestPart(m_track_x, m_track_y) != m_pressed_part) {
+        return;
+    }
+    if (m_pressed_part == ScrollbarPart::DecrementArrow) {
+        setValue(m_value - m_line_step);
+    } else if (m_pressed_part == ScrollbarPart::IncrementArrow) {
+        setValue(m_value + m_line_step);
+    }
 }
 
 void ScrollbarWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
@@ -381,8 +405,10 @@ void ScrollbarWidget::rebuildSurface()
     Rect thumb = getThumbRect();
 
     // Arrow buttons keep their bevel but only show a pressed state when enabled.
-    drawWin31Button(*surface, dec_arrow, enabled && m_pressed && m_pressed_part == ScrollbarPart::DecrementArrow);
-    drawWin31Button(*surface, inc_arrow, enabled && m_pressed && m_pressed_part == ScrollbarPart::IncrementArrow);
+    const bool dec_pressed = enabled && m_pressed && m_pressed_part == ScrollbarPart::DecrementArrow;
+    const bool inc_pressed = enabled && m_pressed && m_pressed_part == ScrollbarPart::IncrementArrow;
+    drawWin31Button(*surface, dec_arrow, dec_pressed);
+    drawWin31Button(*surface, inc_arrow, inc_pressed);
 
     // Shaft: the Windows 3.1 50% dither of white and face grey — it reads as a
     // pale grainy grey at native size. Flat grey when there is nothing to
@@ -445,11 +471,18 @@ void ScrollbarWidget::rebuildSurface()
         drawWin31Button(*surface, thumb, m_dragging_thumb);
     }
 
+    // A pressed arrow's glyph sinks 1px down-right with the button face.
     const uint8_t glyph_shade = enabled ? 0 : 128;
-    drawArrowGlyph(*surface, dec_arrow,
+    Rect dec_glyph = dec_pressed
+        ? Rect(dec_arrow.x() + 1, dec_arrow.y() + 1, dec_arrow.width(), dec_arrow.height())
+        : dec_arrow;
+    Rect inc_glyph = inc_pressed
+        ? Rect(inc_arrow.x() + 1, inc_arrow.y() + 1, inc_arrow.width(), inc_arrow.height())
+        : inc_arrow;
+    drawArrowGlyph(*surface, dec_glyph,
                    m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollUp : ButtonSymbol::ScrollLeft,
                    glyph_shade);
-    drawArrowGlyph(*surface, inc_arrow,
+    drawArrowGlyph(*surface, inc_glyph,
                    m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollDown : ButtonSymbol::ScrollRight,
                    glyph_shade);
 
