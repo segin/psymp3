@@ -61,6 +61,7 @@ void codecWorkerThread(const std::string& codec_name,
     try {
         // Create stream info
         StreamInfo stream_info;
+        stream_info.codec_type = "audio"; // canDecode() requires it
         stream_info.codec_name = codec_name;
         stream_info.sample_rate = 8000;
         stream_info.channels = 1;
@@ -145,6 +146,7 @@ void testConcurrentInitialization(const std::string& codec_name) {
             threads.emplace_back([&, i]() {
                 try {
                     StreamInfo stream_info;
+                    stream_info.codec_type = "audio"; // canDecode() requires it
                     stream_info.codec_name = codec_name;
                     stream_info.sample_rate = 8000;
                     stream_info.channels = 1;
@@ -373,6 +375,7 @@ void testSharedTableAccess() {
                     for (int j = 0; j < 100; ++j) {
 #ifdef ENABLE_MULAW_CODEC
                         StreamInfo mulaw_info;
+                        mulaw_info.codec_type = "audio"; // canDecode() requires it
                         mulaw_info.codec_name = "mulaw";
                         mulaw_info.sample_rate = 8000;
                         mulaw_info.channels = 1;
@@ -387,6 +390,7 @@ void testSharedTableAccess() {
 
 #ifdef ENABLE_ALAW_CODEC
                         StreamInfo alaw_info;
+                        alaw_info.codec_type = "audio"; // canDecode() requires it
                         alaw_info.codec_name = "alaw";
                         alaw_info.sample_rate = 8000;
                         alaw_info.channels = 1;
@@ -427,6 +431,10 @@ void testSharedTableAccess() {
 }
 
 int main() {
+    // The registry is only populated by MediaFactory in the player;
+    // standalone test binaries must register codecs themselves or
+    // CodecRegistry::createCodec() comes back empty.
+    registerAllCodecs();
     try {
         std::cout << "=== Codec Thread Safety Tests ===" << std::endl;
         

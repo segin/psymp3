@@ -55,6 +55,7 @@ double measureDecodingPerformance(const std::string& codec_name,
                                 size_t test_duration_ms = 1000) {
     // Create stream info
     StreamInfo stream_info;
+    stream_info.codec_type = "audio"; // canDecode() requires it
     stream_info.codec_name = codec_name;
     stream_info.sample_rate = sample_rate;
     stream_info.channels = 1;
@@ -301,6 +302,7 @@ void testLookupTableMemoryEfficiency() {
         
 #ifdef ENABLE_MULAW_CODEC
         StreamInfo mulaw_info;
+        mulaw_info.codec_type = "audio"; // canDecode() requires it
         mulaw_info.codec_name = "mulaw";
         mulaw_info.sample_rate = 8000;
         mulaw_info.channels = 1;
@@ -315,6 +317,7 @@ void testLookupTableMemoryEfficiency() {
 
 #ifdef ENABLE_ALAW_CODEC
         StreamInfo alaw_info;
+        alaw_info.codec_type = "audio"; // canDecode() requires it
         alaw_info.codec_name = "alaw";
         alaw_info.sample_rate = 8000;
         alaw_info.channels = 1;
@@ -343,6 +346,10 @@ void testLookupTableMemoryEfficiency() {
 }
 
 int main() {
+    // The registry is only populated by MediaFactory in the player;
+    // standalone test binaries must register codecs themselves or
+    // CodecRegistry::createCodec() comes back empty.
+    registerAllCodecs();
     try {
         std::cout << "=== Codec Performance Tests ===" << std::endl;
         
