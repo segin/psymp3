@@ -89,6 +89,27 @@ A 7-band graphic equalizer, opened from **Playback → Equalizer…**.
 - **Curve preview.** `EqualizerCurveWidget` (a `DrawableWidget`) plots the band gains as a smooth curve using `core/BezierCurve.h` — a Catmull-Rom spline through the control points expressed as cubic Bézier segments.
 - **New toolkit pieces.** `SliderWidget` (vertical/horizontal fader), `EqualizerCurveWidget` (curve canvas), and `core/BezierCurve.h` (reusable Bézier/smoothing helpers) were added for this feature and are usable elsewhere.
 
+## Widget Toolkit
+
+The software-rendered UI (`src/widget/`) imitates Windows 3.1, and since 2.0-BETA2 it does so to the pixel, with a real keyboard focus model layered on top.
+
+- **Win3.1 rendering fidelity.** `ButtonWidget` paints the reference push button: 1px black outline with notched (transparent) corners, 2px white top/left highlight, stepped 2px grey bottom/right shadow, 24px tall, label centered over the bevels. The window's *default* button (`setDefault`) carries the bold double border; a focused button shows label-bounded focus dots. `ScrollbarWidget` is 17px wide with 17×17 end pieces whose outlines merge into the control's frame, a fixed square thumb, stem-and-head arrow glyphs (3×3 stem, 7→5→3→1 head), a 50% white/grey dithered shaft, and an inverted-dither pressed-track indicator.
+- **Press gestures.** All push buttons (including the titlebar minimize/maximize/restore buttons drawn by `WindowFrameWidget`) follow one gesture model: sink on mouse-down with capture, track hover while held (drag off = pop up, drag back = re-sink), fire only on release inside. Scrollbar arrows additionally sink their glyph 1px down-right and auto-repeat while held (300ms initial delay, 60ms cadence, pausing while the cursor is off the button); track paging uses the same repeat clock, ticked once per frame from `recursiveBlitTo`.
+- **Keyboard focus.** Focus is per-class static state (`TextInputWidget`, `ListViewWidget`, `ButtonWidget` each track their focused instance) rather than a central focus manager. `Player::handleKeyPress` routes keys through a fixed chain: menu bar first, then the focused text input (which swallows everything except Alt chords and F-keys; Escape blurs), then the focused list (arrows move the cursor, Enter fires `setOnActivate`, Delete fires `setOnDelete`), then the focused button (Enter activates immediately; Space sinks and fires on release), then window-level keys (Ctrl+F4 closes the active frame), then global shortcuts. Tab/Shift+Tab walk a DFS-collected list of focusable widgets (`collectFocusables`); Enter with no focused button activates the window's default button. Clicking empty space clears all three focus classes.
+- **Window frames.** `WindowFrameWidget` owns the titlebar, the L-shaped corner resize zones (outer edge + notch, with per-corner cursors), double-click-to-close, and the control menu — which is an ordinary `UI::ContextMenuWidget` child (entries carry enabled flags, separators, and an accelerator column), not bespoke drawing. While the menu is open the system-menu icon inverts; clicking anywhere else dismisses it. Menu entries: Restore/Move/Minimize/Maximize/Close (Ctrl+F4), disabled to match window state; Move enters a pointer-follow move mode.
+- **Blit model.** Top-level windows blit via `BlitTo`; children composite via `recursiveBlitTo` under `ClipRectGuard`. Overlay-ish children (context menus) render as real children of their frame so z-order and hit-testing stay inside the ordinary widget tree.
+
+## MPRIS / D-Bus Integration
+
+`src/mpris/` implements MPRIS2 as five cooperating components coordinated by `MPRISManager`; incoming method calls are dispatched, not just properties broadcast.
+
+- **Component split.** `DBusConnectionManager` owns the bus connection and name; `PropertyManager` is the thread-safe property store (metadata, playback status, position with wall-clock interpolation while Playing); `MethodHandler` is the dispatch table for incoming calls; `SignalEmitter` batches and emits `PropertiesChanged`/`Seeked` from a worker thread (PropertiesChanged coalesces within a 50ms window; `signals_sent` counts batches). `MPRISManager` wires them, registers the object path, and exposes the player-facing update API.
+- **The pump.** Incoming traffic is dispatched by `MPRISManager::processEvents()` — a non-blocking `dbus_connection_read_write_dispatch` that must be called from the main thread (dispatched handlers call non-thread-safe `Player` methods). Nothing pumps autonomously: no pump, no replies.
+- **Connection policy.** Connections are *private* (`dbus_bus_get_private`-style), never shared — libdbus caches shared connections and the session address globally, which made bus-restart recovery impossible. The session address is read from the environment on every connect. The well-known name `org.mpris.MediaPlayer2.psymp3` is requested with `DO_NOT_QUEUE`; if another instance owns it, the spec's `…psymp3.instance<pid>` fallback is registered instead (`getServiceName()` reports what was actually acquired, and cleanup releases that name).
+- **Reconnection.** Automatic retries are budgeted and exponentially backed off; a successful reconnect resets the budget, and explicit caller-initiated `reconnect()` bypasses the backoff (`attemptReconnection(force)`). After reconnecting, the manager re-registers the object path on the new connection — a fresh connection carries none of the old registration.
+- **Null-player mode.** Constructing `MPRISManager(nullptr)` is supported end-to-end (headless/testing): the `MethodHandler` is still created and answers commands with error replies while properties work normally, `isReady()` holds, and `initialize()` after `shutdown()` starts a fresh lifecycle.
+- **Spec surface.** `org.freedesktop.DBus.Introspectable.Introspect` returns the complete MPRIS2 XML; the root interface includes `DesktopEntry`; `Properties.GetAll` on an interface without registered properties returns an empty dict per the D-Bus spec.
+
 ## Key Runtime Rules
 
 - Public/private lock pattern: public methods acquire locks and delegate to `_unlocked` helpers.
@@ -103,24 +124,24 @@ A 7-band graphic equalizer, opened from **Playback → Equalizer…**.
 - The `I` key inserts files chosen from a native dialog at the current playlist index and jumps playback to the first inserted track; the `L` key plays a chosen file in place of the current track without touching the playlist, so the next track change resumes normal flow and forgets the override. Both keys exist only when a file-dialog backend is compiled in.
 - Dropping files onto the window (SDL `DROPBEGIN`/`DROPFILE`/`DROPCOMPLETE`) acts like "Open": the whole drop batch — directories recursed for supported media files, `.m3u`/`.m3u8` playlists expanded, unsupported files silently ignored — replaces the playlist in one step and plays from its first track. Available even in builds without a file-dialog backend.
 
-## SDL2 Status
+## SDL3 Status
 
-- `Display` owns the SDL window and presents through the wrapped window surface.
-- Text input uses `SDL_TEXTINPUT`.
-- Audio uses SDL2 device APIs.
+- The whole tree builds against SDL3 (Linux and all three Windows cross-arches); there is no SDL2 fallback.
+- `Display` owns the SDL window and presents through the wrapped window surface; teardown order is guarded with `SDL_WasInit` so late destructors never touch a quit subsystem.
+- Text input uses `SDL_EVENT_TEXT_INPUT`; SDL3's bool-returning APIs (`SDL_Init`, `SDL_LockSurface`, …) are used with their SDL3 semantics.
+- Audio uses the SDL3 stream/device APIs; headless environments run under the `dummy` audio driver.
 - Font rendering uses the original FreeType path, with the shared FreeType bootstrap living under `src/core/`.
-- Ongoing SDL2 work is tracked in [docs/SDL2_PORT_PLAN.md](/home/segin/psymp3/docs/SDL2_PORT_PLAN.md).
 
 ## Supporting Docs
 
 - Build and usage: [README.md](/home/segin/psymp3/README.md)
 - Testing policy and commands: [TESTING.md](/home/segin/psymp3/TESTING.md)
 - Extended architecture notes: [docs/ARCHITECTURE_DETAILS.md](/home/segin/psymp3/docs/ARCHITECTURE_DETAILS.md)
-- SDL2 migration plan: [docs/SDL2_PORT_PLAN.md](/home/segin/psymp3/docs/SDL2_PORT_PLAN.md)
+- SDL2→SDL3 migration history: [docs/SDL2_PORT_PLAN.md](/home/segin/psymp3/docs/SDL2_PORT_PLAN.md)
 
 ## Project Identification
 
 - Project: PsyMP3
 - Repository: `https://github.com/segin/psymp3`
 - Maintainer: Kirn Gill II `<segin2005@gmail.com>`
-- Last updated: 2026-07-11
+- Last updated: 2026-08-21
