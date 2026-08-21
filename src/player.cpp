@@ -310,6 +310,11 @@ public:
         m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
         // Double-click a row to jump playback to that track.
         m_list->setOnActivate([this](int i) { m_player->playlistManagerJumpTo(i); });
+        // Delete key on the focused list removes the row, like the Delete button.
+        m_list->setOnDelete([this](int i) {
+            m_player->playlistManagerRemove(i);
+            reload(i);
+        });
         // Drag a row to reorder the playlist; keep the moved row selected but
         // leave the viewport where the drop happened.
         m_list->setOnReorder([this](int from, int to) {
@@ -2850,7 +2855,12 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_E:
-            cycleLoopMode();
+            // Shift+E opens the Equalizer; plain E cycles the loop mode.
+            if (keysym.mod & SDL_KMOD_SHIFT) {
+                toggleEqualizerWindow();
+            } else {
+                cycleLoopMode();
+            }
             break;
 
         case SDLK_F:
@@ -3335,8 +3345,8 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
         playback_items.push_back(MI::leaf("Volume &Down", [this]{ volumeDown(); }, nullptr, "Dn"));
         playback_items.push_back(MI::sep());
-        playback_items.push_back(MI::leaf("&Equalizer...", [this]{ toggleEqualizerWindow(); }));
-        playback_items.push_back(MI::leaf("Playlist &Manager...", [this]{ togglePlaylistManager(); }));
+        playback_items.push_back(MI::leaf("&Equalizer...", [this]{ toggleEqualizerWindow(); }, nullptr, "Shift+E"));
+        playback_items.push_back(MI::leaf("Playlist &Manager...", [this]{ togglePlaylistManager(); }, nullptr, "Shift+P"));
         menu_bar->addMenu("&Playback", std::move(playback_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
