@@ -5,17 +5,21 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 #include <iostream>
-
-const char* TEST_FILE = "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac";
 
 int main() {
     std::cout << "IOHandler Deadlock Reproduction Test" << std::endl;
     std::cout << "====================================" << std::endl;
-    
+
+    // Any readable file exercises the read/tell/seek lock ordering; use the
+    // generated fixture and SKIP (77) when no test data is provisioned.
+    FLACTestDataUtils::validateTestDataAvailable("IOHandler deadlock");
+    const std::string test_file = FLACTestDataUtils::findAvailableTestFile();
+
     try {
         std::cout << "Creating FileIOHandler..." << std::endl;
-        auto handler = std::make_unique<FileIOHandler>(TEST_FILE);
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         std::cout << "✓ FileIOHandler created" << std::endl;
         
         std::cout << "Testing basic read..." << std::endl;
