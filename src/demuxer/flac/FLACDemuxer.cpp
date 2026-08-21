@@ -271,6 +271,10 @@ bool FLACDemuxer::parseContainer_unlocked()
     createTagFromMetadata_unlocked();
     
     m_container_parsed = true;
+    // Mirror into the base class flag so the generic isParsed() API agrees;
+    // its m_state_mutex is distinct from this class's shadowing one, so
+    // taking it here cannot self-deadlock.
+    setParsed(true);
     m_current_offset = m_audio_data_offset;
     updateCurrentSample_unlocked(0);
     updateEOF_unlocked(false);

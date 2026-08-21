@@ -38,7 +38,8 @@ bool ChunkDemuxer::parseContainer() {
             m_big_endian = false; // RIFF uses little-endian
         } else {
             Debug::log("chunk", "ChunkDemuxer: Unknown container format: 0x", std::hex, container_chunk.fourcc);
-            return false; // Unknown container format
+            reportError("container", "Unknown container format (expected RIFF or FORM)");
+            return false;
         }
         
         // Read form type using detected endianness
@@ -50,6 +51,7 @@ bool ChunkDemuxer::parseContainer() {
         // Support WAVE (RIFF), AIFF (FORM), and other IFF variants
         if (m_form_type != WAVE_FOURCC && m_form_type != AIFF_FOURCC) {
             Debug::log("chunk", "ChunkDemuxer: Unsupported form type: 0x", std::hex, m_form_type);
+            reportError("container", "Unsupported form type (expected WAVE or AIFF)");
             return false;
         }
         
@@ -169,6 +171,7 @@ bool ChunkDemuxer::parseContainer() {
         // Verify we found required chunks
         if (m_audio_streams.empty()) {
             Debug::log("chunk", "ChunkDemuxer: No audio streams found in container");
+            reportError("container", "No audio streams found in container");
             return false;
         }
         
@@ -179,6 +182,7 @@ bool ChunkDemuxer::parseContainer() {
         
     } catch (const std::exception& e) {
         Debug::log("chunk", "ChunkDemuxer: Exception parsing container: ", e.what());
+        reportError("container", std::string("Exception parsing container: ") + e.what());
         return false;
     }
 }
