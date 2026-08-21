@@ -787,10 +787,20 @@ void MPRISManager::updateComponentStates_unlocked() {
     // Update component states after reconnection
     if (m_connection && m_connection->isConnected()) {
         logInfo_unlocked("Connection restored, updating component states");
-        
+
         // Reset reconnection counter on successful connection
         m_reconnect_attempt_count = 0;
-        
+
+        // Reconnection produced a brand-new connection; the MPRIS object
+        // path was registered on the old one, so without re-registering
+        // here the service holds its bus name but answers nothing.
+        auto register_result = registerDBusService_unlocked();
+        if (!register_result.isSuccess()) {
+            logError_unlocked("updateComponentStates",
+                              "Failed to re-register D-Bus service: " +
+                                  register_result.getError());
+        }
+
         // Restart signal emitter if needed
         if (m_signals && !m_signals->isRunning()) {
             auto result = m_signals->start();
