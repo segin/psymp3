@@ -7,6 +7,13 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+// The whole suite is gated on ENABLE_MULAW_CODEC/ENABLE_ALAW_CODEC from
+// config.h; without this include every codec block compiled out and the
+// test failed against its own empty result set.
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <iostream>
 #include <vector>
 #include <string>
