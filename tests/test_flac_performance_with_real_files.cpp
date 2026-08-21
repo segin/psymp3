@@ -116,12 +116,9 @@ int main() {
     // Print test file information
     FLACTestDataUtils::printTestFileInfo("FLAC Performance Test");
     
-    // Get available test files
+    // Get available test files (exits 77 = SKIP when none are provisioned)
+    FLACTestDataUtils::validateTestDataAvailable("FLAC performance");
     auto test_files = FLACTestDataUtils::getAvailableTestFiles();
-    if (test_files.empty()) {
-        std::cerr << "ERROR: No FLAC test files found!" << std::endl;
-        return 1;
-    }
     
     int tests_passed = 0;
     int tests_failed = 0;
