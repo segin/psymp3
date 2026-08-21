@@ -410,7 +410,15 @@ bool test_comprehensive_stress() {
     config.enable_message_logging = false;
     
     MockDBusConnection dbus_connection(config);
-    ASSERT_TRUE(dbus_connection.connect(), "Initial D-Bus connection should succeed");
+    // The mock is deliberately configured with a 5% random connect-failure
+    // rate for the stress run below; the initial connection must not gamble
+    // on that coin (it flaked roughly one run in twenty). Retry a few times:
+    // ten 5% chances make a spurious failure essentially impossible.
+    bool connected = false;
+    for (int attempt = 0; attempt < 10 && !connected; ++attempt) {
+        connected = dbus_connection.connect();
+    }
+    ASSERT_TRUE(connected, "Initial D-Bus connection should succeed within retries");
     
     Threading::ThreadSafetyTester::Config test_config;
     test_config.num_threads = num_threads;
