@@ -197,20 +197,20 @@ private:
     }
 
     void testErrorHandlingAndRecovery() {
-        // Test error injection
-        m_mock_connection->setConnectionFailureRate(1.0); // Force failures
-        
-        bool connection_failed = false;
-        for (int i = 0; i < 5; ++i) {
-            if (!m_connection_manager->connect()) {
-                connection_failed = true;
-                break;
-            }
-        }
-        ASSERT_TRUE(connection_failed, "Should eventually fail with 100% failure rate");
-        
-        // Test recovery
-        m_mock_connection->setConnectionFailureRate(0.0); // Disable failures
+        // Inject failure through the DBusAPIWrapper seam: the standalone
+        // mock object is not wired into the manager, so its failure rate
+        // never influenced anything.
+        DBusAPIWrapper real_api = DBusConnectionManager::getDBusAPI();
+        DBusAPIWrapper failing_api = real_api;
+        failing_api.bus_get = [](int, DBusError*) -> DBusConnection* { return nullptr; };
+
+        m_connection_manager->disconnect(); // connect() short-circuits when connected
+        DBusConnectionManager::setDBusAPI(failing_api);
+        bool connection_failed = !m_connection_manager->connect();
+        DBusConnectionManager::setDBusAPI(real_api);
+        ASSERT_TRUE(connection_failed, "Should fail when the bus is unreachable");
+
+        // Test recovery with the real API restored
         ASSERT_TRUE(m_connection_manager->connect(), "Should recover when failures disabled");
         
         // Test graceful handling of invalid operations
