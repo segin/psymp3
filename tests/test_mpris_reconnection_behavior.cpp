@@ -200,7 +200,21 @@ private:
         DBusError error;
         dbus_error_init(&error);
 
-        DBusConnection* conn = dbus_bus_get_private(DBUS_BUS_SESSION, &error);
+        // Open the address from the CURRENT environment: libdbus caches the
+        // session address globally on first use, so dbus_bus_get_private
+        // would keep dialing the pre-restart socket forever.
+        DBusConnection* conn = nullptr;
+        const char* addr = getenv("DBUS_SESSION_BUS_ADDRESS");
+        if (addr && *addr) {
+            conn = dbus_connection_open_private(addr, &error);
+            if (conn && !dbus_bus_register(conn, &error)) {
+                dbus_connection_close(conn);
+                dbus_connection_unref(conn);
+                conn = nullptr;
+            }
+        } else {
+            conn = dbus_bus_get_private(DBUS_BUS_SESSION, &error);
+        }
         if (dbus_error_is_set(&error)) {
             dbus_error_free(&error);
         }
