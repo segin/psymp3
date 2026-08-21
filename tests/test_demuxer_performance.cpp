@@ -9,6 +9,7 @@
 
 #include "psymp3.h"
 #include "test_framework.h"
+#include <ogg/ogg.h>
 #include "codecs/CodecRegistration.h"
 #include <chrono>
 #include <random>
@@ -115,55 +116,93 @@ public:
     /**
      * @brief Generate large Ogg file with multiple pages
      */
+    /**
+     * @brief Append one Ogg page with a correct libogg CRC.
+     */
+    static void appendOggPage(std::vector<uint8_t>& data, int serial, uint32_t seq,
+                              uint64_t granule, bool bos, bool eos,
+                              const std::vector<uint8_t>& payload) {
+        std::vector<uint8_t> page_bytes;
+        page_bytes.insert(page_bytes.end(), {'O', 'g', 'g', 'S'});
+        page_bytes.push_back(0x00); // version
+        uint8_t flags = 0;
+        if (bos) flags |= 0x02;
+        if (eos) flags |= 0x04;
+        page_bytes.push_back(flags);
+        for (int i = 0; i < 8; ++i) page_bytes.push_back((granule >> (i * 8)) & 0xFF);
+        for (int i = 0; i < 4; ++i) page_bytes.push_back((serial >> (i * 8)) & 0xFF);
+        for (int i = 0; i < 4; ++i) page_bytes.push_back((seq >> (i * 8)) & 0xFF);
+        for (int i = 0; i < 4; ++i) page_bytes.push_back(0x00); // CRC placeholder
+
+        int segments = static_cast<int>((payload.size() + 254) / 255);
+        if (segments == 0) segments = 1;
+        page_bytes.push_back(static_cast<uint8_t>(segments));
+        size_t remaining = payload.size();
+        for (int i = 0; i < segments; ++i) {
+            uint8_t len = static_cast<uint8_t>(std::min<size_t>(255, remaining));
+            page_bytes.push_back(len);
+            remaining -= len;
+        }
+        page_bytes.insert(page_bytes.end(), payload.begin(), payload.end());
+
+        ogg_page page;
+        page.header = page_bytes.data();
+        page.header_len = 26 + 1 + segments; // fixed header + count byte + table
+        page.body = page_bytes.data() + page.header_len;
+        page.body_len = payload.size();
+        ogg_page_checksum_set(&page);
+
+        data.insert(data.end(), page_bytes.begin(), page_bytes.end());
+    }
+
+    /**
+     * @brief Generate a structurally valid Vorbis-in-Ogg stream.
+     *
+     * Pages carry real CRCs (libogg silently discards pages with bad
+     * checksums, which is why the old random-CRC generator never parsed)
+     * and the stream opens with the ID/comment/setup header handshake the
+     * demuxer requires before it reports success.
+     */
     static std::vector<uint8_t> generateLargeOgg(size_t num_pages = 100) {
         std::vector<uint8_t> data;
-        
+        const int serial = 0x0001;
+
+        // Vorbis ID header (30 bytes)
+        std::vector<uint8_t> id_header = {0x01, 'v', 'o', 'r', 'b', 'i', 's'};
+        for (int i = 0; i < 4; ++i) id_header.push_back(0x00); // version 0
+        id_header.push_back(2); // channels
+        uint32_t rate = 44100;
+        for (int i = 0; i < 4; ++i) id_header.push_back((rate >> (i * 8)) & 0xFF);
+        for (int i = 0; i < 12; ++i) id_header.push_back(0x00); // bitrates
+        id_header.push_back(0x00); // blocksizes
+        id_header.push_back(0x01); // framing bit
+        appendOggPage(data, serial, 0, 0, true, false, id_header);
+
+        // Comment header: empty vendor, no comments, framing bit
+        std::vector<uint8_t> comment_header = {
+            0x03, 'v', 'o', 'r', 'b', 'i', 's',
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x01
+        };
+        appendOggPage(data, serial, 1, 0, false, false, comment_header);
+
+        // Setup header: validation deferred to decoder initialization
+        std::vector<uint8_t> setup_header = {0x05, 'v', 'o', 'r', 'b', 'i', 's', 0x01};
+        appendOggPage(data, serial, 2, 0, false, false, setup_header);
+
+        // Audio pages: page-level validity is what the demuxer checks; the
+        // packet contents are never decoded here.
+        std::mt19937 rng(1000);
+        std::uniform_int_distribution<int> dist(0, 255);
         for (size_t page = 0; page < num_pages; ++page) {
-            // Ogg page header
-            data.insert(data.end(), {'O', 'g', 'g', 'S'}); // capture pattern
-            data.push_back(0x00); // version
-            data.push_back(page == 0 ? 0x02 : 0x00); // header type
-            
-            // Granule position (8 bytes)
-            uint64_t granule = page * 1024;
-            for (int i = 0; i < 8; ++i) {
-                data.push_back((granule >> (i * 8)) & 0xFF);
-            }
-            
-            // Serial number
-            data.insert(data.end(), {0x01, 0x00, 0x00, 0x00});
-            
-            // Page sequence number
-            uint32_t seq = static_cast<uint32_t>(page);
-            data.push_back(seq & 0xFF);
-            data.push_back((seq >> 8) & 0xFF);
-            data.push_back((seq >> 16) & 0xFF);
-            data.push_back((seq >> 24) & 0xFF);
-            
-            // CRC checksum (simplified)
-            data.insert(data.end(), {0x12, 0x34, 0x56, 0x78});
-            
-            // Number of segments (1-255)
-            uint8_t num_segments = static_cast<uint8_t>(1 + (page % 10));
-            data.push_back(num_segments);
-            
-            // Segment table
-            size_t total_payload = 0;
-            for (uint8_t seg = 0; seg < num_segments; ++seg) {
-                uint8_t seg_size = static_cast<uint8_t>(200 + (seg * 5));
-                data.push_back(seg_size);
-                total_payload += seg_size;
-            }
-            
-            // Payload data
-            std::mt19937 rng(static_cast<uint32_t>(page + 1000));
-            std::uniform_int_distribution<uint8_t> dist(0, 255);
-            
-            for (size_t i = 0; i < total_payload; ++i) {
-                data.push_back(dist(rng));
-            }
+            size_t payload_size = 200 + (page % 10) * 37; // avoid exact 255 multiples
+            std::vector<uint8_t> payload(payload_size);
+            for (auto& b : payload) b = static_cast<uint8_t>(dist(rng));
+            appendOggPage(data, serial, static_cast<uint32_t>(3 + page),
+                          (page + 1) * 1024, false, page == num_pages - 1, payload);
         }
-        
+
         return data;
     }
 };

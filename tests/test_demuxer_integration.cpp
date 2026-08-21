@@ -9,6 +9,8 @@
 
 #include "psymp3.h"
 #include "test_framework.h"
+#include "flac_test_data_utils.h"
+#include <ogg/ogg.h>
 #include "codecs/CodecRegistration.h"
 
 using namespace TestFramework;
@@ -70,44 +72,84 @@ public:
     /**
      * @brief Generate minimal valid Ogg file data
      */
+    /**
+     * @brief Append one Ogg page with a correct libogg CRC. libogg silently
+     *        discards pages whose checksum does not match, so a fabricated
+     *        CRC means the demuxer never sees any page at all.
+     */
+    static void appendOggPage(std::vector<uint8_t>& data, int serial, uint32_t seq,
+                              uint64_t granule, bool bos, bool eos,
+                              const std::vector<uint8_t>& payload) {
+        std::vector<uint8_t> page_bytes;
+        page_bytes.insert(page_bytes.end(), {'O', 'g', 'g', 'S'});
+        page_bytes.push_back(0x00); // version
+        uint8_t flags = 0;
+        if (bos) flags |= 0x02;
+        if (eos) flags |= 0x04;
+        page_bytes.push_back(flags);
+        for (int i = 0; i < 8; ++i) page_bytes.push_back((granule >> (i * 8)) & 0xFF);
+        for (int i = 0; i < 4; ++i) page_bytes.push_back((serial >> (i * 8)) & 0xFF);
+        for (int i = 0; i < 4; ++i) page_bytes.push_back((seq >> (i * 8)) & 0xFF);
+        for (int i = 0; i < 4; ++i) page_bytes.push_back(0x00); // CRC placeholder
+
+        int segments = static_cast<int>((payload.size() + 254) / 255);
+        if (segments == 0) segments = 1;
+        page_bytes.push_back(static_cast<uint8_t>(segments));
+        size_t remaining = payload.size();
+        for (int i = 0; i < segments; ++i) {
+            uint8_t len = static_cast<uint8_t>(std::min<size_t>(255, remaining));
+            page_bytes.push_back(len);
+            remaining -= len;
+        }
+        page_bytes.insert(page_bytes.end(), payload.begin(), payload.end());
+
+        ogg_page page;
+        page.header = page_bytes.data();
+        page.header_len = 26 + 1 + segments; // fixed header + count byte + table
+        page.body = page_bytes.data() + page.header_len;
+        page.body_len = payload.size();
+        ogg_page_checksum_set(&page);
+
+        data.insert(data.end(), page_bytes.begin(), page_bytes.end());
+    }
+
+    /**
+     * @brief Generate a minimal but structurally valid Vorbis-in-Ogg stream:
+     *        the full ID/comment/setup header handshake plus audio pages.
+     */
     static std::vector<uint8_t> generateOggData() {
         std::vector<uint8_t> data;
-        
-        // Ogg page header
-        data.insert(data.end(), {'O', 'g', 'g', 'S'}); // capture pattern
-        data.push_back(0x00); // version
-        data.push_back(0x02); // header type (first page)
-        
-        // Granule position (8 bytes, little-endian)
-        for (int i = 0; i < 8; ++i) data.push_back(0x00);
-        
-        // Serial number (4 bytes)
-        data.insert(data.end(), {0x01, 0x00, 0x00, 0x00});
-        
-        // Page sequence number (4 bytes)
-        data.insert(data.end(), {0x00, 0x00, 0x00, 0x00});
-        
-        // CRC checksum (4 bytes) - simplified, not actual CRC
-        data.insert(data.end(), {0x12, 0x34, 0x56, 0x78});
-        
-        // Number of page segments
-        data.push_back(0x01);
-        
-        // Segment table
-        data.push_back(0x1E); // 30 bytes in segment
-        
-        // Vorbis identification header (simplified)
-        data.push_back(0x01); // packet type
-        data.insert(data.end(), {'v', 'o', 'r', 'b', 'i', 's'});
-        data.insert(data.end(), {0x00, 0x00, 0x00, 0x00}); // version
-        data.push_back(0x02); // channels
-        data.insert(data.end(), {0x44, 0xAC, 0x00, 0x00}); // sample rate
-        data.insert(data.end(), {0x00, 0x00, 0x00, 0x00}); // bitrate max
-        data.insert(data.end(), {0x80, 0xBB, 0x00, 0x00}); // bitrate nominal
-        data.insert(data.end(), {0x00, 0x00, 0x00, 0x00}); // bitrate min
-        data.push_back(0xB0); // blocksize
-        data.push_back(0x01); // framing flag
-        
+        const int serial = 0x0001;
+
+        // Vorbis ID header (30 bytes)
+        std::vector<uint8_t> id_header = {0x01, 'v', 'o', 'r', 'b', 'i', 's'};
+        for (int i = 0; i < 4; ++i) id_header.push_back(0x00); // version 0
+        id_header.push_back(2); // channels
+        id_header.insert(id_header.end(), {0x44, 0xAC, 0x00, 0x00}); // 44100 Hz
+        for (int i = 0; i < 12; ++i) id_header.push_back(0x00); // bitrates
+        id_header.push_back(0xB0); // blocksizes
+        id_header.push_back(0x01); // framing bit
+        appendOggPage(data, serial, 0, 0, true, false, id_header);
+
+        // Comment header: empty vendor, no comments, framing bit
+        std::vector<uint8_t> comment_header = {
+            0x03, 'v', 'o', 'r', 'b', 'i', 's',
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x01
+        };
+        appendOggPage(data, serial, 1, 0, false, false, comment_header);
+
+        // Setup header: full validation is deferred to decoder initialization
+        std::vector<uint8_t> setup_header = {0x05, 'v', 'o', 'r', 'b', 'i', 's', 0x01};
+        appendOggPage(data, serial, 2, 0, false, false, setup_header);
+
+        // Two audio pages; the packet bytes are opaque to the demuxer.
+        std::vector<uint8_t> audio1(64, 0xA5);
+        appendOggPage(data, serial, 3, 1024, false, false, audio1);
+        std::vector<uint8_t> audio2(64, 0x5A);
+        appendOggPage(data, serial, 4, 2048, false, true, audio2);
+
         return data;
     }
     
@@ -200,27 +242,22 @@ public:
         data.push_back(0x80); // Last metadata block flag + block type (0)
         data.insert(data.end(), {0x00, 0x00, 0x22}); // block length (34 bytes)
         
-        // STREAMINFO data
-        data.insert(data.end(), {0x10, 0x00}); // min block size (4096)
-        data.insert(data.end(), {0x10, 0x00}); // max block size (4096)
-        data.insert(data.end(), {0x00, 0x00, 0x00}); // min frame size (0 = unknown)
-        data.insert(data.end(), {0x00, 0x00, 0x00}); // max frame size (0 = unknown)
-        
-        // Sample rate (20 bits) + channels (3 bits) + bits per sample (5 bits)
-        // 44100 Hz, 2 channels, 16 bits per sample
-        data.insert(data.end(), {0x0A, 0xC4, 0x42}); // 44100 << 4 | (2-1) << 1 | (16-1) >> 4
-        data.push_back(0xF0); // (16-1) << 4 | 0
-        
-        // Total samples (36 bits) - 44100 samples (1 second)
-        data.insert(data.end(), {0x00, 0x00, 0x00, 0x00, 0xAC});
-        
-        // MD5 signature (16 bytes) - all zeros for simplicity
-        for (int i = 0; i < 16; ++i) data.push_back(0x00);
-        
-        // Minimal FLAC frame (simplified)
-        data.insert(data.end(), {0xFF, 0xF8, 0x69, 0x0C}); // Frame header
-        data.insert(data.end(), {0x00, 0x01, 0x02, 0x03}); // Dummy frame data
-        
+        // STREAMINFO body per RFC 9639 (the old hand-rolled bytes were 35
+        // long - a truncated total-samples encoding - which misaligned
+        // everything after the block).
+        FLACTestDataUtils::appendStreamInfoBody(data, 44100, 2, 16, 44100);
+
+        // Minimal FLAC frame with real header CRC-8 and footer CRC-16; the
+        // demuxer validates both before returning a chunk.
+        data.insert(data.end(), {0xFF, 0xF8}); // sync + fixed blocksize
+        data.push_back(0xC9); // 4096 samples, 44.1 kHz
+        data.push_back(0x18); // stereo, 16-bit, reserved 0
+        data.push_back(0x00); // frame number 0
+        data.push_back(0xC2); // CRC-8 over the five header bytes
+        data.insert(data.end(), {0x00, 0x01, 0x02, 0x03}); // opaque payload
+        data.push_back(0xB8); // CRC-16 (poly 0x8005) over header + payload
+        data.push_back(0x30);
+
         return data;
     }
 };
