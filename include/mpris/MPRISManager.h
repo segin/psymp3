@@ -72,6 +72,13 @@ public:
      * mutex; see the implementation for the reentrancy rationale.
      */
     void processEvents();
+
+    /**
+     * @brief The D-Bus name this instance registered under (the well-known
+     *        MPRIS name, or the .instance<pid> fallback when another player
+     *        owns it); empty before successful initialization
+     */
+    std::string getServiceName() const;
     
     /**
      * Update metadata for current track

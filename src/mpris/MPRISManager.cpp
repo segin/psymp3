@@ -38,11 +38,13 @@ MPRISManager::MPRISManager(Player* player)
     configureErrorRecovery_unlocked();
     
     if (!m_player) {
-        setLastError_unlocked("Player instance cannot be null");
-        MPRIS_LOG_ERROR("MPRISManager", "Player instance cannot be null");
-        return;
+        // Supported configuration (headless/testing): the MethodHandler
+        // answers commands with error replies while properties still work.
+        MPRIS_LOG_WARN("MPRISManager",
+                       "Constructed without a Player; MPRIS commands will be "
+                       "answered with errors");
     }
-    
+
     MPRIS_LOG_INFO("MPRISManager", "MPRISManager created with comprehensive error handling and logging");
     logInfo_unlocked("MPRISManager created with comprehensive error handling");
 }
@@ -60,6 +62,13 @@ Result<void> MPRISManager::initialize() {
 void MPRISManager::shutdown() {
     std::lock_guard<std::mutex> lock(m_mutex);
     shutdown_unlocked();
+}
+
+std::string MPRISManager::getServiceName() const {
+    // m_connection is set on the main thread during initialize(); the
+    // connection manager itself locks internally.
+    DBusConnectionManager* conn = m_connection.get();
+    return conn ? conn->getAcquiredServiceName() : std::string();
 }
 
 void MPRISManager::processEvents() {
@@ -199,10 +208,13 @@ Result<void> MPRISManager::initialize_unlocked() {
     }
     
     if (m_shutdown_requested.load()) {
-        MPRIS_LOG_ERROR("MPRISManager", "Cannot initialize after shutdown requested");
-        return Result<void>::error("Cannot initialize after shutdown requested");
+        // A completed shutdown latches this flag so late callbacks are
+        // ignored; an explicit initialize() is a fresh lifecycle, so clear
+        // the latch rather than refuse - every component is recreated below.
+        MPRIS_LOG_INFO("MPRISManager", "Re-initializing after shutdown");
+        m_shutdown_requested.store(false);
     }
-    
+
     MPRIS_LOG_INFO("MPRISManager", "Initializing MPRIS system");
     logInfo_unlocked("Initializing MPRIS system");
     
@@ -468,8 +480,11 @@ Result<void> MPRISManager::reconnect_unlocked() {
     }
     
     logInfo_unlocked("Attempting manual reconnection");
-    
-    auto result = m_connection->attemptReconnection();
+
+    // Manual reconnection is deliberate caller action; the automatic-retry
+    // backoff must not refuse it (the manager's own scheduleReconnection
+    // path stays rate-limited via shouldAttemptReconnection_unlocked).
+    auto result = m_connection->attemptReconnection(true);
     if (result.isSuccess()) {
         logInfo_unlocked("Manual reconnection successful");
         updateComponentStates_unlocked();
@@ -496,19 +511,18 @@ Result<void> MPRISManager::initializeComponents_unlocked() {
             return Result<void>::error("Failed to create PropertyManager");
         }
         
-        // Initialize method handler (skip if player is null for testing)
+        // Initialize method handler. MethodHandler explicitly supports a
+        // null Player (commands get error replies), and D-Bus registration
+        // below requires the handler to route incoming calls - skipping it
+        // for null players made initialization impossible in that mode.
         m_initialization_phase = InitializationPhase::Methods;
-        if (m_player) {
-            try {
-                m_methods = std::make_unique<MethodHandler>(m_player, m_properties.get());
-                if (!m_methods) {
-                    return Result<void>::error("Failed to create MethodHandler");
-                }
-            } catch (const std::exception& e) {
-                return Result<void>::error("MethodHandler creation failed: " + std::string(e.what()));
+        try {
+            m_methods = std::make_unique<MethodHandler>(m_player, m_properties.get());
+            if (!m_methods) {
+                return Result<void>::error("Failed to create MethodHandler");
             }
-        } else {
-            logInfo_unlocked("Skipping MethodHandler creation - no Player instance");
+        } catch (const std::exception& e) {
+            return Result<void>::error("MethodHandler creation failed: " + std::string(e.what()));
         }
         
         // Initialize signal emitter
@@ -1030,6 +1044,7 @@ Result<void> MPRISManager::initialize() {
 
 void MPRISManager::shutdown() {}
 void MPRISManager::processEvents() {}
+std::string MPRISManager::getServiceName() const { return {}; }
 void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&, uint64_t) {}
 void MPRISManager::updatePlaybackStatus(PlaybackStatus) {}
 void MPRISManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus) {}
