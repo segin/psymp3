@@ -71,6 +71,9 @@ namespace TestFramework {
                 case ExecutionStatus::SYSTEM_ERROR:
                     system_error_tests++;
                     break;
+                case ExecutionStatus::SKIPPED:
+                    skipped_tests++;
+                    break;
             }
         }
         
@@ -128,8 +131,9 @@ namespace TestFramework {
                       << colorize(getStatusText(result.status), getStatusColor(result.status))
                       << std::endl;
             
-            // Show detailed information for failures
-            if (result.status != ExecutionStatus::SUCCESS) {
+            // Show detailed information for failures (a skip is not one)
+            if (result.status != ExecutionStatus::SUCCESS &&
+                result.status != ExecutionStatus::SKIPPED) {
                 if (!result.error_message.empty()) {
                     *m_output << "  " << colorize("Error: ", "\033[31m") << result.error_message << std::endl;
                 }
@@ -187,6 +191,9 @@ namespace TestFramework {
         *m_output << "Tests run: " << summary.total_tests << "\n";
         *m_output << colorize("Passed: " + std::to_string(summary.passed_tests), "\033[32m") << "\n";
         
+        if (summary.skipped_tests > 0) {
+            *m_output << colorize("Skipped: " + std::to_string(summary.skipped_tests), "\033[33m") << "\n";
+        }
         if (summary.failed_tests > 0) {
             *m_output << colorize("Failed: " + std::to_string(summary.failed_tests), "\033[31m") << "\n";
         }
@@ -223,7 +230,8 @@ namespace TestFramework {
         if (!summary.allTestsPassed()) {
             *m_output << "\n" << colorize("FAILED TESTS:", "\033[31m") << "\n";
             for (const auto& result : summary.results) {
-                if (result.status != ExecutionStatus::SUCCESS) {
+                if (result.status != ExecutionStatus::SUCCESS &&
+                    result.status != ExecutionStatus::SKIPPED) {
                     *m_output << "  " << result.test_name << " - "
                               << colorize(getStatusText(result.status), getStatusColor(result.status));
                     
@@ -259,6 +267,7 @@ namespace TestFramework {
             case ExecutionStatus::CRASH: return "\033[31m";    // Red
             case ExecutionStatus::BUILD_ERROR: return "\033[35m"; // Magenta
             case ExecutionStatus::SYSTEM_ERROR: return "\033[31m"; // Red
+            case ExecutionStatus::SKIPPED: return "\033[33m"; // Yellow
             default: return "\033[0m";  // Reset
         }
     }
@@ -271,6 +280,7 @@ namespace TestFramework {
             case ExecutionStatus::CRASH: return "CRASHED";
             case ExecutionStatus::BUILD_ERROR: return "BUILD ERROR";
             case ExecutionStatus::SYSTEM_ERROR: return "SYSTEM ERROR";
+            case ExecutionStatus::SKIPPED: return "SKIPPED";
             default: return "UNKNOWN";
         }
     }
@@ -352,6 +362,10 @@ namespace TestFramework {
                         *m_output << "    </error>\n";
                         break;
                         
+                    case ExecutionStatus::SKIPPED:
+                        *m_output << "    <skipped message=\"" << escapeXml(result.error_message) << "\"/>\n";
+                        break;
+
                     case ExecutionStatus::TIMEOUT:
                     case ExecutionStatus::BUILD_ERROR:
                         *m_output << "    <skipped message=\"" << escapeXml(result.error_message) << "\"/>\n";

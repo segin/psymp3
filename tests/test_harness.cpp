@@ -424,7 +424,8 @@ int main(int argc, char* argv[]) {
                 reporter->reportProgress(results.size(), runnable_tests.size());
                 
                 // Stop on failure if requested
-                if (args.stop_on_failure && result.status != ExecutionStatus::SUCCESS) {
+                if (args.stop_on_failure && result.status != ExecutionStatus::SUCCESS &&
+                    result.status != ExecutionStatus::SKIPPED) {
                     if (!args.quiet) {
                         std::cout << "\nStopping execution due to test failure.\n";
                     }

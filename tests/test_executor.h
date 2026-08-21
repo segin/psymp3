@@ -48,7 +48,8 @@ namespace TestFramework {
         TIMEOUT,        ///< Test exceeded time limit
         CRASH,          ///< Test crashed (signal received)
         BUILD_ERROR,    ///< Test executable not found or not executable
-        SYSTEM_ERROR    ///< System error during execution
+        SYSTEM_ERROR,   ///< System error during execution
+        SKIPPED         ///< Test skipped itself (automake convention: exit 77)
     };
     
     /**

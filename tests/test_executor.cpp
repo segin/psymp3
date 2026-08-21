@@ -386,7 +386,12 @@ namespace TestFramework {
                 
                 if (WIFEXITED(status)) {
                     result.exit_code = WEXITSTATUS(status);
-                    if (result.exit_code != 0) {
+                    if (result.exit_code == 77) {
+                        // automake convention: exit 77 means the test skipped
+                        // itself (missing fixture, no bus, feature disabled)
+                        result.status = ExecutionStatus::SKIPPED;
+                        result.error_message = "Test skipped (exit code 77)";
+                    } else if (result.exit_code != 0) {
                         result.status = ExecutionStatus::FAILURE;
                         result.error_message = "Test failed with exit code " + std::to_string(result.exit_code);
                     }
