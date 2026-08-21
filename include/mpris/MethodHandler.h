@@ -110,6 +110,7 @@ private:
     DBusHandlerResult handleGetProperty_unlocked(DBusConnection* connection, DBusMessage* message);
     DBusHandlerResult handleSetProperty_unlocked(DBusConnection* connection, DBusMessage* message);
     DBusHandlerResult handleGetAllProperties_unlocked(DBusConnection* connection, DBusMessage* message);
+    DBusHandlerResult handleIntrospect_unlocked(DBusConnection* connection, DBusMessage* message);
     
     // Utility methods for D-Bus message handling
     void sendMethodReturn_unlocked(DBusConnection* connection, DBusMessage* message);

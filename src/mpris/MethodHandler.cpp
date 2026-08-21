@@ -114,7 +114,10 @@ MethodHandler::handleMessage_unlocked(DBusConnection *connection,
 }
 
 bool MethodHandler::isReady_unlocked() const {
-  return m_initialized && m_player && m_properties;
+  // A null Player is a supported configuration (the constructor documents
+  // it; commands are answered with error replies), so readiness only
+  // requires initialization and the PropertyManager.
+  return m_initialized && m_properties;
 }
 
 void MethodHandler::initializeMethodHandlers_unlocked() {
@@ -181,6 +184,11 @@ void MethodHandler::initializeMethodHandlers_unlocked() {
         return handleSetProperty_unlocked(conn, msg);
       };
 
+  m_method_handlers["org.freedesktop.DBus.Introspectable.Introspect"] =
+      [this](DBusConnection *conn, DBusMessage *msg) {
+        return handleIntrospect_unlocked(conn, msg);
+      };
+
   m_method_handlers[std::string(DBUS_PROPERTIES_INTERFACE) + ".GetAll"] =
       [this](DBusConnection *conn, DBusMessage *msg) {
         return handleGetAllProperties_unlocked(conn, msg);
@@ -195,6 +203,11 @@ void MethodHandler::initializePropertyHandlers_unlocked() {
 
   mp2["Identity"] = {
       []() { return PsyMP3::MPRIS::DBusVariant(std::string("PsyMP3")); },
+      nullptr, false};
+
+  // Desktop file basename (without .desktop), required by the MPRIS2 spec
+  mp2["DesktopEntry"] = {
+      []() { return PsyMP3::MPRIS::DBusVariant(std::string("psymp3")); },
       nullptr, false};
 
   mp2["CanQuit"] = {[]() { return PsyMP3::MPRIS::DBusVariant(true); }, nullptr,
@@ -898,6 +911,99 @@ MethodHandler::handleSetProperty_unlocked(DBusConnection *connection,
 }
 
 DBusHandlerResult
+MethodHandler::handleIntrospect_unlocked(DBusConnection *connection,
+                                         DBusMessage *message) {
+  // Complete MPRIS2 introspection data; clients (and the spec-compliance
+  // suite) discover the supported interfaces, methods, and properties here.
+  static const char *kIntrospectionXml =
+      "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection "
+      "1.0//EN\"\n\"http://www.freedesktop.org/standards/dbus/1.0/"
+      "introspect.dtd\">\n"
+      "<node>\n"
+      "  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
+      "    <method name=\"Introspect\">\n"
+      "      <arg name=\"xml_data\" type=\"s\" direction=\"out\"/>\n"
+      "    </method>\n"
+      "  </interface>\n"
+      "  <interface name=\"org.freedesktop.DBus.Properties\">\n"
+      "    <method name=\"Get\">\n"
+      "      <arg name=\"interface_name\" type=\"s\" direction=\"in\"/>\n"
+      "      <arg name=\"property_name\" type=\"s\" direction=\"in\"/>\n"
+      "      <arg name=\"value\" type=\"v\" direction=\"out\"/>\n"
+      "    </method>\n"
+      "    <method name=\"Set\">\n"
+      "      <arg name=\"interface_name\" type=\"s\" direction=\"in\"/>\n"
+      "      <arg name=\"property_name\" type=\"s\" direction=\"in\"/>\n"
+      "      <arg name=\"value\" type=\"v\" direction=\"in\"/>\n"
+      "    </method>\n"
+      "    <method name=\"GetAll\">\n"
+      "      <arg name=\"interface_name\" type=\"s\" direction=\"in\"/>\n"
+      "      <arg name=\"properties\" type=\"a{sv}\" direction=\"out\"/>\n"
+      "    </method>\n"
+      "    <signal name=\"PropertiesChanged\">\n"
+      "      <arg name=\"interface_name\" type=\"s\"/>\n"
+      "      <arg name=\"changed_properties\" type=\"a{sv}\"/>\n"
+      "      <arg name=\"invalidated_properties\" type=\"as\"/>\n"
+      "    </signal>\n"
+      "  </interface>\n"
+      "  <interface name=\"org.mpris.MediaPlayer2\">\n"
+      "    <method name=\"Raise\"/>\n"
+      "    <method name=\"Quit\"/>\n"
+      "    <property name=\"CanQuit\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"CanRaise\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"HasTrackList\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"Identity\" type=\"s\" access=\"read\"/>\n"
+      "    <property name=\"DesktopEntry\" type=\"s\" access=\"read\"/>\n"
+      "    <property name=\"SupportedUriSchemes\" type=\"as\" access=\"read\"/>\n"
+      "    <property name=\"SupportedMimeTypes\" type=\"as\" access=\"read\"/>\n"
+      "  </interface>\n"
+      "  <interface name=\"org.mpris.MediaPlayer2.Player\">\n"
+      "    <method name=\"Next\"/>\n"
+      "    <method name=\"Previous\"/>\n"
+      "    <method name=\"Pause\"/>\n"
+      "    <method name=\"PlayPause\"/>\n"
+      "    <method name=\"Stop\"/>\n"
+      "    <method name=\"Play\"/>\n"
+      "    <method name=\"Seek\">\n"
+      "      <arg name=\"Offset\" type=\"x\" direction=\"in\"/>\n"
+      "    </method>\n"
+      "    <method name=\"SetPosition\">\n"
+      "      <arg name=\"TrackId\" type=\"o\" direction=\"in\"/>\n"
+      "      <arg name=\"Position\" type=\"x\" direction=\"in\"/>\n"
+      "    </method>\n"
+      "    <signal name=\"Seeked\">\n"
+      "      <arg name=\"Position\" type=\"x\"/>\n"
+      "    </signal>\n"
+      "    <property name=\"PlaybackStatus\" type=\"s\" access=\"read\"/>\n"
+      "    <property name=\"LoopStatus\" type=\"s\" access=\"readwrite\"/>\n"
+      "    <property name=\"Rate\" type=\"d\" access=\"readwrite\"/>\n"
+      "    <property name=\"Shuffle\" type=\"b\" access=\"readwrite\"/>\n"
+      "    <property name=\"Metadata\" type=\"a{sv}\" access=\"read\"/>\n"
+      "    <property name=\"Volume\" type=\"d\" access=\"readwrite\"/>\n"
+      "    <property name=\"Position\" type=\"x\" access=\"read\"/>\n"
+      "    <property name=\"MinimumRate\" type=\"d\" access=\"read\"/>\n"
+      "    <property name=\"MaximumRate\" type=\"d\" access=\"read\"/>\n"
+      "    <property name=\"CanGoNext\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"CanGoPrevious\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"CanPlay\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"CanPause\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"CanSeek\" type=\"b\" access=\"read\"/>\n"
+      "    <property name=\"CanControl\" type=\"b\" access=\"read\"/>\n"
+      "  </interface>\n"
+      "</node>\n";
+
+  DBusMessage *reply = dbus_message_new_method_return(message);
+  if (!reply) {
+    return DBUS_HANDLER_RESULT_NEED_MEMORY;
+  }
+  dbus_message_append_args(reply, DBUS_TYPE_STRING, &kIntrospectionXml,
+                           DBUS_TYPE_INVALID);
+  dbus_connection_send(connection, reply, nullptr);
+  dbus_message_unref(reply);
+  return DBUS_HANDLER_RESULT_HANDLED;
+}
+
+DBusHandlerResult
 MethodHandler::handleGetAllProperties_unlocked(DBusConnection *connection,
                                                DBusMessage *message) {
   DBusMessageIter args;
@@ -920,14 +1026,13 @@ MethodHandler::handleGetAllProperties_unlocked(DBusConnection *connection,
   Debug::log("mpris", "Received GetAll properties for interface ",
              interface_name);
 
+  // Interfaces without registered properties (e.g. org.freedesktop.DBus.
+  // Properties itself) get an empty dict per the D-Bus spec, not an error.
+  static const std::map<std::string, PropertyHandler> kNoProperties;
   auto interface_it = m_property_handlers.find(interface_name);
-  if (interface_it == m_property_handlers.end()) {
-    sendErrorReply_unlocked(connection, message,
-                            "org.freedesktop.DBus.Error.UnknownInterface",
-                            "Interface '" + std::string(interface_name) +
-                                "' not supported");
-    return DBUS_HANDLER_RESULT_HANDLED;
-  }
+  const auto &props = (interface_it != m_property_handlers.end())
+                          ? interface_it->second
+                          : kNoProperties;
 
   DBusMessage *reply = dbus_message_new_method_return(message);
   if (!reply) {
@@ -941,7 +1046,7 @@ MethodHandler::handleGetAllProperties_unlocked(DBusConnection *connection,
   dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{sv}", &dict_iter);
 
   try {
-    for (const auto &[prop_name, handler] : interface_it->second) {
+    for (const auto &[prop_name, handler] : props) {
       try {
         PsyMP3::MPRIS::DBusVariant value = handler.getter();
 
