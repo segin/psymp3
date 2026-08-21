@@ -38,7 +38,9 @@ struct CommandLineArgs {
     std::string output_format = "console";
     std::string test_directory = ".";
     int max_parallel = 4;
-    int timeout_seconds = 30;
+    // Long-running stress suites (IOHandler thread safety, MPRIS stress)
+    // legitimately exceed 30s; automake's own per-test limits still apply.
+    int timeout_seconds = 120;
     bool track_performance = false;
     std::string performance_file = "test_performance.csv";
     bool show_performance_report = false;
@@ -62,7 +64,7 @@ struct CommandLineArgs {
         std::cout << "  -o, --output FORMAT     Output format: console, xml, json (default: console)\n";
         std::cout << "  -d, --directory DIR     Test directory to scan (default: .)\n";
         std::cout << "  -j, --jobs N            Maximum parallel processes (default: 4)\n";
-        std::cout << "  -t, --timeout SECONDS   Test timeout in seconds (default: 30)\n";
+        std::cout << "  -t, --timeout SECONDS   Test timeout in seconds (default: 120)\n";
         std::cout << "  --track-performance     Enable performance tracking and trend analysis\n";
         std::cout << "  --performance-file FILE Performance data file (default: test_performance.csv)\n";
         std::cout << "  --show-performance      Show detailed performance report\n";

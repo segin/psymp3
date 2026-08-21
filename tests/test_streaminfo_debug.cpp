@@ -131,13 +131,18 @@ void printStreamInfo(const StreamInfo& info) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <flac_file>" << std::endl;
-        return 1;
+    // With no argument (harness invocation), fall back to the generated
+    // fixture, skipping (77) when none is provisioned.
+    std::string flac_file;
+    if (argc == 2) {
+        flac_file = argv[1];
+    } else {
+        FLACTestDataUtils::validateTestDataAvailable("STREAMINFO debug"); // exits 77 if none
+        flac_file = FLACTestDataUtils::findAvailableTestFile();
     }
     
     StreamInfo info;
-    if (extractStreamInfoFromFile(argv[1], info)) {
+    if (extractStreamInfoFromFile(flac_file, info)) {
         printStreamInfo(info);
         return 0;
     } else {
