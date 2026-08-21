@@ -32,7 +32,10 @@ public:
         
         for (int i = 0; i < num_threads; i++) {
             threads.emplace_back([&, i]() {
-                std::vector<std::pair<uint8_t*, size_t>> allocated_buffers;
+                // (buffer, size, expected last byte) - the last byte is stamped
+                // at allocation time, so remember it rather than re-deriving it
+                // from the (different) release iteration counter.
+                std::vector<std::tuple<uint8_t*, size_t, uint8_t>> allocated_buffers;
                 std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count() + i);
                 std::uniform_int_distribution<size_t> size_dist(1024, 128 * 1024); // 1KB to 128KB
                 
@@ -48,10 +51,11 @@ public:
                             
                             if (buffer) {
                                 // Verify buffer is writable
+                                uint8_t last_byte = static_cast<uint8_t>(j);
                                 buffer[0] = static_cast<uint8_t>(i);
-                                buffer[size - 1] = static_cast<uint8_t>(j);
-                                
-                                allocated_buffers.push_back({buffer, size});
+                                buffer[size - 1] = last_byte;
+
+                                allocated_buffers.push_back({buffer, size, last_byte});
                                 successful_allocations++;
                             } else {
                                 allocation_failures++;
@@ -60,14 +64,14 @@ public:
                             // Release buffer
                             if (!allocated_buffers.empty()) {
                                 size_t index = rng() % allocated_buffers.size();
-                                auto buffer_info = allocated_buffers[index];
+                                auto [buf, buf_size, expected_last] = allocated_buffers[index];
                                 allocated_buffers.erase(allocated_buffers.begin() + index);
-                                
+
                                 // Verify buffer still contains our data
-                                ASSERT_EQUALS(buffer_info.first[0], static_cast<uint8_t>(i), "Buffer data corrupted");
-                                ASSERT_EQUALS(buffer_info.first[buffer_info.second - 1], static_cast<uint8_t>(j % 256), "Buffer end data corrupted");
-                                
-                                pool_manager.releaseBuffer(buffer_info.first, buffer_info.second, component_name);
+                                ASSERT_EQUALS(buf[0], static_cast<uint8_t>(i), "Buffer data corrupted");
+                                ASSERT_EQUALS(buf[buf_size - 1], expected_last, "Buffer end data corrupted");
+
+                                pool_manager.releaseBuffer(buf, buf_size, component_name);
                                 successful_releases++;
                             }
                         }
@@ -83,9 +87,10 @@ public:
                 }
                 
                 // Clean up remaining buffers
-                for (auto& buffer_info : allocated_buffers) {
+                for (auto& [buf, buf_size, expected_last] : allocated_buffers) {
                     try {
-                        pool_manager.releaseBuffer(buffer_info.first, buffer_info.second, component_name);
+                        (void)expected_last;
+                        pool_manager.releaseBuffer(buf, buf_size, component_name);
                         successful_releases++;
                     } catch (...) {
                         exceptions++;
