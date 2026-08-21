@@ -133,6 +133,12 @@ public:
     }
     
     MediaChunk readChunk(uint32_t stream_id) override {
+        // Mirror the real demuxer contract: no data before a successful
+        // parseContainer(), and none for a stream id other than the mock's
+        // single stream (id 1).
+        if (!isParsed() || stream_id != 1) {
+            return MediaChunk{};
+        }
         if (m_chunk_index >= m_chunks.size()) {
             setEOF(true);
             return MediaChunk{};
