@@ -249,7 +249,7 @@ AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIB
 noinst_LIBRARIES = libtest_utilities.a
 libtest_utilities_a_SOURCES = test_framework.cpp test_rect_utilities.cpp test_framework_threading.cpp
 if HAVE_DBUS
-libtest_utilities_a_SOURCES += mock_dbus_connection.cpp mock_player.cpp mpris_test_fixtures.cpp
+libtest_utilities_a_SOURCES += mock_dbus_connection.cpp mock_player.cpp
 endif
 
 # Test harness executable and debug programs
@@ -602,7 +602,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive test_mpris_logger_basic test_mpris_logger_dbus_tracing test_mpris_logger_performance test_mpris_spec_compliance test_mpris_concurrent_clients test_mpris_reconnection_behavior test_mpris_memory_validation test_mpris_performance_profiler test_mpris_regression_validation
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive test_mpris_logger_basic test_mpris_logger_dbus_tracing test_mpris_logger_performance test_mpris_spec_compliance test_mpris_concurrent_clients test_mpris_reconnection_behavior test_mpris_memory_validation test_mpris_performance_profiler test_mpris_regression_validation
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -3028,8 +3028,6 @@ test_mpris_mock_framework_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 test_mpris_stress_testing_SOURCES = test_mpris_stress_testing.cpp
 test_mpris_stress_testing_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 
-test_comprehensive_mock_framework_SOURCES = test_comprehensive_mock_framework.cpp player_stub.cpp
-test_comprehensive_mock_framework_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 
 test_mock_framework_standalone_SOURCES = test_mock_framework_standalone.cpp
 test_mock_framework_standalone_LDADD = libtest_utilities.a $(AM_LDFLAGS)
@@ -3080,7 +3078,6 @@ test_mpris_memory_validation_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 EXTRA_DIST = \
 	run_mpris_mock_tests.sh \
 	run_mpris_stress_tests.sh \
-	validate_mock_framework.sh \
 	run_mpris_logging_tests.sh \
 	run_mpris_integration_tests.sh
 
