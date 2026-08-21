@@ -15,6 +15,7 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 
 // Mock Stream class for testing
 class MockStream : public Stream {
@@ -68,9 +69,8 @@ public:
 void testAudioConcurrentAccess() {
     std::cout << "\n=== Testing Audio Concurrent Access ===" << std::endl;
     
-    // Initialize SDL for audio testing
-    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-        std::cout << "SKIPPED: SDL audio initialization failed: " << SDL_GetError() << std::endl;
+    if (!SDL_WasInit(SDL_INIT_AUDIO)) {
+        std::cout << "SKIPPED: SDL audio not initialized" << std::endl;
         return;
     }
     
@@ -117,7 +117,6 @@ void testAudioConcurrentAccess() {
         std::cout << "Test failed with exception: " << e.what() << std::endl;
     }
     
-    SDL_Quit();
 }
 
 /**
@@ -126,9 +125,8 @@ void testAudioConcurrentAccess() {
 void testAudioDeadlockPrevention() {
     std::cout << "\n=== Testing Audio Deadlock Prevention ===" << std::endl;
     
-    // Initialize SDL for audio testing
-    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-        std::cout << "SKIPPED: SDL audio initialization failed: " << SDL_GetError() << std::endl;
+    if (!SDL_WasInit(SDL_INIT_AUDIO)) {
+        std::cout << "SKIPPED: SDL audio not initialized" << std::endl;
         return;
     }
     
@@ -166,7 +164,6 @@ void testAudioDeadlockPrevention() {
         std::cout << "Test failed with exception: " << e.what() << std::endl;
     }
     
-    SDL_Quit();
 }/**
  * Stress test with high concurrency and mixed operations
  */
@@ -347,6 +344,17 @@ protected:
  * Main test function
  */
 int main() {
+    // Headless environments (CI) have no audio hardware; default to SDL's
+    // dummy driver so device opens succeed. An explicitly set driver wins.
+    setenv("SDL_AUDIO_DRIVER", "dummy", 0);
+
+    // One SDL lifecycle for the whole suite: the old per-test SDL_Quit()
+    // calls tore the audio subsystem down under the later tests.
+    if (!SDL_Init(SDL_INIT_AUDIO)) {
+        std::cout << "SKIP: SDL audio initialization failed: " << SDL_GetError() << std::endl;
+        return 77;
+    }
+
     std::cout << "PsyMP3 Audio Class Thread Safety Tests" << std::endl;
     std::cout << "======================================" << std::endl;
     
