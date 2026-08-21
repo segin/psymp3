@@ -40,21 +40,18 @@ void testMuLaw() {
 
 void testALaw() {
     printf("Testing A-law...\n");
-    // 0x55 is silence
-    ASSERT_EQUALS(0, alaw2linear(0x55), "A-law 0x55 should be 0");
+    // A-law is a mid-riser quantizer: no code decodes to 0. The values
+    // below are the ITU-T G.711 Table 2 outputs with the +8 interval-
+    // midpoint offset (the Sun reference implementation's table).
+    ASSERT_EQUALS(-8, alaw2linear(0x55), "A-law 0x55 should be -8");
+    ASSERT_EQUALS(8, alaw2linear(0xD5), "A-law 0xD5 should be +8");
 
-    // 0xD5 is silence
-    ASSERT_EQUALS(0, alaw2linear(0xD5), "A-law 0xD5 should be 0");
-
-    // Max negative (0x00)
-    ASSERT_EQUALS(-5376, alaw2linear(0x00), "A-law 0x00 should be -5376");
-
-    // Max positive (0x80)
-    ASSERT_EQUALS(5376, alaw2linear(0x80), "A-law 0x80 should be 5376");
+    ASSERT_EQUALS(-5504, alaw2linear(0x00), "A-law 0x00 should be -5504");
+    ASSERT_EQUALS(5504, alaw2linear(0x80), "A-law 0x80 should be 5504");
 
     // Some other values
-    ASSERT_EQUALS(-832, alaw2linear(0x7F), "A-law 0x7F should be -832");
-    ASSERT_EQUALS(832, alaw2linear(0xFF), "A-law 0xFF should be 832");
+    ASSERT_EQUALS(-848, alaw2linear(0x7F), "A-law 0x7F should be -848");
+    ASSERT_EQUALS(848, alaw2linear(0xFF), "A-law 0xFF should be 848");
 
     printf("A-law tests passed.\n");
 }

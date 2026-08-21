@@ -25,21 +25,23 @@ int main() {
         return 1;
     }
     
-    // Test A-law silence value (0x55) maps to 0
+    // A-law is a mid-riser quantizer with no zero output: the codes
+    // closest to silence, 0x55 and 0xD5, decode to -8 and +8 respectively
+    // (ITU-T G.711 Table 2 with the interval-midpoint offset).
     MediaChunk silence_chunk;
     silence_chunk.data = {0x55};
-    
+
     AudioFrame silence_frame = codec.decode(silence_chunk);
     if (silence_frame.samples.empty()) {
-        Debug::log("ERROR: No output from A-law codec for silence value");
+        Debug::log("ERROR: No output from A-law codec for near-silence value");
         return 1;
     }
-    
+
     const int16_t silence_value = silence_frame.samples[0];
-    Debug::log("A-law silence value (0x55) maps to: %d", silence_value);
-    
-    if (silence_value != 0) {
-        Debug::log("ERROR: A-law silence value should map to 0, got %d", silence_value);
+    Debug::log("A-law near-silence value (0x55) maps to: %d", silence_value);
+
+    if (silence_value != -8) {
+        Debug::log("ERROR: A-law 0x55 should map to -8, got %d", silence_value);
         return 1;
     }
     
@@ -64,7 +66,8 @@ int main() {
     // Verify sign bit handling for all values
     bool sign_test_passed = true;
     
-    // Values in the low half should be non-positive, with 0x55 as the zero code.
+    // Every value in the low half decodes negative (0x55 = -8; A-law has
+    // no zero output).
     for (int i = 0x00; i <= 0x7F; ++i) {
         MediaChunk test_chunk;
         test_chunk.data = {static_cast<uint8_t>(i)};
@@ -76,13 +79,10 @@ int main() {
         }
         
         const int16_t sample = test_frame.samples[0];
-        if (i == 0x55) {
-            if (sample != 0) {
-                Debug::log("ERROR: A-law value 0x55 should decode to 0, got %d", sample);
-                sign_test_passed = false;
-                break;
-            }
-            continue;
+        if (i == 0x55 && sample != -8) {
+            Debug::log("ERROR: A-law value 0x55 should decode to -8, got %d", sample);
+            sign_test_passed = false;
+            break;
         }
 
         if (sample >= 0) {
@@ -92,7 +92,7 @@ int main() {
         }
     }
     
-    // Values in the high half should be non-negative, with 0xD5 as the zero code.
+    // Every value in the high half decodes positive (0xD5 = +8).
     for (int i = 0x80; i <= 0xFF; ++i) {
         MediaChunk test_chunk;
         test_chunk.data = {static_cast<uint8_t>(i)};
@@ -104,13 +104,10 @@ int main() {
         }
         
         const int16_t sample = test_frame.samples[0];
-        if (i == 0xD5) {
-            if (sample != 0) {
-                Debug::log("ERROR: A-law value 0xD5 should decode to 0, got %d", sample);
-                sign_test_passed = false;
-                break;
-            }
-            continue;
+        if (i == 0xD5 && sample != 8) {
+            Debug::log("ERROR: A-law value 0xD5 should decode to +8, got %d", sample);
+            sign_test_passed = false;
+            break;
         }
 
         if (sample <= 0) {

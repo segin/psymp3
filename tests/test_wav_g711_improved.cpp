@@ -18,24 +18,19 @@ public:
     TestALawConversion() : TestCase("A-Law Conversion") {}
 
     void runTest() override {
-        // A-law silence is encoded as 0x55 (or 0xD5 with alternate sign bit)
-        // Decoded linear value should be 0.
-        ASSERT_EQUALS(0, alaw2linear(0x55), "Silence 0x55 -> 0");
-        ASSERT_EQUALS(0, alaw2linear(0xD5), "Silence 0xD5 -> 0");
+        // A-law is mid-riser: no code decodes to 0. The near-silence codes
+        // 0x55/0xD5 decode to -8/+8 per ITU-T G.711 Table 2 (with the +8
+        // interval-midpoint offset of the Sun reference implementation).
+        ASSERT_EQUALS(-8, alaw2linear(0x55), "Near-silence 0x55 -> -8");
+        ASSERT_EQUALS(8, alaw2linear(0xD5), "Near-silence 0xD5 -> +8");
 
-        // Maximum positive value in A-law is 0x80, which decodes to 5376.
-        // This validates the exponent/mantissa expansion logic for large positive values.
-        ASSERT_EQUALS(5376, alaw2linear(0x80), "Max Positive (0x80) -> 5376");
+        // Chord/step expansion for large values
+        ASSERT_EQUALS(5504, alaw2linear(0x80), "0x80 -> 5504");
+        ASSERT_EQUALS(-5504, alaw2linear(0x00), "0x00 -> -5504");
 
-        // Maximum negative value in A-law is 0x00, which decodes to -5376.
-        // This validates the sign bit handling and expansion for large negative values.
-        ASSERT_EQUALS(-5376, alaw2linear(0x00), "Max Negative (0x00) -> -5376");
-
-        // Test mid-range values to verify non-boundary decoding
-        // 0x7F decodes to -832
-        ASSERT_EQUALS(-832, alaw2linear(0x7F), "Value 0x7F -> -832");
-        // 0xFF decodes to 832
-        ASSERT_EQUALS(832, alaw2linear(0xFF), "Value 0xFF -> 832");
+        // Mid-range values
+        ASSERT_EQUALS(-848, alaw2linear(0x7F), "Value 0x7F -> -848");
+        ASSERT_EQUALS(848, alaw2linear(0xFF), "Value 0xFF -> 848");
     }
 };
 

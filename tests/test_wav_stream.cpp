@@ -125,8 +125,8 @@ void testFloat32() {
 
 void testALaw() {
     std::cout << "Testing A-Law..." << std::endl;
-    // A-law
-    // 0xD5 (silence) -> 0
+    // A-law is mid-riser: the near-silence code 0xD5 decodes to +8
+    // (ITU-T G.711 Table 2), never exactly 0.
     std::vector<uint8_t> data = {0xD5};
     auto wavData = createWavData(6, 1, 8000, 8, data); // Format 6 = ALAW
     auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
@@ -134,7 +134,7 @@ void testALaw() {
 
     int16_t buffer[1];
     stream.getData(2, buffer);
-    ASSERT_EQUALS(0, buffer[0], "A-Law silence mismatch");
+    ASSERT_EQUALS(8, buffer[0], "A-Law near-silence mismatch");
 }
 
 void testMuLaw() {

@@ -21,12 +21,12 @@ using namespace PsyMP3::Core::Utility::G711;
 /**
  * @brief A-law conversion validation using known correct values
  * 
- * This validates the current implementation of G711::alaw2linear which produces
- * 16-bit scaled PCM values without mid-point bias.
+ * This validates G711::alaw2linear against the ITU-T G.711 reference
+ * (interval-midpoint outputs; the Sun reference implementation's table).
  */
 class ALawValidation {
 public:
-    // Known correct A-law to PCM mappings (matches current implementation)
+    // ITU-T G.711 reference A-law to PCM mappings
     static const std::array<int16_t, 256> EXPECTED_ALAW_TO_PCM;
     
     static int16_t getExpectedValue(uint8_t alaw_sample) {
@@ -34,40 +34,41 @@ public:
     }
 };
 
-// Known correct A-law to PCM conversion values (Matches current implementation)
+// ITU-T G.711 Table 2 reference values (Sun reference implementation:
+// interval midpoints, +8 offset; A-law has no zero output)
 const std::array<int16_t, 256> ALawValidation::EXPECTED_ALAW_TO_PCM = {{
-    -5376, -5120, -5888, -5632, -4352, -4096, -4864, -4608,
-    -7424, -7168, -7936, -7680, -6400, -6144, -6912, -6656,
-    -2688, -2560, -2944, -2816, -2176, -2048, -2432, -2304,
-    -3712, -3584, -3968, -3840, -3200, -3072, -3456, -3328,
-    -21504, -20480, -23552, -22528, -17408, -16384, -19456, -18432,
-    -29696, -28672, -31744, -30720, -25600, -24576, -27648, -26624,
-    -10752, -10240, -11776, -11264, -8704, -8192, -9728, -9216,
-    -14848, -14336, -15872, -15360, -12800, -12288, -13824, -13312,
-    -336, -320, -368, -352, -272, -256, -304, -288,
-    -464, -448, -496, -480, -400, -384, -432, -416,
-    -80, -64, -112, -96, -16, 0, -48, -32,
-    -208, -192, -240, -224, -144, -128, -176, -160,
-    -1344, -1280, -1472, -1408, -1088, -1024, -1216, -1152,
-    -1856, -1792, -1984, -1920, -1600, -1536, -1728, -1664,
-    -672, -640, -736, -704, -544, -512, -608, -576,
-    -928, -896, -992, -960, -800, -768, -864, -832,
-    5376, 5120, 5888, 5632, 4352, 4096, 4864, 4608,
-    7424, 7168, 7936, 7680, 6400, 6144, 6912, 6656,
-    2688, 2560, 2944, 2816, 2176, 2048, 2432, 2304,
-    3712, 3584, 3968, 3840, 3200, 3072, 3456, 3328,
-    21504, 20480, 23552, 22528, 17408, 16384, 19456, 18432,
-    29696, 28672, 31744, 30720, 25600, 24576, 27648, 26624,
-    10752, 10240, 11776, 11264, 8704, 8192, 9728, 9216,
-    14848, 14336, 15872, 15360, 12800, 12288, 13824, 13312,
-    336, 320, 368, 352, 272, 256, 304, 288,
-    464, 448, 496, 480, 400, 384, 432, 416,
-    80, 64, 112, 96, 16, 0, 48, 32,
-    208, 192, 240, 224, 144, 128, 176, 160,
-    1344, 1280, 1472, 1408, 1088, 1024, 1216, 1152,
-    1856, 1792, 1984, 1920, 1600, 1536, 1728, 1664,
-    672, 640, 736, 704, 544, 512, 608, 576,
-    928, 896, 992, 960, 800, 768, 864, 832,
+    -5504, -5248, -6016, -5760, -4480, -4224, -4992, -4736,
+    -7552, -7296, -8064, -7808, -6528, -6272, -7040, -6784,
+    -2752, -2624, -3008, -2880, -2240, -2112, -2496, -2368,
+    -3776, -3648, -4032, -3904, -3264, -3136, -3520, -3392,
+    -22016, -20992, -24064, -23040, -17920, -16896, -19968, -18944,
+    -30208, -29184, -32256, -31232, -26112, -25088, -28160, -27136,
+    -11008, -10496, -12032, -11520, -8960, -8448, -9984, -9472,
+    -15104, -14592, -16128, -15616, -13056, -12544, -14080, -13568,
+    -344, -328, -376, -360, -280, -264, -312, -296,
+    -472, -456, -504, -488, -408, -392, -440, -424,
+    -88, -72, -120, -104, -24, -8, -56, -40,
+    -216, -200, -248, -232, -152, -136, -184, -168,
+    -1376, -1312, -1504, -1440, -1120, -1056, -1248, -1184,
+    -1888, -1824, -2016, -1952, -1632, -1568, -1760, -1696,
+    -688, -656, -752, -720, -560, -528, -624, -592,
+    -944, -912, -1008, -976, -816, -784, -880, -848,
+    5504, 5248, 6016, 5760, 4480, 4224, 4992, 4736,
+    7552, 7296, 8064, 7808, 6528, 6272, 7040, 6784,
+    2752, 2624, 3008, 2880, 2240, 2112, 2496, 2368,
+    3776, 3648, 4032, 3904, 3264, 3136, 3520, 3392,
+    22016, 20992, 24064, 23040, 17920, 16896, 19968, 18944,
+    30208, 29184, 32256, 31232, 26112, 25088, 28160, 27136,
+    11008, 10496, 12032, 11520, 8960, 8448, 9984, 9472,
+    15104, 14592, 16128, 15616, 13056, 12544, 14080, 13568,
+    344, 328, 376, 360, 280, 264, 312, 296,
+    472, 456, 504, 488, 408, 392, 440, 424,
+    88, 72, 120, 104, 24, 8, 56, 40,
+    216, 200, 248, 232, 152, 136, 184, 168,
+    1376, 1312, 1504, 1440, 1120, 1056, 1248, 1184,
+    1888, 1824, 2016, 1952, 1632, 1568, 1760, 1696,
+    688, 656, 752, 720, 560, 528, 624, 592,
+    944, 912, 1008, 976, 816, 784, 880, 848,
 }};
 
 /**
@@ -141,8 +142,8 @@ void test_alaw_closest_to_silence_accuracy() {
     std::cout << "Testing A-law closest-to-silence value (0x55)..." << std::endl;
     
     int16_t silence_pcm = alaw2linear(0x55);
-    // Implementation specific: Returns 0 for 0x55 (unbiased)
-    SimpleTestFramework::assert_equals(0, silence_pcm, "A-law closest-to-silence value (0x55) should map to PCM 0");
+    // Mid-riser quantizer: the closest-to-silence code decodes to -8.
+    SimpleTestFramework::assert_equals(-8, silence_pcm, "A-law closest-to-silence value (0x55) should map to PCM -8");
     
     // Verify this is indeed the closest-to-silence value by checking nearby values
     int16_t val_54 = alaw2linear(0x54);
@@ -160,47 +161,39 @@ void test_alaw_sign_bit_accuracy() {
     for (int alaw_value = 0x00; alaw_value <= 0x7F; ++alaw_value) {
         int16_t pcm_value = alaw2linear(static_cast<uint8_t>(alaw_value));
 
-        // Special case: 0x55 is 0
-        if (alaw_value != 0x55) {
-            SimpleTestFramework::assert_true(pcm_value < 0,
-                    "A-law value 0x" + std::to_string(alaw_value) +
-                    " should produce negative PCM, got " + std::to_string(pcm_value));
-        }
+        SimpleTestFramework::assert_true(pcm_value < 0,
+                "A-law value 0x" + std::to_string(alaw_value) +
+                " should produce negative PCM, got " + std::to_string(pcm_value));
     }
     
     // A-law sign bit logic: bit 7 set (0x80-0xFF) = positive values
     for (int alaw_value = 0x80; alaw_value <= 0xFF; ++alaw_value) {
         int16_t pcm_value = alaw2linear(static_cast<uint8_t>(alaw_value));
 
-        // Special case: 0xD5 is 0 (positive silence)
-        if (alaw_value != 0xD5) {
-            SimpleTestFramework::assert_true(pcm_value > 0,
-                    "A-law value 0x" + std::to_string(alaw_value) +
-                    " should produce positive PCM, got " + std::to_string(pcm_value));
-        }
+        SimpleTestFramework::assert_true(pcm_value > 0,
+                "A-law value 0x" + std::to_string(alaw_value) +
+                " should produce positive PCM, got " + std::to_string(pcm_value));
     }
 }
 
 void test_alaw_amplitude_extremes_accuracy() {
     std::cout << "Testing A-law amplitude extremes..." << std::endl;
     
-    // Maximum negative amplitude (0x2A) - approximately -31744
-    // Note: Original test assumed 0x00 was max negative, but in A-law 0x2A is around max volume
-    // Let's test 0x00 (matches -5376 in current implementation)
-    
+    // ITU-T G.711 reference values (interval midpoints, +8 offset)
+
     int16_t val_00 = alaw2linear(0x00);
-    SimpleTestFramework::assert_equals(-5376, val_00,
-                 "A-law (0x00) should produce -5376");
-    
+    SimpleTestFramework::assert_equals(-5504, val_00,
+                 "A-law (0x00) should produce -5504");
+
     // 0x2A is max negative
     int16_t max_neg = alaw2linear(0x2A);
-    SimpleTestFramework::assert_equals(-31744, max_neg,
-                 "Maximum negative A-law (0x2A) should produce -31744");
+    SimpleTestFramework::assert_equals(-32256, max_neg,
+                 "Maximum negative A-law (0x2A) should produce -32256");
 
     // 0xAA is max positive
     int16_t max_pos = alaw2linear(0xAA);
-    SimpleTestFramework::assert_equals(31744, max_pos,
-                 "Maximum positive A-law (0xAA) should produce 31744");
+    SimpleTestFramework::assert_equals(32256, max_pos,
+                 "Maximum positive A-law (0xAA) should produce 32256");
 }
 
 void test_alaw_even_bit_inversion_accuracy() {
@@ -208,10 +201,10 @@ void test_alaw_even_bit_inversion_accuracy() {
     
     // Test specific values that demonstrate even-bit inversion
     int16_t val_54_pcm = alaw2linear(0x54);
-    SimpleTestFramework::assert_equals(-16, val_54_pcm, "A-law 0x54 should produce -16");
+    SimpleTestFramework::assert_equals(-24, val_54_pcm, "A-law 0x54 should produce -24");
     
     int16_t val_56_pcm = alaw2linear(0x56);
-    SimpleTestFramework::assert_equals(-48, val_56_pcm, "A-law 0x56 should produce -48");
+    SimpleTestFramework::assert_equals(-56, val_56_pcm, "A-law 0x56 should produce -56");
     
     SimpleTestFramework::assert_true(std::abs(val_54_pcm) != std::abs(val_56_pcm),
                "A-law even-bit inversion should cause different magnitudes for 0x54 and 0x56");
