@@ -463,23 +463,17 @@ protected:
         // Create demuxer through factory
         auto demuxer = DemuxerFactory::createDemuxer(std::move(handler));
         ASSERT_NOT_NULL(demuxer.get(), "MP4 demuxer should be created");
-        
-        // Test parsing
-        ASSERT_TRUE(demuxer->parseContainer(), "MP4 container should parse successfully");
-        ASSERT_TRUE(demuxer->isParsed(), "Demuxer should be in parsed state");
-        
-        // MP4 files may have multiple streams (audio, video, etc.)
-        auto streams = demuxer->getStreams();
-        // Note: Our minimal MP4 data might not have complete stream info
-        // This test verifies the demuxer can at least parse the container structure
-        
-        // Test that we can attempt to read chunks without crashing
+
+        // The synthetic file is ftyp+mdat with no moov box - no track
+        // information exists, so a correct demuxer REJECTS it. What this
+        // verifies is factory format detection plus clean, crash-free
+        // rejection of a structurally incomplete container.
+        ASSERT_FALSE(demuxer->parseContainer(), "moov-less MP4 should be rejected");
+        ASSERT_FALSE(demuxer->isParsed(), "Demuxer should not report parsed state");
+
+        // Operations on the unparsed demuxer must not crash
         auto chunk = demuxer->readChunk();
-        // Chunk may be empty for minimal test data, but should not crash
-        
-        // Test seeking capability
-        ASSERT_TRUE(demuxer->seekTo(0), "Should be able to seek to beginning");
-        ASSERT_EQUALS(0u, demuxer->getPosition(), "Position should be at beginning");
+        ASSERT_TRUE(chunk.data.empty(), "Unparsed demuxer should return no data");
     }
 };
 
