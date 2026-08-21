@@ -292,9 +292,17 @@ int main(int argc, char** argv) {
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <input_file>\n";
-        std::cerr << "  Reads input file and runs fuzzer target once.\n";
-        return 1;
+        // `make check` invokes the harness with no corpus; run a small
+        // deterministic battery of degenerate inputs instead of failing so
+        // the target still gets smoke-tested.
+        std::cout << "No input file; running built-in smoke inputs...\n";
+        LLVMFuzzerTestOneInput(nullptr, 0);
+        std::vector<uint8_t> zeros(512, 0x00);
+        LLVMFuzzerTestOneInput(zeros.data(), zeros.size());
+        std::vector<uint8_t> ones(512, 0xFF);
+        LLVMFuzzerTestOneInput(ones.data(), ones.size());
+        std::cout << "Smoke inputs completed\n";
+        return 0;
     }
     
     std::ifstream file(argv[1], std::ios::binary);
