@@ -181,6 +181,8 @@ bool test_peak_memory_consumption() {
         
         // Create native FLAC codec
         StreamInfo stream_info;
+        stream_info.codec_type = "audio"; // canDecode() requires it
+        stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
         stream_info.codec_name = "flac";
         stream_info.sample_rate = 44100;
         stream_info.channels = 2;
@@ -190,7 +192,7 @@ bool test_peak_memory_consumption() {
         Debug::log("test_native_flac_memory", "[test_peak_memory_consumption] Memory after init: ", after_init_memory, " bytes");
         Debug::log("test_native_flac_memory", "[test_peak_memory_consumption] Init overhead: ", after_init_memory - baseline_memory, " bytes");
         
-        auto codec = CodecRegistry::createCodec(stream_info);
+        auto codec = AudioCodecFactory::createCodec(stream_info);
         if (!codec) {
             Debug::log("test_native_flac_memory", "[test_peak_memory_consumption] ERROR: Failed to create codec");
             return false;
@@ -271,12 +273,14 @@ bool test_memory_allocation_patterns() {
             
             // Create codec
             StreamInfo stream_info;
+            stream_info.codec_type = "audio"; // canDecode() requires it
+            stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
             stream_info.codec_name = "flac";
             stream_info.sample_rate = sample_rate;
             stream_info.channels = 2;
             stream_info.bits_per_sample = bits_per_sample;
             
-            auto codec = CodecRegistry::createCodec(stream_info);
+            auto codec = AudioCodecFactory::createCodec(stream_info);
             if (!codec) {
                 Debug::log("test_native_flac_memory", "[test_memory_allocation_patterns] ERROR: Failed to create codec");
                 return false;
@@ -334,12 +338,14 @@ bool test_multiple_decoder_memory() {
         
         for (int i = 0; i < num_decoders; i++) {
             StreamInfo stream_info;
+            stream_info.codec_type = "audio"; // canDecode() requires it
+            stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
             stream_info.codec_name = "flac";
             stream_info.sample_rate = 44100;
             stream_info.channels = 2;
             stream_info.bits_per_sample = 16;
             
-            auto codec = CodecRegistry::createCodec(stream_info);
+            auto codec = AudioCodecFactory::createCodec(stream_info);
             if (!codec) {
                 Debug::log("test_native_flac_memory", "[test_multiple_decoder_memory] ERROR: Failed to create codec ", i);
                 return false;
@@ -375,6 +381,10 @@ bool test_multiple_decoder_memory() {
 }
 
 int main() {
+    // The registry is only populated by MediaFactory in the player;
+    // standalone test binaries must register codecs themselves or
+    // AudioCodecFactory::createCodec("flac") comes back empty.
+    registerAllCodecs();
     Debug::log("test_native_flac_memory", "=== Native FLAC Memory Usage Tests ===");
     
     int passed = 0;

@@ -154,12 +154,14 @@ bool test_cd_quality_decoding_speed() {
         
         // Create native FLAC codec
         StreamInfo stream_info;
+        stream_info.codec_type = "audio"; // canDecode() requires it
+        stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
         stream_info.codec_name = "flac";
         stream_info.sample_rate = 44100;
         stream_info.channels = 2;
         stream_info.bits_per_sample = 16;
         
-        auto codec = CodecRegistry::createCodec(stream_info);
+        auto codec = AudioCodecFactory::createCodec(stream_info);
         if (!codec) {
             Debug::log("test_native_flac_performance", "[test_cd_quality_decoding_speed] ERROR: Failed to create codec");
             return false;
@@ -241,12 +243,14 @@ bool test_highres_decoding_speed() {
         
         // Create native FLAC codec
         StreamInfo stream_info;
+        stream_info.codec_type = "audio"; // canDecode() requires it
+        stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
         stream_info.codec_name = "flac";
         stream_info.sample_rate = 96000;
         stream_info.channels = 2;
         stream_info.bits_per_sample = 24;
         
-        auto codec = CodecRegistry::createCodec(stream_info);
+        auto codec = AudioCodecFactory::createCodec(stream_info);
         if (!codec) {
             Debug::log("test_native_flac_performance", "[test_highres_decoding_speed] ERROR: Failed to create codec");
             return false;
@@ -345,6 +349,10 @@ bool test_cpu_usage_measurement() {
 }
 
 int main() {
+    // The registry is only populated by MediaFactory in the player;
+    // standalone test binaries must register codecs themselves or
+    // AudioCodecFactory::createCodec("flac") comes back empty.
+    registerAllCodecs();
     Debug::log("test_native_flac_performance", "=== Native FLAC Performance Benchmark Tests ===");
     
     int passed = 0;

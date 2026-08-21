@@ -155,12 +155,14 @@ bool test_concurrent_decoder_instances() {
                 try {
                     // Create codec instance for this thread
                     StreamInfo stream_info;
+                    stream_info.codec_type = "audio"; // canDecode() requires it
+                    stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
                     stream_info.codec_name = "flac";
                     stream_info.sample_rate = 44100;
                     stream_info.channels = 2;
                     stream_info.bits_per_sample = 16;
                     
-                    auto codec = CodecRegistry::createCodec(stream_info);
+                    auto codec = AudioCodecFactory::createCodec(stream_info);
                     if (!codec) {
                         Debug::log("test_native_flac_threading", "[test_concurrent_decoder_instances] Thread ", t, " failed to create codec");
                         failed_threads++;
@@ -230,12 +232,14 @@ bool test_lock_contention() {
         
         // Create a shared decoder instance to test lock contention
         StreamInfo stream_info;
+        stream_info.codec_type = "audio"; // canDecode() requires it
+        stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
         stream_info.codec_name = "flac";
         stream_info.sample_rate = 44100;
         stream_info.channels = 2;
         stream_info.bits_per_sample = 16;
         
-        auto codec = CodecRegistry::createCodec(stream_info);
+        auto codec = AudioCodecFactory::createCodec(stream_info);
         if (!codec) {
             Debug::log("test_native_flac_threading", "[test_lock_contention] ERROR: Failed to create codec");
             return false;
@@ -324,12 +328,14 @@ bool test_thread_safety_stress() {
                     for (int i = 0; i < iterations; i++) {
                         // Create codec
                         StreamInfo stream_info;
+                        stream_info.codec_type = "audio"; // canDecode() requires it
+                        stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
                         stream_info.codec_name = "flac";
                         stream_info.sample_rate = 44100;
                         stream_info.channels = 2;
                         stream_info.bits_per_sample = 16;
                         
-                        auto codec = CodecRegistry::createCodec(stream_info);
+                        auto codec = AudioCodecFactory::createCodec(stream_info);
                         if (!codec) {
                             errors++;
                             continue;
@@ -407,12 +413,14 @@ bool test_independent_decoder_state() {
                     uint32_t bit_depths[] = {16, 16, 24, 24};
                     
                     StreamInfo stream_info;
+                    stream_info.codec_type = "audio"; // canDecode() requires it
+                    stream_info.codec_tag = 0x43614C66; // native FLAC container (tag 0 routes to Ogg passthrough)
                     stream_info.codec_name = "flac";
                     stream_info.sample_rate = sample_rates[t];
                     stream_info.channels = 2;
                     stream_info.bits_per_sample = bit_depths[t];
                     
-                    auto codec = CodecRegistry::createCodec(stream_info);
+                    auto codec = AudioCodecFactory::createCodec(stream_info);
                     if (!codec) {
                         Debug::log("test_native_flac_threading", "[test_independent_decoder_state] Thread ", t, " failed to create codec");
                         state_errors++;
@@ -475,6 +483,10 @@ bool test_independent_decoder_state() {
 }
 
 int main() {
+    // The registry is only populated by MediaFactory in the player;
+    // standalone test binaries must register codecs themselves or
+    // AudioCodecFactory::createCodec("flac") comes back empty.
+    registerAllCodecs();
     Debug::log("test_native_flac_threading", "=== Native FLAC Threading Tests ===");
     
     int passed = 0;
