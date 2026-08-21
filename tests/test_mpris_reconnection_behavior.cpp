@@ -188,54 +188,94 @@ private:
         }
     }
     
-    bool isServiceAvailable() {
+    /**
+     * @brief Probe the MPRIS service by querying PlaybackStatus.
+     *
+     * Uses a fresh PRIVATE client connection each probe (a shared one would
+     * go stale across the daemon restarts this suite performs) and
+     * interleaves the manager's processEvents() pump with the client's
+     * read/dispatch, because both ends live in this single-threaded test.
+     */
+    bool isServiceAvailable(PsyMP3::MPRIS::MPRISManager& mpris_manager) {
         DBusError error;
         dbus_error_init(&error);
-        
-        DBusConnection* conn = dbus_bus_get(DBUS_BUS_SESSION, &error);
+
+        DBusConnection* conn = dbus_bus_get_private(DBUS_BUS_SESSION, &error);
         if (dbus_error_is_set(&error)) {
             dbus_error_free(&error);
-            return false;
         }
-        
         if (!conn) return false;
-        
-        // Try to call a simple method
+        dbus_connection_set_exit_on_disconnect(conn, FALSE);
+
         DBusMessage* msg = dbus_message_new_method_call(
             "org.mpris.MediaPlayer2.psymp3",
             "/org/mpris/MediaPlayer2",
             "org.freedesktop.DBus.Properties",
             "Get"
         );
-        
+
         if (!msg) {
+            dbus_connection_close(conn);
             dbus_connection_unref(conn);
             return false;
         }
-        
+
         const char* interface = "org.mpris.MediaPlayer2.Player";
         const char* property = "PlaybackStatus";
-        
-        dbus_message_append_args(msg, 
+
+        dbus_message_append_args(msg,
                                 DBUS_TYPE_STRING, &interface,
                                 DBUS_TYPE_STRING, &property,
                                 DBUS_TYPE_INVALID);
-        
-        DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-            conn, msg, 1000, nullptr
-        );
-        
-        dbus_message_unref(msg);
-        dbus_connection_unref(conn);
-        
-        if (reply) {
-            dbus_message_unref(reply);
-            return true;
+
+        DBusPendingCall* pending = nullptr;
+        bool ok = false;
+        if (dbus_connection_send_with_reply(conn, msg, &pending, 2000) && pending) {
+            auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(2000);
+            while (std::chrono::steady_clock::now() < deadline &&
+                   !dbus_pending_call_get_completed(pending)) {
+                mpris_manager.processEvents();               // service side answers
+                dbus_connection_read_write_dispatch(conn, 10); // client side receives
+            }
+            if (dbus_pending_call_get_completed(pending)) {
+                DBusMessage* reply = dbus_pending_call_steal_reply(pending);
+                if (reply) {
+                    ok = dbus_message_get_type(reply) == DBUS_MESSAGE_TYPE_METHOD_RETURN;
+                    dbus_message_unref(reply);
+                }
+            } else {
+                dbus_pending_call_cancel(pending);
+            }
+            dbus_pending_call_unref(pending);
         }
-        
+
+        dbus_message_unref(msg);
+        dbus_connection_close(conn);
+        dbus_connection_unref(conn);
+        return ok;
+    }
+
+    /**
+     * @brief Pump the manager and drive reconnection until the service
+     *        answers or the timeout expires. Nothing reconnects the manager
+     *        autonomously while it is idle, so the wait loop must ask.
+     */
+    bool waitForService(PsyMP3::MPRIS::MPRISManager& mpris_manager, int seconds) {
+        for (int i = 0; i < seconds; ++i) {
+            for (int j = 0; j < 10; ++j) {
+                mpris_manager.processEvents();
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            if (!mpris_manager.isConnected()) {
+                (void)mpris_manager.reconnect();
+            }
+            if (isServiceAvailable(mpris_manager)) {
+                return true;
+            }
+        }
         return false;
     }
-    
+
     bool testBasicReconnection() {
         std::cout << std::endl << "Testing basic reconnection..." << std::endl;
         
@@ -246,8 +286,9 @@ private:
         }
         
         // Create mock player and MPRIS manager
-        MockPlayer mock_player;
-        MPRISManager mpris_manager(reinterpret_cast<Player*>(&mock_player));
+        // Null player: MPRISManager supports it (commands are ignored);
+        // the old reinterpret_cast of a mock was undefined behavior.
+        MPRISManager mpris_manager(nullptr);
         
         // Initialize MPRIS
         auto init_result = mpris_manager.initialize();
@@ -258,9 +299,9 @@ private:
         
         std::cout << "MPRIS initialized successfully" << std::endl;
         
-        // Verify service is available
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        if (!isServiceAvailable()) {
+        // Verify service is available (the manager only answers while its
+        // message pump runs, so the probe interleaves processEvents()).
+        if (!waitForService(mpris_manager, 3)) {
             std::cerr << "MPRIS service not available after initialization" << std::endl;
             return false;
         }
@@ -283,14 +324,7 @@ private:
         
         // Wait for MPRIS to reconnect
         std::cout << "Waiting for MPRIS reconnection..." << std::endl;
-        bool reconnected = false;
-        for (int i = 0; i < 10; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            if (isServiceAvailable()) {
-                reconnected = true;
-                break;
-            }
-        }
+        bool reconnected = waitForService(mpris_manager, 10);
         
         mpris_manager.shutdown();
         
@@ -311,8 +345,11 @@ private:
             return false;
         }
         
-        MockPlayer mock_player;
-        MPRISManager mpris_manager(reinterpret_cast<Player*>(&mock_player));
+        // Null player: MPRISManager supports it (commands are ignored);
+        
+        // the old reinterpret_cast of a mock was undefined behavior.
+        
+        MPRISManager mpris_manager(nullptr);
         
         // Initialize and verify
         auto init_result = mpris_manager.initialize();
@@ -335,9 +372,7 @@ private:
             return false;
         }
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        
-        bool service_available = isServiceAvailable();
+        bool service_available = waitForService(mpris_manager, 3);
         mpris_manager.shutdown();
         
         if (service_available) {
@@ -356,8 +391,11 @@ private:
             return false;
         }
         
-        MockPlayer mock_player;
-        MPRISManager mpris_manager(reinterpret_cast<Player*>(&mock_player));
+        // Null player: MPRISManager supports it (commands are ignored);
+        
+        // the old reinterpret_cast of a mock was undefined behavior.
+        
+        MPRISManager mpris_manager(nullptr);
         
         auto init_result = mpris_manager.initialize();
         if (!init_result.isSuccess()) {
@@ -380,14 +418,7 @@ private:
             }
             
             // Wait for reconnection
-            bool reconnected = false;
-            for (int i = 0; i < 5; ++i) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                if (isServiceAvailable()) {
-                    reconnected = true;
-                    break;
-                }
-            }
+            bool reconnected = waitForService(mpris_manager, 8);
             
             if (!reconnected) {
                 std::cerr << "Failed to reconnect in cycle " << (cycle + 1) << std::endl;
@@ -416,8 +447,11 @@ private:
             return false;
         }
         
-        MockPlayer mock_player;
-        MPRISManager mpris_manager(reinterpret_cast<Player*>(&mock_player));
+        // Null player: MPRISManager supports it (commands are ignored);
+        
+        // the old reinterpret_cast of a mock was undefined behavior.
+        
+        MPRISManager mpris_manager(nullptr);
         
         auto init_result = mpris_manager.initialize();
         if (!init_result.isSuccess()) {
@@ -453,14 +487,7 @@ private:
         }
         
         // Wait for reconnection under load
-        bool reconnected = false;
-        for (int i = 0; i < 10; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            if (isServiceAvailable()) {
-                reconnected = true;
-                break;
-            }
-        }
+        bool reconnected = waitForService(mpris_manager, 10);
         
         // Stop load generation
         stop_load.store(true);
@@ -478,59 +505,14 @@ private:
     }
 };
 
-// Mock Player class for testing
-class MockPlayer {
-public:
-    MockPlayer() : state(PlayerState::Stopped) {}
-    
-    bool play() { 
-        std::lock_guard<std::mutex> lock(m_mutex);
-        state = PlayerState::Playing; 
-        return true; 
-    }
-    
-    bool pause() { 
-        std::lock_guard<std::mutex> lock(m_mutex);
-        state = PlayerState::Paused; 
-        return true; 
-    }
-    
-    bool stop() { 
-        std::lock_guard<std::mutex> lock(m_mutex);
-        state = PlayerState::Stopped; 
-        return true; 
-    }
-    
-    void nextTrack() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-    }
-    
-    void prevTrack() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-    }
-    
-    void seekTo(unsigned long pos) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-    }
-    
-    PlayerState getState() const { 
-        std::lock_guard<std::mutex> lock(m_mutex);
-        return state; 
-    }
-    
-private:
-    mutable std::mutex m_mutex;
-    PlayerState state;
-};
-
 int main() {
     std::cout << "MPRIS Reconnection Behavior Test" << std::endl;
     std::cout << "================================" << std::endl;
     
     // Check if we can run D-Bus daemon
     if (system("which dbus-daemon > /dev/null 2>&1") != 0) {
-        std::cerr << "dbus-daemon not found. Cannot run reconnection tests." << std::endl;
-        return 1;
+        std::cerr << "SKIP: dbus-daemon not found; cannot run reconnection tests." << std::endl;
+        return 77;
     }
     
     MPRISReconnectionTester tester;

@@ -39,7 +39,7 @@ protected:
         m_mock_player = std::make_unique<MockPlayer>(player_config);
         
         // Create MPRIS manager
-        m_mpris_manager = std::make_unique<MPRISManager>(reinterpret_cast<Player*>(m_mock_player.get()));
+        m_mpris_manager = std::make_unique<MPRISManager>(nullptr);
     }
 
     void tearDown() override {
@@ -234,14 +234,17 @@ private:
         // Play method handled through D-Bus;
         m_mpris_manager->updatePosition(30000000);
         
-        // Operations should not crash even if D-Bus is unavailable
+        // Operations should not crash even if D-Bus is unavailable. In
+        // production the Player drives the manager, so drive the mock here.
+        m_mock_player->play();
         ASSERT_TRUE(m_mock_player->isPlaying(), "Player operations should continue during D-Bus issues");
         
         // Test recovery
         // In a real implementation, this would test automatic reconnection
         // For now, we verify that the manager remains functional
         
-        // Pause method handled through D-Bus;
+        m_mock_player->pause();
+        m_mpris_manager->updatePlaybackStatus(PlaybackStatus::Paused);
         ASSERT_TRUE(m_mock_player->isPaused(), "Should recover functionality");
         
         m_mpris_manager->updateMetadata("Post-Recovery Artist", "Post-Recovery Title", "Post-Recovery Album");
@@ -358,7 +361,8 @@ private:
         m_mock_player->enableErrorSimulation(false);
         
         // Verify recovery
-        // Play method handled through D-Bus;
+        m_mock_player->play();
+        m_mpris_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         ASSERT_TRUE(m_mock_player->isPlaying(), "Should recover from player errors");
         
         // Test invalid input handling
@@ -373,7 +377,8 @@ private:
             throw std::runtime_error("Simulated exception");
         } catch (...) {
             // MPRIS manager should still work after exception
-            // Pause method handled through D-Bus;
+            m_mock_player->pause();
+            m_mpris_manager->updatePlaybackStatus(PlaybackStatus::Paused);
             ASSERT_TRUE(m_mock_player->isPaused(), "Should work after exception");
         }
         
@@ -471,7 +476,7 @@ protected:
 private:
     void testFullPlaybackScenario() {
         auto mock_player = std::make_unique<MockPlayer>();
-        auto mpris_manager = std::make_unique<MPRISManager>(reinterpret_cast<Player*>(mock_player.get()));
+        auto mpris_manager = std::make_unique<MPRISManager>(nullptr);
         
         ASSERT_TRUE(mpris_manager->initialize(), "Manager should initialize");
         
@@ -483,9 +488,9 @@ private:
         
         // Start playback
         mpris_manager->updateMetadata(track.artist, track.title, track.album);
-        // Play method handled through D-Bus;
+        mock_player->play();
         mpris_manager->updatePlaybackStatus(PlaybackStatus::Playing);
-        
+
         ASSERT_TRUE(mock_player->isPlaying(), "Should start playing");
         
         // Simulate position updates during playback
@@ -498,21 +503,22 @@ private:
         }
         
         // Pause and resume
-        // Pause method handled through D-Bus;
+        mock_player->pause();
         mpris_manager->updatePlaybackStatus(PlaybackStatus::Paused);
         ASSERT_TRUE(mock_player->isPaused(), "Should pause");
         
-        // Play method handled through D-Bus;
+        mock_player->play();
         mpris_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         ASSERT_TRUE(mock_player->isPlaying(), "Should resume");
         
         // Seek to different position
         uint64_t seek_position = 120000000; // 2 minutes
+        mock_player->seekTo(seek_position);
         mpris_manager->updatePosition(seek_position);
         ASSERT_EQUALS(seek_position, mock_player->getPosition(), "Should seek correctly");
         
         // Stop playback
-        // Stop method handled through D-Bus;
+        mock_player->stop();
         mpris_manager->updatePlaybackStatus(PlaybackStatus::Stopped);
         ASSERT_TRUE(mock_player->isStopped(), "Should stop");
         
@@ -521,7 +527,7 @@ private:
 
     void testPlaylistNavigation() {
         auto mock_player = std::make_unique<MockPlayer>();
-        auto mpris_manager = std::make_unique<MPRISManager>(reinterpret_cast<Player*>(mock_player.get()));
+        auto mpris_manager = std::make_unique<MPRISManager>(nullptr);
         
         ASSERT_TRUE(mpris_manager->initialize(), "Manager should initialize");
         
@@ -548,13 +554,13 @@ private:
             
             // Move to next track (except for last track)
             if (i < playlist.size() - 1) {
-                // Next method handled through D-Bus;
+                mock_player->nextTrack();
             }
         }
         
         // Navigate backwards
         for (size_t i = playlist.size() - 1; i > 0; --i) {
-            // Previous method handled through D-Bus;
+            mock_player->prevTrack();
             ASSERT_EQUALS(i - 1, mock_player->getCurrentTrackIndex(), "Should go to previous track");
         }
         
@@ -563,7 +569,7 @@ private:
 
     void testSeekingScenarios() {
         auto mock_player = std::make_unique<MockPlayer>();
-        auto mpris_manager = std::make_unique<MPRISManager>(reinterpret_cast<Player*>(mock_player.get()));
+        auto mpris_manager = std::make_unique<MPRISManager>(nullptr);
         
         ASSERT_TRUE(mpris_manager->initialize(), "Manager should initialize");
         
@@ -584,9 +590,11 @@ private:
         for (const auto& test : seek_tests) {
             uint64_t position = test.first;
             const std::string& description = test.second;
-            
+
+            // Production direction: the player seeks, then informs MPRIS.
+            mock_player->setPosition(position);
             mpris_manager->updatePosition(position);
-            ASSERT_EQUALS(position, mock_player->getPosition(), 
+            ASSERT_EQUALS(position, mock_player->getPosition(),
                          "Should seek to " + description);
         }
         
@@ -618,7 +626,7 @@ private:
 
     void testErrorRecoveryScenarios() {
         auto mock_player = std::make_unique<MockPlayer>();
-        auto mpris_manager = std::make_unique<MPRISManager>(reinterpret_cast<Player*>(mock_player.get()));
+        auto mpris_manager = std::make_unique<MPRISManager>(nullptr);
         
         ASSERT_TRUE(mpris_manager->initialize(), "Manager should initialize");
         

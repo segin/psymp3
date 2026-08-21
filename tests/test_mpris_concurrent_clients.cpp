@@ -13,6 +13,7 @@
 
 #include <dbus/dbus.h>
 #include <thread>
+#include <cstring>
 #include <vector>
 #include <atomic>
 #include <chrono>
@@ -90,13 +91,17 @@ public:
     int getOperationsCompleted() const { return m_operations_completed; }
     int getErrorsEncountered() const { return m_errors_encountered; }
 
+public:
+    // Overwritten in main() with the name the test's own manager actually
+    // acquired (a live player instance may own the well-known name).
+    static inline std::string MPRIS_SERVICE_NAME{"org.mpris.MediaPlayer2.psymp3"};
+
 private:
     int m_client_id;
     DBusConnection* m_connection;
     std::atomic<int> m_operations_completed;
     std::atomic<int> m_errors_encountered;
-    
-    static constexpr const char* MPRIS_SERVICE_NAME = "org.mpris.MediaPlayer2.psymp3";
+
     static constexpr const char* MPRIS_OBJECT_PATH = "/org/mpris/MediaPlayer2";
     static constexpr const char* MPRIS_PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player";
     static constexpr const char* DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties";
@@ -115,7 +120,7 @@ private:
     
     bool getProperty(const char* property_name) {
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             DBUS_PROPERTIES_INTERFACE,
             "Get"
@@ -136,17 +141,32 @@ private:
             return false;
         }
         
+        // A null DBusError swallows ERROR replies, making an alive service
+        // that rejects a command (expected with the null test player) look
+        // like a transport failure. Count only genuine transport problems.
+        DBusError error;
+        dbus_error_init(&error);
         DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-            m_connection, msg, 2000, nullptr // 2 second timeout
+            m_connection, msg, 2000, &error // 2 second timeout
         );
-        
+
         dbus_message_unref(msg);
-        
+
         if (!reply) {
-            m_errors_encountered++;
-            return false;
+            bool transport_failure = !dbus_error_is_set(&error) ||
+                (strcmp(error.name, DBUS_ERROR_NO_REPLY) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_TIMEOUT) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_DISCONNECTED) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_SERVICE_UNKNOWN) == 0);
+            if (dbus_error_is_set(&error)) dbus_error_free(&error);
+            if (transport_failure) {
+                m_errors_encountered++;
+                return false;
+            }
+            return true; // error reply: the service is alive and responded
         }
-        
+        if (dbus_error_is_set(&error)) dbus_error_free(&error);
+
         dbus_message_unref(reply);
         return true;
     }
@@ -165,7 +185,7 @@ private:
     
     bool callSeek() {
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             MPRIS_PLAYER_INTERFACE,
             "Seek"
@@ -184,24 +204,38 @@ private:
             return false;
         }
         
+        // Only transport failures count as errors; an error reply proves
+        // the service is alive (expected with the null test player).
+        DBusError error;
+        dbus_error_init(&error);
         DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-            m_connection, msg, 2000, nullptr
+            m_connection, msg, 2000, &error
         );
-        
+
         dbus_message_unref(msg);
-        
+
         if (!reply) {
-            m_errors_encountered++;
-            return false;
+            bool transport_failure = !dbus_error_is_set(&error) ||
+                (strcmp(error.name, DBUS_ERROR_NO_REPLY) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_TIMEOUT) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_DISCONNECTED) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_SERVICE_UNKNOWN) == 0);
+            if (dbus_error_is_set(&error)) dbus_error_free(&error);
+            if (transport_failure) {
+                m_errors_encountered++;
+                return false;
+            }
+            return true;
         }
-        
+        if (dbus_error_is_set(&error)) dbus_error_free(&error);
+
         dbus_message_unref(reply);
         return true;
     }
     
     bool callMethod(const char* method_name) {
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             MPRIS_PLAYER_INTERFACE,
             method_name
@@ -212,17 +246,31 @@ private:
             return false;
         }
         
+        // Only transport failures count as errors; an error reply proves
+        // the service is alive (expected with the null test player).
+        DBusError error;
+        dbus_error_init(&error);
         DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-            m_connection, msg, 2000, nullptr
+            m_connection, msg, 2000, &error
         );
-        
+
         dbus_message_unref(msg);
-        
+
         if (!reply) {
-            m_errors_encountered++;
-            return false;
+            bool transport_failure = !dbus_error_is_set(&error) ||
+                (strcmp(error.name, DBUS_ERROR_NO_REPLY) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_TIMEOUT) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_DISCONNECTED) == 0) ||
+                (strcmp(error.name, DBUS_ERROR_SERVICE_UNKNOWN) == 0);
+            if (dbus_error_is_set(&error)) dbus_error_free(&error);
+            if (transport_failure) {
+                m_errors_encountered++;
+                return false;
+            }
+            return true;
         }
-        
+        if (dbus_error_is_set(&error)) dbus_error_free(&error);
+
         dbus_message_unref(reply);
         return true;
     }
@@ -377,8 +425,9 @@ int main(int argc, char* argv[]) {
     }
     
     // Start MPRIS service
-    MockPlayer mock_player;
-    MPRISManager mpris_manager(reinterpret_cast<Player*>(&mock_player));
+    // Null player: supported by MPRISManager (commands get error replies);
+    // the old reinterpret_cast of a mock was undefined behavior.
+    MPRISManager mpris_manager(nullptr);
     
     auto init_result = mpris_manager.initialize();
     if (!init_result.isSuccess()) {
@@ -390,11 +439,28 @@ int main(int argc, char* argv[]) {
     
     // Give service time to register
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
+
+    // Target the name OUR manager registered, not whatever live player owns
+    // the well-known name.
+    MPRISClient::MPRIS_SERVICE_NAME = mpris_manager.getServiceName();
+
+    // The manager only answers while its message pump runs; without this
+    // thread every client call would time out.
+    std::atomic<bool> pump_stop{false};
+    std::thread pump_thread([&mpris_manager, &pump_stop]() {
+        while (!pump_stop.load()) {
+            mpris_manager.processEvents();
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+    });
+
     // Run concurrent client test
     ConcurrentClientTester tester;
     bool test_passed = tester.runTest(num_clients, std::chrono::milliseconds(test_duration_ms));
-    
+
+    pump_stop.store(true);
+    pump_thread.join();
+
     // Shutdown MPRIS service
     mpris_manager.shutdown();
     

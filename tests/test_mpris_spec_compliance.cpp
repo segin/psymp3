@@ -16,6 +16,7 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <atomic>
 
 /**
  * @brief MPRIS specification compliance tester
@@ -85,12 +86,17 @@ public:
         return m_tests_passed == m_tests_run;
     }
 
+public:
+    // Overwritten in main() with the name the test's own manager actually
+    // acquired: when a real PsyMP3 is running it owns the well-known name,
+    // and the manager registers under the .instance<pid> fallback instead.
+    static inline std::string MPRIS_SERVICE_NAME{"org.mpris.MediaPlayer2.psymp3"};
+
 private:
     DBusConnection* m_connection;
     int m_tests_run;
     int m_tests_passed;
-    
-    static constexpr const char* MPRIS_SERVICE_NAME = "org.mpris.MediaPlayer2.psymp3";
+
     static constexpr const char* MPRIS_OBJECT_PATH = "/org/mpris/MediaPlayer2";
     static constexpr const char* MPRIS_ROOT_INTERFACE = "org.mpris.MediaPlayer2";
     static constexpr const char* MPRIS_PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player";
@@ -279,7 +285,7 @@ private:
     
     bool testIntrospection() {
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             DBUS_INTROSPECTABLE_INTERFACE,
             "Introspect"
@@ -315,7 +321,7 @@ private:
     
     bool testPropertyExists(const char* interface_name, const char* property_name) {
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             DBUS_PROPERTIES_INTERFACE,
             "GetAll"
@@ -375,24 +381,38 @@ private:
     bool testMethodExists(const char* interface_name, const char* method_name) {
         // Try to call the method with invalid arguments to see if it exists
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             interface_name,
             method_name
         );
         
         if (!msg) return false;
-        
+
+        // A null DBusError makes send_with_reply_and_block swallow ERROR
+        // replies and return null, which is indistinguishable from "no such
+        // method". Capture the error and discriminate: UnknownMethod (or a
+        // timeout) means missing; any other error reply proves the handler
+        // exists and rejected the call.
+        DBusError error;
+        dbus_error_init(&error);
         DBusMessage* reply = dbus_connection_send_with_reply_and_block(
-            m_connection, msg, 5000, nullptr
+            m_connection, msg, 5000, &error
         );
-        
+
         dbus_message_unref(msg);
-        
+
         if (reply) {
-            // Method exists (even if it returns an error)
             dbus_message_unref(reply);
+            if (dbus_error_is_set(&error)) dbus_error_free(&error);
             return true;
+        }
+        if (dbus_error_is_set(&error)) {
+            bool missing = (strcmp(error.name, DBUS_ERROR_UNKNOWN_METHOD) == 0) ||
+                           (strcmp(error.name, DBUS_ERROR_NO_REPLY) == 0) ||
+                           (strcmp(error.name, DBUS_ERROR_TIMEOUT) == 0);
+            dbus_error_free(&error);
+            return !missing;
         }
         
         return false;
@@ -400,7 +420,7 @@ private:
     
     bool testPropertyType(const char* interface_name, const char* property_name, int expected_type) {
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             DBUS_PROPERTIES_INTERFACE,
             "Get"
@@ -440,7 +460,7 @@ private:
     
     bool testPlaybackStatusValues() {
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             DBUS_PROPERTIES_INTERFACE,
             "Get"
@@ -525,7 +545,7 @@ private:
     bool testInvalidMethodCalls() {
         // Try calling a non-existent method
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             MPRIS_PLAYER_INTERFACE,
             "NonExistentMethod"
@@ -552,7 +572,7 @@ private:
     bool testInvalidPropertyAccess() {
         // Try accessing a non-existent property
         DBusMessage* msg = dbus_message_new_method_call(
-            MPRIS_SERVICE_NAME,
+            MPRIS_SERVICE_NAME.c_str(),
             MPRIS_OBJECT_PATH,
             DBUS_PROPERTIES_INTERFACE,
             "Get"
@@ -610,8 +630,9 @@ int main() {
     std::cout << "===================================" << std::endl;
     
     // Start MPRIS service for testing
-    MockPlayer mock_player;
-    MPRISManager mpris_manager(reinterpret_cast<Player*>(&mock_player));
+    // Null player: supported by MPRISManager (commands get error replies);
+    // the old reinterpret_cast of a mock was undefined behavior.
+    MPRISManager mpris_manager(nullptr);
     
     auto init_result = mpris_manager.initialize();
     if (!init_result.isSuccess()) {
@@ -622,11 +643,26 @@ int main() {
     
     // Give service time to register
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    
+
+    // Target the name OUR manager registered (a live player instance may own
+    // the well-known name), and pump the manager so it can answer.
+    MPRISSpecComplianceTester::MPRIS_SERVICE_NAME = mpris_manager.getServiceName();
+
+    std::atomic<bool> pump_stop{false};
+    std::thread pump_thread([&mpris_manager, &pump_stop]() {
+        while (!pump_stop.load()) {
+            mpris_manager.processEvents();
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+    });
+
     // Run compliance tests
     MPRISSpecComplianceTester tester;
     bool all_passed = tester.runAllTests();
-    
+
+    pump_stop.store(true);
+    pump_thread.join();
+
     // Shutdown MPRIS service
     mpris_manager.shutdown();
     
