@@ -1669,10 +1669,21 @@ if BUILD_TEST_HARNESS
 	./test-harness --verbose
 else
 	@echo "Running individual tests..."
-	@for test in $(check_PROGRAMS); do \
+	@failed=""; \
+	for test in $(check_PROGRAMS); do \
 		echo "Running $$test..."; \
-		./$$test || exit 1; \
-	done
+		./$$test; rc=$$?; \
+		if [ $$rc -eq 77 ]; then \
+			echo "SKIP: $$test"; \
+		elif [ $$rc -ne 0 ]; then \
+			echo "FAIL: $$test (exit $$rc)"; \
+			failed="$$failed $$test"; \
+		fi; \
+	done; \
+	if [ -n "$$failed" ]; then \
+		echo "Failed tests:$$failed"; \
+		exit 1; \
+	fi
 endif
 
 # Clean up test executables

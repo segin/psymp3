@@ -79,16 +79,27 @@ jobs:
         ls -la tests/data/
 
     - name: Run tests (if any)
+      id: tests
+      # Collect ALL failures in one run instead of stopping at the first:
+      # continue-on-error lets the later steps (distcheck, artifact upload)
+      # still execute; the final gate step turns any recorded failure back
+      # into a red job.
+      continue-on-error: true
       run: |
         if make -n check 2>/dev/null; then
           # The MPRIS tests need a session bus, which the container lacks.
-          dbus-run-session -- make check
+          # make -k keeps going past a failing phase so the automake suite,
+          # the harness re-run, and the top-level threading checks ALL
+          # report, rather than aborting at the first failing sub-target.
+          dbus-run-session -- make -k check
           echo "Tests completed successfully"
         else
           echo "No tests available to run"
         fi
 
     - name: Check distribution packaging
+      id: distcheck
+      continue-on-error: true
       run: |
         if make -n distcheck 2>/dev/null; then
           make distcheck
@@ -106,3 +117,10 @@ jobs:
           src/psymp3
           **/*.log
         retention-days: 7
+
+    - name: Report collected failures
+      if: steps.tests.outcome == 'failure' || steps.distcheck.outcome == 'failure'
+      run: |
+        [ "${{ steps.tests.outcome }}" = "failure" ] && echo "::error::Test suite reported failures (see 'Run tests' step)"
+        [ "${{ steps.distcheck.outcome }}" = "failure" ] && echo "::error::distcheck failed (see 'Check distribution packaging' step)"
+        exit 1
