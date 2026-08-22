@@ -3092,11 +3092,6 @@ EXTRA_DIST = \
 	run_mpris_logging_tests.sh \
 	run_mpris_integration_tests.sh
 
-# Test data files for mock framework validation
-EXTRA_DIST += \
-	mock_test_data.txt \
-	stress_test_config.json
-
 # MPRIS Final Validation Tests (Task 15)
 if HAVE_DBUS
 test_mpris_performance_profiler_SOURCES = test_mpris_performance_profiler.cpp
