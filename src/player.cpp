@@ -5049,7 +5049,12 @@ void Player::checkScrobbling()
         // Use a dummy path since we're creating this for metadata only
         track scrobble_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
         scrobble_track.SetLen(static_cast<unsigned int>(track_length_ms / 1000)); // Convert to seconds
-        
+        scrobble_track.setAlbum(stream->getAlbum());
+        // Same policy as now-playing: first credited artist + MBID to
+        // Last.fm, full joined credit on screen.
+        scrobble_track.setScrobbleArtist(stream->getPrimaryArtist());
+        scrobble_track.setMusicBrainzID(stream->getMusicBrainzID());
+
         if (m_lastfm->scrobbleTrack(scrobble_track)) {
             m_track_scrobbled = true;
             std::cout << "Player: Scrobbled track: " << stream->getArtist() << " - " << stream->getTitle() << std::endl;
@@ -5087,7 +5092,12 @@ void Player::submitNowPlaying()
     // Use a dummy path since we're creating this for metadata only
     track now_playing_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
     now_playing_track.SetLen(static_cast<unsigned int>(stream->getLength() / 1000)); // Convert to seconds
-    
+    now_playing_track.setAlbum(stream->getAlbum());
+    // Last.fm gets the first credited artist and the MusicBrainz ID; the
+    // full joined credit stays on screen.
+    now_playing_track.setScrobbleArtist(stream->getPrimaryArtist());
+    now_playing_track.setMusicBrainzID(stream->getMusicBrainzID());
+
     m_lastfm->setNowPlaying(now_playing_track);
 }
 
