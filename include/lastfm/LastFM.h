@@ -30,11 +30,17 @@ namespace PsyMP3 {
 namespace LastFM {
 
 /**
- * @brief Last.fm audioscrobbler client using the legacy 1.2 submissions API
- * 
+ * @brief Last.fm scrobbler client using the Web Services API 2.0
+ *
+ * Authenticates with auth.getMobileSession (username + password over HTTPS,
+ * signed with the application's API key/shared secret) and submits plays via
+ * track.scrobble / track.updateNowPlaying. The session key Last.fm issues has
+ * an indefinite lifetime and is persisted to lastfm.conf, so the password is
+ * only needed until the first successful authentication.
+ *
  * Provides scrobbling functionality with XML-based local caching for failed
  * submissions. Implements background batch processing without limits.
- * 
+ *
  * Threading Safety (Requirements 7.1, 7.2, 7.4):
  * This class follows the public/private lock pattern for thread safety.
  * All public methods that access shared state acquire locks and call
@@ -85,25 +91,12 @@ class LastFM {
 private:
     std::queue<Scrobble> m_scrobbles;
     std::queue<NowPlayingRequest> m_nowplaying_requests;
-    std::string m_session_key;
+    std::string m_session_key;    // Web Services 2.0 session key (indefinite lifetime, persisted to lastfm.conf)
     std::string m_username;
-    std::string m_password_hash;  // Cached MD5 hash of password (Mandated by protocol). Memory is explicitly cleansed on destruction.
+    std::string m_password;       // Plaintext password, required by auth.getMobileSession. Held only until a session key exists; cleansed on destruction.
     std::string m_config_file;
     std::string m_cache_file;
-    
-    // API endpoints - supports multiple hosts for redundancy
-    // Handshake endpoints, tried in order. submissions.last.fm was removed: it
-    // no longer resolves, so every handshake round wasted a DNS timeout on it.
-    std::array<std::string, 2> m_api_hosts = {
-        "post.audioscrobbler.com",
-        "post2.audioscrobbler.com"
-    };
-    std::array<int, 2> m_api_ports = {443, 443};
-    
-    // Submission URLs (obtained from handshake response)
-    std::string m_submission_url;
-    std::string m_nowplaying_url;
-    
+
     // Background submission thread
     std::thread m_submission_thread;
     mutable std::mutex m_scrobble_mutex;
@@ -123,10 +116,25 @@ private:
     void resetBackoff_unlocked();
     void increaseBackoff_unlocked();
     
-    // Configuration and cache management
-    // lastfm.conf is user-owned (username=/password=) and read-only: the app
-    // reads credentials from it but never rewrites it, so the user's keys are
-    // never deleted or migrated away. The Last.fm session key is in-memory only.
+    // Web Services API 2.0 plumbing.
+    // A call's result: `ok` when Last.fm answered with status="ok"; otherwise
+    // error_code is the Last.fm error number (0 for a transport-level failure)
+    // and message describes what went wrong.
+    struct WsResponse {
+        bool ok = false;
+        int error_code = 0;
+        std::string message;
+        std::string body;
+    };
+    static std::string apiSignature(const std::map<std::string, std::string>& params);
+    static WsResponse wsCall(std::map<std::string, std::string> params, int timeout_seconds);
+    bool authenticate();          // auth.getMobileSession -> m_session_key
+    void persistSessionKey();     // rewrite lastfm.conf's session_key= line
+
+    // Configuration and cache management.
+    // lastfm.conf holds username= / password= (user- or dialog-written) plus
+    // the app-written session_key=. Credential edits go through the
+    // Settings dialog; the app itself only ever rewrites the session key.
     void readConfig();
     std::string getSessionKey();
     void loadScrobbles();  // Called only from constructor (single-threaded)
@@ -142,8 +150,14 @@ private:
     void submitSavedScrobbles();
     void processNowPlayingRequests();  // Process pending now-playing requests
     bool submitNowPlayingRequest(const NowPlayingRequest& request);  // Actually perform HTTP POST
-    bool performHandshake(int host_index);
-    
+    bool expireNowPlaying(int timeout_seconds);  // cancel the visible now-playing status
+
+    // Last successfully-submitted now-playing track, so a clear request (or
+    // shutdown) can expire it. Guarded by m_scrobble_mutex.
+    std::string m_np_artist;
+    std::string m_np_title;
+    bool m_np_active = false;
+
     // Queue access helpers (assumes lock is held)
     size_t getQueueSize_unlocked() const;
     bool isQueueEmpty_unlocked() const;
@@ -210,6 +224,23 @@ public:
      * @return true if username and password are set
      */
     bool isConfigured() const;
+
+    /**
+     * @brief The configured Last.fm username (empty when unconfigured)
+     */
+    std::string getUsername() const;
+
+    /**
+     * @brief One-shot credential check via auth.getMobileSession.
+     *
+     * Performs a stateless Web Services 2.0 authentication with the given
+     * credentials (the issued session key is discarded) and returns a
+     * human-readable status string ("Authenticated OK",
+     * "Rejected: bad username/password", ...). Blocking (network, up to ~10s)
+     * - call from a worker thread, never the UI thread.
+     */
+    static std::string testCredentials(const std::string& username,
+                                       const std::string& password);
 };
 
 } // namespace LastFM

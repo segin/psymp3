@@ -19,14 +19,33 @@
 namespace PsyMP3 {
 namespace LastFM {
 
-// Strip a trailing carriage return so CRLF-terminated network responses parse
-// the same as LF-terminated ones; std::getline only consumes the '\n'.
+// Strip a trailing carriage return so CRLF-terminated lines parse the same as
+// LF-terminated ones; std::getline only consumes the '\n'.
 static inline std::string& chompCR(std::string& s)
 {
     if (!s.empty() && s.back() == '\r') {
         s.pop_back();
     }
     return s;
+}
+
+// PsyMP3's registered Last.fm API application (Web Services 2.0).
+static const char kApiKey[]    = "4bdeb98d813cdc75f69bfb9d9dd5e1b4";
+static const char kApiSecret[] = "62c5e84649bf6d52dafd3d96cd1f63a7";
+static const char kApiRoot[]   = "https://ws.audioscrobbler.com/2.0/";
+
+// First <tag>...</tag> body in a response, or "" — the 2.0 responses are flat
+// enough (session/key, error) that a full XML parse buys nothing.
+static std::string extractTag(const std::string& xml, const std::string& tag)
+{
+    const std::string open = "<" + tag + ">";
+    const std::string close = "</" + tag + ">";
+    size_t start = xml.find(open);
+    if (start == std::string::npos) return "";
+    start += open.length();
+    size_t end = xml.find(close, start);
+    if (end == std::string::npos) return "";
+    return xml.substr(start, end - start);
 }
 
 LastFM::LastFM() :
@@ -65,13 +84,17 @@ LastFM::~LastFM()
     // Save any remaining scrobbles to cache (Requirements 7.3)
     // Use public saveScrobbles() which acquires lock for thread safety
     saveScrobbles();
-    // Note: lastfm.conf is user-owned credentials (username=/password=) and is
-    // never rewritten by the app, so nothing to persist here. The session key
-    // is in-memory only and re-obtained by handshake each run.
+    // The session key was persisted to lastfm.conf the moment authentication
+    // succeeded (persistSessionKey), so nothing further to write here.
+
+    // Cancel any still-visible now-playing status so the profile doesn't
+    // advertise a track for minutes after the player exited. Short timeout:
+    // shutdown must not hang on a dead network.
+    expireNowPlaying(3);
 
     // Securely clear credentials from memory (CWE-312)
-    if (!m_password_hash.empty()) {
-        OPENSSL_cleanse(&m_password_hash[0], m_password_hash.length());
+    if (!m_password.empty()) {
+        OPENSSL_cleanse(&m_password[0], m_password.length());
     }
     if (!m_session_key.empty()) {
         OPENSSL_cleanse(&m_session_key[0], m_session_key.length());
@@ -103,26 +126,29 @@ void LastFM::readConfig()
             m_username = value;
             DEBUG_LOG_LAZY("lastfm", "Username loaded: ", m_username);
         } else if (key == "password") {
-            // Legacy password entry - migrate to hash
+            // auth.getMobileSession needs the plaintext password (the API 2.0
+            // signature scheme has no hashed-credential variant). It is kept in
+            // memory only until the first successful authentication persists a
+            // session key, and is cleansed on destruction.
             if (!value.empty()) {
-                m_password_hash = protocolMD5(value);
-                DEBUG_LOG_LAZY("lastfm", "Legacy password loaded and migrated to hash");
-                // Securely clear the plain-text password from memory (Requirements 7.5, Security Directive)
+                m_password = value;
                 OPENSSL_cleanse(&value[0], value.length());
                 OPENSSL_cleanse(&line[0], line.length());
+                DEBUG_LOG_LAZY("lastfm", "Password loaded");
             }
         } else if (key == "password_hash") {
-            // Back-compat: older versions rewrote lastfm.conf with the hash
-            // instead of the plaintext password. Still accepted so those users
-            // keep working, but the app no longer writes it.
-            m_password_hash = value;
-            DEBUG_LOG_LAZY("lastfm", "Password hash loaded");
+            // Written by ancient builds for the retired 1.2.1 submissions
+            // protocol. The Web Services API cannot authenticate with an MD5
+            // hash — the user must re-enter their password (Settings ->
+            // Last.fm Credentials...).
+            DEBUG_LOG_LAZY("lastfm", "Ignoring legacy password_hash - re-enter the password to use the new Last.fm API");
+        } else if (key == "session_key") {
+            // Issued by auth.getMobileSession; valid indefinitely unless the
+            // user revokes the application, so reusing it across runs is the
+            // supported (and recommended) flow.
+            m_session_key = value;
+            DEBUG_LOG_LAZY("lastfm", "Session key loaded");
         }
-        // session_key / now_playing_url / submission_url are intentionally NOT
-        // read from lastfm.conf: the Last.fm session is ephemeral and obtained
-        // by a fresh handshake from username/password each run. Ignoring any
-        // stale cached session an older build may have written avoids getting
-        // stuck on it (we never clear keys on an auth failure anymore).
     }
     
     if (isConfigured()) {
@@ -132,120 +158,173 @@ void LastFM::readConfig()
     }
 }
 
+std::string LastFM::apiSignature(const std::map<std::string, std::string>& params)
+{
+    // Web Services 2.0 signing: concatenate <name><value> pairs sorted by
+    // parameter name (std::map iterates sorted), append the shared secret,
+    // MD5 the lot. Values go in RAW (not URL-encoded).
+    std::string sig_data;
+    for (const auto& kv : params) {
+        sig_data += kv.first;
+        sig_data += kv.second;
+    }
+    sig_data += kApiSecret;
+    std::string sig = protocolMD5(sig_data);
+    OPENSSL_cleanse(&sig_data[0], sig_data.length()); // may contain the password
+    return sig;
+}
+
+LastFM::WsResponse LastFM::wsCall(std::map<std::string, std::string> params, int timeout_seconds)
+{
+    params["api_key"] = kApiKey;
+    const std::string api_sig = apiSignature(params);
+
+    std::string post_data;
+    post_data.reserve(512);
+    for (const auto& kv : params) {
+        post_data += urlEncode(kv.first);
+        post_data += '=';
+        post_data += urlEncode(kv.second);
+        post_data += '&';
+    }
+    post_data += "api_sig=";
+    post_data += api_sig;
+
+    HTTPClient::Response response = HTTPClient::post(
+        kApiRoot, post_data, "application/x-www-form-urlencoded", {}, timeout_seconds);
+    OPENSSL_cleanse(&post_data[0], post_data.length()); // may contain the password
+    for (auto& kv : params) {
+        if (!kv.second.empty()) {
+            OPENSSL_cleanse(&kv.second[0], kv.second.length());
+        }
+    }
+
+    WsResponse out;
+    out.body = response.body;
+    // Last.fm reports API errors with a 4xx status AND an <lfm> body, so parse
+    // the body whenever there is one; only a body-less failure is transport.
+    if (response.body.find("<lfm") != std::string::npos) {
+        if (response.body.find("status=\"ok\"") != std::string::npos) {
+            out.ok = true;
+            return out;
+        }
+        const std::string marker = "<error code=\"";
+        size_t pos = response.body.find(marker);
+        if (pos != std::string::npos) {
+            out.error_code = atoi(response.body.c_str() + pos + marker.length());
+        }
+        out.message = extractTag(response.body, "error");
+        if (out.message.empty()) {
+            out.message = "malformed error response";
+        }
+        return out;
+    }
+    out.message = response.success
+        ? "unexpected response from Last.fm"
+        : "Network error: " + response.statusMessage;
+    return out;
+}
+
+bool LastFM::authenticate()
+{
+    if (m_username.empty() || m_password.empty()) {
+        DEBUG_LOG_LAZY("lastfm", "No password available to authenticate with");
+        return false;
+    }
+
+    DEBUG_LOG_LAZY("lastfm", "Requesting mobile session for ", m_username);
+    WsResponse response = wsCall({{"method", "auth.getMobileSession"},
+                                  {"username", m_username},
+                                  {"password", m_password}}, 10);
+
+    if (response.ok) {
+        std::string key = extractTag(response.body, "key");
+        if (!key.empty()) {
+            m_session_key = key;
+            persistSessionKey();
+            // The password has served its purpose; the session key never
+            // expires, so drop the plaintext from memory now.
+            OPENSSL_cleanse(&m_password[0], m_password.length());
+            m_password.clear();
+            DEBUG_LOG_LAZY("lastfm", "Authenticated; session key persisted");
+            return true;
+        }
+        DEBUG_LOG_LAZY("lastfm", "auth.getMobileSession OK but no session key in response");
+        return false;
+    }
+
+    DEBUG_LOG_LAZY("lastfm", "auth.getMobileSession failed (code ", response.error_code,
+                   "): ", response.message);
+    // 4 = bad credentials, 10 = invalid API key, 26 = API key suspended —
+    // retrying any of these with the same inputs can never succeed.
+    if (response.error_code == 4 || response.error_code == 10 || response.error_code == 26) {
+        m_handshake_permanently_failed = true;
+    }
+    return false;
+}
+
+void LastFM::persistSessionKey()
+{
+    // Rewrite lastfm.conf with the fresh session_key= line, preserving every
+    // other line (username=, password=, user comments) verbatim.
+    std::vector<std::string> kept;
+    {
+        std::ifstream in(System::pathFromUtf8(m_config_file));
+        std::string line;
+        while (std::getline(in, line)) {
+            chompCR(line);
+            if (line.rfind("session_key=", 0) == 0) continue;
+            kept.push_back(line);
+        }
+    }
+
+    System::createStoragePath();
+
+#ifndef _WIN32
+    // Credentials file: 0600, same as the scrobble cache.
+    mode_t old_mask = umask(0077);
+#endif
+    std::ofstream out(System::pathFromUtf8(m_config_file), std::ios::trunc);
+#ifndef _WIN32
+    umask(old_mask);
+#endif
+
+    if (!out.is_open()) {
+        DEBUG_LOG_LAZY("lastfm", "Failed to persist session key to ", m_config_file);
+        return;
+    }
+    for (const auto& line : kept) {
+        out << line << "\n";
+    }
+    if (!m_session_key.empty()) {
+        out << "session_key=" << m_session_key << "\n";
+    }
+}
+
 std::string LastFM::getSessionKey()
 {
-    if (!m_session_key.empty() && !m_nowplaying_url.empty() && !m_submission_url.empty()) {
+    if (!m_session_key.empty()) {
         return m_session_key;
     }
-    
+
     if (m_handshake_permanently_failed) {
         return "";
     }
 
-    // Try to get session key from each host. The session key is kept in memory
-    // only for this run — lastfm.conf holds just the user's username/password
-    // and is never rewritten.
-    // Bound by the host list itself so pruning/adding a host can't leave a
-    // stale literal here (which would index past the array).
-    for (int i = 0; i < static_cast<int>(m_api_hosts.size()); ++i) {
-        if (performHandshake(i)) {
-            m_handshake_attempts = 0; // Reset on success
-            return m_session_key;
-        }
+    if (authenticate()) {
+        m_handshake_attempts = 0; // Reset on success
+        return m_session_key;
     }
-    
+
     m_handshake_attempts++;
-    DEBUG_LOG_LAZY("lastfm", "Failed to obtain session key from all hosts. Attempt #", m_handshake_attempts);
+    DEBUG_LOG_LAZY("lastfm", "Failed to obtain session key. Attempt #", m_handshake_attempts);
 
     if (m_handshake_attempts >= 3) {
-        DEBUG_LOG_LAZY("lastfm", "Exceeded handshake retry limit. Disabling for this session.");
+        DEBUG_LOG_LAZY("lastfm", "Exceeded authentication retry limit. Disabling for this session.");
         m_handshake_permanently_failed = true;
     }
 
     return "";
-}
-
-bool LastFM::performHandshake(int host_index)
-{
-    if (m_username.empty() || m_password_hash.empty()) {
-        DEBUG_LOG_LAZY("lastfm", "Username or password hash not configured");
-        return false;
-    }
-    
-    // Generate timestamp and auth token (double MD5 as per API spec)
-    // Use cached password hash to avoid redundant computation (Requirements 1.3)
-    time_t timestamp = time(nullptr);
-    
-    // Avoid creating temporary strings containing sensitive data (CWE-312)
-    std::string timestamp_str = std::to_string(timestamp);
-    std::string auth_data;
-    auth_data.reserve(m_password_hash.length() + timestamp_str.length());
-    auth_data += m_password_hash;
-    auth_data += timestamp_str;
-
-    // lgtm[cpp/weak-cryptographic-algorithm]
-    // NOLINTNEXTLINE(cert-msc50-cpp, cert-msc68-cpp)
-    std::string auth_token = protocolMD5(auth_data);
-
-    // Securely clear the auth data from memory
-    OPENSSL_cleanse(&auth_data[0], auth_data.length());
-    
-    // Build handshake URL using efficient string concatenation (Requirements 2.3)
-    // Use HTTPS for security (SEC-04)
-    std::string url;
-    url.reserve(256);  // Pre-allocate reasonable size for URL
-    
-    url += "https://";
-    url += m_api_hosts[host_index];
-    url += ":";
-    url += std::to_string(m_api_ports[host_index]);
-    url += "/?hs=true&p=1.2.1&c=psy&v=3.0&u=";
-    url += urlEncode(m_username);
-    url += "&t=";
-    url += std::to_string(timestamp);
-    url += "&a=";
-    url += auth_token;
-    
-    DEBUG_LOG_LAZY("lastfm", "Performing handshake with ", m_api_hosts[host_index]);
-    
-    HTTPClient::Response response = HTTPClient::get(url, {{"Host", m_api_hosts[host_index]}}, 10); // 10 second timeout
-    
-    if (!response.success) {
-        DEBUG_LOG_LAZY("lastfm", "Handshake failed - ", response.statusMessage);
-        return false;
-    }
-    
-    // Parse handshake response
-    std::istringstream responseStream(response.body);
-    std::string status;
-    std::getline(responseStream, status);
-    chompCR(status);
-
-    if (status.substr(0, 2) == "OK") {
-        std::string sessionKey, nowPlayingUrl, submissionUrl;
-        std::getline(responseStream, sessionKey);
-        std::getline(responseStream, nowPlayingUrl);
-        std::getline(responseStream, submissionUrl);
-        chompCR(sessionKey);
-        chompCR(nowPlayingUrl);
-        chompCR(submissionUrl);
-
-        if (!sessionKey.empty() && !submissionUrl.empty()) {
-            m_session_key = sessionKey;
-            m_nowplaying_url = nowPlayingUrl;
-            m_submission_url = submissionUrl;
-            DEBUG_LOG_LAZY("lastfm", "Handshake successful");
-            DEBUG_LOG_LAZY("lastfm", "Now Playing URL: ", m_nowplaying_url);
-            DEBUG_LOG_LAZY("lastfm", "Submission URL: ", m_submission_url);
-            return true;
-        }
-    } else if (status.substr(0, 6) == "FAILED") {
-        DEBUG_LOG_LAZY("lastfm", "Handshake failed - ", status);
-    } else {
-        DEBUG_LOG_LAZY("lastfm", "Unexpected handshake response: ", status);
-    }
-    
-    return false;
 }
 
 void LastFM::loadScrobbles()
@@ -447,8 +526,8 @@ bool LastFM::isQueueEmpty_unlocked() const
 
 void LastFM::submitSavedScrobbles()
 {
-    if ((m_session_key.empty() || m_submission_url.empty()) && getSessionKey().empty()) {
-        DEBUG_LOG_LAZY("lastfm", "Cannot submit scrobbles without valid session key and submission URL");
+    if (getSessionKey().empty()) {
+        DEBUG_LOG_LAZY("lastfm", "Cannot submit scrobbles without a valid session key");
         std::lock_guard<std::mutex> lock(m_scrobble_mutex);
         increaseBackoff_unlocked();  // Apply backoff on failure (Requirements 4.3)
         return;
@@ -532,60 +611,40 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
         DEBUG_LOG_LAZY("lastfm", "No session key available for scrobble submission");
         return false;
     }
-    
-    // Build POST data for Last.fm 1.2 scrobble API
-    // Use string concatenation with reserve() instead of ostringstream (Requirements 2.1, 2.4)
-    std::string postData;
-    postData.reserve(512);  // Pre-allocate reasonable size for POST data
-    
-    postData += "s=";
-    postData += urlEncode(m_session_key);
-    postData += "&a[0]=";
-    postData += urlEncode(artist);
-    postData += "&t[0]=";
-    postData += urlEncode(title);
-    postData += "&i[0]=";
-    postData += std::to_string(timestamp);
-    postData += "&o[0]=P";  // Source: P = chosen by user
-    postData += "&r[0]=";   // Rating (empty)
-    postData += "&l[0]=";
-    postData += std::to_string(length);
-    postData += "&b[0]=";
-    postData += urlEncode(album);
-    postData += "&n[0]=";   // Track number (empty)
-    postData += "&m[0]=";
-    postData += protocolMD5(artist + title);  // MusicBrainz ID (using hash as fallback)
-    
-    // Use submission URL from handshake response
-    if (m_submission_url.empty()) {
-        DEBUG_LOG_LAZY("lastfm", "No submission URL available");
-        return false;
-    }
-    
-    HTTPClient::Response response = HTTPClient::post(m_submission_url, postData, 
-                                                    "application/x-www-form-urlencoded", {}, 10);
-        
-    if (response.success) {
-        std::istringstream responseStream(response.body);
-        std::string status;
-        std::getline(responseStream, status);
-        chompCR(status);
 
-        if (status == "OK") {
-            DEBUG_LOG_LAZY("lastfm", "Scrobble submitted successfully: ", artist, " - ", title);
-            return true;
-        } else if (status.substr(0, 6) == "FAILED") {
-            // Do not clear the session or any credentials on an auth failure —
-            // only log it. (Clearing keys here silently tore down a working
-            // configuration on a transient BADAUTH.)
-            DEBUG_LOG_LAZY("lastfm", "Scrobble submission failed - ", status);
-        } else {
-            DEBUG_LOG_LAZY("lastfm", "Unexpected scrobble response: ", status);
-        }
-    } else {
-        DEBUG_LOG_LAZY("lastfm", "HTTP error during scrobble submission: ", response.statusMessage);
+    std::map<std::string, std::string> params = {
+        {"method", "track.scrobble"},
+        {"artist", artist},
+        {"track", title},
+        {"timestamp", std::to_string(timestamp)},
+        {"sk", m_session_key},
+    };
+    if (!album.empty()) {
+        params["album"] = album;
     }
-    
+    if (length > 0) {
+        params["duration"] = std::to_string(length);
+    }
+
+    WsResponse response = wsCall(std::move(params), 10);
+
+    if (response.ok) {
+        // status="ok" covers "accepted" AND "ignored" (e.g. track too short):
+        // an ignored scrobble was received and judged — resubmitting it can
+        // only ever be ignored again, so both count as done.
+        DEBUG_LOG_LAZY("lastfm", "Scrobble submitted successfully: ", artist, " - ", title);
+        return true;
+    }
+
+    DEBUG_LOG_LAZY("lastfm", "Scrobble submission failed (code ", response.error_code,
+                   "): ", response.message);
+    if (response.error_code == 9) {
+        // Invalid session key — the user revoked the application. Drop the
+        // stored key so the next attempt re-authenticates (which needs the
+        // password; if we no longer hold one, authenticate() will say so).
+        m_session_key.clear();
+        persistSessionKey();
+    }
     return false;
 }
 
@@ -665,62 +724,82 @@ void LastFM::processNowPlayingRequests()
 
 bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
 {
-    // Ensure we have valid session and now playing URL
-    if ((m_session_key.empty() || m_nowplaying_url.empty()) && getSessionKey().empty()) {
-        DEBUG_LOG_LAZY("lastfm", "Cannot submit now playing without valid session key and now playing URL");
-        return false;
+    if (request.is_clear) {
+        return expireNowPlaying(5);
     }
-    
-    // Build POST data for Last.fm 1.2 now playing API
-    std::string postData;
-    postData.reserve(512);
-    
-    postData += "s=";
-    postData += urlEncode(m_session_key);
-    postData += "&a=";
-    postData += urlEncode(request.artist);
-    postData += "&t=";
-    postData += urlEncode(request.title);
-    postData += "&b=";
-    postData += urlEncode(request.album);
-    postData += "&l=";
-    postData += std::to_string(request.length);
-    postData += "&n=";  // Track number (empty)
-    postData += "&m=";
-    postData += protocolMD5(request.artist + request.title);  // MusicBrainz ID fallback
-    
-    if (m_nowplaying_url.empty()) {
-        DEBUG_LOG_LAZY("lastfm", "No now playing URL available");
-        return false;
-    }
-    
-    // Use shorter timeout (5 seconds) since this is background and non-critical
-    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData, 
-                                                    "application/x-www-form-urlencoded", {}, 5);
-        
-    if (response.success) {
-        std::istringstream responseStream(response.body);
-        std::string status;
-        std::getline(responseStream, status);
-        chompCR(status);
 
-        if (status == "OK") {
-            if (request.is_clear) {
-                DEBUG_LOG_LAZY("lastfm", "Now playing status cleared successfully");
-            } else {
-                DEBUG_LOG_LAZY("lastfm", "Now playing submitted successfully: ", request.artist, " - ", request.title);
-            }
-            return true;
-        } else if (status.substr(0, 6) == "FAILED") {
-            // Auth failure: log only, never clear the session or credentials.
-            DEBUG_LOG_LAZY("lastfm", "Now playing submission failed - ", status);
-        } else {
-            DEBUG_LOG_LAZY("lastfm", "Unexpected now playing response: ", status);
-        }
-    } else {
-        DEBUG_LOG_LAZY("lastfm", "HTTP error during now playing submission: ", response.statusMessage);
+    if (getSessionKey().empty()) {
+        DEBUG_LOG_LAZY("lastfm", "Cannot submit now playing without a valid session key");
+        return false;
     }
-    
+
+    std::map<std::string, std::string> params = {
+        {"method", "track.updateNowPlaying"},
+        {"artist", request.artist},
+        {"track", request.title},
+        {"sk", m_session_key},
+    };
+    if (!request.album.empty()) {
+        params["album"] = request.album;
+    }
+    if (request.length > 0) {
+        params["duration"] = std::to_string(request.length);
+    }
+
+    // Use shorter timeout (5 seconds) since this is background and non-critical
+    WsResponse response = wsCall(std::move(params), 5);
+
+    if (response.ok) {
+        DEBUG_LOG_LAZY("lastfm", "Now playing submitted successfully: ", request.artist, " - ", request.title);
+        {
+            std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+            m_np_artist = request.artist;
+            m_np_title = request.title;
+            m_np_active = true;
+        }
+        return true;
+    }
+
+    DEBUG_LOG_LAZY("lastfm", "Now playing submission failed (code ", response.error_code,
+                   "): ", response.message);
+    return false;
+}
+
+bool LastFM::expireNowPlaying(int timeout_seconds)
+{
+    std::string artist, title;
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        if (!m_np_active) {
+            return true; // nothing showing, nothing to cancel
+        }
+        artist = m_np_artist;
+        title = m_np_title;
+    }
+
+    if (m_session_key.empty()) {
+        return false; // don't start an authentication round just to clear
+    }
+
+    // The Web Services API has no removeNowPlaying; the status is displayed
+    // until `duration` runs out. Cancel it by re-submitting the SAME track
+    // with duration=1, which replaces the live status with one that expires
+    // immediately instead of lingering for the track's remaining length.
+    WsResponse response = wsCall({{"method", "track.updateNowPlaying"},
+                                  {"artist", artist},
+                                  {"track", title},
+                                  {"duration", "1"},
+                                  {"sk", m_session_key}}, timeout_seconds);
+
+    if (response.ok) {
+        DEBUG_LOG_LAZY("lastfm", "Now playing status cancelled");
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        m_np_active = false;
+        return true;
+    }
+
+    DEBUG_LOG_LAZY("lastfm", "Failed to cancel now playing (code ", response.error_code,
+                   "): ", response.message);
     return false;
 }
 
@@ -773,7 +852,50 @@ void LastFM::forceSubmission()
 
 bool LastFM::isConfigured() const
 {
-    return !m_username.empty() && !m_password_hash.empty();
+    // A persisted session key alone is enough — the password is only needed
+    // to obtain one.
+    return !m_username.empty() && (!m_password.empty() || !m_session_key.empty());
+}
+
+std::string LastFM::getUsername() const
+{
+    return m_username;
+}
+
+std::string LastFM::testCredentials(const std::string& username,
+                                    const std::string& password)
+{
+    if (username.empty() || password.empty()) {
+        return "Enter a username and password first";
+    }
+
+    // A stateless auth.getMobileSession round-trip: the issued session key is
+    // discarded, so nothing here touches the live scrobbler's session.
+    WsResponse response = wsCall({{"method", "auth.getMobileSession"},
+                                  {"username", username},
+                                  {"password", password}}, 10);
+
+    if (response.ok) {
+        return "Authenticated OK";
+    }
+
+    switch (response.error_code) {
+        case 4:
+            return "Rejected: bad username/password";
+        case 10:
+        case 26:
+            return "Rejected: API key problem (" + response.message + ")";
+        case 29:
+            return "Rejected: rate limited, try again later";
+        case 11:
+        case 16:
+            return "Last.fm is temporarily unavailable, try again later";
+        case 0:
+            return response.message; // transport-level: "Network error: ..."
+        default:
+            return "Failed: " + response.message +
+                   " (code " + std::to_string(response.error_code) + ")";
+    }
 }
 
 std::string LastFM::urlEncode(const std::string& input)
