@@ -377,11 +377,39 @@ private:
     
     /**
      * @brief Map common tag names to ID3v2 frame IDs
-     * 
+     *
      * @param key Tag name (e.g., "title", "artist")
      * @return ID3v2 frame ID, or empty string if no mapping
      */
     static std::string mapKeyToFrameId(const std::string& key);
+
+    /**
+     * @brief Look up a user-defined text frame (TXXX) by its description
+     *
+     * Matching ignores case and space/underscore differences, so a request for
+     * "MUSICBRAINZ_ALBUMID" finds Picard's "MusicBrainz Album Id".
+     *
+     * @param description TXXX description to match
+     * @return Frame value, or empty string if not found
+     */
+    std::string getUserTextFrame(const std::string& description) const;
+
+    /**
+     * @brief Look up a unique file identifier (UFID) frame by owner
+     *
+     * Returns the identifier only when it is printable text (e.g. the ASCII
+     * UUID MusicBrainz Picard writes under owner "http://musicbrainz.org");
+     * binary identifiers yield an empty string.
+     *
+     * @param owner UFID owner string (latin1, exact match)
+     * @return Identifier as text, or empty string if not found/not text
+     */
+    std::string getUniqueFileIdentifier(const std::string& owner) const;
+
+    /**
+     * @brief Canonicalize a user-tag key: uppercase, spaces/underscores removed
+     */
+    static std::string canonicalUserKey(const std::string& key);
 };
 
 } // namespace Tag

@@ -695,6 +695,93 @@ std::string ID3v2Tag::normalizeKey(const std::string& key) {
     return normalized;
 }
 
+std::string ID3v2Tag::canonicalUserKey(const std::string& key) {
+    std::string canonical;
+    canonical.reserve(key.size());
+    for (char c : key) {
+        if (c == '_' || c == ' ') {
+            continue;
+        }
+        canonical += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    }
+    return canonical;
+}
+
+std::string ID3v2Tag::getUserTextFrame(const std::string& description) const {
+    auto it = m_frames.find("TXXX");
+    if (it == m_frames.end()) {
+        return "";
+    }
+
+    const std::string want = canonicalUserKey(description);
+    for (const ID3v2Frame& frame : it->second) {
+        // TXXX layout: encoding byte, description (null-terminated in that
+        // encoding), then the value.
+        if (frame.data.size() < 2) {
+            continue;
+        }
+        ID3v2Utils::TextEncoding encoding = static_cast<ID3v2Utils::TextEncoding>(frame.data[0]);
+        if (frame.data[0] > 3) {
+            encoding = ID3v2Utils::TextEncoding::ISO_8859_1;
+        }
+        const uint8_t* payload = frame.data.data() + 1;
+        const size_t payload_size = frame.data.size() - 1;
+
+        size_t desc_end = ID3v2Utils::findNullTerminator(payload, payload_size, encoding);
+        if (desc_end == payload_size) {
+            continue; // no terminator: malformed frame
+        }
+        std::string desc = ID3v2Utils::decodeText(payload, desc_end, encoding);
+        if (canonicalUserKey(desc) != want) {
+            continue;
+        }
+
+        size_t value_offset = desc_end + ID3v2Utils::getNullTerminatorSize(encoding);
+        if (value_offset >= payload_size) {
+            return "";
+        }
+        return ID3v2Utils::decodeText(payload + value_offset, payload_size - value_offset, encoding);
+    }
+    return "";
+}
+
+std::string ID3v2Tag::getUniqueFileIdentifier(const std::string& owner) const {
+    auto it = m_frames.find("UFID");
+    if (it == m_frames.end()) {
+        return "";
+    }
+
+    for (const ID3v2Frame& frame : it->second) {
+        // UFID layout: owner (latin1, null-terminated), then up to 64 bytes of
+        // identifier, which is binary in general but printable ASCII for the
+        // owners we surface (MusicBrainz stores the recording UUID as text).
+        size_t nul = 0;
+        while (nul < frame.data.size() && frame.data[nul] != 0) {
+            ++nul;
+        }
+        if (nul == frame.data.size()) {
+            continue; // no terminator: malformed frame
+        }
+        if (std::string(reinterpret_cast<const char*>(frame.data.data()), nul) != owner) {
+            continue;
+        }
+
+        const uint8_t* ident = frame.data.data() + nul + 1;
+        const size_t ident_size = frame.data.size() - nul - 1;
+        if (ident_size == 0) {
+            continue;
+        }
+        const bool printable = std::all_of(ident, ident + ident_size, [](uint8_t c) {
+            return c >= 0x20 && c < 0x7F;
+        });
+        if (!printable) {
+            continue;
+        }
+        return std::string(reinterpret_cast<const char*>(ident), ident_size);
+    }
+    return "";
+}
+
 std::string ID3v2Tag::mapKeyToFrameId(const std::string& key) {
     std::string norm_key = normalizeKey(key);
     
@@ -1135,10 +1222,26 @@ std::string ID3v2Tag::getTag(const std::string& key) const {
     if (!frame_id.empty()) {
         return getTextFrame(frame_id);
     }
-    
-    // Try key as frame ID directly
+
+    // The MusicBrainz recording ID lives in a UFID frame (Picard), not a text
+    // frame; the TXXX fallback below covers taggers that write it as
+    // user-defined text instead.
     std::string upper_key = normalizeKey(key);
-    return getTextFrame(upper_key);
+    if (upper_key == "MUSICBRAINZ_TRACKID") {
+        std::string mbid = getUniqueFileIdentifier("http://musicbrainz.org");
+        if (!mbid.empty()) {
+            return mbid;
+        }
+    }
+
+    // Try key as frame ID directly
+    std::string value = getTextFrame(upper_key);
+    if (!value.empty()) {
+        return value;
+    }
+
+    // Finally, user-defined text frames matched by description
+    return getUserTextFrame(key);
 }
 
 std::vector<std::string> ID3v2Tag::getTagValues(const std::string& key) const {
@@ -1147,10 +1250,20 @@ std::vector<std::string> ID3v2Tag::getTagValues(const std::string& key) const {
     if (!frame_id.empty()) {
         return getTextFrameValues(frame_id);
     }
-    
+
     // Try key as frame ID directly
     std::string upper_key = normalizeKey(key);
-    return getTextFrameValues(upper_key);
+    std::vector<std::string> values = getTextFrameValues(upper_key);
+    if (!values.empty()) {
+        return values;
+    }
+
+    // Same UFID/TXXX fallbacks as getTag()
+    std::string single = getTag(key);
+    if (!single.empty()) {
+        return {single};
+    }
+    return {};
 }
 
 std::map<std::string, std::string> ID3v2Tag::getAllTags() const {
@@ -1180,7 +1293,13 @@ std::map<std::string, std::string> ID3v2Tag::getAllTags() const {
             }
         }
     }
-    
+
+    // MusicBrainz recording ID from the Picard-owned UFID frame
+    std::string mbid = getUniqueFileIdentifier("http://musicbrainz.org");
+    if (!mbid.empty()) {
+        tags["MUSICBRAINZ_TRACKID"] = mbid;
+    }
+
     return tags;
 }
 
@@ -1191,11 +1310,16 @@ bool ID3v2Tag::hasTag(const std::string& key) const {
         auto it = m_frames.find(frame_id);
         return it != m_frames.end() && !it->second.empty();
     }
-    
+
     // Try key as frame ID directly
     std::string upper_key = normalizeKey(key);
     auto it = m_frames.find(upper_key);
-    return it != m_frames.end() && !it->second.empty();
+    if (it != m_frames.end() && !it->second.empty()) {
+        return true;
+    }
+
+    // Same UFID/TXXX fallbacks as getTag()
+    return !getTag(key).empty();
 }
 
 size_t ID3v2Tag::pictureCount() const {
