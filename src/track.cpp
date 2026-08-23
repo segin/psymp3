@@ -240,6 +240,16 @@ void track::loadTags() {
                     m_MusicBrainzID = values.front();
                 }
             }
+            // A multi-valued artist tag (several Vorbis ARTIST fields, ID3v2.4
+            // multi-value TPE1) means the track has several credited artists.
+            // Keep the first alone for Last.fm submission; the joined credit
+            // from tag()->artist() above remains the display string.
+            if (props.contains("ARTIST")) {
+                const TagLib::StringList& artists = props["ARTIST"];
+                if (artists.size() > 1) {
+                    m_ScrobbleArtist = artists.front();
+                }
+            }
         }
 
         // Only set length if not already set by EXTINF data
@@ -281,10 +291,9 @@ void track::loadTagsFromDecoder()
         return;
     }
 
-    TagLib::String artist, title, album, musicbrainz_id;
-    unsigned int length_seconds = 0;
+    DecoderMetadata meta;
     try {
-        if (!s_decoder_resolver(m_FilePath, artist, title, album, musicbrainz_id, length_seconds)) {
+        if (!s_decoder_resolver(m_FilePath, meta)) {
             return;
         }
     } catch (const std::exception& e) {
@@ -293,9 +302,10 @@ void track::loadTagsFromDecoder()
         return;
     }
 
-    if (m_Artist.isEmpty()) m_Artist = artist;
-    if (m_Title.isEmpty())  m_Title  = title;
-    if (m_Album.isEmpty() && !album.isEmpty()) m_Album = album;
-    if (m_MusicBrainzID.isEmpty() && !musicbrainz_id.isEmpty()) m_MusicBrainzID = musicbrainz_id;
-    if (m_Len == 0 && length_seconds > 0) m_Len = length_seconds;
+    if (m_Artist.isEmpty()) m_Artist = meta.artist;
+    if (m_ScrobbleArtist.isEmpty() && !meta.scrobble_artist.isEmpty()) m_ScrobbleArtist = meta.scrobble_artist;
+    if (m_Title.isEmpty())  m_Title  = meta.title;
+    if (m_Album.isEmpty() && !meta.album.isEmpty()) m_Album = meta.album;
+    if (m_MusicBrainzID.isEmpty() && !meta.musicbrainz_id.isEmpty()) m_MusicBrainzID = meta.musicbrainz_id;
+    if (m_Len == 0 && meta.length_seconds > 0) m_Len = meta.length_seconds;
 }

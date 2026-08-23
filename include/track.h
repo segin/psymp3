@@ -36,6 +36,14 @@ class track
         TagLib::String GetArtist() const { return m_Artist; }
         TagLib::String GetTitle() const { return m_Title; }
         TagLib::String GetAlbum() const { return m_Album; }
+        // The primary artist for Last.fm submission. When the file's artist
+        // tag is multi-valued (several ARTIST fields / ID3v2.4 values), this
+        // is the FIRST value only — Last.fm has no multi-artist model, and a
+        // joined credit string lands on a nonexistent artist page. The full
+        // credit stays in GetArtist() for display.
+        TagLib::String GetScrobbleArtist() const
+            { return m_ScrobbleArtist.isEmpty() ? m_Artist : m_ScrobbleArtist; }
+        void setScrobbleArtist(TagLib::String val) { m_ScrobbleArtist = val; }
         // MusicBrainz recording ID from the file's tags (UFID/TXXX in ID3v2,
         // MUSICBRAINZ_TRACKID in Vorbis comments); empty when untagged.
         TagLib::String GetMusicBrainzID() const { return m_MusicBrainzID; }
@@ -53,20 +61,29 @@ class track
         void loadTags();
         static TagLib::String nullstr;
 
+        // Metadata recovered by the decoder fallback (see below). Empty/zero
+        // fields mean "not available".
+        struct DecoderMetadata {
+            TagLib::String artist;          // full display credit
+            TagLib::String scrobble_artist; // first artist of a multi-valued credit (empty: same as artist)
+            TagLib::String title;
+            TagLib::String album;
+            TagLib::String musicbrainz_id;
+            unsigned int length_seconds = 0;
+        };
+
         // Hook used by loadTags() to recover metadata from the actual decoder
-        // when TagLib cannot parse a file (e.g. an MP3 without proper ID3 tags).
-        // It fills artist/title/album/mbid/length_seconds and returns true on
-        // success. Registered by mediafile.cpp so that binaries which do not
+        // when TagLib cannot parse a file (e.g. an MP3 without proper ID3
+        // tags). Registered by mediafile.cpp so that binaries which do not
         // link the demuxer stack (small tools/tests) don't pull MediaFile into
         // track.o; when unset, the decoder fallback is simply skipped.
         using DecoderMetadataResolver = bool (*)(const TagLib::String& path,
-            TagLib::String& artist, TagLib::String& title,
-            TagLib::String& album, TagLib::String& musicbrainz_id,
-            unsigned int& length_seconds);
+                                                 DecoderMetadata& out);
         static void setDecoderMetadataResolver(DecoderMetadataResolver resolver)
             { s_decoder_resolver = resolver; }
     protected:
         TagLib::String m_Artist;
+        TagLib::String m_ScrobbleArtist; // first artist of a multi-valued credit; empty when single-valued
         TagLib::String m_Title;
         TagLib::String m_Album;
         TagLib::String m_MusicBrainzID;

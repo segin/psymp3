@@ -33,23 +33,27 @@ namespace {
 // mediafile.o rather than track.o, so small tools/tests that link track.o do
 // not have to pull in the whole media stack.
 bool resolveTrackMetadataFromDecoder(const TagLib::String& path,
-                                     TagLib::String& artist, TagLib::String& title,
-                                     TagLib::String& album, TagLib::String& musicbrainz_id,
-                                     unsigned int& length_seconds)
+                                     track::DecoderMetadata& out)
 {
     std::unique_ptr<Stream> stream = MediaFile::open(path);
     if (!stream) {
         return false;
     }
-    artist = stream->getArtist();
-    title  = stream->getTitle();
-    album  = stream->getAlbum();
+    out.artist = stream->getArtist();
+    out.title  = stream->getTitle();
+    out.album  = stream->getAlbum();
     // The demuxers' Tag framework resolves this across formats (UFID/TXXX in
     // ID3v2, MUSICBRAINZ_TRACKID in Vorbis comments).
-    musicbrainz_id = TagLib::String(
+    out.musicbrainz_id = TagLib::String(
         stream->getTag().getTag("MUSICBRAINZ_TRACKID"), TagLib::String::UTF8);
+    // Multi-valued artist tag: first value is the primary artist for
+    // scrobbling; the joined credit above is the display string.
+    std::vector<std::string> artists = stream->getTag().getTagValues("ARTIST");
+    if (artists.size() > 1) {
+        out.scrobble_artist = TagLib::String(artists.front(), TagLib::String::UTF8);
+    }
     unsigned int length_ms = stream->getLength();
-    length_seconds = (length_ms > 0) ? length_ms / 1000 : 0;
+    out.length_seconds = (length_ms > 0) ? length_ms / 1000 : 0;
     return true;
 }
 
