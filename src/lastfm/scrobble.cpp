@@ -27,7 +27,10 @@ namespace PsyMP3 {
 namespace LastFM {
 
 Scrobble::Scrobble(const track& rhs) :
-    m_artist(rhs.GetArtist().to8Bit(true)),
+    // GetScrobbleArtist: first artist of a multi-valued credit — Last.fm has
+    // no multi-artist model, and a joined string lands on a nonexistent
+    // artist page. The full credit stays on screen via GetArtist().
+    m_artist(rhs.GetScrobbleArtist().to8Bit(true)),
     m_title(rhs.GetTitle().to8Bit(true)),
     m_album(rhs.GetAlbum().to8Bit(true)),
     m_mbid(rhs.GetMusicBrainzID().to8Bit(true)),

@@ -660,11 +660,14 @@ bool LastFM::setNowPlaying(const track& track)
         return false;
     }
     
-    DEBUG_LOG_LAZY("lastfm", "Queueing now playing: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+    DEBUG_LOG_LAZY("lastfm", "Queueing now playing: ", track.GetScrobbleArtist().to8Bit(true),
+                   " - ", track.GetTitle().to8Bit(true),
+                   " (mbid: ", track.GetMusicBrainzID().to8Bit(true), ")");
     
-    // Create a now-playing request and queue it for background processing
+    // Create a now-playing request and queue it for background processing.
+    // Same artist policy as scrobbles: first artist of a multi-valued credit.
     NowPlayingRequest request(
-        track.GetArtist().to8Bit(true),
+        track.GetScrobbleArtist().to8Bit(true),
         track.GetTitle().to8Bit(true),
         track.GetAlbum().to8Bit(true),
         track.GetLen(),
