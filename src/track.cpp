@@ -229,6 +229,19 @@ void track::loadTags() {
         // Always get album from TagLib as it's not part of EXTINF
         m_Album = m_FileRef->tag()->album();
 
+        // MusicBrainz recording ID via TagLib's normalized PropertyMap, which
+        // maps the format-specific storage (ID3v2 UFID:http://musicbrainz.org,
+        // Vorbis/APE MUSICBRAINZ_TRACKID, MP4 freeform atom) to one key.
+        if (m_FileRef->file()) {
+            const TagLib::PropertyMap props = m_FileRef->file()->properties();
+            if (props.contains("MUSICBRAINZ_TRACKID")) {
+                const TagLib::StringList& values = props["MUSICBRAINZ_TRACKID"];
+                if (!values.isEmpty()) {
+                    m_MusicBrainzID = values.front();
+                }
+            }
+        }
+
         // Only set length if not already set by EXTINF data
         if (m_Len == 0) m_Len = m_FileRef->audioProperties()->lengthInSeconds();
     } else if (m_Title.isEmpty() || m_Len == 0) {
@@ -268,10 +281,10 @@ void track::loadTagsFromDecoder()
         return;
     }
 
-    TagLib::String artist, title, album;
+    TagLib::String artist, title, album, musicbrainz_id;
     unsigned int length_seconds = 0;
     try {
-        if (!s_decoder_resolver(m_FilePath, artist, title, album, length_seconds)) {
+        if (!s_decoder_resolver(m_FilePath, artist, title, album, musicbrainz_id, length_seconds)) {
             return;
         }
     } catch (const std::exception& e) {
@@ -283,5 +296,6 @@ void track::loadTagsFromDecoder()
     if (m_Artist.isEmpty()) m_Artist = artist;
     if (m_Title.isEmpty())  m_Title  = title;
     if (m_Album.isEmpty() && !album.isEmpty()) m_Album = album;
+    if (m_MusicBrainzID.isEmpty() && !musicbrainz_id.isEmpty()) m_MusicBrainzID = musicbrainz_id;
     if (m_Len == 0 && length_seconds > 0) m_Len = length_seconds;
 }

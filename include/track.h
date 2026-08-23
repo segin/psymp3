@@ -36,6 +36,10 @@ class track
         TagLib::String GetArtist() const { return m_Artist; }
         TagLib::String GetTitle() const { return m_Title; }
         TagLib::String GetAlbum() const { return m_Album; }
+        // MusicBrainz recording ID from the file's tags (UFID/TXXX in ID3v2,
+        // MUSICBRAINZ_TRACKID in Vorbis comments); empty when untagged.
+        TagLib::String GetMusicBrainzID() const { return m_MusicBrainzID; }
+        void setMusicBrainzID(TagLib::String val) { m_MusicBrainzID = val; }
         TagLib::String GetFilePath() const { return m_FilePath; }
         static bool isKnownRawAudioExtension(const TagLib::String& path);
         static bool shouldCreateTagLibRefForPath(const TagLib::String& path);
@@ -51,19 +55,21 @@ class track
 
         // Hook used by loadTags() to recover metadata from the actual decoder
         // when TagLib cannot parse a file (e.g. an MP3 without proper ID3 tags).
-        // It fills artist/title/album/length_seconds and returns true on success.
-        // Registered by mediafile.cpp so that binaries which do not link the
-        // demuxer stack (small tools/tests) don't pull MediaFile into track.o;
-        // when unset, the decoder fallback is simply skipped.
+        // It fills artist/title/album/mbid/length_seconds and returns true on
+        // success. Registered by mediafile.cpp so that binaries which do not
+        // link the demuxer stack (small tools/tests) don't pull MediaFile into
+        // track.o; when unset, the decoder fallback is simply skipped.
         using DecoderMetadataResolver = bool (*)(const TagLib::String& path,
             TagLib::String& artist, TagLib::String& title,
-            TagLib::String& album, unsigned int& length_seconds);
+            TagLib::String& album, TagLib::String& musicbrainz_id,
+            unsigned int& length_seconds);
         static void setDecoderMetadataResolver(DecoderMetadataResolver resolver)
             { s_decoder_resolver = resolver; }
     protected:
         TagLib::String m_Artist;
         TagLib::String m_Title;
         TagLib::String m_Album;
+        TagLib::String m_MusicBrainzID;
         TagLib::String m_FilePath;
         std::unique_ptr<TagLib::FileRef> m_FileRef;
         std::unique_ptr<TagLibIOHandlerAdapter> m_TagLibStream; // Keeps stream alive for FileRef

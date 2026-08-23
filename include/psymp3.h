@@ -316,6 +316,7 @@ using SDLKey = SDL_Keycode;
 #include <taglib/fileref.h>
 #include <taglib/tstring.h>
 #include <taglib/tiostream.h>
+#include <taglib/tpropertymap.h>
 
 // FreeType headers
 #include <ft2build.h>

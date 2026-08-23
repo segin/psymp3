@@ -34,7 +34,8 @@ namespace {
 // not have to pull in the whole media stack.
 bool resolveTrackMetadataFromDecoder(const TagLib::String& path,
                                      TagLib::String& artist, TagLib::String& title,
-                                     TagLib::String& album, unsigned int& length_seconds)
+                                     TagLib::String& album, TagLib::String& musicbrainz_id,
+                                     unsigned int& length_seconds)
 {
     std::unique_ptr<Stream> stream = MediaFile::open(path);
     if (!stream) {
@@ -43,6 +44,10 @@ bool resolveTrackMetadataFromDecoder(const TagLib::String& path,
     artist = stream->getArtist();
     title  = stream->getTitle();
     album  = stream->getAlbum();
+    // The demuxers' Tag framework resolves this across formats (UFID/TXXX in
+    // ID3v2, MUSICBRAINZ_TRACKID in Vorbis comments).
+    musicbrainz_id = TagLib::String(
+        stream->getTag().getTag("MUSICBRAINZ_TRACKID"), TagLib::String::UTF8);
     unsigned int length_ms = stream->getLength();
     length_seconds = (length_ms > 0) ? length_ms / 1000 : 0;
     return true;
