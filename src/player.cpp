@@ -26,6 +26,11 @@
 #include <random>
 #include "core/SpectrumConfig.h"
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
 
 std::atomic<bool> Player::guiRunning{false};
 std::atomic<bool> Player::dialogOpen{false};
@@ -3398,6 +3403,9 @@ bool Player::Initialize(const PlayerOptions& options) {
             [this]{ return screen && screen->getLogicalScale() == 2; }, "G"));
         settings_items.push_back(MI::leaf("Show &Debug", [this]{ toggleShowDebug(); },
             [this]{ return m_show_debug; }));
+        settings_items.push_back(MI::sep());
+        settings_items.push_back(MI::leaf("&Last.fm Credentials...",
+            [this]{ toggleLastFmCredentialsWindow(); }));
         menu_bar->addMenu("&Settings", std::move(settings_items));
 
         // Help: the About dialog (also on F1).
@@ -4486,6 +4494,258 @@ void Player::toggleShowDebug()
     saveSettings(); // persist the setting itself immediately
     applyDebugLabels();
     showToast(m_show_debug ? "Show Debug: On" : "Show Debug: Off");
+}
+
+// Client area for Settings -> "Last.fm Credentials...": username and masked
+// password fields, an authentication-status readout, and OK / Cancel / Test.
+// Test runs the blocking handshake on a detached worker thread that owns only
+// a shared result block, so closing the dialog mid-test is safe; the readout
+// is refreshed from the per-frame blit tick.
+class LastFmCredentialsClient : public LayoutWidget {
+public:
+    static constexpr int kWidth = 280;
+    static constexpr int kHeight = 128;
+
+    LastFmCredentialsClient(Font* font, const std::string& initial_username,
+                            bool has_saved_password)
+        : LayoutWidget(kWidth, kHeight, false)
+        , m_font(font)
+    {
+        // The window frame force-fills the client surface white on refresh.
+        setBackgroundColor(255, 255, 255);
+
+        const SDL_Color black{0, 0, 0, 255};
+        const SDL_Color white{255, 255, 255, 255};
+
+        auto user_label = std::make_unique<Label>(
+            font, Rect(10, 12, 70, 14), TagLib::String("Username:"), black, white);
+        addChild(std::move(user_label));
+
+        auto user_input = std::make_unique<TextInputWidget>(184, 20, font,
+            TagLib::String(initial_username, TagLib::String::UTF8));
+        m_username = user_input.get();
+        user_input->setPos(Rect(86, 8, 184, 20));
+        addChild(std::move(user_input));
+
+        auto pass_label = std::make_unique<Label>(
+            font, Rect(10, 40, 70, 14), TagLib::String("Password:"), black, white);
+        addChild(std::move(pass_label));
+
+        auto pass_input = std::make_unique<TextInputWidget>(184, 20, font);
+        m_password = pass_input.get();
+        pass_input->setPos(Rect(86, 36, 184, 20));
+        pass_input->setPasswordMode(true);
+        pass_input->setPlaceholder(TagLib::String(
+            has_saved_password ? "(unchanged)" : "(not set)"));
+        addChild(std::move(pass_input));
+
+        auto status = std::make_unique<Label>(
+            font, Rect(10, 64, kWidth - 20, 14),
+            TagLib::String("Status: not tested"), black, white);
+        m_status = status.get();
+        addChild(std::move(status));
+
+        const int bw = 80, bh = 24, gap = 8;
+        int x = kWidth - 10 - (3 * bw + 2 * gap);
+        auto make_button = [&](const char* label, std::function<void()> on_click,
+                               bool is_default) {
+            auto b = std::make_unique<ButtonWidget>(bw, bh);
+            b->setText(TagLib::String(label), m_font);
+            b->setPos(Rect(x, 92, bw, bh));
+            b->setDefault(is_default);
+            b->setOnClick(std::move(on_click));
+            x += bw + gap;
+            addChild(std::move(b));
+        };
+        make_button("OK", [this] {
+            if (m_on_save) m_on_save(usernameText(), passwordText());
+        }, true);
+        make_button("Cancel", [this] {
+            if (m_on_cancel) m_on_cancel();
+        }, false);
+        make_button("Test", [this] { startTest(); }, false);
+    }
+
+    void setOnSave(std::function<void(const std::string&, const std::string&)> cb) {
+        m_on_save = std::move(cb);
+    }
+    void setOnCancel(std::function<void()> cb) { m_on_cancel = std::move(cb); }
+
+    void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override
+    {
+        pollTestResult(); // pick up a finished worker once per frame
+        LayoutWidget::recursiveBlitTo(target, parent_absolute_pos);
+    }
+
+private:
+    struct TestState {
+        std::mutex mutex;
+        std::string result;
+        bool done = false;
+    };
+
+    std::string usernameText() const { return m_username->getText().to8Bit(true); }
+    std::string passwordText() const { return m_password->getText().to8Bit(true); }
+
+    void startTest()
+    {
+        if (m_test_state) {
+            return; // one test at a time
+        }
+        m_status->setText(TagLib::String("Status: testing..."));
+        auto state = std::make_shared<TestState>();
+        m_test_state = state;
+        // The worker owns only the shared state block, never `this`, so the
+        // dialog can be closed while the handshake is still in flight.
+        std::thread([state, user = usernameText(), pass = passwordText()]() mutable {
+            std::string result = LastFM::testCredentials(user, pass);
+            OPENSSL_cleanse(&pass[0], pass.empty() ? 0 : pass.length());
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->result = std::move(result);
+            state->done = true;
+        }).detach();
+    }
+
+    void pollTestResult()
+    {
+        if (!m_test_state) {
+            return;
+        }
+        std::string result;
+        {
+            std::lock_guard<std::mutex> lock(m_test_state->mutex);
+            if (!m_test_state->done) {
+                return;
+            }
+            result = m_test_state->result;
+        }
+        m_test_state.reset();
+        m_status->setText(TagLib::String("Status: " + result, TagLib::String::UTF8));
+    }
+
+    Font* m_font;
+    TextInputWidget* m_username = nullptr;
+    TextInputWidget* m_password = nullptr;
+    Label* m_status = nullptr;
+    std::shared_ptr<TestState> m_test_state;
+    std::function<void(const std::string&, const std::string&)> m_on_save;
+    std::function<void()> m_on_cancel;
+};
+
+void Player::toggleLastFmCredentialsWindow()
+{
+    if (m_lastfm_creds_window) {
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [this](const auto& w) { return w.get() == m_lastfm_creds_window; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_lastfm_creds_window = nullptr;
+        return;
+    }
+
+    auto client = std::make_unique<LastFmCredentialsClient>(
+        font.get(),
+        m_lastfm ? m_lastfm->getUsername() : std::string(),
+        m_lastfm && m_lastfm->isConfigured());
+
+    auto close_window = [this] {
+        if (!m_lastfm_creds_window) return;
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [this](const auto& w) { return w.get() == m_lastfm_creds_window; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_lastfm_creds_window = nullptr;
+    };
+
+    client->setOnSave([this, close_window](const std::string& user, const std::string& pass) {
+        const std::string old_user = m_lastfm ? m_lastfm->getUsername() : std::string();
+        // Destroy the old scrobbler FIRST: its worker thread rewrites
+        // lastfm.conf when authentication succeeds, and destruction joins it —
+        // writing the new credentials before that join could get clobbered.
+        m_lastfm.reset();
+        saveLastFmCredentials(user, pass);
+        // Recreate so the new credentials apply immediately: destruction
+        // persisted any pending scrobbles, construction reloads config+cache.
+        m_lastfm = std::make_unique<LastFM>();
+        showToast("Last.fm: Credentials saved");
+        close_window();
+    });
+    client->setOnCancel(close_window);
+
+    const int cw = LastFmCredentialsClient::kWidth;
+    const int ch = LastFmCredentialsClient::kHeight;
+    auto frame = std::make_unique<WindowFrameWidget>(cw, ch, "Last.fm Credentials", font.get());
+    frame->setResizable(false);
+    frame->setMinimizable(false);
+    frame->setMaximizable(false);
+    frame->setClientArea(std::move(client));
+    frame->refresh();
+    Rect sz = frame->getPos();
+    frame->setPos(Rect(60, 60, sz.width(), sz.height()));
+
+    WindowFrameWidget* fp = frame.get();
+    m_lastfm_creds_window = fp;
+    frame->setOnDrag([fp](int dx, int dy) {
+        Rect p = fp->getPos(); p.x(p.x() + dx); p.y(p.y() + dy); fp->setPos(p);
+    });
+    frame->setOnDragStart([fp] { fp->bringToFront(); });
+    frame->setOnClose(close_window);
+    m_random_windows.push_back(std::move(frame));
+}
+
+void Player::saveLastFmCredentials(const std::string& username, const std::string& password)
+{
+    const std::string path = System::getStoragePath().to8Bit(true) + "/lastfm.conf";
+
+    // Preserve everything except the entries being replaced; an empty new
+    // password means "leave the stored password alone". A new password also
+    // invalidates any persisted session_key (it belongs to the old login).
+    std::string old_username;
+    std::vector<std::string> kept;
+    {
+        std::ifstream in(System::pathFromUtf8(path));
+        std::string line;
+        while (std::getline(in, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            const bool is_user = line.rfind("username=", 0) == 0;
+            const bool is_pass = line.rfind("password=", 0) == 0 ||
+                                 line.rfind("password_hash=", 0) == 0;
+            const bool is_session = line.rfind("session_key=", 0) == 0;
+            if (is_user) {
+                old_username = line.substr(std::string("username=").length());
+                continue;
+            }
+            if ((is_pass || is_session) && !password.empty()) {
+                continue;
+            }
+            if (is_session && username != old_username) {
+                continue; // different account: the old session key is useless
+            }
+            if (!line.empty()) kept.push_back(line);
+        }
+    }
+
+    System::createStoragePath();
+#ifndef _WIN32
+    // The file holds a plaintext password until the first successful
+    // authentication swaps it for a session key: 0600.
+    mode_t old_mask = umask(0077);
+#endif
+    std::ofstream out(System::pathFromUtf8(path), std::ios::trunc);
+#ifndef _WIN32
+    umask(old_mask);
+#endif
+    out << "username=" << username << "\n";
+    if (!password.empty()) {
+        out << "password=" << password << "\n";
+    }
+    for (const auto& line : kept) {
+        out << line << "\n";
+    }
 }
 
 void Player::toggleEqualizerWindow()

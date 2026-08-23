@@ -477,6 +477,7 @@ class Player
         // render/mouse machinery; these are non-owning back-pointers) plus the
         // canonical EQ state, re-applied to each Audio like m_volume.
         WindowFrameWidget* m_eq_window = nullptr;
+        WindowFrameWidget* m_lastfm_creds_window = nullptr;
         EqualizerWindow*   m_eq_client = nullptr;
         std::array<float, Equalizer::kNumBands> m_eq_gains{};
         bool m_eq_enabled = false;
@@ -492,6 +493,8 @@ class Player
         // derives the app-loop timer state (period or unlimited watchdog).
         void applyTargetFps(int fps);
         void toggleEqualizerWindow();
+        void toggleLastFmCredentialsWindow();
+        void saveLastFmCredentials(const std::string& username, const std::string& password);
         void applyEqStateToAudio();
 
         // "About PsyMP3" dialog: a single instance owned by m_random_windows.
