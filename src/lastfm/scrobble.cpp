@@ -30,16 +30,19 @@ Scrobble::Scrobble(const track& rhs) :
     m_artist(rhs.GetArtist().to8Bit(true)),
     m_title(rhs.GetTitle().to8Bit(true)),
     m_album(rhs.GetAlbum().to8Bit(true)),
+    m_mbid(rhs.GetMusicBrainzID().to8Bit(true)),
     m_length(rhs.GetLen()),
     m_timestamp(time(nullptr))
 {
     //ctor
 }
 
-Scrobble::Scrobble(const std::string& artist, const std::string& title, const std::string& album, int length, time_t timestamp) :
+Scrobble::Scrobble(const std::string& artist, const std::string& title, const std::string& album, int length, time_t timestamp,
+                   const std::string& mbid) :
     m_artist(artist),
     m_title(title),
     m_album(album),
+    m_mbid(mbid),
     m_length(length),
     m_timestamp(timestamp)
 {
@@ -58,6 +61,9 @@ std::string Scrobble::toXML() const
     scrobbleElement.children.emplace_back("artist", m_artist);
     scrobbleElement.children.emplace_back("title", m_title);
     scrobbleElement.children.emplace_back("album", m_album);
+    if (!m_mbid.empty()) {
+        scrobbleElement.children.emplace_back("mbid", m_mbid);
+    }
     scrobbleElement.children.emplace_back("length", std::to_string(m_length));
     scrobbleElement.children.emplace_back("timestamp", std::to_string(m_timestamp));
     
@@ -72,14 +78,15 @@ Scrobble Scrobble::fromXML(const std::string& xml)
         std::string artist = XMLUtil::getChildText(scrobbleElement, "artist");
         std::string title = XMLUtil::getChildText(scrobbleElement, "title");
         std::string album = XMLUtil::getChildText(scrobbleElement, "album");
-        
+        std::string mbid = XMLUtil::getChildText(scrobbleElement, "mbid"); // optional
+
         std::string lengthStr = XMLUtil::getChildText(scrobbleElement, "length");
         std::string timestampStr = XMLUtil::getChildText(scrobbleElement, "timestamp");
-        
+
         int length = lengthStr.empty() ? 0 : std::stoi(lengthStr);
         time_t timestamp = timestampStr.empty() ? 0 : std::stoll(timestampStr);
-        
-        return Scrobble(artist, title, album, length, timestamp);
+
+        return Scrobble(artist, title, album, length, timestamp, mbid);
     } catch (const std::exception& e) {
         std::cerr << "Failed to parse scrobble XML: " << e.what() << std::endl;
         return Scrobble("", "", "", 0, 0);
@@ -91,6 +98,7 @@ bool Scrobble::operator==(const Scrobble& other) const
     return m_artist == other.m_artist &&
            m_title == other.m_title &&
            m_album == other.m_album &&
+           m_mbid == other.m_mbid &&
            m_length == other.m_length &&
            m_timestamp == other.m_timestamp;
 }

@@ -79,12 +79,14 @@ struct NowPlayingRequest {
     std::string artist;
     std::string title;
     std::string album;
+    std::string mbid;  // MusicBrainz recording ID (may be empty)
     int length;
     bool is_clear;  // true to clear now-playing, false to set it
-    
+
     NowPlayingRequest() : length(0), is_clear(true) {}
-    NowPlayingRequest(const std::string& a, const std::string& t, const std::string& al, int len)
-        : artist(a), title(t), album(al), length(len), is_clear(false) {}
+    NowPlayingRequest(const std::string& a, const std::string& t, const std::string& al, int len,
+                      const std::string& mb = "")
+        : artist(a), title(t), album(al), mbid(mb), length(len), is_clear(false) {}
 };
 
 class LastFM {
@@ -142,8 +144,14 @@ private:
     void saveScrobbles_unlocked();  // Assumes lock is held
     
     // Network operations (no lock needed - pure network I/O)
-    bool submitScrobble(const std::string& artist, const std::string& title, 
-                       const std::string& album, int length, time_t timestamp);
+    bool submitScrobble(const std::string& artist, const std::string& title,
+                       const std::string& album, int length, time_t timestamp,
+                       const std::string& mbid);
+
+    // True when the string is a well-formed MusicBrainz UUID
+    // (8-4-4-4-12 lowercase/uppercase hex). Only valid IDs are sent to
+    // Last.fm; anything else is silently omitted from the request.
+    static bool isValidMBID(const std::string& mbid);
     
     // Background thread functions
     void submissionThreadLoop();

@@ -31,7 +31,8 @@ class Scrobble
 {
 public:
     explicit Scrobble(const track& rhs);
-    Scrobble(const std::string& artist, const std::string& title, const std::string& album, int length, time_t timestamp);
+    Scrobble(const std::string& artist, const std::string& title, const std::string& album, int length, time_t timestamp,
+             const std::string& mbid = "");
     virtual ~Scrobble();
     
     // Copy constructor and assignment operator (needed for queue operations)
@@ -46,6 +47,8 @@ public:
     std::string getArtist() const { return m_artist; }
     std::string getTitle() const { return m_title; }
     std::string getAlbum() const { return m_album; }
+    // MusicBrainz recording ID from the track's tags; empty when untagged
+    std::string getMusicBrainzID() const { return m_mbid; }
     int getLength() const { return m_length; }
     
     // Accessors for scrobble-specific data
@@ -70,6 +73,7 @@ private:
     std::string m_artist;
     std::string m_title;
     std::string m_album;
+    std::string m_mbid;  // MusicBrainz recording ID (may be empty)
     int m_length;
     time_t m_timestamp;  // When the track was played (for scrobbling)
 };

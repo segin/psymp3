@@ -552,9 +552,9 @@ void LastFM::submitSavedScrobbles()
     // Submit without holding lock (network I/O can be slow)
     std::vector<Scrobble> failed_scrobbles;
     for (const auto& scrobble : to_submit) {
-        bool success = submitScrobble(scrobble.getArtistStr(), scrobble.getTitleStr(), 
-                                     scrobble.getAlbumStr(), scrobble.GetLen(), 
-                                     scrobble.getTimestamp());
+        bool success = submitScrobble(scrobble.getArtistStr(), scrobble.getTitleStr(),
+                                     scrobble.getAlbumStr(), scrobble.GetLen(),
+                                     scrobble.getTimestamp(), scrobble.getMusicBrainzID());
         
         if (success) {
             submitted++;
@@ -604,8 +604,9 @@ void LastFM::submitSavedScrobbles()
     }
 }
 
-bool LastFM::submitScrobble(const std::string& artist, const std::string& title, 
-                           const std::string& album, int length, time_t timestamp)
+bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
+                           const std::string& album, int length, time_t timestamp,
+                           const std::string& mbid)
 {
     if (m_session_key.empty()) {
         DEBUG_LOG_LAZY("lastfm", "No session key available for scrobble submission");
@@ -624,6 +625,9 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     }
     if (length > 0) {
         params["duration"] = std::to_string(length);
+    }
+    if (isValidMBID(mbid)) {
+        params["mbid"] = mbid;
     }
 
     WsResponse response = wsCall(std::move(params), 10);
@@ -663,7 +667,8 @@ bool LastFM::setNowPlaying(const track& track)
         track.GetArtist().to8Bit(true),
         track.GetTitle().to8Bit(true),
         track.GetAlbum().to8Bit(true),
-        track.GetLen()
+        track.GetLen(),
+        track.GetMusicBrainzID().to8Bit(true)
     );
     
     {
@@ -744,6 +749,9 @@ bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
     }
     if (request.length > 0) {
         params["duration"] = std::to_string(request.length);
+    }
+    if (isValidMBID(request.mbid)) {
+        params["mbid"] = request.mbid;
     }
 
     // Use shorter timeout (5 seconds) since this is background and non-critical
@@ -848,6 +856,26 @@ void LastFM::forceSubmission()
         }
     }
     m_submission_cv.notify_one();
+}
+
+bool LastFM::isValidMBID(const std::string& mbid)
+{
+    // MusicBrainz IDs are UUIDs: 8-4-4-4-12 hex groups, 36 chars total. The
+    // old 1.2.1 submitter used to stuff an MD5-of-artist+title in this field;
+    // validating here guarantees nothing like that ever reaches the API again.
+    if (mbid.length() != 36) {
+        return false;
+    }
+    for (size_t i = 0; i < mbid.length(); ++i) {
+        if (i == 8 || i == 13 || i == 18 || i == 23) {
+            if (mbid[i] != '-') {
+                return false;
+            }
+        } else if (!std::isxdigit(static_cast<unsigned char>(mbid[i]))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool LastFM::isConfigured() const
