@@ -16,6 +16,17 @@ namespace FLAC {
 // Debug logging macro with method identification token and line number
 #define FLAC_DEBUG(...) Debug::log("flac", "[", __FUNCTION__, ":", __LINE__, "] ", __VA_ARGS__)
 
+// Join a multi-valued comment field into one display string ("A, B").
+static std::string joinComments(const std::vector<std::string>& values)
+{
+    std::string joined;
+    for (const auto& v : values) {
+        if (!joined.empty()) joined += ", ";
+        joined += v;
+    }
+    return joined;
+}
+
 // ============================================================================
 // Constructor and Destructor
 // ============================================================================
@@ -335,15 +346,19 @@ std::vector<StreamInfo> FLACDemuxer::getStreams_unlocked() const
         }
     }
     
-    // Add metadata from Vorbis comments
+    // Add metadata from Vorbis comments. StreamInfo carries single display
+    // strings, so a multi-valued ARTIST is joined; TITLE/ALBUM take the
+    // first value.
     auto it = m_vorbis_comments.find("ARTIST");
-    if (it != m_vorbis_comments.end()) stream.artist = it->second;
-    
+    if (it != m_vorbis_comments.end() && !it->second.empty()) {
+        stream.artist = joinComments(it->second);
+    }
+
     it = m_vorbis_comments.find("TITLE");
-    if (it != m_vorbis_comments.end()) stream.title = it->second;
-    
+    if (it != m_vorbis_comments.end() && !it->second.empty()) stream.title = it->second.front();
+
     it = m_vorbis_comments.find("ALBUM");
-    if (it != m_vorbis_comments.end()) stream.album = it->second;
+    if (it != m_vorbis_comments.end() && !it->second.empty()) stream.album = it->second.front();
     
     FLAC_DEBUG("[getStreams] StreamInfo complete: ", stream.sample_rate, "Hz, ",
                static_cast<int>(stream.channels), "ch, ", 
@@ -1457,9 +1472,9 @@ void FLACDemuxer::validateStreamableSubset_unlocked()
     // Requirement 20.5: Mark non-streamable if WAVEFORMATEXTENSIBLE_CHANNEL_MASK present
     // RFC 9639 Section 7: WAVEFORMATEXTENSIBLE_CHANNEL_MASK indicates non-default channel ordering
     auto it = m_vorbis_comments.find("WAVEFORMATEXTENSIBLE_CHANNEL_MASK");
-    if (it != m_vorbis_comments.end()) {
-        FLAC_DEBUG("[validateStreamableSubset] Requirement 20.5: WAVEFORMATEXTENSIBLE_CHANNEL_MASK present ('", 
-                   it->second, "') - marking as non-streamable");
+    if (it != m_vorbis_comments.end() && !it->second.empty()) {
+        FLAC_DEBUG("[validateStreamableSubset] Requirement 20.5: WAVEFORMATEXTENSIBLE_CHANNEL_MASK present ('",
+                   it->second.front(), "') - marking as non-streamable");
         m_is_streamable_subset = false;
     }
     
@@ -1493,12 +1508,9 @@ void FLACDemuxer::createTagFromMetadata_unlocked()
         return;
     }
     
-    // Convert m_vorbis_comments (single-valued) to multi-valued format for VorbisCommentTag
-    std::map<std::string, std::vector<std::string>> fields;
-    for (const auto& [key, value] : m_vorbis_comments) {
-        fields[key].push_back(value);
-    }
-    
+    // m_vorbis_comments is already the multi-valued shape VorbisCommentTag takes
+    const std::map<std::string, std::vector<std::string>>& fields = m_vorbis_comments;
+
     // Convert FLACPicture to Tag::Picture
     std::vector<PsyMP3::Tag::Picture> pictures;
     pictures.reserve(m_pictures.size());
@@ -1912,15 +1924,10 @@ bool FLACDemuxer::parseVorbisCommentBlock_unlocked(const FLACMetadataBlock& bloc
             }
         }
         
-        // Vorbis comments are multi-valued: a field name may appear more than once
-        // (e.g. one ARTIST per performer). Join repeats with ", " rather than
-        // letting the last one win, so every performer is shown.
-        auto existing = m_vorbis_comments.find(normalized_name);
-        if (existing != m_vorbis_comments.end()) {
-            existing->second += ", " + value;
-        } else {
-            m_vorbis_comments[normalized_name] = value;
-        }
+        // Vorbis comments are multi-valued: a field name may appear more than
+        // once (e.g. one ARTIST per performer). Keep every value separate —
+        // display joins them, but Last.fm submission needs the first alone.
+        m_vorbis_comments[normalized_name].push_back(value);
         valid_fields++;
         
         FLAC_DEBUG("[parseVorbisComment] Field ", i, ": ", normalized_name, "=", 
@@ -1933,18 +1940,18 @@ bool FLACDemuxer::parseVorbisCommentBlock_unlocked(const FLACMetadataBlock& bloc
     
     // Log common metadata fields if present
     auto it = m_vorbis_comments.find("ARTIST");
-    if (it != m_vorbis_comments.end()) {
-        FLAC_DEBUG("[parseVorbisComment] ARTIST: ", it->second);
+    if (it != m_vorbis_comments.end() && !it->second.empty()) {
+        FLAC_DEBUG("[parseVorbisComment] ARTIST: ", joinComments(it->second));
     }
-    
+
     it = m_vorbis_comments.find("TITLE");
-    if (it != m_vorbis_comments.end()) {
-        FLAC_DEBUG("[parseVorbisComment] TITLE: ", it->second);
+    if (it != m_vorbis_comments.end() && !it->second.empty()) {
+        FLAC_DEBUG("[parseVorbisComment] TITLE: ", it->second.front());
     }
-    
+
     it = m_vorbis_comments.find("ALBUM");
-    if (it != m_vorbis_comments.end()) {
-        FLAC_DEBUG("[parseVorbisComment] ALBUM: ", it->second);
+    if (it != m_vorbis_comments.end() && !it->second.empty()) {
+        FLAC_DEBUG("[parseVorbisComment] ALBUM: ", it->second.front());
     }
     
     FLAC_DEBUG("[parseVorbisComment] VORBIS_COMMENT block parsed successfully");

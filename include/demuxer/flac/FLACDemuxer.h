@@ -354,7 +354,7 @@ private:
     FLACStreamInfo m_streaminfo;                           ///< STREAMINFO block data
     std::vector<uint8_t> m_streaminfo_raw;                 ///< Raw 34-byte STREAMINFO body (for codec_data)
     std::vector<FLACSeekPoint> m_seektable;                ///< SEEKTABLE entries
-    std::map<std::string, std::string> m_vorbis_comments;  ///< Vorbis comments metadata
+    std::map<std::string, std::vector<std::string>> m_vorbis_comments;  ///< Vorbis comments metadata (multi-valued: one entry per repeated field, e.g. one ARTIST per performer)
     FLACCuesheet m_cuesheet;                               ///< CUESHEET block data
     std::vector<FLACPicture> m_pictures;                   ///< PICTURE block data (multiple allowed)
     
