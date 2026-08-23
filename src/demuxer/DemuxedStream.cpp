@@ -670,6 +670,37 @@ TagLib::String DemuxedStream::getArtist() {
     return Stream::getArtist();
 }
 
+TagLib::String DemuxedStream::getPrimaryArtist() {
+    if (m_demuxer) {
+        const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+        if (!tag.isEmpty()) {
+            std::vector<std::string> artists = tag.getTagValues("ARTIST");
+            if (artists.size() > 1) {
+                return TagLib::String(artists.front(), TagLib::String::UTF8);
+            }
+            if (!artists.empty()) {
+                return TagLib::String(artists.front(), TagLib::String::UTF8);
+            }
+        }
+    }
+    // Base class covers demuxers that don't parse tags (MP3NullDemuxer):
+    // TagLib's PropertyMap distinguishes multi-value artist tags there.
+    return Stream::getPrimaryArtist();
+}
+
+TagLib::String DemuxedStream::getMusicBrainzID() {
+    if (m_demuxer) {
+        const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+        if (!tag.isEmpty()) {
+            std::string mbid = tag.getTag("MUSICBRAINZ_TRACKID");
+            if (!mbid.empty()) {
+                return TagLib::String(mbid, TagLib::String::UTF8);
+            }
+        }
+    }
+    return Stream::getMusicBrainzID();
+}
+
 TagLib::String DemuxedStream::getTitle() {
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();

@@ -53,6 +53,13 @@ class Stream
         virtual TagLib::String getArtist();
         virtual TagLib::String getTitle();
         virtual TagLib::String getAlbum();
+        // First credited artist when the artist tag is multi-valued (several
+        // Vorbis ARTIST fields, ID3v2.4 multi-value TPE1); equals getArtist()
+        // otherwise. Used for Last.fm submission, which has no multi-artist
+        // model — the full joined credit stays in getArtist() for display.
+        virtual TagLib::String getPrimaryArtist();
+        // MusicBrainz recording ID from the file's tags; empty when untagged.
+        virtual TagLib::String getMusicBrainzID();
         TagLib::String getFilePath() const;
         
         // Tag framework integration

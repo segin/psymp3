@@ -186,11 +186,65 @@ TagLib::String Stream::getArtist()
 }
 
 /**
+ * @brief Gets the first credited artist for Last.fm submission.
+ *
+ * When the artist tag is multi-valued, returns the first value alone
+ * (Last.fm has no multi-artist model); otherwise equals getArtist().
+ * Checks the Tag framework first, then TagLib's normalized PropertyMap.
+ */
+TagLib::String Stream::getPrimaryArtist()
+{
+    if (m_tag && !m_tag->isEmpty()) {
+        std::vector<std::string> artists = m_tag->getTagValues("ARTIST");
+        if (artists.size() > 1) {
+            return TagLib::String(artists.front(), TagLib::String::UTF8);
+        }
+    }
+    if (m_tags && !m_tags->isNull() && m_tags->file()) {
+        const TagLib::PropertyMap props = m_tags->file()->properties();
+        if (props.contains("ARTIST")) {
+            const TagLib::StringList& artists = props["ARTIST"];
+            if (artists.size() > 1) {
+                return artists.front();
+            }
+        }
+    }
+    return getArtist();
+}
+
+/**
+ * @brief Gets the MusicBrainz recording ID from the file's tags.
+ *
+ * Checks the Tag framework (UFID/TXXX in ID3v2, MUSICBRAINZ_TRACKID in
+ * Vorbis comments), then TagLib's normalized PropertyMap. Empty when
+ * the file is untagged.
+ */
+TagLib::String Stream::getMusicBrainzID()
+{
+    if (m_tag && !m_tag->isEmpty()) {
+        std::string mbid = m_tag->getTag("MUSICBRAINZ_TRACKID");
+        if (!mbid.empty()) {
+            return TagLib::String(mbid, TagLib::String::UTF8);
+        }
+    }
+    if (m_tags && !m_tags->isNull() && m_tags->file()) {
+        const TagLib::PropertyMap props = m_tags->file()->properties();
+        if (props.contains("MUSICBRAINZ_TRACKID")) {
+            const TagLib::StringList& values = props["MUSICBRAINZ_TRACKID"];
+            if (!values.isEmpty()) {
+                return values.front();
+            }
+        }
+    }
+    return TagLib::String();
+}
+
+/**
  * @brief Gets the title metadata for the stream.
- * 
+ *
  * First checks the Tag framework for title metadata, then falls back
  * to TagLib if no tag is available or the tag has no title.
- * 
+ *
  * @return A TagLib::String containing the track title, or an empty string if not available.
  */
 TagLib::String Stream::getTitle()
