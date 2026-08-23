@@ -26,6 +26,9 @@ public:
     void setText(const TagLib::String& text);
     const TagLib::String& getText() const { return m_text; }
     void setPlaceholder(const TagLib::String& placeholder);
+    // Password echo: render one '*' per typed codepoint (the Windows 3.1
+    // masked-edit convention) while the real text stays in m_text.
+    void setPasswordMode(bool on);
     void setOnChange(std::function<void(const TagLib::String&)> on_change) { m_on_change = std::move(on_change); }
 
     static void clearFocusedWidget();
@@ -41,6 +44,8 @@ private:
     bool handlesPoint(int relative_x, int relative_y) const;
     bool insertCharacter(char c);
     bool insertString(const std::string& utf8);
+    bool pasteFromClipboard();
+    bool m_password_mode = false;
     bool eraseBeforeCaret();
     bool eraseAtCaret();
 

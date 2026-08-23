@@ -36,6 +36,21 @@ std::string narrowText(const TagLib::String& text)
     return text.to8Bit(true);
 }
 
+// Keep printable ASCII (0x20-0x7E) and every UTF-8 multi-byte byte (>= 0x80);
+// drop only C0 controls and DEL. Dropping CR/LF also collapses multi-line
+// clipboard content into the single line this control edits.
+std::string filterPrintable(const std::string& input)
+{
+    std::string filtered;
+    filtered.reserve(input.size());
+    for (unsigned char c : input) {
+        if (c >= 0x20 && c != 0x7F) {
+            filtered.push_back(static_cast<char>(c));
+        }
+    }
+    return filtered;
+}
+
 } // namespace
 
 TextInputWidget::TextInputWidget(int width, int height, Font* font, const TagLib::String& text)
@@ -134,6 +149,12 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     TextInputWidget& widget = *s_focused_widget;
     std::string text = narrowText(widget.m_text);
 
+    // Ctrl+V pastes the system clipboard. Control chords never arrive as
+    // SDL_EVENT_TEXT_INPUT, so this must be handled at the keysym level.
+    if ((keysym.mod & SDL_KMOD_CTRL) && keysym.sym == SDLK_V) {
+        return widget.pasteFromClipboard();
+    }
+
     switch (keysym.sym) {
         case SDLK_BACKSPACE:
             return widget.eraseBeforeCaret();
@@ -205,22 +226,29 @@ bool TextInputWidget::handleFocusedTextInput(const char* text)
     }
 
     TextInputWidget& widget = *s_focused_widget;
-    const std::string input(text);
 
-    // SDL delivers SDL_EVENT_TEXT_INPUT as UTF-8. Keep printable ASCII (0x20-0x7E) and
-    // every UTF-8 multi-byte byte (>= 0x80); drop only C0 controls and DEL.
-    // Insert the whole filtered sequence in one step so a multi-byte codepoint's
-    // bytes are never split across separate edits.
-    std::string filtered;
-    for (unsigned char c : input) {
-        if (c >= 0x20 && c != 0x7F) {
-            filtered.push_back(static_cast<char>(c));
-        }
-    }
+    // SDL delivers SDL_EVENT_TEXT_INPUT as UTF-8. Insert the whole filtered
+    // sequence in one step so a multi-byte codepoint's bytes are never split
+    // across separate edits.
+    const std::string filtered = filterPrintable(text);
     if (filtered.empty()) {
         return false;
     }
     return widget.insertString(filtered);
+}
+
+bool TextInputWidget::pasteFromClipboard()
+{
+    char* clip = SDL_GetClipboardText();
+    if (!clip) {
+        return true; // the chord is handled either way
+    }
+    const std::string filtered = filterPrintable(clip);
+    SDL_free(clip);
+    if (!filtered.empty()) {
+        insertString(filtered);
+    }
+    return true;
 }
 
 void TextInputWidget::focus()
@@ -336,6 +364,15 @@ bool TextInputWidget::eraseAtCaret()
     return true;
 }
 
+void TextInputWidget::setPasswordMode(bool on)
+{
+    if (m_password_mode == on) {
+        return;
+    }
+    m_password_mode = on;
+    rebuildSurface();
+}
+
 void TextInputWidget::rebuildSurface()
 {
     const Rect& pos = getPos();
@@ -348,16 +385,34 @@ void TextInputWidget::rebuildSurface()
     const int inner_width = std::max(1, pos.width() - 8);
 
     std::string full_utf8 = narrowText(m_text);
+    size_t caret = std::min(m_caret_index, full_utf8.size());
+    if (m_password_mode) {
+        // Mask the DISPLAY only: one '*' per codepoint. The caret is a byte
+        // index into the real text, so remap it to the equivalent offset in
+        // the masked (all-ASCII) string by counting lead bytes.
+        size_t cp_before_caret = 0;
+        size_t cp_total = 0;
+        for (size_t i = 0; i < full_utf8.size(); ++i) {
+            if ((static_cast<unsigned char>(full_utf8[i]) & 0xC0) != 0x80) {
+                if (i < caret) {
+                    ++cp_before_caret;
+                }
+                ++cp_total;
+            }
+        }
+        full_utf8.assign(cp_total, '*');
+        caret = cp_before_caret;
+    }
     std::unique_ptr<Surface> text_surface;
 
-    // Width in pixels of the UTF-8 byte range [from, to).
+    // Width in pixels of the UTF-8 byte range [from, to), from glyph advances
+    // only — no rasterization.
     auto prefix_width = [&](size_t from, size_t to) -> int {
         if (!m_font || to <= from) {
             return 0;
         }
-        auto s = m_font->Render(
-            TagLib::String(full_utf8.substr(from, to - from), TagLib::String::UTF8), 0, 0, 0);
-        return s ? s->width() : 0;
+        return m_font->measureWidth(
+            TagLib::String(full_utf8.substr(from, to - from), TagLib::String::UTF8));
     };
 
     // Make the viewport follow the caret. Advance visible_start only toward the
@@ -368,7 +423,6 @@ void TextInputWidget::rebuildSurface()
     // step lands on a UTF-8 lead byte; stepping a single byte could leave
     // visible_start on a continuation byte that the strict decoder rejects
     // (garbling the text and the caret offset).
-    const size_t caret = std::min(m_caret_index, full_utf8.size());
     size_t visible_start = 0;
     while (visible_start < caret && prefix_width(visible_start, caret) + 1 > inner_width) {
         ++visible_start;
@@ -378,13 +432,16 @@ void TextInputWidget::rebuildSurface()
         }
     }
 
+    // RenderLCD pre-blends subpixel glyphs against an opaque background; the
+    // field is filled solid white above, so blend against white.
     std::string display_utf8 = full_utf8.substr(visible_start);
     if (m_font && !display_utf8.empty()) {
-        text_surface = m_font->Render(TagLib::String(display_utf8, TagLib::String::UTF8), 0, 0, 0);
+        text_surface = m_font->RenderLCD(TagLib::String(display_utf8, TagLib::String::UTF8),
+                                         0, 0, 0, 255, 255, 255);
     }
 
     if (full_utf8.empty() && !m_placeholder.isEmpty() && !m_focused && m_font) {
-        text_surface = m_font->Render(m_placeholder, 128, 128, 128);
+        text_surface = m_font->RenderLCD(m_placeholder, 128, 128, 128, 255, 255, 255);
     }
 
     if (text_surface) {
@@ -393,16 +450,13 @@ void TextInputWidget::rebuildSurface()
     }
 
     if (m_focused) {
-        size_t local_caret = m_caret_index < visible_start ? 0 : m_caret_index - visible_start;
+        size_t local_caret = caret < visible_start ? 0 : caret - visible_start;
         local_caret = std::min(local_caret, display_utf8.size());
         int caret_x = inner_left;
 
         if (local_caret > 0 && m_font) {
-            auto prefix_surface = m_font->Render(
-                TagLib::String(display_utf8.substr(0, local_caret), TagLib::String::UTF8), 0, 0, 0);
-            if (prefix_surface) {
-                caret_x += prefix_surface->width();
-            }
+            caret_x += m_font->measureWidth(
+                TagLib::String(display_utf8.substr(0, local_caret), TagLib::String::UTF8));
         }
 
         caret_x = std::min(caret_x, inner_left + inner_width - 1);
