@@ -363,7 +363,19 @@ std::string VorbisCommentTag::title() const {
 }
 
 std::string VorbisCommentTag::artist() const {
-    return getFirstValue("ARTIST");
+    // A track with several performers carries several ARTIST fields; the
+    // display credit is all of them. Callers that need just the primary
+    // artist (scrobbling) use getTagValues("ARTIST").front() instead.
+    auto it = m_fields.find("ARTIST");
+    if (it == m_fields.end() || it->second.empty()) {
+        return "";
+    }
+    std::string joined = it->second[0];
+    for (size_t i = 1; i < it->second.size(); ++i) {
+        joined += ", ";
+        joined += it->second[i];
+    }
+    return joined;
 }
 
 std::string VorbisCommentTag::album() const {
