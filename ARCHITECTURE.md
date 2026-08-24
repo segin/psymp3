@@ -148,7 +148,6 @@ The software-rendered UI (`src/widget/`) imitates Windows 3.1, and since 2.0-BET
 - Build and usage: [README.md](/home/segin/psymp3/README.md)
 - Testing policy and commands: [TESTING.md](/home/segin/psymp3/TESTING.md)
 - Extended architecture notes: [docs/ARCHITECTURE_DETAILS.md](/home/segin/psymp3/docs/ARCHITECTURE_DETAILS.md)
-- SDL2→SDL3 migration history: [docs/SDL2_PORT_PLAN.md](/home/segin/psymp3/docs/SDL2_PORT_PLAN.md)
 
 ## Project Identification
 
