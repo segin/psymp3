@@ -675,6 +675,22 @@ private:
 
 // Test suite setup and execution
 int main() {
+    // No session bus -> automake SKIP (exit 77), never FAIL: distcheck's
+    // inner make check (and any headless environment) may run without
+    // dbus-run-session, and a missing bus is an environment gap, not a defect.
+    {
+        DBusError probe;
+        dbus_error_init(&probe);
+        DBusConnection* probe_conn = dbus_bus_get_private(DBUS_BUS_SESSION, &probe);
+        if (!probe_conn) {
+            if (dbus_error_is_set(&probe)) dbus_error_free(&probe);
+            std::cout << "SKIP: no D-Bus session bus available" << std::endl;
+            return 77;
+        }
+        dbus_connection_close(probe_conn);
+        dbus_connection_unref(probe_conn);
+    }
+
     TestSuite suite("MPRISManager Comprehensive Tests");
     
     suite.addTest(std::make_unique<MPRISManagerTest>());
