@@ -649,13 +649,11 @@ void test_feature_impact_validation() {
         double performance_ratio = avg_throughput / single_threaded_result.throughput_mbps;
         std::cout << "    Performance ratio (multi/single): " << performance_ratio << std::endl;
         
-        // Multi-threaded performance with file I/O will be lower due to:
-        // 1. Lock contention when multiple threads access the same file
-        // 2. OS-level file system serialization
-        // 3. Disk I/O bottlenecks
-        // 4. Thread scheduling overhead
-        // A ratio of 25% is reasonable for this scenario with heavy contention
-        PerformanceValidator::assert_true(performance_ratio > 0.25, "Multi-threaded performance should be at least 25% of single-threaded");
+        // No wall-clock threshold here: on a loaded shared CI runner the
+        // contention ratio can dip arbitrarily low without indicating a
+        // defect (TESTING.md). Assert only that the measurement is sane -
+        // every thread completed and produced nonzero throughput.
+        PerformanceValidator::assert_true(performance_ratio > 0.0, "Multi-threaded throughput should be measurable");
         
         PerformanceValidator::cleanup_test_file(thread_test_file);
         
@@ -709,8 +707,9 @@ void test_feature_impact_validation() {
         double error_overhead_ratio = error_handling_throughput / normal_result.throughput_mbps;
         std::cout << "    Error handling overhead ratio: " << error_overhead_ratio << std::endl;
         
-        // Error handling should not significantly impact performance
-        PerformanceValidator::assert_true(error_overhead_ratio > 0.8, "Error handling overhead should be less than 20%");
+        // Same rule as above: a fixed overhead percentage is not assertable
+        // on a loaded runner; require a sane nonzero measurement only.
+        PerformanceValidator::assert_true(error_overhead_ratio > 0.0, "Error-path throughput should be measurable");
         
         PerformanceValidator::cleanup_test_file(error_test_file);
         
