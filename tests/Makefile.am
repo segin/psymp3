@@ -3111,6 +3111,75 @@ EXTRA_DIST += \
 	run_mpris_logging_tests.sh \
 	fake_player.h
 
+
+# Test-support headers (mocks, fixtures, utilities): #included by the
+# distributed test sources, so the dist tree cannot compile without them.
+EXTRA_DIST += \
+	FLACRFCComplianceValidator.h \
+	MockOggFile.h \
+	flac_test_data_utils.h \
+	mock_dbus_connection.h \
+	mock_include/psymp3.h \
+	mock_player.h \
+	mocks/dbus/dbus.h \
+	mocks/dummy_inc/FLAC++/decoder.h \
+	mocks/dummy_inc/SDL.h \
+	mocks/dummy_inc/SDL/SDL.h \
+	mocks/dummy_inc/SDL/SDL_mutex.h \
+	mocks/dummy_inc/SDL/SDL_thread.h \
+	mocks/dummy_inc/SDL_mutex.h \
+	mocks/dummy_inc/SDL_thread.h \
+	mocks/dummy_inc/SDL_ttf.h \
+	mocks/dummy_inc/curl/curl.h \
+	mocks/dummy_inc/dbus/dbus.h \
+	mocks/dummy_inc/freetype.h \
+	mocks/dummy_inc/freetype/freetype.h \
+	mocks/dummy_inc/ft2build.h \
+	mocks/dummy_inc/mpris/MPRISTypes.h \
+	mocks/dummy_inc/mpris/MethodHandler.h \
+	mocks/dummy_inc/mpris/PropertyManager.h \
+	mocks/dummy_inc/openssl/bio.h \
+	mocks/dummy_inc/openssl/crypto.h \
+	mocks/dummy_inc/openssl/err.h \
+	mocks/dummy_inc/openssl/evp.h \
+	mocks/dummy_inc/openssl/md5.h \
+	mocks/dummy_inc/openssl/pem.h \
+	mocks/dummy_inc/openssl/rand.h \
+	mocks/dummy_inc/openssl/ssl.h \
+	mocks/dummy_inc/openssl/x509.h \
+	mocks/dummy_inc/openssl/x509v3.h \
+	mocks/dummy_inc/opus/opus.h \
+	mocks/dummy_inc/opus/opus_multistream.h \
+	mocks/dummy_inc/psymp3.h \
+	mocks/dummy_inc/taglib/fileref.h \
+	mocks/dummy_inc/taglib/tag.h \
+	mocks/dummy_inc/taglib/tiostream.h \
+	mocks/dummy_inc/taglib/tstring.h \
+	mocks/dummy_inc/vorbis/vorbisfile.h \
+	mocks/io/FileIOHandler.h \
+	mocks/io/IOHandler.h \
+	mocks/io/URI.h \
+	mocks/mock_dbus/dbus/dbus.h \
+	mocks/mock_include/SDL/SDL.h \
+	mocks/mock_include/SDL/SDL_mutex.h \
+	mocks/mock_include/SDL/SDL_thread.h \
+	mocks/mock_include/dbus/dbus.h \
+	mocks/mock_include/debug.h \
+	mocks/mock_include/psymp3.h \
+	mocks/mock_include/taglib/fileref.h \
+	mocks/mock_include/taglib/tag.h \
+	mocks/mock_include/taglib/tiostream.h \
+	mocks/mock_include/taglib/tstring.h \
+	mocks/psymp3.h \
+	mocks/stream.h \
+	mocks/taglib/tstring.h \
+	test_discovery.h \
+	test_executor.h \
+	test_framework.h \
+	test_framework_threading.h \
+	test_rect_utilities.h \
+	test_reporter.h
+
 # Make test scripts executable during build
 all-local:
 	chmod +x $(srcdir)/run_mpris_static_analysis.sh
