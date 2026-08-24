@@ -1692,6 +1692,15 @@ if BUILD_TEST_HARNESS
 CLEANFILES += test-harness
 endif
 
+# Runtime debug logs some tests write into the build directory; distcheck's
+# distcleancheck fails on anything left behind after distclean.
+CLEANFILES += \
+	performance_test.log \
+	flacout_debug.log \
+	mp3out_debug.log \
+	opusout_debug.log \
+	vorbisout_debug.log
+
 # Ensure required object files are built before tests
 $(check_PROGRAMS): $(top_builddir)/src/core/libpsymp3-core.a
 
