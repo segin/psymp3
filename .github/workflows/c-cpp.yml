@@ -102,7 +102,10 @@ jobs:
       continue-on-error: true
       run: |
         if make -n distcheck 2>/dev/null; then
-          make distcheck
+          # distcheck re-runs the whole test suite inside the dist tree, so it
+          # needs the same session bus the 'Run tests' step gets - without it
+          # the MPRIS tests can only skip (or, historically, fail).
+          dbus-run-session -- make distcheck
           echo "Distribution check completed successfully"
         else
           echo "Distribution check not available"
