@@ -108,7 +108,6 @@ EXTRA_DIST = \
 	include/demuxer/ogg/CodecHeaderParser.h \
 	include/demuxer/ogg/FLACHeaderParser.h \
 	include/demuxer/ogg/OggDemuxer.h \
-	include/demuxer/ogg/OggDemuxer.h.old \
 	include/demuxer/ogg/OggSeekingEngine.h \
 	include/demuxer/ogg/OggStreamManager.h \
 	include/demuxer/ogg/OggSyncManager.h \
@@ -149,7 +148,6 @@ EXTRA_DIST = \
 	include/player.h \
 	include/playlist.h \
 	include/psymp3.h \
-	include/rect.h.backup \
 	include/stream.h \
 	include/surface.h \
 	include/system.h \
