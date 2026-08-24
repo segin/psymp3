@@ -540,7 +540,6 @@ using PsyMP3::Codec::Vorbis::Vorbis;
 using PsyMP3::Codec::Vorbis::VorbisCodec;
 #endif
 #ifdef HAVE_OPUS
-#include "codecs/opus/opusw.h"
 #include "codecs/opus/OpusCodec.h"
 using PsyMP3::Codec::Opus::OpusCodec;
 using PsyMP3::Codec::Opus::OpusHeader;
@@ -564,7 +563,6 @@ using PsyMP3::Codec::AAC::AACCodec;
 #include "demuxer/ogg/OggSeekingEngine.h"
 
 #include "codecs/vorbis/VorbisCodec.h"
-#include "codecs/opus/opusw.h"
 #include "codecs/opus/OpusCodec.h"
 #include "codecs/OggCodecs.h"
 #endif

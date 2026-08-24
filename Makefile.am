@@ -58,7 +58,6 @@ EXTRA_DIST = \
 	include/codecs/mp2/MP2Codec.h \
 	include/codecs/mp3/MiniMP3Codec.h \
 	include/codecs/opus/OpusCodec.h \
-	include/codecs/opus/opusw.h \
 	include/codecs/pcm/ALawCodec.h \
 	include/codecs/pcm/G722Codec.h \
 	include/codecs/pcm/MuLawCodec.h \
