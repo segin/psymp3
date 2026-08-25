@@ -240,6 +240,32 @@ TagLib::String Stream::getMusicBrainzID()
 }
 
 /**
+ * @brief Gets the MusicBrainz release (album) ID from the file's tags.
+ *
+ * Same resolution order as getMusicBrainzID(); used to fetch Cover Art
+ * Archive artwork (e.g. for Discord Rich Presence).
+ */
+TagLib::String Stream::getMusicBrainzReleaseID()
+{
+    if (m_tag && !m_tag->isEmpty()) {
+        std::string mbid = m_tag->getTag("MUSICBRAINZ_ALBUMID");
+        if (!mbid.empty()) {
+            return TagLib::String(mbid, TagLib::String::UTF8);
+        }
+    }
+    if (m_tags && !m_tags->isNull() && m_tags->file()) {
+        const TagLib::PropertyMap props = m_tags->file()->properties();
+        if (props.contains("MUSICBRAINZ_ALBUMID")) {
+            const TagLib::StringList& values = props["MUSICBRAINZ_ALBUMID"];
+            if (!values.isEmpty()) {
+                return values.front();
+            }
+        }
+    }
+    return TagLib::String();
+}
+
+/**
  * @brief Gets the title metadata for the stream.
  *
  * First checks the Tag framework for title metadata, then falls back

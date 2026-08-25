@@ -60,6 +60,8 @@ class Stream
         virtual TagLib::String getPrimaryArtist();
         // MusicBrainz recording ID from the file's tags; empty when untagged.
         virtual TagLib::String getMusicBrainzID();
+        // MusicBrainz release (album) ID; keys Cover Art Archive artwork.
+        virtual TagLib::String getMusicBrainzReleaseID();
         TagLib::String getFilePath() const;
         
         // Tag framework integration

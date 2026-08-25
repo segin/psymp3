@@ -701,6 +701,19 @@ TagLib::String DemuxedStream::getMusicBrainzID() {
     return Stream::getMusicBrainzID();
 }
 
+TagLib::String DemuxedStream::getMusicBrainzReleaseID() {
+    if (m_demuxer) {
+        const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+        if (!tag.isEmpty()) {
+            std::string mbid = tag.getTag("MUSICBRAINZ_ALBUMID");
+            if (!mbid.empty()) {
+                return TagLib::String(mbid, TagLib::String::UTF8);
+            }
+        }
+    }
+    return Stream::getMusicBrainzReleaseID();
+}
+
 TagLib::String DemuxedStream::getTitle() {
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
