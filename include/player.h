@@ -373,6 +373,7 @@ class Player
 
         // Last.fm scrobbling
         std::unique_ptr<LastFM> m_lastfm;
+        std::unique_ptr<DiscordPresence> m_discord;
         Uint32 m_track_start_time = 0;  // SDL ticks when current track started
         bool m_track_scrobbled = false; // Flag to ensure we only scrobble once per track
         
@@ -494,6 +495,8 @@ class Player
         void applyTargetFps(int fps);
         void toggleEqualizerWindow();
         void toggleLastFmCredentialsWindow();
+        void toggleDiscordPresence();
+        void updateDiscordPresence();
         void saveLastFmCredentials(const std::string& username, const std::string& password);
         void applyEqStateToAudio();
 
@@ -519,6 +522,7 @@ class Player
         // Playlist index the user was at when the previous session shut down
         // (session_track in psymp3.conf, saved alongside session.m3u8).
         long m_session_track = 0;
+        bool m_discord_presence = true; // discord_presence in psymp3.conf
         // One-shot resume target for the session-playlist reload: set to
         // m_session_track when the restore path arms the populator, consumed
         // by findFirstPlayableTrack(). -1 = normal startup, begin at entry 0.

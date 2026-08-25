@@ -589,6 +589,8 @@ Player::Player() : m_rng(std::random_device{}()) {
     
     // Initialize Last.fm scrobbling
     m_lastfm = std::make_unique<LastFM>();
+    m_discord = std::make_unique<DiscordPresence>();
+    m_discord->setEnabled(m_discord_presence);
     m_track_start_time = 0;
     m_track_scrobbled = false;
     m_volume = 0.75f; // default 75%; loadSettings() overrides from psymp3.conf if present
@@ -2047,6 +2049,7 @@ bool Player::stop(void) {
     if (m_lastfm) {
         m_lastfm->unsetNowPlaying();
     }
+    updateDiscordPresence();
     return true;
 }
 
@@ -2072,6 +2075,7 @@ bool Player::pause(void) {
         if (m_lastfm) {
             m_lastfm->unsetNowPlaying();
         }
+        updateDiscordPresence();
         if (!m_pause_indicator) {
             SDL_Color pause_color = {255, 255, 255, 180}; // Semi-transparent white
             m_pause_indicator = std::make_unique<Label>(m_large_font.get(), Rect(0,0,0,0), "PAUSED", pause_color);
@@ -2189,6 +2193,8 @@ void Player::seekToInternal(unsigned long pos, bool monitor_seek_errors)
             m_mpris_manager->notifySeeked(static_cast<uint64_t>(pos) * 1000);
         }
 #endif
+        // Re-anchor the Discord progress bar to the new position.
+        updateDiscordPresence();
     }
 }
 
@@ -3421,6 +3427,8 @@ bool Player::Initialize(const PlayerOptions& options) {
         settings_items.push_back(MI::sep());
         settings_items.push_back(MI::leaf("&Last.fm Credentials...",
             [this]{ toggleLastFmCredentialsWindow(); }));
+        settings_items.push_back(MI::leaf("&Discord Presence", [this]{ toggleDiscordPresence(); },
+            [this]{ return m_discord_presence; }));
         menu_bar->addMenu("&Settings", std::move(settings_items));
 
         // Help: the About dialog (also on F1).
@@ -4348,6 +4356,8 @@ void Player::loadSettings()
                                                                           : LoopMode::None;
         } else if (key == "persist_playlist") {
             m_persist_playlist = (value == "1" || value == "true");
+        } else if (key == "discord_presence") {
+            m_discord_presence = (value == "1" || value == "true");
         } else if (key == "session_track") {
             if (parseSettingDouble(value, v) && v >= 0) {
                 m_session_track = static_cast<long>(v);
@@ -4405,6 +4415,7 @@ void Player::saveSettings() const
     // position; a settings save with no playlist keeps the loaded value.
     f << "session_track=" << (playlist ? playlist->getPosition() : m_session_track) << "\n";
     f << "show_debug=" << (m_show_debug ? 1 : 0) << "\n";
+    f << "discord_presence=" << (m_discord_presence ? 1 : 0) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
 }
@@ -5139,6 +5150,62 @@ void Player::submitNowPlaying()
     now_playing_track.setMusicBrainzID(stream->getMusicBrainzID());
 
     m_lastfm->setNowPlaying(now_playing_track);
+
+    updateDiscordPresence();
+}
+
+/**
+ * @brief Mirrors the player state onto Discord Rich Presence.
+ *
+ * Playing: track/artist/album with a progress bar anchored at the current
+ * position (and Cover Art Archive artwork when the file carries a MusicBrainz
+ * release ID). Paused: same card without the bar. Stopped: presence cleared.
+ */
+void Player::updateDiscordPresence()
+{
+    if (!m_discord) {
+        return;
+    }
+    if (stream && state == PlayerState::Playing) {
+        unsigned long pos_ms = 0;
+        if (audio && audio->getRate() > 0) {
+            pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
+        }
+        // Fully untagged file: show the filename stem, matching the UI's own
+        // fallback, instead of a blank/"Unknown Track" card.
+        std::string title = stream->getTitle().to8Bit(true);
+        if (title.empty()) {
+            std::string path = stream->getFilePath().to8Bit(true);
+            size_t slash = path.find_last_of("/\\");
+            if (slash != std::string::npos) path.erase(0, slash + 1);
+            size_t dot = path.find_last_of('.');
+            if (dot != std::string::npos && dot > 0) path.erase(dot);
+            title = path;
+        }
+        m_discord->setNowPlaying(stream->getArtist().to8Bit(true),
+                                 title,
+                                 stream->getAlbum().to8Bit(true),
+                                 stream->getLength() / 1000,
+                                 static_cast<unsigned int>(pos_ms / 1000),
+                                 stream->getMusicBrainzReleaseID().to8Bit(true));
+    } else if (stream && state == PlayerState::Paused) {
+        m_discord->setPaused();
+    } else {
+        m_discord->clear();
+    }
+}
+
+void Player::toggleDiscordPresence()
+{
+    m_discord_presence = !m_discord_presence;
+    if (m_discord) {
+        m_discord->setEnabled(m_discord_presence);
+        if (m_discord_presence) {
+            updateDiscordPresence(); // show the current track right away
+        }
+    }
+    saveSettings();
+    showToast(m_discord_presence ? "Discord Presence: On" : "Discord Presence: Off");
 }
 
 /**
