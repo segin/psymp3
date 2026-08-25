@@ -519,6 +519,10 @@ class Player
         // Playlist index the user was at when the previous session shut down
         // (session_track in psymp3.conf, saved alongside session.m3u8).
         long m_session_track = 0;
+        // One-shot resume target for the session-playlist reload: set to
+        // m_session_track when the restore path arms the populator, consumed
+        // by findFirstPlayableTrack(). -1 = normal startup, begin at entry 0.
+        long m_restore_session_track = -1;
         bool m_session_playlist_saved = false; // avoid double-saving at teardown
         int m_random_window_counter = 0;
 

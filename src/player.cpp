@@ -888,6 +888,13 @@ void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
 
     if (args.empty()) return; // Nothing to do
 
+    // Session restore resumes at a saved playlist index. Population is
+    // incremental, so don't fire START_FIRST_TRACK until enough entries exist
+    // to cover that index - firing on the first entry would make
+    // findFirstPlayableTrack() clamp a not-yet-populated index back to 0.
+    // (Read once: armed before this thread starts, cleared only after the
+    // start event is consumed.)
+    const long resume_index = m_restore_session_track;
     bool started_first_track = false;
 
     for (const std::string& arg : args) {
@@ -901,7 +908,8 @@ void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
 
         for (const auto& entry : resolved_entries) {
             try {
-                if (playlist->addEntry(entry) && !started_first_track) {
+                if (playlist->addEntry(entry) && !started_first_track &&
+                    (resume_index < 0 || playlist->entries() > resume_index)) {
                     synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
                     started_first_track = true;
                 }
@@ -909,6 +917,13 @@ void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
                 Debug::log("playlist", "Player::playlistPopulatorLoop(): Failed to add resolved entry ", entry.path.to8Bit(true), ": ", e.what());
             }
         }
+    }
+
+    // The saved index can exceed the reloaded playlist (the session file
+    // shrank or entries failed to resolve): start anyway and let
+    // findFirstPlayableTrack() clamp to the last entry.
+    if (!started_first_track && playlist->entries() > 0) {
+        synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
     }
 }
 
@@ -3438,7 +3453,12 @@ bool Player::Initialize(const PlayerOptions& options) {
         std::ifstream session(System::pathFromUtf8(sessionPlaylistPath()));
         if (session.good()) {
             startup_files.push_back(sessionPlaylistPath());
-            Debug::log("player", "Persist Playlist: reloading session playlist");
+            // Resume where the previous session left off (session_track in
+            // psymp3.conf). Armed before the populator thread starts, so the
+            // thread-creation ordering makes it safely visible there.
+            m_restore_session_track = m_session_track;
+            Debug::log("player", "Persist Playlist: reloading session playlist, resuming at track ",
+                       m_session_track);
         }
     }
     if (!startup_files.empty()) {
@@ -3917,29 +3937,41 @@ bool Player::handleWindowEvent(const SDL_WindowEvent& event)
 }
 
 /**
- * @brief Scans the playlist from position 0 for the first track that `MediaFile::open` accepts.
+ * @brief Begins startup playback: at the restored session index if one is
+ * armed, else at position 0.
  *
- * Used at startup (after a `START_FIRST_TRACK` event) to skip over any
- * unreadable entries and begin playback at the first valid track.
+ * Used at startup (after a `START_FIRST_TRACK` event). Unreadable entries are
+ * skipped by the async load-failure path.
  *
- * @return `true` if a playable track was found and loading was requested.
+ * @return `true` if a track load was requested.
  */
 bool Player::findFirstPlayableTrack() {
     if (!playlist || playlist->entries() == 0) {
         return false; // No playlist
     }
 
-    // Start loading the first entry asynchronously rather than probing each
-    // entry with a synchronous MediaFile::open() on the main thread. The old
-    // loop blocked the GUI for one connect/probe timeout per dead leading entry
+    // Session restore: resume at the index the previous session shut down on
+    // (clamped - the reloaded playlist may be shorter than the saved index).
+    // One-shot: later replays of START_FIRST_TRACK start from 0 as before.
+    long start = 0;
+    if (m_restore_session_track >= 0) {
+        start = std::clamp(m_restore_session_track, 0L,
+                           static_cast<long>(playlist->entries()) - 1);
+        m_restore_session_track = -1;
+        Debug::log("player", "Session restore: starting at playlist index ", start);
+    }
+
+    // Start loading the entry asynchronously rather than probing each entry
+    // with a synchronous MediaFile::open() on the main thread. The old loop
+    // blocked the GUI for one connect/probe timeout per dead leading entry
     // (dead http:// streams, stale NFS mounts) and opened the accepted track
     // twice. The background loader opens off-thread; if the entry is
     // unplayable, handleTrackLoadFailureEvent -> handleUnplayableTrack advances
     // to the next entry and retries, exhausting to a clean stop if none play.
     m_navigation_direction = 1;
     m_skip_attempts = 0;
-    playlist->setPosition(0);
-    requestTrackLoad(playlist->getTrack(0));
+    playlist->setPosition(start);
+    requestTrackLoad(playlist->getTrack(start));
     return true;
 }
 
