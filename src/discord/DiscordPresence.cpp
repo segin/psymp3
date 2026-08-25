@@ -97,7 +97,8 @@ void DiscordPresence::setEnabled(bool on)
 
 void DiscordPresence::setNowPlaying(const std::string& artist, const std::string& title,
                                     const std::string& album, unsigned int length_s,
-                                    unsigned int position_s, const std::string& release_mbid)
+                                    unsigned int position_s, const std::string& release_mbid,
+                                    const std::string& lookup_artist)
 {
     Activity a;
     a.visible = true;
@@ -106,6 +107,7 @@ void DiscordPresence::setNowPlaying(const std::string& artist, const std::string
     a.title = clampActivityString(title.empty() ? "Unknown Track" : title);
     a.artist = clampActivityString(artist);
     a.album = clampActivityString(album);
+    a.lookup_artist = lookup_artist.empty() ? artist : lookup_artist;
     // Client-side progress bar: start anchored so "now" is at position_s,
     // end at the track's length. Length 0 (streams) = no bar.
     if (length_s > 0 && position_s <= length_s) {
@@ -210,6 +212,9 @@ void DiscordPresence::workerLoop()
         }
 
         if (have_work) {
+            if (to_send.visible) {
+                resolveArtwork(to_send); // network lookup, worker thread only
+            }
             if (sendActivity(to_send)) {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_current = to_send;
@@ -289,6 +294,75 @@ bool DiscordPresence::sendActivity(const Activity& a)
     }
     DEBUG_LOG_LAZY("discord", a.visible ? "Presence updated" : "Presence cleared");
     return true;
+}
+
+void DiscordPresence::resolveArtwork(Activity& a)
+{
+    if (!a.art_url.empty() || a.album.empty()) {
+        return; // tagged art wins; no album = nothing to search for
+    }
+    const std::string& artist = a.lookup_artist.empty() ? a.artist : a.lookup_artist;
+    if (artist.empty()) {
+        return;
+    }
+
+    // One-entry memo: pause/seek/resume re-send the same track, and each
+    // would otherwise hit MusicBrainz again. Deliberately NOT a persistent
+    // cache - a new album is a fresh query every time.
+    const std::string key = artist + "\n" + a.album;
+    if (key == m_memo_key) {
+        if (!m_memo_mbid.empty()) {
+            a.art_url = "https://coverartarchive.org/release/" + m_memo_mbid + "/front-250";
+        }
+        return;
+    }
+
+    // MusicBrainz API etiquette: at most one request per second.
+    auto now = std::chrono::steady_clock::now();
+    auto since = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_mb_query);
+    if (m_last_mb_query.time_since_epoch().count() != 0 && since.count() < 1000) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000 - since.count()));
+        if (m_shutdown) return;
+    }
+    m_last_mb_query = std::chrono::steady_clock::now();
+
+    // Lucene query; embedded quotes would break the phrase syntax.
+    auto strip_quotes = [](std::string v) {
+        v.erase(std::remove(v.begin(), v.end(), '"'), v.end());
+        return v;
+    };
+    std::string query = "artist:\"" + strip_quotes(artist) + "\" AND release:\"" +
+                        strip_quotes(a.album) + "\"";
+    std::string url = "https://musicbrainz.org/ws/2/release/?limit=1&fmt=json&query=" +
+                      PsyMP3::IO::HTTP::HTTPClient::urlEncode(query);
+
+    DEBUG_LOG_LAZY("discord", "MusicBrainz release lookup: ", artist, " / ", a.album);
+    PsyMP3::IO::HTTP::HTTPClient::Response response = PsyMP3::IO::HTTP::HTTPClient::get(
+        url, {{"User-Agent", "PsyMP3/" PSYMP3_VERSION " ( segin2005@gmail.com )"}}, 5);
+
+    m_memo_key = key;
+    m_memo_mbid.clear();
+    if (response.success) {
+        // First release id in the result: "releases":[{"id":"<uuid>",...
+        size_t releases = response.body.find("\"releases\"");
+        if (releases != std::string::npos) {
+            size_t idpos = response.body.find("\"id\":\"", releases);
+            if (idpos != std::string::npos && idpos + 7 + 36 <= response.body.size()) {
+                std::string mbid = response.body.substr(idpos + 6, 36);
+                if (PsyMP3::LastFM::LastFM::isValidMBID(mbid)) {
+                    m_memo_mbid = mbid;
+                }
+            }
+        }
+        DEBUG_LOG_LAZY("discord", "MusicBrainz lookup result: ",
+                       m_memo_mbid.empty() ? "no match" : m_memo_mbid);
+    } else {
+        DEBUG_LOG_LAZY("discord", "MusicBrainz lookup failed: ", response.statusMessage);
+    }
+
+    if (!m_memo_mbid.empty()) {
+        a.art_url = "https://coverartarchive.org/release/" + m_memo_mbid + "/front-250";
+    }
 }
 
 std::string DiscordPresence::jsonEscape(const std::string& s)

@@ -67,7 +67,8 @@ public:
      */
     void setNowPlaying(const std::string& artist, const std::string& title,
                        const std::string& album, unsigned int length_s,
-                       unsigned int position_s, const std::string& release_mbid);
+                       unsigned int position_s, const std::string& release_mbid,
+                       const std::string& lookup_artist = "");
 
     /**
      * @brief Keep the current track visible but drop the progress bar
@@ -85,12 +86,18 @@ private:
         std::string title;
         std::string artist;
         std::string album;
-        std::string art_url;    // empty: no artwork
+        std::string art_url;    // empty: no artwork (yet)
+        std::string lookup_artist; // primary artist, for the MusicBrainz search
         long long start_ms = 0; // unix ms; 0 = no timestamps
         long long end_ms = 0;
     };
 
     void workerLoop();
+    // Worker-thread only: when a visible activity has no artwork, search
+    // MusicBrainz for the release by artist+album and point art_url at the
+    // Cover Art Archive. One-entry memo of the current album (seek/pause
+    // re-sends), >=1s between queries; no persistent cache.
+    void resolveArtwork(Activity& a);
     void queue_unlocked(const Activity& a);
 
     // IPC (worker thread only)
@@ -113,6 +120,10 @@ private:
     Activity m_pending;   // last-write-wins
     Activity m_current;   // re-sent after reconnect
     uint64_t m_nonce = 0;
+    // resolveArtwork() state (worker-thread only, no locking)
+    std::string m_memo_key;
+    std::string m_memo_mbid;
+    std::chrono::steady_clock::time_point m_last_mb_query{};
 
 #ifdef _WIN32
     void* m_pipe = nullptr; // HANDLE; INVALID_HANDLE_VALUE/nullptr = closed

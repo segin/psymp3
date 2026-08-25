@@ -5187,7 +5187,8 @@ void Player::updateDiscordPresence()
                                  stream->getAlbum().to8Bit(true),
                                  stream->getLength() / 1000,
                                  static_cast<unsigned int>(pos_ms / 1000),
-                                 stream->getMusicBrainzReleaseID().to8Bit(true));
+                                 stream->getMusicBrainzReleaseID().to8Bit(true),
+                                 stream->getPrimaryArtist().to8Bit(true));
     } else if (stream && state == PlayerState::Paused) {
         m_discord->setPaused();
     } else {
