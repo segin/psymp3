@@ -21,7 +21,7 @@ namespace Discord {
 // is public, like the Last.fm API key. Empty = integration dormant.
 // Overridable with the PSYMP3_DISCORD_CLIENT_ID environment variable for
 // testing against a personal application.
-static const char kApplicationId[] = "";
+static const char kApplicationId[] = "1533216209661726720";
 
 // How often to retry connecting while Discord isn't running.
 static constexpr int kReconnectSeconds = 15;
