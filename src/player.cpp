@@ -4316,6 +4316,10 @@ void Player::loadSettings()
                                                                           : LoopMode::None;
         } else if (key == "persist_playlist") {
             m_persist_playlist = (value == "1" || value == "true");
+        } else if (key == "session_track") {
+            if (parseSettingDouble(value, v) && v >= 0) {
+                m_session_track = static_cast<long>(v);
+            }
         } else if (key == "show_debug") {
             m_show_debug = (value == "1" || value == "true");
         } else if (key == "zoom") {
@@ -4364,6 +4368,10 @@ void Player::saveSettings() const
     f << "shuffle=" << (getShuffle() ? 1 : 0) << "\n";
     f << "loop_mode=" << static_cast<int>(getLoopMode()) << "\n";
     f << "persist_playlist=" << (m_persist_playlist ? 1 : 0) << "\n";
+    // Where the user was in the playlist. Read live at save time so the
+    // shutdown-path save (Player dtor, playlist still alive) records the final
+    // position; a settings save with no playlist keeps the loaded value.
+    f << "session_track=" << (playlist ? playlist->getPosition() : m_session_track) << "\n";
     f << "show_debug=" << (m_show_debug ? 1 : 0) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
