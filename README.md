@@ -2,7 +2,7 @@
 
 A simplistic audio media player with a flashy Fourier transform.
 
-![PsyMP3 playing "Hey Man, Nice Shot" by Filter, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
+![PsyMP3 2.0-BETA3 playing "Forty Six & 2" by TOOL, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
 
 ## Table of Contents
 
