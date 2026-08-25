@@ -260,12 +260,17 @@ bool DiscordPresence::sendActivity(const Activity& a)
         }
         // Assets only when there is artwork: large_text is the image's
         // tooltip, so without an image it has nowhere to appear. Untagged or
-        // MBID-less tracks simply present without art.
+        // MBID-less tracks simply present without art (the client falls back
+        // to the application icon). With artwork, the PsyMP3 logo rides
+        // along as the corner badge - the app branding the artist-as-name
+        // override displaced from the card header.
         if (!a.art_url.empty()) {
             payload += ",\"assets\":{\"large_image\":\"" + jsonEscape(a.art_url) + "\"";
             if (!a.album.empty()) {
                 payload += ",\"large_text\":\"" + jsonEscape(a.album) + "\"";
             }
+            payload += ",\"small_image\":\"https://raw.githubusercontent.com/segin/psymp3/master/res/psymp3_icon3_nobg_128x128.png\"";
+            payload += ",\"small_text\":\"PsyMP3\"";
             payload += "}";
         }
         payload += "}";
