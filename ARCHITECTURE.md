@@ -121,6 +121,14 @@ The software-rendered UI (`src/widget/`) imitates Windows 3.1, and since 2.0-BET
 - **Multi-artist credits.** A multi-valued artist tag (several Vorbis `ARTIST` fields, ID3v2.4 multi-value TPE1) is kept value-separate all the way through the demuxers and Tag framework; display strings join every artist (", "), while Last.fm submission uses the **first artist only** (the API has no multi-artist model — a joined credit lands on a nonexistent artist page). `Stream::getPrimaryArtist()` / `getMusicBrainzID()` are the submission-side accessors; the Player's scrobble/now-playing sites build their metadata-only `track` from the *stream* (not `track::loadTags`), so that is where submission metadata must be wired.
 - **Credentials UI.** Settings → "Last.fm Credentials..." (a `WindowFrameWidget` dialog in `player.cpp`) edits username/password with a masked password field (`TextInputWidget::setPasswordMode`), and a Test button that runs a stateless `LastFM::testCredentials` handshake on a detached worker thread. Saving rewrites `lastfm.conf` (dropping a stale `session_key` when the account or password changes) and recreates the `LastFM` instance; the old instance is destroyed *first* because its worker also writes the conf on auth success.
 
+## Discord Rich Presence
+
+`src/discord/DiscordPresence.cpp` shows "Listening to PsyMP3" via the Discord desktop client's local IPC (framed-JSON over `discord-ipc-N` — unix socket on POSIX incl. Flatpak/snap paths, named pipe on Windows; no external library).
+
+- **Worker model.** Same shape as `LastFM`: public setters record a last-write-wins pending activity and notify; one worker thread owns all socket I/O, retries connecting every 15s while Discord is absent, and re-sends the current presence after a reconnect. Updates are sent only on track change/pause/seek/stop — the progress bar is client-rendered from start/end timestamps.
+- **Activity shape.** Type 2 (Listening): `details`=title (filename stem for untagged files), `state`=artist (+" (paused)"), timestamps only while playing with known length, and Cover Art Archive artwork (`front-250`) keyed by the track's MusicBrainz *release* ID (`Stream::getMusicBrainzReleaseID()`, validated as a UUID first). Strings are clamped to Discord's 2–128-byte limits on UTF-8 boundaries; absent fields are omitted, never faked.
+- **Wiring.** `Player::updateDiscordPresence()` mirrors player state; called from `submitNowPlaying` (start/resume), pause, stop, and seek. Settings → "Discord Presence" toggles it (`discord_presence` in psymp3.conf). The application ID is a compiled-in constant (`PSYMP3_DISCORD_CLIENT_ID` env overrides for testing); empty ID leaves the worker dormant.
+
 ## Key Runtime Rules
 
 - Public/private lock pattern: public methods acquire locks and delegate to `_unlocked` helpers.
