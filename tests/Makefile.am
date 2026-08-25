@@ -98,6 +98,7 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/core/font.o \
 	$(top_builddir)/src/core/truetype.o \
 	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
+	$(top_builddir)/src/discord/libpsymp3-discord.a \
 	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
 	$(top_builddir)/src/widget/windowing/libpsymp3-widget-windowing.a \
 	$(top_builddir)/src/widget/ui/libpsymp3-widget-ui.a \
