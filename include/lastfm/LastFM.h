@@ -148,10 +148,14 @@ private:
                        const std::string& album, int length, time_t timestamp,
                        const std::string& mbid);
 
+public:
     // True when the string is a well-formed MusicBrainz UUID
     // (8-4-4-4-12 lowercase/uppercase hex). Only valid IDs are sent to
-    // Last.fm; anything else is silently omitted from the request.
+    // Last.fm (or used for Cover Art Archive URLs); anything else is
+    // silently omitted.
     static bool isValidMBID(const std::string& mbid);
+
+private:
     
     // Background thread functions
     void submissionThreadLoop();

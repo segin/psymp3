@@ -643,9 +643,11 @@ using PsyMP3::Core::Utility::XMLUtil;
 // Last.fm scrobbling
 #include "lastfm/scrobble.h"
 #include "lastfm/LastFM.h"
+#include "discord/DiscordPresence.h"
 
 using PsyMP3::LastFM::LastFM;
 using PsyMP3::LastFM::Scrobble;
+using PsyMP3::Discord::DiscordPresence;
 
 #include "playlist.h"
 #include "player.h"

@@ -251,6 +251,7 @@
 // ============================================================================
 #include "lastfm/LastFM.cpp"
 #include "lastfm/scrobble.cpp"
+#include "discord/DiscordPresence.cpp"
 
 // ============================================================================
 // MPRIS D-Bus Integration (conditional)

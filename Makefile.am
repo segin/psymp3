@@ -117,6 +117,7 @@ EXTRA_DIST = \
 	include/demuxer/raw/RawAudioDemuxer.h \
 	include/demuxer/riff/wav.h \
 	include/display.h \
+	include/discord/DiscordPresence.h \
 	include/dsp/Equalizer.h \
 	include/font.h \
 	include/io/BoundedBuffer.h \
