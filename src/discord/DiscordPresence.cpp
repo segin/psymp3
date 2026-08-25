@@ -240,6 +240,12 @@ bool DiscordPresence::sendActivity(const Activity& a)
 #endif
     if (a.visible) {
         payload += ",\"activity\":{\"type\":2";
+        // Experiment: the compact member-list line normally renders the
+        // registered application name; if the client honors a payload name,
+        // it shows the artist there instead ("Listening to <artist>").
+        if (!a.artist.empty()) {
+            payload += ",\"name\":\"" + jsonEscape(a.artist) + "\"";
+        }
         payload += ",\"details\":\"" + jsonEscape(a.title) + "\"";
         if (!a.artist.empty()) {
             std::string state = a.artist;
@@ -268,6 +274,13 @@ bool DiscordPresence::sendActivity(const Activity& a)
 
     if (!ipcSend(kOpFrame, payload)) {
         return false;
+    }
+    // Log Discord's verdict: a rejected payload (e.g. a field the client's
+    // validator refuses) comes back as an ERROR response, which is the only
+    // way to see that the presence silently failed to apply.
+    std::string reply;
+    if (ipcReadFrame(reply, 1000)) {
+        DEBUG_LOG_LAZY("discord", "Response: ", reply);
     }
     DEBUG_LOG_LAZY("discord", a.visible ? "Presence updated" : "Presence cleared");
     return true;
