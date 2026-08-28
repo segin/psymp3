@@ -539,21 +539,31 @@ TagLib::String System::getStoragePath() {
 /**
  * @brief Creates the storage path directory if it does not already exist.
  *
- * Uses `CreateDirectoryW` on Windows and `mkdir` on POSIX. Returns `true`
- * both on successful creation and when the directory already exists.
+ * Creates every missing intermediate too - a fresh account (or container)
+ * may not even have `~/.config` yet, and the old single-level mkdir gave up
+ * with ENOENT there. Returns `true` both on successful creation and when the
+ * directory already exists.
  *
  * @return `true` if the directory exists or was created, `false` on other errors.
  */
 bool System::createStoragePath() {
   TagLib::String path = getStoragePath();
-#ifdef _WIN32
-  // CreateDirectoryW returns non-zero on success.
-  return CreateDirectoryW(path.toWString().c_str(), nullptr) ||
-         (GetLastError() == ERROR_ALREADY_EXISTS);
-#else
-  // mkdir returns 0 on success.
-  return mkdir(path.toCString(true), 0700) == 0 || (errno == EEXIST);
+  std::error_code ec;
+  const bool created =
+      std::filesystem::create_directories(pathFromUtf8(path.to8Bit(true)), ec);
+  if (ec) {
+    return false;
+  }
+#ifndef _WIN32
+  if (created) {
+    // The leaf holds private config (lastfm.conf may carry a plaintext
+    // password until the first successful auth): make it 0700 regardless of
+    // umask. Intermediates like ~/.config keep conventional default modes,
+    // and an existing directory's modes are left alone.
+    chmod(path.toCString(true), 0700);
+  }
 #endif
+  return true;
 }
 
 std::filesystem::path System::pathFromUtf8(const std::string& utf8) {
