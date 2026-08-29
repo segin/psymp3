@@ -670,6 +670,24 @@ TagLib::String DemuxedStream::getArtist() {
     return Stream::getArtist();
 }
 
+int DemuxedStream::getBitsPerSample() {
+    if (m_demuxer) {
+        int bits = getCurrentStreamInfo().bits_per_sample;
+        if (bits > 0) {
+            return bits;
+        }
+    }
+    return Stream::getBitsPerSample();
+}
+
+TagLib::String DemuxedStream::getCodecName() {
+    std::string codec = getCodecType();
+    if (!codec.empty() && codec != "unknown") {
+        return TagLib::String(codec, TagLib::String::UTF8);
+    }
+    return Stream::getCodecName(); // RTTI class-name fallback
+}
+
 TagLib::String DemuxedStream::getPrimaryArtist() {
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();

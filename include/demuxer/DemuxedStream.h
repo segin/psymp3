@@ -102,6 +102,8 @@ public:
     virtual TagLib::String getPrimaryArtist() override;
     virtual TagLib::String getMusicBrainzID() override;
     virtual TagLib::String getMusicBrainzReleaseID() override;
+    virtual int getBitsPerSample() override;
+    virtual TagLib::String getCodecName() override;
     
     // Override getTag() to return demuxer's tag
     virtual const PsyMP3::Tag::Tag& getTag() const override;

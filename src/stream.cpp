@@ -23,6 +23,10 @@
 
 #include "psymp3.h"
 
+#if defined(__GNUG__)
+#include <cxxabi.h>
+#endif
+
 // Static NullTag instance for returning when no tag is available
 static const PsyMP3::Tag::NullTag s_stream_null_tag;
 
@@ -184,6 +188,35 @@ TagLib::String Stream::getArtist()
     }
     return artist;
 }
+
+int Stream::getBitsPerSample()
+{
+    return 0; // unknown at this level; demuxed streams override from StreamInfo
+}
+
+TagLib::String Stream::getCodecName()
+{
+    // C++ has no reflection (until C++26's static reflection lands), but
+    // RTTI can still answer "which derived class is actually behind this
+    // base pointer": typeid(*this) names the DYNAMIC type. Demangle it so a
+    // Stream subclass with no override reports something human-readable.
+    const char* name = typeid(*this).name();
+#if defined(__GNUG__)
+    int status = 0;
+    char* demangled = abi::__cxa_demangle(name, nullptr, nullptr, &status);
+    if (status == 0 && demangled) {
+        std::string result(demangled);
+        free(demangled);
+        size_t colon = result.rfind("::");
+        if (colon != std::string::npos) {
+            result.erase(0, colon + 2); // strip namespaces
+        }
+        return TagLib::String(result, TagLib::String::UTF8);
+    }
+#endif
+    return TagLib::String(name, TagLib::String::UTF8);
+}
+
 
 /**
  * @brief Gets the first credited artist for Last.fm submission.

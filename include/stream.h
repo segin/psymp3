@@ -89,6 +89,14 @@ class Stream
         virtual unsigned int getPosition(); // in msec!
         virtual unsigned long long getSPosition(); // in samples!
         virtual unsigned int getBitrate(); // bitrate in bits per second!
+        // Source bits per sample (16/24/32...); 0 = unknown/not applicable.
+        virtual int getBitsPerSample();
+        // Short codec name ("flac", "vorbis", ...). The base implementation
+        // has no codec, so it reports the object's DYNAMIC class name via
+        // RTTI (C++ has no reflection until C++26, but typeid on a
+        // polymorphic object names the derived type) - every Stream subclass
+        // therefore self-describes even without an override.
+        virtual TagLib::String getCodecName();
         virtual size_t getData(size_t len, void *buf) = 0;
         virtual void seekTo(unsigned long pos) = 0;
         virtual bool canSeek() const;
