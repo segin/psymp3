@@ -995,6 +995,7 @@ void Player::handleTrackSeamlessSwapEvent() {
 
     // Update stream pointer and start scrobbling for new track
     stream = audio->getCurrentStream();
+    refreshMediaInfoWindow();
 
     // Ensure the audio device is actually running. When the next track's format
     // differs, the branch above constructs a NEW Audio, whose SDL device starts
@@ -2050,6 +2051,7 @@ bool Player::stop(void) {
         m_lastfm->unsetNowPlaying();
     }
     updateDiscordPresence();
+    refreshMediaInfoWindow();
     return true;
 }
 
@@ -3339,6 +3341,8 @@ bool Player::Initialize(const PlayerOptions& options) {
             openTemporaryTrackDialog();
 #endif
         }, nullptr, "L", fd_enabled));
+        file_items.push_back(MI::sep());
+        file_items.push_back(MI::leaf("Media &Information...", [this]{ toggleMediaInfoWindow(); }));
         file_items.push_back(MI::sep());
         file_items.push_back(MI::leaf("E&xit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
         menu_bar->addMenu("&File", std::move(file_items));
@@ -4799,6 +4803,159 @@ void Player::saveLastFmCredentials(const std::string& username, const std::strin
     }
 }
 
+std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
+{
+    if (!stream) {
+        // Stopped: every value is a placeholder.
+        return {{"Codec:", "---"}, {"Sampling Rate:", "---"}, {"Bit Depth:", "---"},
+                {"Bitrate:", "---"}, {"Format:", "---"}, {"Size on Disk:", "---"}};
+    }
+
+    const std::string codec = stream->getCodecName().to8Bit(true);
+    const int bits = stream->getBitsPerSample();
+    const unsigned int rate = stream->getRate();
+    const unsigned int bitrate = stream->getBitrate();
+
+    std::string codec_uc = codec;
+    std::transform(codec_uc.begin(), codec_uc.end(), codec_uc.begin(), ::toupper);
+    std::string codec_lc = codec;
+    std::transform(codec_lc.begin(), codec_lc.end(), codec_lc.begin(), ::tolower);
+
+    // Format descriptor, "PCM S32 LE" style. Uncompressed sources name their
+    // wire format exactly; lossless coders show the sample format they carry;
+    // lossy coders have no PCM sample format, so the codec stands alone.
+    std::string format;
+    if (codec_lc.find("pcm") != std::string::npos || codec_lc == "wav") {
+        format = "PCM S" + std::to_string(bits > 0 ? bits : 16) + " LE";
+    } else if (codec_lc.find("alaw") != std::string::npos || codec_lc.find("a-law") != std::string::npos) {
+        format = "G.711 A-law";
+    } else if (codec_lc.find("ulaw") != std::string::npos || codec_lc.find("mulaw") != std::string::npos ||
+               codec_lc.find("mu-law") != std::string::npos) {
+        format = "G.711 \xc2\xb5-law";
+    } else if (codec_lc == "flac" || codec_lc == "alac") {
+        format = codec_uc + (bits > 0 ? " S" + std::to_string(bits) + " LE" : "");
+    } else {
+        format = codec_uc;
+    }
+
+    // Size on disk (unknown for non-file sources)
+    std::string size_str = "Unknown";
+    {
+        std::error_code ec;
+        auto bytes = std::filesystem::file_size(
+            System::pathFromUtf8(stream->getFilePath().to8Bit(true)), ec);
+        if (!ec) {
+            char buf[64];
+            if (bytes >= 1024ull * 1024 * 1024) {
+                snprintf(buf, sizeof(buf), "%.2f GiB", bytes / (1024.0 * 1024 * 1024));
+            } else if (bytes >= 1024ull * 1024) {
+                snprintf(buf, sizeof(buf), "%.2f MiB", bytes / (1024.0 * 1024));
+            } else if (bytes >= 1024) {
+                snprintf(buf, sizeof(buf), "%.1f KiB", bytes / 1024.0);
+            } else {
+                snprintf(buf, sizeof(buf), "%llu B", static_cast<unsigned long long>(bytes));
+            }
+            size_str = std::string(buf) + " (" + std::to_string(bytes) + " bytes)";
+        }
+    }
+
+    return {
+        {"Codec:", codec_uc},
+        {"Sampling Rate:", rate > 0 ? std::to_string(rate) + " Hz" : "Unknown"},
+        {"Bit Depth:", bits > 0 ? std::to_string(bits) + "-bit" : "Unknown"},
+        {"Bitrate:", bitrate > 0 ? std::to_string((bitrate + 500) / 1000) + " kbps" : "Unknown"},
+        {"Format:", format},
+        {"Size on Disk:", size_str},
+    };
+}
+
+void Player::refreshMediaInfoWindow()
+{
+    if (!m_mediainfo_window || m_mediainfo_values.empty()) {
+        return;
+    }
+    const auto rows = mediaInfoRows();
+    for (size_t i = 0; i < rows.size() && i < m_mediainfo_values.size(); ++i) {
+        m_mediainfo_values[i]->setText(TagLib::String(rows[i].second, TagLib::String::UTF8));
+    }
+}
+
+// Settings for the File -> "Media Information..." dialog: static rows built
+// from the live stream at open time (Codec / Sampling Rate / Bit Depth /
+// Bitrate / Format / Size on Disk), an OK button, nothing editable.
+void Player::toggleMediaInfoWindow()
+{
+    if (m_mediainfo_window) {
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [this](const auto& w) { return w.get() == m_mediainfo_window; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_mediainfo_window = nullptr;
+        m_mediainfo_values.clear();
+        return;
+    }
+
+    m_mediainfo_values.clear();
+    const auto rows = mediaInfoRows();
+
+    constexpr int kWidth = 320;
+    const int rows_h = static_cast<int>(rows.size()) * 22;
+    const int kHeight = 10 + rows_h + 10 + 24 + 10;
+
+    auto client = std::make_unique<LayoutWidget>(kWidth, kHeight, false);
+    client->setBackgroundColor(255, 255, 255);
+    const SDL_Color black{0, 0, 0, 255};
+    const SDL_Color white{255, 255, 255, 255};
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const int y = 10 + static_cast<int>(i) * 22;
+        client->addChild(std::make_unique<Label>(font.get(), Rect(12, y, 110, 16),
+            TagLib::String(rows[i].first), black, white));
+        auto value_label = std::make_unique<Label>(font.get(), Rect(126, y, kWidth - 138, 16),
+            TagLib::String(rows[i].second, TagLib::String::UTF8), black, white);
+        m_mediainfo_values.push_back(value_label.get());
+        client->addChild(std::move(value_label));
+    }
+
+    auto close_window = [this] {
+        if (!m_mediainfo_window) return;
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [this](const auto& w) { return w.get() == m_mediainfo_window; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_mediainfo_window = nullptr;
+        m_mediainfo_values.clear();
+    };
+
+    auto ok = std::make_unique<ButtonWidget>(80, 24);
+    ok->setText(TagLib::String("OK"), font.get());
+    ok->setPos(Rect(kWidth - 92, 10 + rows_h + 10, 80, 24));
+    ok->setDefault(true);
+    ok->setOnClick(close_window);
+    client->addChild(std::move(ok));
+
+    auto frame = std::make_unique<WindowFrameWidget>(kWidth, kHeight, "Media Information", font.get());
+    frame->setResizable(false);
+    frame->setMinimizable(false);
+    frame->setMaximizable(false);
+    frame->setClientArea(std::move(client));
+    frame->refresh();
+    Rect sz = frame->getPos();
+    frame->setPos(Rect(80, 80, sz.width(), sz.height()));
+
+    WindowFrameWidget* fp = frame.get();
+    m_mediainfo_window = fp;
+    frame->setOnDrag([fp](int dx, int dy) {
+        Rect p = fp->getPos(); p.x(p.x() + dx); p.y(p.y() + dy); fp->setPos(p);
+    });
+    frame->setOnDragStart([fp] { fp->bringToFront(); });
+    frame->setOnClose(close_window);
+    m_random_windows.push_back(std::move(frame));
+}
+
 void Player::toggleEqualizerWindow()
 {
     if (m_eq_window) {
@@ -5406,6 +5563,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
         m_lyrics_widget->setLyrics(lyrics);
     }
     stream = audio->getCurrentStream();
+    refreshMediaInfoWindow();
 
     // Replace the playlist entry's metadata with the track's live tags, so any
     // stale EXTINF carried in from an .m3u is corrected once the file loads.

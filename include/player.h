@@ -479,6 +479,8 @@ class Player
         // canonical EQ state, re-applied to each Audio like m_volume.
         WindowFrameWidget* m_eq_window = nullptr;
         WindowFrameWidget* m_lastfm_creds_window = nullptr;
+        WindowFrameWidget* m_mediainfo_window = nullptr;
+        std::vector<Label*> m_mediainfo_values; // dialog's value column, for live refresh
         EqualizerWindow*   m_eq_client = nullptr;
         std::array<float, Equalizer::kNumBands> m_eq_gains{};
         bool m_eq_enabled = false;
@@ -495,6 +497,11 @@ class Player
         void applyTargetFps(int fps);
         void toggleEqualizerWindow();
         void toggleLastFmCredentialsWindow();
+        void toggleMediaInfoWindow();
+        // Re-fill the Media Information dialog's value labels from the live
+        // stream ("---" rows when stopped). No-op while the dialog is closed.
+        void refreshMediaInfoWindow();
+        std::vector<std::pair<std::string, std::string>> mediaInfoRows();
         void toggleDiscordPresence();
         void updateDiscordPresence();
         void saveLastFmCredentials(const std::string& username, const std::string& password);
