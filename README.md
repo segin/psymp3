@@ -2,7 +2,7 @@
 
 A simplistic audio media player with a flashy Fourier transform.
 
-![PsyMP3 2.0-BETA3 playing "Forty Six & 2" by TOOL, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
+![PsyMP3 playing "Forty Six & 2" by TOOL, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
 
 ## Table of Contents
 
@@ -10,12 +10,22 @@ A simplistic audio media player with a flashy Fourier transform.
 2. [System Requirements](#system-requirements)
 3. [Building](#building)
 4. [Usage](#usage)
-5. [Testing](#testing)
-6. [Notes](#notes)
+5. [Integrations](#integrations)
+6. [Testing](#testing)
+7. [Notes](#notes)
 
 ## Overview
 
 PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x was written in FreeBASIC, 2.x is written in C++17, and is portable!
+
+Highlights:
+
+- Real-time FFT spectrum visualizer with adjustable intensity, decay, and draw modes
+- A faithful Windows 3.1-style in-app UI: menu bar, movable windows (Playlist Manager, Equalizer, Media Information, About), buttons, scrollbars, and dialogs — all software-rendered
+- Wide format support through a modular demuxer/codec architecture, with several codecs vendored so they work with no external libraries
+- Synced lyrics display (`.lrc` files)
+- Last.fm scrobbling (Web Services API 2.0), MPRIS desktop control, and Discord Rich Presence
+- Session persistence: with Persist Playlist enabled, PsyMP3 reopens your playlist at the track you were playing
 
 > **Note**: The "2-CURRENT" version tag represents the active development branch. End users should be aware that this is pre-release software.
 
@@ -50,6 +60,7 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 - MP3 — minimp3 (`third_party/minimp3`)
 - MP2 — kjmp2 (`third_party/kjmp2`)
 - ALAC — Apple's reference decoder (`third_party/alac`)
+- G.711 µ-law/A-law, and raw PCM formats
 
 **Optional integration dependencies**:
 - D-Bus 1.0 or later (`dbus-1`) — MPRIS desktop media control
@@ -86,19 +97,27 @@ make -j$(nproc)
 ```
 
 **Build Options:**
-- `--enable-flac` - Enable FLAC support (default: yes)
-- `--enable-vorbis` - Enable Vorbis support (default: yes)
-- `--enable-opus` - Enable Opus support (default: yes)
-- `--enable-dbus` - Enable MPRIS integration (default: yes)
-- `--enable-test-harness` - Build test harness (default: yes)
-- `--enable-asan` - Enable AddressSanitizer (debug only)
-- `--enable-tsan` - Enable ThreadSanitizer (debug only)
+- `--enable-flac` / `--enable-vorbis` / `--enable-opus` / `--enable-aac` /
+  `--enable-speex` / `--enable-g722` / `--enable-g711` — per-codec toggles (default: yes)
+- `--enable-mpris` — MPRIS desktop integration over D-Bus (default: auto)
+- `--enable-final` — unity build: all sources in one translation unit (much
+  faster full rebuilds; used for release builds)
+- `--enable-static-binary` — fully static, self-contained executable (used for
+  the Windows release builds)
+- `--enable-test-harness` — build the test harness (default: yes)
+- `--enable-asan` / `--enable-ubsan` / `--enable-tsan` — sanitizer builds (debug only)
 
 ## Usage
 
-Pass the paths to the audio files to be played as program arguments. Supported formats include MP3, Ogg Vorbis, Opus, FLAC, and RIFF WAVE. Audio files will be played in the order they are passed on the command line.
+Pass the paths of audio files or playlists (`.m3u`/`.m3u8`) as program
+arguments; they are played in order. Supported formats include MP3, MP2,
+Ogg Vorbis, Opus, FLAC (native and Ogg), WAV/RIFF, AAC/M4A, ALAC, Speex,
+G.711 (µ-law/A-law), G.722, and raw PCM.
 
-All user interaction, aside from clicking the 'close' button for the window, is done via the keyboard.
+PsyMP3 has a full mouse-driven UI — a menu bar (`File`, `Playback`,
+`Settings`, `Help` — Alt+F/P/S mnemonics work) plus movable in-app windows
+like the Playlist Manager, Equalizer, and Media Information — and everything
+is also reachable from the keyboard.
 
 ### Keyboard Controls
 
@@ -107,32 +126,65 @@ All user interaction, aside from clicking the 'close' button for the window, is 
 | `ESC`, `Q` | Quit PsyMP3 |
 | `Space` | Pause (or resume) playback |
 | `R` | Restart the current track from the beginning |
-| `N` | Seek to the next track |
-| `P` | Seek to the previous track |
+| `N` / `P` | Next / previous track |
+| `Up` / `Down` | Volume up / down |
+| `E` | Cycle loop mode (`Shift+E` opens the Equalizer) |
+| `M` | Playlist Manager |
+| `F` | Cycle FFT draw mode |
+| `G` | Toggle 2× zoom |
+| `0`–`4` | Spectrum intensity |
+| `Z` / `X` / `C` | Spectrum decay (fast/normal/slow) |
+| `Ctrl+O` | Open tracks (replaces playlist) |
+| `I` / `L` | Queue tracks next / play a track now |
+| `Ctrl+S` | Save playlist |
+| `Ctrl+F4` | Close the focused in-app window |
 
 ### Command-line Options
 
-- `--debug` - Enable debug logging to the console (can specify comma-separated channels)
+- `--version` - Print version and licensing information
+- `--debug <channels>` - Enable debug logging (comma-separated channels, or `all`)
 - `--logfile <file>` - Write debug logs to the specified file
+
+## Integrations
 
 ### Last.fm Scrobbling
 
-PsyMP3 includes built-in Last.fm scrobbling support to automatically track your music listening history.
+PsyMP3 scrobbles through the Last.fm Web Services API 2.0 with its own
+registered API key. The easiest way to set it up is in the app:
+**Settings → Last.fm Credentials...** — enter your username and password,
+press **Test** to verify, and **OK** to save. The password is only needed
+once: after the first successful authentication PsyMP3 stores a permanent
+session key and wipes the password.
 
-**Configuration file locations:**
+Configuration lives in:
 - **Linux/Unix**: `~/.config/psymp3/lastfm.conf`
 - **Windows**: `%APPDATA%\PsyMP3\lastfm.conf`
 
-**Configuration file format:**
+and can also be created by hand:
 ```ini
 # Last.fm configuration
 username=your_lastfm_username
 password=your_lastfm_password
 ```
 
+Scrobbles and now-playing updates include MusicBrainz recording IDs when
+your files are tagged with them (e.g. by MusicBrainz Picard), and failed
+submissions are cached and retried across sessions.
+
 ### MPRIS Desktop Integration
 
-PsyMP3 includes built-in MPRIS (Media Player Remote Interfacing Specification) support for seamless desktop media control integration (Linux/BSD only).
+PsyMP3 implements MPRIS (Media Player Remote Interfacing Specification) for
+desktop media-control integration — play/pause/seek from your desktop
+environment, media keys, and now-playing applets (Linux/BSD only).
+
+### Discord Rich Presence
+
+With Discord running on the same machine, PsyMP3 shows what you're listening
+to as a Discord activity: artist in the header, track and album on the card,
+a live progress bar, and album art from the Cover Art Archive (via your
+files' MusicBrainz tags, or a live MusicBrainz lookup for untagged files).
+Toggle it under **Settings → Discord Presence**. No Discord SDK or account
+linking is required.
 
 ## Testing
 
@@ -147,7 +199,3 @@ For detailed testing information, see [TESTING.md](TESTING.md).
 ## Notes
 
 **Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text through the built-in FreeType path; replace the bundled `vera.ttf` with a font file containing the glyph coverage you want. On Windows, dropping a `vera.ttf` next to `psymp3.exe` (or in the working directory) overrides the font embedded in the exe — no rebuild needed.
-
----
-
-*This README is auto-updated as part of the implementation plan.*
