@@ -549,7 +549,9 @@ TagLib::String System::getStoragePath() {
 bool System::createStoragePath() {
   TagLib::String path = getStoragePath();
   std::error_code ec;
-  const bool created =
+  // [[maybe_unused]]: only the POSIX chmod below reads it; the mingw build
+  // compiles that block out and -Werror rejects the unused variable.
+  [[maybe_unused]] const bool created =
       std::filesystem::create_directories(pathFromUtf8(path.to8Bit(true)), ec);
   if (ec) {
     return false;
