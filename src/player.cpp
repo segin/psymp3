@@ -2255,7 +2255,8 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
         m_labels.at("album")->setText("Album: N/A");
         m_labels.at("playlist")->setText("Playlist: N/A");
         m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+        // Same Latin-1-reinterpretation trap as the now-playing caption.
+        screen->SetCaption(TagLib::String("PsyMP3 " PSYMP3_VERSION " -:[ Error: ") + error_msg + " ]:-", "PsyMP3 " PSYMP3_VERSION);
     } else if (stream) {
         m_labels.at("artist")->setText("Artist: " + stream->getArtist());
         m_labels.at("title")->setText("Title: " + stream->getTitle());
@@ -2527,9 +2528,11 @@ bool Player::updateGUI()
                                 + "/" + convertInt(total_len_ms / 60000)
                                 + ":" + convertInt((total_len_ms / 1000) % 60, 2)
                                 + "." + convertInt((total_len_ms / 10) % 100, 2));
-        screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
-                        (std::string) " -:[ " + artist.to8Bit(true) + " ]:-" + " -- -:[ " +
-                        title.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+        // Stay in TagLib::String space: round-tripping through std::string
+        // invoked TagLib's implicit Latin-1 constructor on UTF-8 bytes, so
+        // every multi-byte character became mojibake in the titlebar.
+        screen->SetCaption(TagLib::String("PsyMP3 " PSYMP3_VERSION " -:[ ") + artist +
+                        " ]:- -- -:[ " + title + " ]:-", "PsyMP3 " PSYMP3_VERSION);
     } else {
         m_labels.at("position")->setText("Position: -:--.-- / -:--.--");
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
