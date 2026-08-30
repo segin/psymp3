@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -74,7 +74,6 @@ SYSTEM_LIBS = \
 	$(OPENSSL_LIBS) \
 	$(CURL_LIBS) \
 	$(FLAC_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OGG_LIBS) \
 	$(AAC_LIBS) \
 	$(SPEEX_LIBS) \
@@ -172,7 +171,6 @@ OGG_DEMUXER_TEST_LIBS = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -247,7 +245,7 @@ COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
 MPRIS_TEST_LIBS = $(COMMON_TEST_LIBS)
 
 # Common library links for codec tests
-COMMON_CODEC_LIBS = -lvorbis -lopus -logg
+COMMON_CODEC_LIBS = -lopus -logg
 AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS) $(AAC_LIBS) $(G722_LIBS)
 
 # Common test utilities library
@@ -313,7 +311,7 @@ opusout_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OPUS_LIBS) $(OGG_LIBS) \
-	-lvorbis -lcurl -lssl -lcrypto \
+	-lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS) $(AAC_LIBS)
 endif
 
@@ -471,7 +469,7 @@ test_widget_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
-	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
+	test_ogg_data_streaming test_ogg_memory_safety \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
 	test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
 	test_compression_lz77 repro_ogg_duration_perf
@@ -504,7 +502,6 @@ repro_ogg_duration_perf_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -545,7 +542,6 @@ test_opus_codec_property_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(TAGLIB_LIBS) \
-	$(VORBIS_LIBS) \
 	$(FLAC_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -1287,7 +1283,7 @@ test_ogg_codec_detection_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(OGG_LIBS) $(VORBIS_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) \
+	$(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
 # OggDemuxer duration calculation test
@@ -1393,35 +1389,29 @@ test_error_handling_LDADD = $(OGG_DEMUXER_TEST_LIBS)
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
 # OggDemuxer integration test
+# Runtime fixture encoding needs libvorbisenc — a TEST-ONLY dependency (the
+# player decodes with the bundled stb_vorbis). Skipped when not installed.
+if HAVE_VORBISENC_TESTS
+check_PROGRAMS += test_ogg_demuxer_integration
 test_ogg_demuxer_integration_SOURCES = test_ogg_demuxer_integration.cpp
+test_ogg_demuxer_integration_CPPFLAGS = $(AM_CPPFLAGS) $(VORBISENC_CFLAGS)
+# The decode-pinning test drives VorbisCodec, whose object also carries the
+# Vorbis Stream wrapper - so this links the full stream/codec stack like the
+# codec tests do. libvorbis/-lvorbisenc are the TEST-ONLY fixture encoder.
 test_ogg_demuxer_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(FULL_CODEC_LIBS) \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
-	-lvorbisenc \
+	$(VORBISENC_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+endif
 endif
 
 # A-law codec table verification test
@@ -1545,7 +1535,7 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a -lvorbis -lopus -logg \
+	$(top_builddir)/src/core/libpsymp3-core.a -lopus -logg \
 	$(AM_LDFLAGS)
 
 # Codec thread safety test
@@ -1649,7 +1639,7 @@ test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(OGG_LIBS) -lopus \
 	$(AM_LDFLAGS)
 
 # Vorbis Demuxer Integration Tests
@@ -1671,7 +1661,7 @@ test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(OGG_LIBS) -lopus \
 	$(AM_LDFLAGS)
 
 # Vorbis Compatibility and Performance Tests
@@ -1693,7 +1683,7 @@ test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(OGG_LIBS) -lopus \
 	$(AM_LDFLAGS)
 endif
 
@@ -2675,8 +2665,7 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(FREETYPE_LIBS) \
 #	$(OPENSSL_LIBS) \
 #	$(CURL_LIBS) \
-#	$(VORBIS_LIBS) \
-#	$(OPUS_LIBS) \
+##	$(OPUS_LIBS) \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 #	$(OGG_LIBS) \
@@ -2950,7 +2939,6 @@ test_oggdemuxer_performance_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2974,7 +2962,6 @@ test_oggdemuxer_comprehensive_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2999,7 +2986,6 @@ test_ogg_comprehensive_integration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -3033,7 +3019,7 @@ test_opus_codec_core_decoding_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	-logg -lvorbis -lvorbisenc \
+	-logg \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
@@ -3066,7 +3052,7 @@ test_opus_codec_error_handling_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	-logg -lvorbis -lvorbisenc \
+	-logg \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
@@ -3100,7 +3086,7 @@ test_opus_integration_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	-logg -lvorbis -lvorbisenc \
+	-logg \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
@@ -3137,7 +3123,7 @@ test_opus_compatibility_performance_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	-logg -lvorbis -lvorbisenc \
+	-logg \
 	$(OPUS_LIBS) \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
@@ -3332,7 +3318,7 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 	$(FULL_CODEC_LIBS) \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS) \
-	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto -ltag
+	-logg -lopus -lcurl -lssl -lcrypto -ltag
 endif
 endif
 
@@ -3636,7 +3622,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto \
+	-logg -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(AAC_LIBS)
 endif
 
@@ -3685,7 +3671,6 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(VORBIS_LIBS) \
 	-logg -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(AAC_LIBS)
 endif
@@ -3733,7 +3718,7 @@ mp3out_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	-logg -lvorbis -lvorbisenc -lopus -lcurl -lssl -lcrypto \
+	-logg -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(AAC_LIBS)
 
 
@@ -3861,7 +3846,7 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	-lvorbis -lopus -lcurl -lssl -lcrypto \
+	-lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 else
 test_stream_tag_integration_LDADD = \
@@ -3888,7 +3873,7 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	-lvorbis -lopus -lcurl -lssl -lcrypto \
+	-lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 endif
 
@@ -4216,7 +4201,6 @@ test_issue_ogg_duration_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
-	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)

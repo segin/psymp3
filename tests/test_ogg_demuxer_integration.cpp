@@ -74,6 +74,9 @@ public:
         // Test 10: Valid Vorbis setup header handling
         testValidVorbisPlaybackBootstrap();
 
+        // Test 11: Decoded PCM sanity through VorbisCodec (bundled stb_vorbis)
+        testVorbisDecodePinsPCM();
+
         // Test 11: MediaFactory integration (skipped due to dependencies)
         // testMediaFactoryIntegration();
         
@@ -425,7 +428,81 @@ private:
         std::remove(path.c_str());
         std::cout << "✓ Valid Vorbis playback bootstrap test passed" << std::endl;
     }
-    
+
+    /**
+     * @brief Pin actual Vorbis DECODE output through VorbisCodec
+     *
+     * Encodes one second of a 440 Hz sine with libvorbisenc (test-only
+     * dependency), decodes it through the demuxer→VorbisCodec pipeline
+     * (bundled stb_vorbis), and asserts the PCM is plausibly that sine:
+     * right rate/channels, near-full length, sine RMS, and a zero-crossing
+     * rate matching 440 Hz. A silent, truncated, or garbled decoder fails
+     * every one of these.
+     */
+    static void testVorbisDecodePinsPCM() {
+        std::cout << "Testing Vorbis decode output (stb_vorbis)..." << std::endl;
+
+        constexpr int kSamples = 44100; // 1 second
+        std::string path = createValidVorbisTestFile(kSamples);
+        auto demuxer = std::make_unique<OggDemuxer>(std::make_unique<FileIOHandler>(path));
+        ASSERT_TRUE(demuxer->parseContainer(), "Fixture should parse");
+
+        auto streams = demuxer->getStreams();
+        ASSERT_FALSE(streams.empty(), "Fixture should expose a stream");
+
+        PsyMP3::Codec::Vorbis::VorbisCodec codec(streams[0]);
+        ASSERT_TRUE(codec.initialize(), "Codec should initialize");
+
+        std::vector<int16_t> pcm;
+        uint32_t rate = 0;
+        uint16_t channels = 0;
+        while (true) {
+            MediaChunk chunk = demuxer->readChunk();
+            if (chunk.data.empty()) {
+                break;
+            }
+            AudioFrame frame = codec.decode(chunk);
+            if (!frame.samples.empty()) {
+                rate = frame.sample_rate;
+                channels = frame.channels;
+                pcm.insert(pcm.end(), frame.samples.begin(), frame.samples.end());
+            }
+        }
+        AudioFrame tail = codec.flush();
+        pcm.insert(pcm.end(), tail.samples.begin(), tail.samples.end());
+
+        ASSERT_EQUALS(44100u, rate, "Decoded sample rate should be 44100");
+        ASSERT_EQUALS(static_cast<uint16_t>(1), channels, "Decoded stream should be mono");
+        // Encoder lapping pads the tail and the decoder holds back the final
+        // half-window; accept a generous but non-vacuous length range.
+        ASSERT_TRUE(pcm.size() >= kSamples * 8 / 10 && pcm.size() <= kSamples * 13 / 10,
+                    "Decoded length should be within 80-130% of the encoded second");
+
+        // RMS of a 0.2-amplitude sine is 0.2/sqrt(2) ~= 0.1414 -> ~4634 in s16.
+        double sum_sq = 0.0;
+        for (int16_t s : pcm) {
+            sum_sq += static_cast<double>(s) * s;
+        }
+        double rms = std::sqrt(sum_sq / pcm.size());
+        ASSERT_TRUE(rms > 3500.0 && rms < 5800.0,
+                    "Decoded RMS should match a 0.2-amplitude sine");
+
+        // A 440 Hz sine crosses zero 880 times per second.
+        size_t crossings = 0;
+        for (size_t i = 1; i < pcm.size(); ++i) {
+            if ((pcm[i - 1] < 0) != (pcm[i] < 0)) {
+                crossings++;
+            }
+        }
+        double crossings_per_s = crossings * 44100.0 / pcm.size();
+        ASSERT_TRUE(crossings_per_s > 792.0 && crossings_per_s < 968.0,
+                    "Zero-crossing rate should match a 440 Hz tone");
+
+        std::remove(path.c_str());
+        std::cout << "✓ Vorbis decode output test passed (len=" << pcm.size()
+                  << " rms=" << rms << " zc/s=" << crossings_per_s << ")" << std::endl;
+    }
+
     /**
      * @brief Test DemuxerRegistry integration
      */
@@ -592,7 +669,7 @@ private:
         return std::make_unique<FileIOHandler>(temp_filename);
     }
 
-    static std::string createValidVorbisTestFile() {
+    static std::string createValidVorbisTestFile(int total_samples = 1024) {
         std::string temp_filename = "/tmp/ogg_vorbis_valid_" + std::to_string(rand()) + ".ogg";
         std::ofstream out(temp_filename, std::ios::binary);
         if (!out) {
@@ -629,11 +706,11 @@ private:
         ogg_stream_packetin(&os, &header_code);
         flushOggPages(out, os, true);
 
-        float** buffer = vorbis_analysis_buffer(&vd, 1024);
-        for (int i = 0; i < 1024; ++i) {
+        float** buffer = vorbis_analysis_buffer(&vd, total_samples);
+        for (int i = 0; i < total_samples; ++i) {
             buffer[0][i] = 0.2f * std::sin((2.0 * M_PI * 440.0 * i) / 44100.0);
         }
-        vorbis_analysis_wrote(&vd, 1024);
+        vorbis_analysis_wrote(&vd, total_samples);
 
         while (vorbis_analysis_blockout(&vd, &vb) == 1) {
             vorbis_analysis(&vb, nullptr);
