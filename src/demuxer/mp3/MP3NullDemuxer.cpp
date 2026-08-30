@@ -117,13 +117,72 @@ bool MP3NullDemuxer::parseContainer_unlocked() {
     // Skip ID3v2 tag if present
     skipID3v2Tag_unlocked();
 
-    // Check for ID3v1 tag at end of file (128 bytes)
-    if (m_file_size > 128) {
-        m_handler->seek(static_cast<off_t>(m_file_size - 128), SEEK_SET);
-        uint8_t tag_header[3] = {};
-        m_handler->read(tag_header, 1, 3);
-        if (tag_header[0] == 'T' && tag_header[1] == 'A' && tag_header[2] == 'G') {
-            m_data_end_offset = m_file_size - 128;
+    // Peel recognized trailing tags off the end, newest last. Taggers stack
+    // them (mp3gain writes APEv2 before an ID3v1, Lyrics3v2 sits before ID3v1
+    // too), so loop until no known trailer remains — a single ID3v1 check
+    // would leave the other trailers counted as audio, inflating the CBR
+    // duration estimate and feeding tag bytes to the frame-sync scanner at
+    // track end. Mirrors FLACDemuxer::detectTrailingTags_unlocked().
+    {
+        bool changed = true;
+        while (changed && m_data_end_offset > m_data_start_offset) {
+            changed = false;
+            const uint64_t end = m_data_end_offset;
+
+            // ID3v1 / ID3v1.1: exactly 128 bytes, starting with "TAG".
+            if (end - m_data_start_offset >= 128) {
+                uint8_t magic[3] = {};
+                if (m_handler->seek(static_cast<off_t>(end - 128), SEEK_SET) == 0 &&
+                    m_handler->read(magic, 1, 3) == 3 &&
+                    magic[0] == 'T' && magic[1] == 'A' && magic[2] == 'G') {
+                    m_data_end_offset = end - 128;
+                    changed = true;
+                    continue;
+                }
+            }
+
+            // APEv2 footer: 32 bytes, starting with "APETAGEX". The
+            // little-endian size at offset 12 covers the items plus this
+            // footer; flag bit 31 signals an additional 32-byte header.
+            if (end - m_data_start_offset >= 32) {
+                uint8_t footer[32] = {};
+                if (m_handler->seek(static_cast<off_t>(end - 32), SEEK_SET) == 0 &&
+                    m_handler->read(footer, 1, 32) == 32 &&
+                    std::memcmp(footer, "APETAGEX", 8) == 0) {
+                    uint64_t tag_size = static_cast<uint64_t>(footer[12]) |
+                                        (static_cast<uint64_t>(footer[13]) << 8) |
+                                        (static_cast<uint64_t>(footer[14]) << 16) |
+                                        (static_cast<uint64_t>(footer[15]) << 24);
+                    bool has_header = (footer[23] & 0x80) != 0;
+                    uint64_t total = tag_size + (has_header ? 32 : 0);
+                    if (tag_size >= 32 && total <= end - m_data_start_offset) {
+                        m_data_end_offset = end - total;
+                        changed = true;
+                        continue;
+                    }
+                }
+            }
+
+            // Lyrics3v2: 6-digit ASCII size + "LYRICS200" signature at the end.
+            if (end - m_data_start_offset >= 15) {
+                uint8_t tail[15] = {};
+                if (m_handler->seek(static_cast<off_t>(end - 15), SEEK_SET) == 0 &&
+                    m_handler->read(tail, 1, 15) == 15 &&
+                    std::memcmp(tail + 6, "LYRICS200", 9) == 0) {
+                    bool digits = true;
+                    uint64_t body_size = 0;
+                    for (int i = 0; i < 6; ++i) {
+                        if (tail[i] < '0' || tail[i] > '9') { digits = false; break; }
+                        body_size = body_size * 10 + static_cast<uint64_t>(tail[i] - '0');
+                    }
+                    uint64_t total = body_size + 15;
+                    if (digits && total <= end - m_data_start_offset) {
+                        m_data_end_offset = end - total;
+                        changed = true;
+                        continue;
+                    }
+                }
+            }
         }
         // Restore position to data start
         m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
