@@ -301,11 +301,16 @@ std::unique_ptr<ID3v1Tag> ID3v1Tag::parse(const uint8_t* data, size_t size) {
     // Offset 63-92: Album (30 bytes)
     tag->m_album = UTF8Util::fromLatin1(trimString(reinterpret_cast<const char*>(data + 63), 30));
 
-    // Offset 93-96: Year (4 bytes, ASCII)
+    // Offset 93-96: Year (4 bytes, ASCII). Some taggers left-pad with spaces;
+    // skip those, then require every remaining byte to be part of the number —
+    // a partial from_chars match ("2k05" -> 2) is a malformed field, not a year.
     std::string year_str = trimString(reinterpret_cast<const char*>(data + 93), 4);
-    if (!year_str.empty()) {
-        auto [ptr, ec] = std::from_chars(year_str.data(), year_str.data() + year_str.size(), tag->m_year);
-        if (ec != std::errc()) {
+    size_t year_begin = year_str.find_first_not_of(' ');
+    if (year_begin != std::string::npos) {
+        const char* first = year_str.data() + year_begin;
+        const char* last = year_str.data() + year_str.size();
+        auto [ptr, ec] = std::from_chars(first, last, tag->m_year);
+        if (ec != std::errc() || ptr != last) {
             tag->m_year = 0;
         }
     }

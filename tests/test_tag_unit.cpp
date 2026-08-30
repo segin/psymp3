@@ -771,6 +771,28 @@ protected:
     }
 };
 
+class ID3v1Tag_YearParsing_PartialNumeric : public TestCase {
+public:
+    ID3v1Tag_YearParsing_PartialNumeric() : TestCase("ID3v1Tag_YearParsing_PartialNumeric") {}
+protected:
+    void runTest() override {
+        // A year field with trailing garbage is malformed, not the year "2"
+        auto data = createID3v1Tag("", "", "", "2k05", "", 0);
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
+        ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
+        ASSERT_EQUALS(0u, tag->year(), "'2k05' should yield year 0");
+
+        auto data2 = createID3v1Tag("", "", "", "19xx", "", 0);
+        auto tag2 = ID3v1Tag::parse(data2.data(), data2.size());
+        ASSERT_EQUALS(0u, tag2->year(), "'19xx' should yield year 0");
+
+        // Left-space-padded years (written by some taggers) do parse
+        auto data3 = createID3v1Tag("", "", "", " 199", "", 0);
+        auto tag3 = ID3v1Tag::parse(data3.data(), data3.size());
+        ASSERT_EQUALS(199u, tag3->year(), "' 199' should yield year 199");
+    }
+};
+
 // ============================================================================
 // MergedID3Tag Unit Tests
 // ============================================================================
@@ -1301,6 +1323,7 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ID3v1Tag_UnsupportedFields>());
     suite.addTest(std::make_unique<ID3v1Tag_Parse_RejectsTruncated>());
     suite.addTest(std::make_unique<ID3v1Tag_Latin1FieldsDecodedToUTF8>());
+    suite.addTest(std::make_unique<ID3v1Tag_YearParsing_PartialNumeric>());
     
     // MergedID3Tag tests
     suite.addTest(std::make_unique<MergedID3Tag_ID3v2Precedence>());
