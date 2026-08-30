@@ -48,8 +48,7 @@ Highlights:
 - libcurl 7.20.0 or later (`libcurl`)
 
 **Optional codec dependencies** (auto-detected; each can be disabled at build time):
-- libogg (`ogg`) — required for Vorbis, Opus, and Ogg FLAC
-- libvorbis (`vorbis`) — Ogg Vorbis
+- libogg (`ogg`) — required for Vorbis, Opus, and Ogg FLAC (container parsing)
 - libopus (`opus`) — Opus
 - faad2 (`faad2`) — AAC
 - speex 1.2 or later (`speex`) — Speex
@@ -57,6 +56,7 @@ Highlights:
 
 **Bundled codecs** (vendored, no external dependency):
 - FLAC — native decoder (no libFLAC needed)
+- Vorbis — stb_vorbis (`third_party/stb`; needs only libogg for the container)
 - MP3 — minimp3 (`third_party/minimp3`)
 - MP2 — kjmp2 (`third_party/kjmp2`)
 - ALAC — Apple's reference decoder (`third_party/alac`)

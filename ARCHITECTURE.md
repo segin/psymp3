@@ -55,7 +55,7 @@ PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, cod
 
 ## Primary Subsystems
 
-- `src/codecs/`: Decode AAC, FLAC, MP3, Opus, Vorbis, PCM-family, G.711, and G.722 streams into PCM.
+- `src/codecs/`: Decode AAC, FLAC, MP3, Opus, Vorbis, PCM-family, G.711, and G.722 streams into PCM. Vorbis uses the vendored stb_vorbis (`third_party/stb`, compiled as its own C object) in pushdata mode: the Ogg demuxer delivers de-paged packets, and `VorbisCodec` wraps each one back into minimal Ogg page framing (real lacing/continuation and page CRC — stb validates CRCs during its post-seek resync) before feeding the decoder. No libvorbis at link time; libogg remains for container parsing.
 - `src/demuxer/`: Parse Ogg, ISO BMFF, RIFF/WAV, FLAC, and raw streams into codec-ready chunks and metadata.
 - MP3 is handled by bundled `minimp3` via `MiniMP3Codec` and `MP3NullDemuxer`; no external MP3 runtime dependency remains.
 - `src/io/`: Provide the file/HTTP abstraction and the large-file-safe offset contract used across the pipeline.
