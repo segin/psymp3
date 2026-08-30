@@ -23,6 +23,23 @@
 namespace PsyMP3 {
 namespace Tag {
 
+namespace {
+
+// Tag file paths arrive as UTF-8. On Windows a narrow std::ifstream would
+// interpret them via the ANSI codepage and fail to open anything outside it,
+// so build a std::filesystem::path through the native wide encoding there.
+std::filesystem::path tagFilePath(const std::string& filepath) {
+#ifdef _WIN32
+    auto utf16 = PsyMP3::Core::Utility::UTF8Util::toUTF16LE(filepath);
+    std::wstring wide(reinterpret_cast<const wchar_t*>(utf16.data()), utf16.size() / 2);
+    return std::filesystem::path(wide);
+#else
+    return std::filesystem::path(filepath);
+#endif
+}
+
+} // namespace
+
 // ============================================================================
 // Format Detection
 // ============================================================================
@@ -64,7 +81,7 @@ TagFormat TagFactory::detectFormat(const uint8_t* data, size_t size) {
 // ============================================================================
 
 bool TagFactory::hasID3v1(const std::string& filepath) {
-    std::ifstream file(filepath, std::ios::binary);
+    std::ifstream file(tagFilePath(filepath), std::ios::binary);
     if (!file) {
         Debug::log("tag", "TagFactory::hasID3v1: Failed to open file: ", filepath);
         return false;
@@ -91,7 +108,7 @@ bool TagFactory::hasID3v1(const std::string& filepath) {
 }
 
 size_t TagFactory::getID3v2Size(const std::string& filepath) {
-    std::ifstream file(filepath, std::ios::binary);
+    std::ifstream file(tagFilePath(filepath), std::ios::binary);
     if (!file) {
         Debug::log("tag", "TagFactory::getID3v2Size: Failed to open file: ", filepath);
         return 0;
@@ -130,7 +147,7 @@ std::unique_ptr<Tag> TagFactory::parseMP3Tags(const std::string& filepath) {
     // Check for ID3v2 at start of file
     size_t id3v2_size = getID3v2Size(filepath);
     if (id3v2_size > 0) {
-        std::ifstream file(filepath, std::ios::binary);
+        std::ifstream file(tagFilePath(filepath), std::ios::binary);
         if (file) {
             // The declared ID3v2 size (synchsafe, up to 256 MB) comes from a
             // 10-byte header. Clamp the allocation to the actual file size so a
@@ -154,7 +171,7 @@ std::unique_ptr<Tag> TagFactory::parseMP3Tags(const std::string& filepath) {
     
     // Check for ID3v1 at end of file
     if (hasID3v1(filepath)) {
-        std::ifstream file(filepath, std::ios::binary);
+        std::ifstream file(tagFilePath(filepath), std::ios::binary);
         if (file) {
             file.seekg(-128, std::ios::end);
             uint8_t id3v1_data[128];
@@ -217,7 +234,7 @@ std::unique_ptr<Tag> TagFactory::createFromFile(const std::string& filepath) {
     }
     
     // For other formats, read beginning of file and detect
-    std::ifstream file(filepath, std::ios::binary);
+    std::ifstream file(tagFilePath(filepath), std::ios::binary);
     if (!file) {
         Debug::log("tag", "TagFactory::createFromFile: Failed to open file");
         return std::make_unique<NullTag>();
