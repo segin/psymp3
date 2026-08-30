@@ -793,6 +793,51 @@ protected:
     }
 };
 
+class ID3v1Tag_GetTag_AliasKeys : public TestCase {
+public:
+    ID3v1Tag_GetTag_AliasKeys() : TestCase("ID3v1Tag_GetTag_AliasKeys") {}
+protected:
+    void runTest() override {
+        auto data = createID3v1_1Tag("Title", "Artist", "Album", "2024",
+                                     "Comment", 7, 17);
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
+        ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
+
+        ASSERT_EQUALS(std::string("2024"), tag->getTag("DATE"), "DATE alias");
+        ASSERT_EQUALS(std::string("2024"), tag->getTag("TYER"), "TYER alias");
+        ASSERT_EQUALS(std::string("2024"), tag->getTag("TDRC"), "TDRC alias");
+        ASSERT_EQUALS(std::string("Comment"), tag->getTag("COMM"), "COMM alias");
+        ASSERT_EQUALS(std::string("Rock"), tag->getTag("TCON"), "TCON alias");
+        ASSERT_EQUALS(std::string("7"), tag->getTag("TRCK"), "TRCK alias");
+        ASSERT_EQUALS(std::string("7"), tag->getTag("TRACKNUMBER"), "TRACKNUMBER alias");
+
+        // getTagValues must agree with getTag
+        auto values = tag->getTagValues("ARTIST");
+        ASSERT_EQUALS(static_cast<size_t>(1), values.size(), "one ARTIST value");
+        ASSERT_EQUALS(std::string("Artist"), values[0], "getTagValues matches getTag");
+    }
+};
+
+class ID3v1Tag_GetAllTags_OmitsInvalidGenre : public TestCase {
+public:
+    ID3v1Tag_GetAllTags_OmitsInvalidGenre() : TestCase("ID3v1Tag_GetAllTags_OmitsInvalidGenre") {}
+protected:
+    void runTest() override {
+        auto data = createID3v1Tag("Title", "", "", "", "", 255);
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
+        ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
+        auto tags = tag->getAllTags();
+        ASSERT_TRUE(tags.find("GENRE") == tags.end(),
+                    "genre 255 (unset) should not appear in getAllTags");
+
+        auto data2 = createID3v1Tag("Title", "", "", "", "", 192);
+        auto tag2 = ID3v1Tag::parse(data2.data(), data2.size());
+        auto tags2 = tag2->getAllTags();
+        ASSERT_TRUE(tags2.find("GENRE") == tags2.end(),
+                    "genre 192 (out of table) should not appear in getAllTags");
+    }
+};
+
 // ============================================================================
 // MergedID3Tag Unit Tests
 // ============================================================================
@@ -1324,6 +1369,8 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ID3v1Tag_Parse_RejectsTruncated>());
     suite.addTest(std::make_unique<ID3v1Tag_Latin1FieldsDecodedToUTF8>());
     suite.addTest(std::make_unique<ID3v1Tag_YearParsing_PartialNumeric>());
+    suite.addTest(std::make_unique<ID3v1Tag_GetTag_AliasKeys>());
+    suite.addTest(std::make_unique<ID3v1Tag_GetAllTags_OmitsInvalidGenre>());
     
     // MergedID3Tag tests
     suite.addTest(std::make_unique<MergedID3Tag_ID3v2Precedence>());
