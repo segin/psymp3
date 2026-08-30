@@ -292,6 +292,17 @@ std::unique_ptr<Tag> TagFactory::createFromFile(const std::string& filepath) {
             break;
         }
         
+        case TagFormat::ID3v1: {
+            // A file that BEGINS with a 128-byte ID3v1 block (e.g. an
+            // extracted-tag file). The bytes are already in the header buffer;
+            // parse them directly so this path agrees with createFromData().
+            auto tag = ID3v1Tag::parse(header.data(), bytes_read);
+            if (tag) {
+                return tag;
+            }
+            break;
+        }
+
         case TagFormat::VorbisComment: {
             // VorbisComment tags are typically embedded in container formats
             // This would need container-specific parsing
