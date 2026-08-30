@@ -23,16 +23,24 @@
 #endif
 
 // Initialize static members
-std::ofstream Debug::m_logfile;
 std::mutex Debug::m_mutex;
 bool Debug::m_log_to_file = false;
 std::atomic<bool> Debug::m_any_channel_enabled{false};
 
-// Construct-on-first-use accessor so the set is always constructed before any
-// use, regardless of static-initialization order across translation units.
+// Construct-on-first-use accessors, INTENTIONALLY LEAKED: some static
+// destructors log during process teardown (CurlLifecycleManager::forceCleanup
+// runs from a static object's destructor and logs on the "http" channel).
+// A function-local static would be destroyed before those destructors run —
+// with channels enabled that was a use-after-destruction segfault on exit —
+// so the set and the log sink live for the whole process instead.
 std::unordered_set<std::string>& Debug::enabledChannels() {
-    static std::unordered_set<std::string> channels;
-    return channels;
+    static auto* channels = new std::unordered_set<std::string>();
+    return *channels;
+}
+
+std::ofstream& Debug::logFile() {
+    static auto* logfile = new std::ofstream();
+    return *logfile;
 }
 
 /**
@@ -51,15 +59,15 @@ void Debug::init(const std::string& logfile, const std::vector<std::string>& cha
     
     // Clear previous state
     enabledChannels().clear();
-    if (m_logfile.is_open()) {
-        m_logfile.close();
+    if (logFile().is_open()) {
+        logFile().close();
     }
     m_log_to_file = false;
     
     // Set up new state
     if (!logfile.empty()) {
-        m_logfile.open(logfile, std::ios::out | std::ios::app);
-        if (m_logfile.is_open()) {
+        logFile().open(logfile, std::ios::out | std::ios::app);
+        if (logFile().is_open()) {
             m_log_to_file = true;
         }
     }
@@ -75,8 +83,8 @@ void Debug::init(const std::string& logfile, const std::vector<std::string>& cha
  */
 void Debug::shutdown() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_logfile.is_open()) {
-        m_logfile.close();
+    if (logFile().is_open()) {
+        logFile().close();
     }
     enabledChannels().clear();
     m_log_to_file = false;
@@ -180,8 +188,8 @@ void Debug::write(const std::string& channel, const std::string& function, int l
     
     ss << ": " << message;
 
-    if (m_log_to_file && m_logfile.is_open()) {
-        m_logfile << ss.str() << '\n';
+    if (m_log_to_file && logFile().is_open()) {
+        logFile() << ss.str() << '\n';
     } else {
         std::cout << ss.str() << '\n';
     }

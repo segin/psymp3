@@ -65,7 +65,9 @@ public:
 private:
     static void write(const std::string& channel, const std::string& function, int line, const std::string& message);
 
-    static std::ofstream m_logfile;
+    // Construct-on-first-use, intentionally leaked (see debug.cpp): static
+    // destructors in other translation units log during process teardown.
+    static std::ofstream& logFile();
     static std::mutex m_mutex;
     // Construct-on-first-use: Debug::log() (via isChannelEnabled) can run from
     // other translation units' static initializers (e.g. truetype/HTTP
