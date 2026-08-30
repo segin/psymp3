@@ -26,6 +26,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -34,6 +35,10 @@
 
 // ID3v1 tag size
 constexpr size_t ID3V1_SIZE = 128;
+
+// Any write failure flips this so main() can exit nonzero instead of letting
+// a missing output directory masquerade as a successful corpus generation.
+static bool g_write_failed = false;
 
 // Create ID3v1 tag
 std::array<uint8_t, ID3V1_SIZE> createID3v1(
@@ -93,9 +98,15 @@ void writeFile(const std::string& path, const uint8_t* data, size_t size) {
     std::ofstream file(path, std::ios::binary);
     if (!file) {
         std::cerr << "Error: Cannot create file: " << path << "\n";
+        g_write_failed = true;
         return;
     }
     file.write(reinterpret_cast<const char*>(data), size);
+    if (!file) {
+        std::cerr << "Error: Write failed: " << path << "\n";
+        g_write_failed = true;
+        return;
+    }
     std::cout << "Created: " << path << " (" << size << " bytes)\n";
 }
 
@@ -106,6 +117,16 @@ void writeFile(const std::string& path, const std::array<uint8_t, N>& data) {
 
 int main() {
     const std::string corpus_dir = "tests/data/fuzz_corpus/id3v1/";
+
+    // The corpus directory is not checked into the repository; without this,
+    // every ofstream open fails and generation silently produces nothing.
+    std::error_code ec;
+    std::filesystem::create_directories(corpus_dir, ec);
+    if (ec) {
+        std::cerr << "Error: Cannot create corpus directory " << corpus_dir
+                  << ": " << ec.message() << "\n";
+        return 1;
+    }
     
     // 1. Valid ID3v1 tag with all fields
     {
@@ -292,6 +313,10 @@ int main() {
         writeFile(corpus_dir + "edge_year_invalid.bin", tag3);
     }
     
+    if (g_write_failed) {
+        std::cerr << "\nID3v1 seed corpus generation FAILED (see errors above).\n";
+        return 1;
+    }
     std::cout << "\nID3v1 seed corpus generation complete.\n";
     return 0;
 }
