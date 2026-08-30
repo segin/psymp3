@@ -25,7 +25,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -82,14 +82,14 @@ jobs:
         
     - name: Upload CI Report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: threading-safety-ci-report
         path: ci_threading_safety_report.txt
         
     - name: Upload Analysis Reports
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: threading-safety-analysis
         path: |
@@ -104,7 +104,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -152,7 +152,7 @@ jobs:
         
     - name: Upload Comprehensive Report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: comprehensive-threading-validation-report
         path: threading_safety_validation_report.md
@@ -184,7 +184,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Setup Python
       uses: actions/setup-python@v5
