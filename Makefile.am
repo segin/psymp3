@@ -93,7 +93,6 @@ EXTRA_DIST = \
 	include/demuxer/DemuxerPlugin.h \
 	include/demuxer/DemuxerRegistry.h \
 	include/demuxer/MediaFactory.h \
-	include/demuxer/ModernStream.h \
 	include/demuxer/flac/FLACDemuxer.h \
 	include/demuxer/iso/BoxParser.h \
 	include/demuxer/iso/ComplianceValidator.h \

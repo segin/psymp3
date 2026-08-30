@@ -623,7 +623,7 @@ void MediaFactory::initializeDefaultFormats() {
         wave_format.description = "RIFF WAVE audio";
         
         registerFormatInternal(wave_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -643,7 +643,7 @@ void MediaFactory::initializeDefaultFormats() {
         aiff_format.description = "Apple AIFF audio";
         
         registerFormatInternal(aiff_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -663,7 +663,7 @@ void MediaFactory::initializeDefaultFormats() {
         mp4_format.description = "ISO Base Media (MP4/M4A)";
         
         registerFormatInternal(mp4_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     
@@ -680,7 +680,7 @@ void MediaFactory::initializeDefaultFormats() {
         raw_format.description = "Raw PCM/A-law/μ-law/G.722 audio";
         
         registerFormatInternal(raw_format, [](const std::string& uri, const ContentInfo& info) {
-            return std::make_unique<ModernStream>(TagLib::String(uri, TagLib::String::UTF8));
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
     

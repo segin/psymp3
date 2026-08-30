@@ -577,7 +577,6 @@ using PsyMP3::Codec::AAC::AACCodec;
 #include "demuxer/iso/SeekingEngine.h"
 #include "demuxer/iso/ComplianceValidator.h"
 #include "demuxer/iso/ISODemuxer.h"
-#include "demuxer/ModernStream.h"
 #include "codecs/mp3/MiniMP3Codec.h"
 #include "codecs/mp2/MP2Codec.h"
 #include "codecs/alac/ALACCodec.h"
@@ -614,7 +613,6 @@ using PsyMP3::Codec::FLAC::FLACException;
 
 // Using declarations for stream types (after their headers are included)
 using PsyMP3::Demuxer::DemuxedStream;
-using PsyMP3::Demuxer::ModernStream;
 using PsyMP3::Demuxer::ChainedStream;
 
 #include "core/nullstream.h"

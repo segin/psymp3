@@ -78,7 +78,6 @@
 #include "demuxer/DemuxerPlugin.cpp"
 #include "demuxer/DemuxerRegistry.cpp"
 #include "demuxer/MediaFactory.cpp"
-#include "demuxer/ModernStream.cpp"
 
 // Demuxer - Raw Audio
 #include "demuxer/raw/RawAudioDemuxer.cpp"
