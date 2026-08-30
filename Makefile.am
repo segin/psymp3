@@ -215,7 +215,8 @@ EXTRA_DIST = \
 	third_party/kjmp2/kjmp2.c \
 	third_party/kjmp2/kjmp2.h \
 	third_party/kjmp2/kjmp2.txt \
-	third_party/minimp3/minimp3.h
+	third_party/minimp3/minimp3.h \
+	third_party/stb/stb_vorbis.c
 
 # Include threading safety makefile
 include scripts/threading-safety-makefile.mk
