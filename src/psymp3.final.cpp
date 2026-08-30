@@ -43,7 +43,13 @@
 // ============================================================================
 #include "core/utility/Base64.cpp"
 #include "core/utility/UTF8Util.cpp"
-#include "core/utility/XMLUtil.cpp"
+// GCC -Wmaybe-uninitialized false-positives inside pugixml's document-move
+// code when the unity TU gives it extra inlining context; the standalone
+// compile of the same file is clean.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#include "../third_party/pugixml/pugixml.cpp"
+#pragma GCC diagnostic pop
 #include "core/utility/utility.cpp"
 
 // ============================================================================

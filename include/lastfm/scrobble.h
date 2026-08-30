@@ -61,9 +61,13 @@ public:
     std::string getAlbumStr() const { return m_album; }
     int GetLen() const { return m_length; } // For compatibility
     
-    // Serialization for XML cache
+    // Serialization for XML cache (pugixml-backed)
     std::string toXML() const;
     static Scrobble fromXML(const std::string& xml);
+    /// Append this scrobble as a <scrobble> child of parent
+    void appendXML(pugi::xml_node& parent) const;
+    /// Build a Scrobble from a <scrobble> node (empty sentinel on bad data)
+    static Scrobble fromXMLNode(const pugi::xml_node& node);
     
     // Comparison operators
     bool operator==(const Scrobble& other) const;

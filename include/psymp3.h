@@ -620,9 +620,8 @@ using PsyMP3::Core::PersistentStorage;
 #include "track.h"
 #include "core/song.h"
 using PsyMP3::Core::Song;
-#include "core/utility/XMLUtil.h"
-
-using PsyMP3::Core::Utility::XMLUtil;
+// XML parsing/generation: vendored pugixml (third_party/pugixml, MIT)
+#include "../third_party/pugixml/pugixml.hpp"
 
 // Last.fm scrobbling
 #include "lastfm/scrobble.h"

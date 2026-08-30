@@ -12,7 +12,7 @@ noinst_LIBRARIES = libpsymp3-core-utility.a
 libpsymp3_core_utility_a_SOURCES = \
 	UTF8Util.cpp \
 	Base64.cpp \
-	XMLUtil.cpp \
+	../../../third_party/pugixml/pugixml.cpp \
 	utility.cpp
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS)

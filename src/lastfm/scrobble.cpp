@@ -57,43 +57,48 @@ Scrobble::~Scrobble()
     //dtor
 }
 
+void Scrobble::appendXML(pugi::xml_node& parent) const
+{
+    pugi::xml_node node = parent.append_child("scrobble");
+    node.append_child("artist").text().set(m_artist.c_str());
+    node.append_child("title").text().set(m_title.c_str());
+    node.append_child("album").text().set(m_album.c_str());
+    if (!m_mbid.empty()) {
+        node.append_child("mbid").text().set(m_mbid.c_str());
+    }
+    node.append_child("length").text().set(m_length);
+    node.append_child("timestamp").text().set(static_cast<long long>(m_timestamp));
+}
+
 std::string Scrobble::toXML() const
 {
-    XMLUtil::Element scrobbleElement("scrobble");
-    
-    scrobbleElement.children.emplace_back("artist", m_artist);
-    scrobbleElement.children.emplace_back("title", m_title);
-    scrobbleElement.children.emplace_back("album", m_album);
-    if (!m_mbid.empty()) {
-        scrobbleElement.children.emplace_back("mbid", m_mbid);
-    }
-    scrobbleElement.children.emplace_back("length", std::to_string(m_length));
-    scrobbleElement.children.emplace_back("timestamp", std::to_string(m_timestamp));
-    
-    return XMLUtil::generateXML(scrobbleElement);
+    pugi::xml_document doc;
+    appendXML(doc);
+    std::ostringstream out;
+    doc.save(out, "  ", pugi::format_default | pugi::format_no_declaration);
+    return out.str();
+}
+
+Scrobble Scrobble::fromXMLNode(const pugi::xml_node& node)
+{
+    // as_int/as_llong yield 0 for missing or non-numeric text, which matches
+    // the empty-sentinel contract (timestamp 0 marks the scrobble invalid).
+    return Scrobble(node.child_value("artist"),
+                    node.child_value("title"),
+                    node.child_value("album"),
+                    node.child("length").text().as_int(0),
+                    static_cast<time_t>(node.child("timestamp").text().as_llong(0)),
+                    node.child_value("mbid"));
 }
 
 Scrobble Scrobble::fromXML(const std::string& xml)
 {
-    try {
-        XMLUtil::Element scrobbleElement = XMLUtil::parseXML(xml);
-        
-        std::string artist = XMLUtil::getChildText(scrobbleElement, "artist");
-        std::string title = XMLUtil::getChildText(scrobbleElement, "title");
-        std::string album = XMLUtil::getChildText(scrobbleElement, "album");
-        std::string mbid = XMLUtil::getChildText(scrobbleElement, "mbid"); // optional
-
-        std::string lengthStr = XMLUtil::getChildText(scrobbleElement, "length");
-        std::string timestampStr = XMLUtil::getChildText(scrobbleElement, "timestamp");
-
-        int length = lengthStr.empty() ? 0 : std::stoi(lengthStr);
-        time_t timestamp = timestampStr.empty() ? 0 : std::stoll(timestampStr);
-
-        return Scrobble(artist, title, album, length, timestamp, mbid);
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to parse scrobble XML: " << e.what() << std::endl;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(xml.data(), xml.size())) {
+        std::cerr << "Failed to parse scrobble XML" << std::endl;
         return Scrobble("", "", "", 0, 0);
     }
+    return fromXMLNode(doc.child("scrobble"));
 }
 
 bool Scrobble::operator==(const Scrobble& other) const

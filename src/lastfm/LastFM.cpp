@@ -34,20 +34,6 @@ static const char kApiKey[]    = "4bdeb98d813cdc75f69bfb9d9dd5e1b4";
 static const char kApiSecret[] = "62c5e84649bf6d52dafd3d96cd1f63a7";
 static const char kApiRoot[]   = "https://ws.audioscrobbler.com/2.0/";
 
-// First <tag>...</tag> body in a response, or "" — the 2.0 responses are flat
-// enough (session/key, error) that a full XML parse buys nothing.
-static std::string extractTag(const std::string& xml, const std::string& tag)
-{
-    const std::string open = "<" + tag + ">";
-    const std::string close = "</" + tag + ">";
-    size_t start = xml.find(open);
-    if (start == std::string::npos) return "";
-    start += open.length();
-    size_t end = xml.find(close, start);
-    if (end == std::string::npos) return "";
-    return xml.substr(start, end - start);
-}
-
 LastFM::LastFM() :
     m_config_file(System::getStoragePath().to8Bit(true) + "/lastfm.conf"),
     m_cache_file(System::getStoragePath().to8Bit(true) + "/scrobble_cache.xml")
@@ -203,21 +189,22 @@ LastFM::WsResponse LastFM::wsCall(std::map<std::string, std::string> params, int
     out.body = response.body;
     // Last.fm reports API errors with a 4xx status AND an <lfm> body, so parse
     // the body whenever there is one; only a body-less failure is transport.
-    if (response.body.find("<lfm") != std::string::npos) {
-        if (response.body.find("status=\"ok\"") != std::string::npos) {
-            out.ok = true;
+    pugi::xml_document doc;
+    if (doc.load_buffer(response.body.data(), response.body.size())) {
+        pugi::xml_node lfm = doc.child("lfm");
+        if (lfm) {
+            if (std::string(lfm.attribute("status").value()) == "ok") {
+                out.ok = true;
+                return out;
+            }
+            pugi::xml_node error = lfm.child("error");
+            out.error_code = error.attribute("code").as_int();
+            out.message = error.child_value();
+            if (out.message.empty()) {
+                out.message = "malformed error response";
+            }
             return out;
         }
-        const std::string marker = "<error code=\"";
-        size_t pos = response.body.find(marker);
-        if (pos != std::string::npos) {
-            out.error_code = atoi(response.body.c_str() + pos + marker.length());
-        }
-        out.message = extractTag(response.body, "error");
-        if (out.message.empty()) {
-            out.message = "malformed error response";
-        }
-        return out;
     }
     out.message = response.success
         ? "unexpected response from Last.fm"
@@ -238,7 +225,12 @@ bool LastFM::authenticate()
                                   {"password", m_password}}, 10);
 
     if (response.ok) {
-        std::string key = extractTag(response.body, "key");
+        // auth.getMobileSession: <lfm status="ok"><session>...<key>K</key>...
+        pugi::xml_document doc;
+        std::string key;
+        if (doc.load_buffer(response.body.data(), response.body.size())) {
+            key = doc.child("lfm").child("session").child("key").child_value();
+        }
         if (!key.empty()) {
             m_session_key = key;
             persistSessionKey();
@@ -342,37 +334,28 @@ void LastFM::loadScrobbles()
         return;
     }
     
-    try {
-        XMLUtil::Element root = XMLUtil::parseXML(content);
-        
-        // Find all scrobble elements
-        auto scrobbleElements = XMLUtil::findChildren(root, "scrobble");
-        
-        for (const XMLUtil::Element* scrobbleElement : scrobbleElements) {
-            std::string scrobbleXML = XMLUtil::generateXML(*scrobbleElement);
-            
-            try {
-                Scrobble scrobble = Scrobble::fromXML(scrobbleXML);
-                // fromXML returns an empty sentinel (blank fields, timestamp 0)
-                // when the XML can't be parsed. Don't queue that — it would be
-                // submitted to Last.fm as a garbage scrobble.
-                if (scrobble.getTimestamp() > 0 &&
-                    !scrobble.getArtistStr().empty() &&
-                    !scrobble.getTitleStr().empty()) {
-                    m_scrobbles.push(scrobble);
-                } else {
-                    DEBUG_LOG_LAZY("lastfm", "Skipping invalid/unparseable cached scrobble");
-                }
-            } catch (const std::exception& e) {
-                DEBUG_LOG_LAZY("lastfm", "Failed to parse cached scrobble: ", e.what());
-            }
-        }
-        
-        DEBUG_LOG_LAZY("lastfm", "Loaded ", m_scrobbles.size(), " cached scrobbles");
-        
-    } catch (const std::exception& e) {
-        DEBUG_LOG_LAZY("lastfm", "Failed to parse scrobble cache XML: ", e.what());
+    pugi::xml_document doc;
+    pugi::xml_parse_result parsed = doc.load_buffer(content.data(), content.size());
+    if (!parsed) {
+        DEBUG_LOG_LAZY("lastfm", "Failed to parse scrobble cache XML: ", parsed.description());
+        return;
     }
+
+    for (pugi::xml_node node : doc.child("scrobbles").children("scrobble")) {
+        Scrobble scrobble = Scrobble::fromXMLNode(node);
+        // fromXMLNode returns an empty sentinel (blank fields, timestamp 0)
+        // for unusable entries. Don't queue that — it would be submitted to
+        // Last.fm as a garbage scrobble.
+        if (scrobble.getTimestamp() > 0 &&
+            !scrobble.getArtistStr().empty() &&
+            !scrobble.getTitleStr().empty()) {
+            m_scrobbles.push(scrobble);
+        } else {
+            DEBUG_LOG_LAZY("lastfm", "Skipping invalid/unparseable cached scrobble");
+        }
+    }
+
+    DEBUG_LOG_LAZY("lastfm", "Loaded ", m_scrobbles.size(), " cached scrobbles");
 }
 
 void LastFM::saveScrobbles()
@@ -409,34 +392,21 @@ void LastFM::saveScrobbles_unlocked()
         return;
     }
     
-    // Create root element for scrobbles collection
-    XMLUtil::Element root("scrobbles");
-    
-    // Pre-allocate children vector to reduce allocations (Requirements 5.2)
-    root.children.reserve(m_scrobbles.size());
-    
-    // Reuse string buffer across iterations to minimize allocations (Requirements 5.2)
-    std::string scrobbleXML;
-    scrobbleXML.reserve(512);  // Pre-allocate reasonable size for scrobble XML
-    
+    pugi::xml_document doc;
+    pugi::xml_node decl = doc.append_child(pugi::node_declaration);
+    decl.append_attribute("version") = "1.0";
+    decl.append_attribute("encoding") = "UTF-8";
+    pugi::xml_node root = doc.append_child("scrobbles");
+
     // Create a copy of the queue to iterate through
     std::queue<Scrobble> temp_queue = m_scrobbles;
     while (!temp_queue.empty()) {
-        // Parse the scrobble's XML and add it as a child element
-        scrobbleXML = temp_queue.front().toXML();  // Reuse buffer
-        try {
-            XMLUtil::Element scrobbleElement = XMLUtil::parseXML(scrobbleXML);
-            root.children.push_back(scrobbleElement);
-        } catch (const std::exception& e) {
-            DEBUG_LOG_LAZY("lastfm", "Failed to serialize scrobble: ", e.what());
-        }
+        temp_queue.front().appendXML(root);
         temp_queue.pop();
     }
-    
-    // Write XML with declaration
-    cache << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    cache << XMLUtil::generateXML(root) << "\n";
-    
+
+    doc.save(cache, "  ");
+
     DEBUG_LOG_LAZY("lastfm", "Saved ", m_scrobbles.size(), " scrobbles to cache");
 }
 
