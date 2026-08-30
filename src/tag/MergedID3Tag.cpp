@@ -108,13 +108,22 @@ std::string MergedID3Tag::getTag(const std::string& key) const {
         if (!value.empty()) {
             return value;
         }
+        // A v2 tag with duplicate frames can decode its FIRST frame empty while
+        // later frames hold text; getTagValues() collects those, so consult it
+        // before falling back to v1 — otherwise the two accessors would report
+        // different sources for the same key.
+        for (const std::string& v : m_v2->getTagValues(key)) {
+            if (!v.empty()) {
+                return v;
+            }
+        }
     }
-    
+
     // Fall back to ID3v1
     if (m_v1) {
         return m_v1->getTag(key);
     }
-    
+
     return "";
 }
 
