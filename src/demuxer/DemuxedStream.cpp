@@ -625,9 +625,7 @@ StreamInfo DemuxedStream::getCurrentStreamInfo() const {
 }
 
 std::string DemuxedStream::getDemuxerType() const {
-    // This would need to be implemented in the demuxer base class
-    // For now, return a placeholder
-    return "unknown";
+    return m_demuxer ? m_demuxer->getContainerName() : "unknown";
 }
 
 std::string DemuxedStream::getCodecType() const {

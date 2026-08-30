@@ -364,6 +364,13 @@ public:
      * @brief Get information about a specific stream
      */
     virtual StreamInfo getStreamInfo(uint32_t stream_id) const = 0;
+
+    /**
+     * @brief Human-readable container name ("WAVE", "AIFF", "Raw", ...).
+     * Base implementation reports the demangled dynamic class name via RTTI,
+     * so every demuxer self-describes even without an override.
+     */
+    virtual std::string getContainerName() const;
     
     /**
      * @brief Read the next chunk of data from any stream

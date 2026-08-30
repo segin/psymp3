@@ -72,6 +72,8 @@ struct RawAudioConfig {
  */
 class RawAudioDemuxer : public Demuxer {
 public:
+    std::string getContainerName() const override { return "Raw"; }
+
     /**
      * @brief Constructor with automatic format detection
      * @param handler IOHandler for the file

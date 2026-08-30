@@ -9,6 +9,10 @@
 
 #include "psymp3.h"
 
+#if defined(__GNUG__)
+#include <cxxabi.h>
+#endif
+
 namespace PsyMP3 {
 namespace Demuxer {
 
@@ -111,6 +115,24 @@ BufferPool::PoolStats BufferPool::getStats() const {
     }
     
     return stats;
+}
+
+std::string Demuxer::getContainerName() const {
+    const char* name = typeid(*this).name();
+#if defined(__GNUG__)
+    int status = 0;
+    char* demangled = abi::__cxa_demangle(name, nullptr, nullptr, &status);
+    if (status == 0 && demangled) {
+        std::string result(demangled);
+        free(demangled);
+        size_t colon = result.rfind("::");
+        if (colon != std::string::npos) {
+            result.erase(0, colon + 2);
+        }
+        return result;
+    }
+#endif
+    return name;
 }
 
 } // namespace Demuxer

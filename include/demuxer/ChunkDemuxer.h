@@ -70,6 +70,7 @@ public:
      * @brief Get the container form type (WAVE, AIFF, etc.)
      */
     uint32_t getFormType() const { return m_form_type; }
+    std::string getContainerName() const override { return isAiffFile() ? "AIFF" : "WAVE"; }
     
     /**
      * @brief Check endianness of the format
