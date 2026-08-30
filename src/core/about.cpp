@@ -36,6 +36,10 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "Copyright © 2009-2026 Rajesh Rajan <seanawake@gmail.com>\n"
             "Copyright © 2003 Bitstream, Inc. (DejaVu Sans font)\n"
             "Copyright © 2006 Tavmjong Bah (DejaVu Sans font)\n"
+            "Copyright © 2011 Apple Inc. (ALAC decoder, Apache License 2.0)\n"
+            "\n"
+            "stb_vorbis is Public Domain, written by Sean Barrett.\n"
+            "minimp3 is Public Domain (CC0), written by lieff.\n"
             "\n"
             // License paragraphs are single logical lines so consumers that
             // flow text (the in-app About dialog word-wraps; the Windows
