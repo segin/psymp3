@@ -151,9 +151,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             uint32_t year = tag->year();
             uint32_t track = tag->track();
             
-            // Verify string lengths are reasonable (max 30 chars for ID3v1 fields)
-            if (title.length() > 30 || artist.length() > 30 ||
-                album.length() > 30 || comment.length() > 30) {
+            // Verify string lengths are reasonable. ID3v1 fields are at most
+            // 30 raw bytes, but Latin-1 bytes >= 0x80 decode to 2-byte UTF-8
+            // sequences, so the decoded string can be up to 60 bytes.
+            if (title.length() > 60 || artist.length() > 60 ||
+                album.length() > 60 || comment.length() > 60) {
                 // This would indicate a bug - strings should be trimmed
                 __builtin_trap();
             }

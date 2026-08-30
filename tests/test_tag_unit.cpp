@@ -750,6 +750,27 @@ protected:
     }
 };
 
+class ID3v1Tag_Latin1FieldsDecodedToUTF8 : public TestCase {
+public:
+    ID3v1Tag_Latin1FieldsDecodedToUTF8() : TestCase("ID3v1Tag_Latin1FieldsDecodedToUTF8") {}
+protected:
+    void runTest() override {
+        // ID3v1's conventional charset is ISO-8859-1; fields must come back as
+        // valid UTF-8, matching the ID3v2 encoding-0 path.
+        auto data = createID3v1Tag("Caf\xE9", "\xDC" "ber", "Album", "1999",
+                                   "Se\xF1or", 17);
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
+
+        ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
+        ASSERT_EQUALS(std::string("Caf\xC3\xA9"), tag->title(),
+                      "0xE9 should decode to U+00E9 (é)");
+        ASSERT_EQUALS(std::string("\xC3\x9C" "ber"), tag->artist(),
+                      "0xDC should decode to U+00DC (Ü)");
+        ASSERT_EQUALS(std::string("Se\xC3\xB1or"), tag->comment(),
+                      "0xF1 should decode to U+00F1 (ñ)");
+    }
+};
+
 // ============================================================================
 // MergedID3Tag Unit Tests
 // ============================================================================
@@ -1279,6 +1300,7 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ID3v1Tag_NoPictures>());
     suite.addTest(std::make_unique<ID3v1Tag_UnsupportedFields>());
     suite.addTest(std::make_unique<ID3v1Tag_Parse_RejectsTruncated>());
+    suite.addTest(std::make_unique<ID3v1Tag_Latin1FieldsDecodedToUTF8>());
     
     // MergedID3Tag tests
     suite.addTest(std::make_unique<MergedID3Tag_ID3v2Precedence>());

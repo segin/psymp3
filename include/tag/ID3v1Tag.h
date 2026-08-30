@@ -64,6 +64,9 @@ public:
      * @param data Pointer to ID3v1 data (starting with "TAG")
      * @param size Number of bytes available at data; must be >= TAG_SIZE (128)
      * @return Unique pointer to ID3v1Tag, or nullptr if invalid or truncated
+     *
+     * Field text is decoded from ISO-8859-1 (the conventional ID3v1 charset)
+     * to UTF-8, matching the ID3v2 encoding-0 path.
      */
     static std::unique_ptr<ID3v1Tag> parse(const uint8_t* data, size_t size);
 

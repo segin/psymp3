@@ -284,16 +284,22 @@ std::unique_ptr<ID3v1Tag> ID3v1Tag::parse(const uint8_t* data, size_t size) {
 
     auto tag = std::make_unique<ID3v1Tag>();
 
+    // ID3v1 has no encoding marker; the conventional charset is ISO-8859-1.
+    // Decode every text field to UTF-8 — the same treatment ID3v2 gives its
+    // encoding-0 frames — so consumers that require valid UTF-8 (the
+    // TagLib::String(UTF8) boundary) don't drop fields with accented bytes.
+    using PsyMP3::Core::Utility::UTF8Util;
+
     // Parse fixed fields
     // Offset 0-2: "TAG" (already validated)
     // Offset 3-32: Title (30 bytes)
-    tag->m_title = trimString(reinterpret_cast<const char*>(data + 3), 30);
+    tag->m_title = UTF8Util::fromLatin1(trimString(reinterpret_cast<const char*>(data + 3), 30));
 
     // Offset 33-62: Artist (30 bytes)
-    tag->m_artist = trimString(reinterpret_cast<const char*>(data + 33), 30);
+    tag->m_artist = UTF8Util::fromLatin1(trimString(reinterpret_cast<const char*>(data + 33), 30));
 
     // Offset 63-92: Album (30 bytes)
-    tag->m_album = trimString(reinterpret_cast<const char*>(data + 63), 30);
+    tag->m_album = UTF8Util::fromLatin1(trimString(reinterpret_cast<const char*>(data + 63), 30));
 
     // Offset 93-96: Year (4 bytes, ASCII)
     std::string year_str = trimString(reinterpret_cast<const char*>(data + 93), 4);
@@ -309,13 +315,13 @@ std::unique_ptr<ID3v1Tag> ID3v1Tag::parse(const uint8_t* data, size_t size) {
     if (data[125] == 0x00 && data[126] != 0x00) {
         // ID3v1.1 format: comment is 28 bytes, track number in byte 126
         tag->m_is_v1_1 = true;
-        tag->m_comment = trimString(reinterpret_cast<const char*>(data + 97), 28);
+        tag->m_comment = UTF8Util::fromLatin1(trimString(reinterpret_cast<const char*>(data + 97), 28));
         tag->m_track = data[126];
         Debug::log("tag", "ID3v1Tag::parse: Detected ID3v1.1 format, track=", tag->m_track);
     } else {
         // ID3v1.0 format: full 30-byte comment
         tag->m_is_v1_1 = false;
-        tag->m_comment = trimString(reinterpret_cast<const char*>(data + 97), 30);
+        tag->m_comment = UTF8Util::fromLatin1(trimString(reinterpret_cast<const char*>(data + 97), 30));
         tag->m_track = 0;
     }
     
