@@ -312,7 +312,8 @@ void DiscordPresence::resolveArtwork(Activity& a)
     const std::string key = artist + "\n" + a.album;
     if (key == m_memo_key) {
         if (!m_memo_mbid.empty()) {
-            a.art_url = "https://coverartarchive.org/release/" + m_memo_mbid + "/front-250";
+            a.art_url = "https://coverartarchive.org/release-group/" + m_memo_mbid +
+                        "/front-250";
         }
         return;
     }
@@ -331,22 +332,22 @@ void DiscordPresence::resolveArtwork(Activity& a)
         v.erase(std::remove(v.begin(), v.end(), '"'), v.end());
         return v;
     };
-    std::string query = "artist:\"" + strip_quotes(artist) + "\" AND release:\"" +
+    std::string query = "artist:\"" + strip_quotes(artist) + "\" AND releasegroup:\"" +
                         strip_quotes(a.album) + "\"";
-    std::string url = "https://musicbrainz.org/ws/2/release/?limit=1&fmt=json&query=" +
+    std::string url = "https://musicbrainz.org/ws/2/release-group/?limit=1&fmt=json&query=" +
                       PsyMP3::IO::HTTP::HTTPClient::urlEncode(query);
 
-    DEBUG_LOG_LAZY("discord", "MusicBrainz release lookup: ", artist, " / ", a.album);
+    DEBUG_LOG_LAZY("discord", "MusicBrainz release-group lookup: ", artist, " / ", a.album);
     PsyMP3::IO::HTTP::HTTPClient::Response response = PsyMP3::IO::HTTP::HTTPClient::get(
         url, {{"User-Agent", "PsyMP3/" PSYMP3_VERSION " ( segin2005@gmail.com )"}}, 5);
 
     m_memo_key = key;
     m_memo_mbid.clear();
     if (response.success) {
-        // First release id in the result: "releases":[{"id":"<uuid>",...
-        size_t releases = response.body.find("\"releases\"");
-        if (releases != std::string::npos) {
-            size_t idpos = response.body.find("\"id\":\"", releases);
+        // First group id in the result: "release-groups":[{"id":"<uuid>",...
+        size_t groups = response.body.find("\"release-groups\"");
+        if (groups != std::string::npos) {
+            size_t idpos = response.body.find("\"id\":\"", groups);
             if (idpos != std::string::npos && idpos + 7 + 36 <= response.body.size()) {
                 std::string mbid = response.body.substr(idpos + 6, 36);
                 if (PsyMP3::LastFM::LastFM::isValidMBID(mbid)) {
@@ -361,7 +362,8 @@ void DiscordPresence::resolveArtwork(Activity& a)
     }
 
     if (!m_memo_mbid.empty()) {
-        a.art_url = "https://coverartarchive.org/release/" + m_memo_mbid + "/front-250";
+        a.art_url = "https://coverartarchive.org/release-group/" + m_memo_mbid +
+                    "/front-250";
     }
 }
 

@@ -94,9 +94,16 @@ private:
 
     void workerLoop();
     // Worker-thread only: when a visible activity has no artwork, search
-    // MusicBrainz for the release by artist+album and point art_url at the
-    // Cover Art Archive. One-entry memo of the current album (seek/pause
-    // re-sends), >=1s between queries; no persistent cache.
+    // MusicBrainz for the RELEASE GROUP by artist+album and point art_url at
+    // the Cover Art Archive. The release group is the album as a whole rather
+    // than one pressing of it: a search pinned to a single release picks an
+    // arbitrary one of the (often dozens of) regional editions, and whichever
+    // it lands on may be the one nobody uploaded art for -- e.g. "Nine Track
+    // Mind" has 27 releases and the first hit, the JP pressing, is the only
+    // one of the top seven with no front cover. CAA's release-group endpoint
+    // serves the art of a representative release that has some.
+    // One-entry memo of the current album (seek/pause re-sends), >=1s between
+    // queries; no persistent cache.
     void resolveArtwork(Activity& a);
     void queue_unlocked(const Activity& a);
 
@@ -122,7 +129,7 @@ private:
     uint64_t m_nonce = 0;
     // resolveArtwork() state (worker-thread only, no locking)
     std::string m_memo_key;
-    std::string m_memo_mbid;
+    std::string m_memo_mbid;   // release-group MBID, empty when the search missed
     std::chrono::steady_clock::time_point m_last_mb_query{};
 
 #ifdef _WIN32
