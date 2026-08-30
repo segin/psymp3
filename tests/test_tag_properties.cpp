@@ -167,24 +167,28 @@ bool runRapidCheckTests() {
         RC_ASSERT(data.size() == 128);
         
         // This should never crash, regardless of content
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         // Result can be nullptr (invalid tag) or valid tag - both are acceptable
         // The key property is that it doesn't crash
         RC_ASSERT(true); // If we get here, no crash occurred
     });
     if (!result15) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
-    // Property: ID3v1Tag::parse never crashes on truncated data
-    std::cout << "  ID3v1_ParseNeverCrashesOnTruncatedData: ";
-    auto result16 = rc::check("ID3v1Tag::parse never crashes on truncated data", []() {
-        // Generate data of random size 0-200 bytes
-        auto size = *rc::gen::inRange<size_t>(0, 200);
+    // Property: ID3v1Tag::parse rejects truncated data — even a "TAG"-prefixed
+    // buffer shorter than 128 bytes must yield nullptr, never a read past it
+    std::cout << "  ID3v1_ParseRejectsTruncatedData: ";
+    auto result16 = rc::check("ID3v1Tag::parse rejects truncated data", []() {
+        // Generate data of random size 0-127 bytes, always starting with "TAG"
+        // so the rejection is decided by the size check alone
+        auto size = *rc::gen::inRange<size_t>(0, 128);
         auto data = *rc::gen::container<std::vector<uint8_t>>(size, rc::gen::arbitrary<uint8_t>());
-        
-        // This should never crash, even with wrong size
-        auto tag = ID3v1Tag::parse(data.empty() ? nullptr : data.data());
-        // Result should be nullptr for invalid/truncated data
-        RC_ASSERT(true); // If we get here, no crash occurred
+        for (size_t i = 0; i < std::min<size_t>(size, 3); ++i) {
+            data[i] = "TAG"[i];
+        }
+
+        auto tag = ID3v1Tag::parse(data.empty() ? nullptr : data.data(), data.size());
+        RC_ASSERT(tag == nullptr);
+        RC_ASSERT(!ID3v1Tag::isValid(data.empty() ? nullptr : data.data(), data.size()));
     });
     if (!result16) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
@@ -201,7 +205,7 @@ bool runRapidCheckTests() {
             }
         }
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag == nullptr);
     });
     if (!result17) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
@@ -215,7 +219,7 @@ bool runRapidCheckTests() {
         data[1] = 'A';
         data[2] = 'G';
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag != nullptr);
         RC_ASSERT(tag->formatName() == "ID3v1" || tag->formatName() == "ID3v1.1");
     });
@@ -258,7 +262,7 @@ bool runRapidCheckTests() {
         data[126] = track_num;
         data[127] = *rc::gen::inRange<uint8_t>(0, 191); // Valid genre
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag != nullptr);
         RC_ASSERT(tag->isID3v1_1());
         RC_ASSERT(tag->track() == track_num);
@@ -283,7 +287,7 @@ bool runRapidCheckTests() {
         data[125] = *rc::gen::inRange<uint8_t>(1, 255);
         data[127] = *rc::gen::inRange<uint8_t>(0, 191); // Valid genre
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag != nullptr);
         RC_ASSERT(!tag->isID3v1_1());
         RC_ASSERT(tag->track() == 0); // No track in ID3v1.0
@@ -309,7 +313,7 @@ bool runRapidCheckTests() {
         
         data[127] = 12; // Genre: "Other"
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag != nullptr);
         RC_ASSERT(tag->title() == "Test");
         RC_ASSERT(tag->artist() == "Artist");
@@ -338,7 +342,7 @@ bool runRapidCheckTests() {
         data[127] = 0; // Genre: "Blues"
         
         // Should not crash, year should be 0 or parsed value
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag != nullptr);
         // Year is either 0 (invalid) or a valid parsed number
         RC_ASSERT(true); // No crash is the key property
@@ -351,7 +355,7 @@ bool runRapidCheckTests() {
         auto data = *rc::gen::container<std::vector<uint8_t>>(128, rc::gen::arbitrary<uint8_t>());
         
         bool has_tag_header = (data[0] == 'T' && data[1] == 'A' && data[2] == 'G');
-        bool is_valid = ID3v1Tag::isValid(data.data());
+        bool is_valid = ID3v1Tag::isValid(data.data(), data.size());
         
         RC_ASSERT(is_valid == has_tag_header);
     });
@@ -361,10 +365,10 @@ bool runRapidCheckTests() {
     std::cout << "  ID3v1_NullPointerHandling: ";
     auto result25 = rc::check("ID3v1 null pointer handling", []() {
         // isValid should return false for nullptr
-        RC_ASSERT(!ID3v1Tag::isValid(nullptr));
+        RC_ASSERT(!ID3v1Tag::isValid(nullptr, 0));
         
         // parse should return nullptr for nullptr input
-        auto tag = ID3v1Tag::parse(nullptr);
+        auto tag = ID3v1Tag::parse(nullptr, 0);
         RC_ASSERT(tag == nullptr);
     });
     if (!result25) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
@@ -420,7 +424,7 @@ bool runRapidCheckTests() {
         data[127] = genre_idx;
         
         // Parse the tag
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag != nullptr);
         
         // Verify round-trip: parsed values should match input
@@ -465,7 +469,7 @@ bool runRapidCheckTests() {
         
         data[127] = genre_idx;
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         RC_ASSERT(tag != nullptr);
         
         RC_ASSERT(tag->title() == title);
@@ -729,7 +733,7 @@ bool runRapidCheckTests() {
         // Genre: 12 (Other)
         v1_data[127] = 12;
         
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         RC_ASSERT(v1_tag != nullptr);
         
         // Generate ID3v2 tag with some fields empty
@@ -765,7 +769,7 @@ bool runRapidCheckTests() {
         
         v1_data[127] = 0; // Genre: Blues
         
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         RC_ASSERT(v1_tag != nullptr);
         
         // Create merged tag with only ID3v1
@@ -1310,7 +1314,7 @@ protected:
         
         for (const auto& data : test_data) {
             // Should not crash
-            auto tag = ID3v1Tag::parse(data.data());
+            auto tag = ID3v1Tag::parse(data.data(), data.size());
             // Result can be nullptr or valid - both acceptable
             (void)tag;
         }
@@ -1341,7 +1345,7 @@ protected:
             data[1] = header[1];
             data[2] = header[2];
             
-            auto tag = ID3v1Tag::parse(data.data());
+            auto tag = ID3v1Tag::parse(data.data(), data.size());
             ASSERT_NULL(tag.get(), "Should return nullptr for invalid header");
         }
     }
@@ -1358,7 +1362,7 @@ protected:
         data[1] = 'A';
         data[2] = 'G';
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "Should return valid tag for TAG header");
         ASSERT_TRUE(tag->formatName() == "ID3v1" || tag->formatName() == "ID3v1.1",
                     "Format name should be ID3v1 or ID3v1.1");
@@ -1401,7 +1405,7 @@ protected:
         data[126] = 5; // Track 5
         data[127] = 0; // Genre: Blues
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "Should parse valid ID3v1.1 tag");
         ASSERT_TRUE(tag->isID3v1_1(), "Should detect ID3v1.1 format");
         ASSERT_EQUALS(5u, tag->track(), "Track number should be 5");
@@ -1424,7 +1428,7 @@ protected:
         data[126] = 'Y';
         data[127] = 0; // Genre: Blues
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "Should parse valid ID3v1.0 tag");
         ASSERT_FALSE(tag->isID3v1_1(), "Should detect ID3v1.0 format");
         ASSERT_EQUALS(0u, tag->track(), "Track number should be 0 for ID3v1.0");
@@ -1452,7 +1456,7 @@ protected:
         
         data[127] = 12; // Genre: Other
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "Should parse tag");
         ASSERT_EQUALS(std::string("Test"), tag->title(), "Title should be trimmed");
         ASSERT_EQUALS(std::string("Artist"), tag->artist(), "Artist should be trimmed");
@@ -1465,9 +1469,9 @@ public:
         : TestCase("ID3v1_NullPointerHandling") {}
 protected:
     void runTest() override {
-        ASSERT_FALSE(ID3v1Tag::isValid(nullptr), "isValid should return false for nullptr");
+        ASSERT_FALSE(ID3v1Tag::isValid(nullptr, 0), "isValid should return false for nullptr");
         
-        auto tag = ID3v1Tag::parse(nullptr);
+        auto tag = ID3v1Tag::parse(nullptr, 0);
         ASSERT_NULL(tag.get(), "parse should return nullptr for nullptr input");
     }
 };
@@ -1492,7 +1496,7 @@ protected:
         data[127] = 0; // Genre: Blues
         
         // Should not crash
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "Should parse tag even with invalid year");
         // Year should be 0 for invalid data
         ASSERT_EQUALS(0u, tag->year(), "Year should be 0 for non-numeric data");
@@ -1773,7 +1777,7 @@ protected:
         // Genre: 12 (Other)
         v1_data[127] = 12;
         
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         ASSERT_NOT_NULL(v1_tag.get(), "ID3v1 tag should parse");
         
         // Create empty ID3v2 tag
@@ -1812,7 +1816,7 @@ protected:
         
         v1_data[127] = 0; // Genre: Blues
         
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         ASSERT_NOT_NULL(v1_tag.get(), "ID3v1 tag should parse");
         
         // Create merged tag with only ID3v1

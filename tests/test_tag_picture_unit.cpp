@@ -126,7 +126,7 @@ protected:
         data[3] = 'T'; data[4] = 'i'; data[5] = 't'; data[6] = 'l'; data[7] = 'e';
         data[127] = 17; // Rock genre
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "ID3v1Tag should parse successfully");
         ASSERT_EQUALS(static_cast<size_t>(0), tag->pictureCount(), 
             "ID3v1Tag pictureCount() should always return 0 (no picture support)");
@@ -357,7 +357,7 @@ protected:
         data[3] = 'T'; data[4] = 'i'; data[5] = 't'; data[6] = 'l'; data[7] = 'e';
         data[127] = 17; // Rock genre
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "ID3v1Tag should parse successfully");
         
         auto frontCover = tag->getFrontCover();

@@ -61,17 +61,19 @@ public:
     
     /**
      * @brief Parse ID3v1 tag from raw data
-     * @param data Pointer to 128 bytes of ID3v1 data (starting with "TAG")
-     * @return Unique pointer to ID3v1Tag, or nullptr if invalid
+     * @param data Pointer to ID3v1 data (starting with "TAG")
+     * @param size Number of bytes available at data; must be >= TAG_SIZE (128)
+     * @return Unique pointer to ID3v1Tag, or nullptr if invalid or truncated
      */
-    static std::unique_ptr<ID3v1Tag> parse(const uint8_t* data);
-    
+    static std::unique_ptr<ID3v1Tag> parse(const uint8_t* data, size_t size);
+
     /**
      * @brief Check if data contains a valid ID3v1 tag
-     * @param data Pointer to at least 128 bytes of data
-     * @return true if data starts with "TAG" magic bytes
+     * @param data Pointer to the candidate tag data
+     * @param size Number of bytes available at data
+     * @return true if size >= TAG_SIZE and data starts with "TAG" magic bytes
      */
-    static bool isValid(const uint8_t* data);
+    static bool isValid(const uint8_t* data, size_t size);
     
     /**
      * @brief Get genre string from genre index

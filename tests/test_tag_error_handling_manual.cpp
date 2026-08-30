@@ -21,16 +21,16 @@ bool test_id3v1_corrupted_data() {
         random_data[i] = static_cast<uint8_t>(rand() % 256);
     }
     
-    auto tag1 = ID3v1Tag::parse(random_data.data());
+    auto tag1 = ID3v1Tag::parse(random_data.data(), random_data.size());
     std::cout << "  Random data: " << (tag1 ? "parsed" : "rejected") << std::endl;
     
     // Test 2: Truncated data (only 50 bytes)
     std::vector<uint8_t> truncated_data(50, 0xFF);
-    auto tag2 = ID3v1Tag::parse(truncated_data.data());
+    auto tag2 = ID3v1Tag::parse(truncated_data.data(), truncated_data.size());
     std::cout << "  Truncated data: " << (tag2 ? "parsed" : "rejected") << std::endl;
     
     // Test 3: Null pointer
-    auto tag3 = ID3v1Tag::parse(nullptr);
+    auto tag3 = ID3v1Tag::parse(nullptr, 0);
     std::cout << "  Null pointer: " << (tag3 ? "parsed" : "rejected") << std::endl;
     
     // Test 4: Valid header but corrupted content
@@ -38,7 +38,7 @@ bool test_id3v1_corrupted_data() {
     corrupted_header[0] = 'T';
     corrupted_header[1] = 'A';
     corrupted_header[2] = 'G';
-    auto tag4 = ID3v1Tag::parse(corrupted_header.data());
+    auto tag4 = ID3v1Tag::parse(corrupted_header.data(), corrupted_header.size());
     std::cout << "  Valid header, corrupted content: " << (tag4 ? "parsed" : "rejected") << std::endl;
     
     return true;

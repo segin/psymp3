@@ -240,8 +240,10 @@ std::string ID3v1Tag::genreFromIndex(uint8_t index) {
     return ""; // Unknown genre (255 or out of range)
 }
 
-bool ID3v1Tag::isValid(const uint8_t* data) {
-    if (!data) {
+bool ID3v1Tag::isValid(const uint8_t* data, size_t size) {
+    // A real ID3v1 tag is exactly 128 bytes; anything shorter cannot be one,
+    // and rejecting it here is what lets parse() read fixed offsets safely.
+    if (!data || size < TAG_SIZE) {
         return false;
     }
     // Check for "TAG" magic bytes
@@ -274,25 +276,25 @@ std::string ID3v1Tag::normalizeKey(const std::string& key) {
     return result;
 }
 
-std::unique_ptr<ID3v1Tag> ID3v1Tag::parse(const uint8_t* data) {
-    if (!data || !isValid(data)) {
+std::unique_ptr<ID3v1Tag> ID3v1Tag::parse(const uint8_t* data, size_t size) {
+    if (!isValid(data, size)) {
         Debug::log("tag", "ID3v1Tag::parse: Invalid data or missing TAG header");
         return nullptr;
     }
-    
+
     auto tag = std::make_unique<ID3v1Tag>();
-    
+
     // Parse fixed fields
     // Offset 0-2: "TAG" (already validated)
     // Offset 3-32: Title (30 bytes)
     tag->m_title = trimString(reinterpret_cast<const char*>(data + 3), 30);
-    
+
     // Offset 33-62: Artist (30 bytes)
     tag->m_artist = trimString(reinterpret_cast<const char*>(data + 33), 30);
-    
+
     // Offset 63-92: Album (30 bytes)
     tag->m_album = trimString(reinterpret_cast<const char*>(data + 63), 30);
-    
+
     // Offset 93-96: Year (4 bytes, ASCII)
     std::string year_str = trimString(reinterpret_cast<const char*>(data + 93), 4);
     if (!year_str.empty()) {
@@ -301,7 +303,7 @@ std::unique_ptr<ID3v1Tag> ID3v1Tag::parse(const uint8_t* data) {
             tag->m_year = 0;
         }
     }
-    
+
     // Offset 97-126: Comment (30 bytes)
     // Check for ID3v1.1: byte 125 (offset 125) is 0x00 and byte 126 (offset 126) is non-zero
     if (data[125] == 0x00 && data[126] != 0x00) {

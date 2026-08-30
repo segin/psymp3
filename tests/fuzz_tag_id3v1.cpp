@@ -51,18 +51,19 @@ using namespace PsyMP3::Tag;
  * - String trimming with arbitrary byte sequences
  */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-    // Test isValid() with any size data
+    // Test isValid() with any size data — the size parameter makes short
+    // inputs a rejected case rather than an out-of-bounds read
     if (size > 0) {
         // isValid should never crash regardless of input
-        (void)ID3v1Tag::isValid(data);
+        (void)ID3v1Tag::isValid(data, size);
     }
-    
+
     // Test isValid() with nullptr
-    (void)ID3v1Tag::isValid(nullptr);
-    
+    (void)ID3v1Tag::isValid(nullptr, 0);
+
     // Test parse() with any size data
     if (size > 0) {
-        auto tag = ID3v1Tag::parse(data);
+        auto tag = ID3v1Tag::parse(data, size);
         
         // If parsing succeeded, exercise all accessors
         if (tag) {
@@ -118,7 +119,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     
     // Test parse() with nullptr
-    (void)ID3v1Tag::parse(nullptr);
+    (void)ID3v1Tag::parse(nullptr, 0);
+    (void)ID3v1Tag::parse(nullptr, ID3v1Tag::TAG_SIZE);
     
     // Test genre lookup with fuzzer-derived index
     if (size >= 1) {
@@ -138,7 +140,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     
     // Test with exact ID3v1 tag size (128 bytes)
     if (size >= ID3v1Tag::TAG_SIZE) {
-        auto tag = ID3v1Tag::parse(data);
+        auto tag = ID3v1Tag::parse(data, size);
         if (tag) {
             // Exercise all accessors again with properly-sized data
             std::string title = tag->title();
@@ -150,7 +152,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             uint32_t track = tag->track();
             
             // Verify string lengths are reasonable (max 30 chars for ID3v1 fields)
-            if (title.length() > 30 || artist.length() > 30 || 
+            if (title.length() > 30 || artist.length() > 30 ||
                 album.length() > 30 || comment.length() > 30) {
                 // This would indicate a bug - strings should be trimmed
                 __builtin_trap();
@@ -158,12 +160,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
     }
     
-    // Test with truncated data (less than 128 bytes)
+    // Test with truncated data (less than 128 bytes): parse must reject every
+    // undersized prefix, whatever its content
     for (size_t truncated_size = 0; truncated_size < std::min(size, static_cast<size_t>(128)); ++truncated_size) {
-        auto tag = ID3v1Tag::parse(data);
-        // Should return nullptr for truncated data without "TAG" header
-        // or nullptr/valid tag depending on content
-        (void)tag;
+        auto tag = ID3v1Tag::parse(data, truncated_size);
+        if (tag) {
+            // A tag parsed from fewer than 128 bytes is a bug
+            __builtin_trap();
+        }
     }
     
     return 0;

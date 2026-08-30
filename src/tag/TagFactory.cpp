@@ -160,7 +160,7 @@ std::unique_ptr<Tag> TagFactory::parseMP3Tags(const std::string& filepath) {
             uint8_t id3v1_data[128];
             file.read(reinterpret_cast<char*>(id3v1_data), 128);
             if (file) {
-                id3v1_tag = ID3v1Tag::parse(id3v1_data);
+                id3v1_tag = ID3v1Tag::parse(id3v1_data, sizeof(id3v1_data));
                 if (id3v1_tag) {
                     Debug::log("tag", "TagFactory::parseMP3Tags: Successfully parsed ID3v1");
                 }
@@ -279,7 +279,7 @@ std::unique_ptr<Tag> TagFactory::createFromFile(const std::string& filepath) {
             Debug::log("tag", "TagFactory::createFromFile: VorbisComment detected but needs container parsing");
             break;
         }
-        
+
         default:
             Debug::log("tag", "TagFactory::createFromFile: Unknown or unsupported format");
             break;
@@ -333,7 +333,7 @@ std::unique_ptr<Tag> TagFactory::createFromData(
         
         case TagFormat::ID3v1: {
             if (size >= 128) {
-                auto tag = ID3v1Tag::parse(data);
+                auto tag = ID3v1Tag::parse(data, size);
                 if (tag) {
                     Debug::log("tag", "TagFactory::createFromData: Created ID3v1Tag");
                     return tag;

@@ -356,7 +356,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        ASSERT_TRUE(ID3v1Tag::isValid(data.data()), "isValid should return true for valid TAG header");
+        ASSERT_TRUE(ID3v1Tag::isValid(data.data(), data.size()), "isValid should return true for valid TAG header");
     }
 };
 
@@ -367,7 +367,7 @@ protected:
     void runTest() override {
         std::vector<uint8_t> data(128, 0);
         data[0] = 'X'; data[1] = 'Y'; data[2] = 'Z';
-        ASSERT_FALSE(ID3v1Tag::isValid(data.data()), "isValid should return false for invalid header");
+        ASSERT_FALSE(ID3v1Tag::isValid(data.data(), data.size()), "isValid should return false for invalid header");
     }
 };
 
@@ -376,7 +376,7 @@ public:
     ID3v1Tag_IsValid_NullPointer() : TestCase("ID3v1Tag_IsValid_NullPointer") {}
 protected:
     void runTest() override {
-        ASSERT_FALSE(ID3v1Tag::isValid(nullptr), "isValid should return false for nullptr");
+        ASSERT_FALSE(ID3v1Tag::isValid(nullptr, 0), "isValid should return false for nullptr");
     }
 };
 
@@ -387,7 +387,7 @@ protected:
     void runTest() override {
         auto data = createID3v1Tag("Test Title", "Test Artist", "Test Album", 
                                     "2024", "Test Comment", 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(std::string("Test Title"), tag->title(), "title should match");
@@ -404,7 +404,7 @@ public:
     ID3v1Tag_Parse_NullPointer() : TestCase("ID3v1Tag_Parse_NullPointer") {}
 protected:
     void runTest() override {
-        auto tag = ID3v1Tag::parse(nullptr);
+        auto tag = ID3v1Tag::parse(nullptr, 0);
         ASSERT_NULL(tag.get(), "parse should return nullptr for null input");
     }
 };
@@ -416,7 +416,7 @@ protected:
     void runTest() override {
         std::vector<uint8_t> data(128, 0);
         data[0] = 'X'; data[1] = 'Y'; data[2] = 'Z';
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NULL(tag.get(), "parse should return nullptr for invalid header");
     }
 };
@@ -429,7 +429,7 @@ protected:
         // ID3v1.0: byte 125 is non-zero (part of comment)
         auto data = createID3v1Tag("Title", "Artist", "Album", "2024", 
                                     "This is a 30 character comment", 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_FALSE(tag->isID3v1_1(), "should detect ID3v1.0 format");
@@ -445,7 +445,7 @@ protected:
     void runTest() override {
         auto data = createID3v1_1Tag("Title", "Artist", "Album", "2024", 
                                       "Comment", 5, 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_TRUE(tag->isID3v1_1(), "should detect ID3v1.1 format");
@@ -465,7 +465,7 @@ protected:
         data[3] = 'T'; data[4] = 'e'; data[5] = 's'; data[6] = 't';
         data[127] = 17;
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(std::string("Test"), tag->title(), "title should be trimmed");
     }
@@ -483,7 +483,7 @@ protected:
         data[36] = 'i'; data[37] = 's'; data[38] = 't';
         data[127] = 17;
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(std::string("Artist"), tag->artist(), "artist should be trimmed");
     }
@@ -545,7 +545,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1_1Tag("Title", "Artist", "Album", "2024", "Comment", 5, 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(std::string("Title"), tag->getTag("TITLE"), "getTag(TITLE) should work");
@@ -564,7 +564,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(std::string("Title"), tag->getTag("title"), "lowercase key should work");
@@ -579,7 +579,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         // ID3v2 frame names should also work
@@ -595,7 +595,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_TRUE(tag->hasTag("TITLE"), "hasTag(TITLE) should return true");
@@ -610,7 +610,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "", "", "", "", 255);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_TRUE(tag->hasTag("TITLE"), "hasTag(TITLE) should return true");
@@ -626,7 +626,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1_1Tag("Title", "Artist", "Album", "2024", "Comment", 5, 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         auto allTags = tag->getAllTags();
@@ -648,7 +648,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "", "", "", "", 255);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_FALSE(tag->isEmpty(), "isEmpty should return false when title is set");
@@ -664,7 +664,7 @@ protected:
         data[0] = 'T'; data[1] = 'A'; data[2] = 'G';
         data[127] = 255; // Unknown genre
         
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_TRUE(tag->isEmpty(), "isEmpty should return true when all fields empty");
     }
@@ -676,7 +676,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("", "", "", "2024", "", 0);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(2024u, tag->year(), "year should be 2024");
@@ -689,7 +689,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("", "", "", "ABCD", "", 0);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(0u, tag->year(), "year should be 0 for invalid input");
@@ -702,7 +702,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         ASSERT_EQUALS(0u, tag->pictureCount(), "pictureCount should be 0");
@@ -717,7 +717,7 @@ public:
 protected:
     void runTest() override {
         auto data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto tag = ID3v1Tag::parse(data.data());
+        auto tag = ID3v1Tag::parse(data.data(), data.size());
         
         ASSERT_NOT_NULL(tag.get(), "parse should return valid tag");
         // Fields not supported by ID3v1
@@ -726,6 +726,27 @@ protected:
         ASSERT_EQUALS(0u, tag->trackTotal(), "trackTotal should be 0");
         ASSERT_EQUALS(0u, tag->disc(), "disc should be 0");
         ASSERT_EQUALS(0u, tag->discTotal(), "discTotal should be 0");
+    }
+};
+
+class ID3v1Tag_Parse_RejectsTruncated : public TestCase {
+public:
+    ID3v1Tag_Parse_RejectsTruncated() : TestCase("ID3v1Tag_Parse_RejectsTruncated") {}
+protected:
+    void runTest() override {
+        // A "TAG"-prefixed buffer shorter than 128 bytes must be rejected by
+        // the size check alone — parse must never read past the buffer.
+        std::vector<uint8_t> data(64, 'A');
+        data[0] = 'T'; data[1] = 'A'; data[2] = 'G';
+        ASSERT_NULL(ID3v1Tag::parse(data.data(), data.size()).get(),
+                    "parse should reject a 64-byte buffer");
+        ASSERT_FALSE(ID3v1Tag::isValid(data.data(), data.size()),
+                     "isValid should reject a 64-byte buffer");
+
+        std::vector<uint8_t> almost(127, 0);
+        almost[0] = 'T'; almost[1] = 'A'; almost[2] = 'G';
+        ASSERT_NULL(ID3v1Tag::parse(almost.data(), almost.size()).get(),
+                    "parse should reject a 127-byte buffer");
     }
 };
 
@@ -741,7 +762,7 @@ protected:
         // Create ID3v1 tag with all fields
         auto v1_data = createID3v1_1Tag("V1Title", "V1Artist", "V1Album", "2000", 
                                          "V1Comment", 5, 12);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         ASSERT_NOT_NULL(v1_tag.get(), "ID3v1 tag should parse");
         
         // Create empty ID3v2 tag
@@ -766,7 +787,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         ASSERT_NOT_NULL(v1_tag.get(), "ID3v1 tag should parse");
         
         // Create merged tag with only ID3v1
@@ -815,7 +836,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         auto v2_tag = std::make_unique<ID3v2Tag>();
         
         MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
@@ -832,7 +853,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         
         MergedID3Tag merged(std::move(v1_tag), nullptr);
         
@@ -847,7 +868,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         auto v2_tag = std::make_unique<ID3v2Tag>();
         
         MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
@@ -865,7 +886,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         auto v2_tag = std::make_unique<ID3v2Tag>();
         
         MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
@@ -885,7 +906,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("V1Title", "V1Artist", "V1Album", "2000", "V1Comment", 12);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         auto v2_tag = std::make_unique<ID3v2Tag>();
         
         MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
@@ -902,7 +923,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("Title", "Artist", "", "", "", 255);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         auto v2_tag = std::make_unique<ID3v2Tag>();
         
         MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
@@ -919,7 +940,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1_1Tag("Title", "Artist", "Album", "2024", "Comment", 5, 17);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         auto v2_tag = std::make_unique<ID3v2Tag>();
         
         MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
@@ -937,7 +958,7 @@ public:
 protected:
     void runTest() override {
         auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
-        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v1_tag = ID3v1Tag::parse(v1_data.data(), v1_data.size());
         auto v2_tag = std::make_unique<ID3v2Tag>();
         
         MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
@@ -1257,6 +1278,7 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ID3v1Tag_YearParsing_InvalidYear>());
     suite.addTest(std::make_unique<ID3v1Tag_NoPictures>());
     suite.addTest(std::make_unique<ID3v1Tag_UnsupportedFields>());
+    suite.addTest(std::make_unique<ID3v1Tag_Parse_RejectsTruncated>());
     
     // MergedID3Tag tests
     suite.addTest(std::make_unique<MergedID3Tag_ID3v2Precedence>());
