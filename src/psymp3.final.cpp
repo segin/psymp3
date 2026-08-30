@@ -146,11 +146,11 @@
 #include "codecs/alac/ALACCodec.cpp"
 
 // ============================================================================
-// Optional Codec: Vorbis
+// Vorbis Codec (always available via bundled stb_vorbis; the C implementation
+// is a separate object — see codecs/vorbis/stb_vorbis_impl.c — and the codec
+// body self-guards on HAVE_OGGDEMUXER, its packet source)
 // ============================================================================
-#ifdef HAVE_VORBIS
 #include "codecs/vorbis/VorbisCodec.cpp"
-#endif
 
 // ============================================================================
 // Optional Codec: Opus

@@ -26,6 +26,11 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+// Decoder handle from the vendored stb_vorbis (third_party/stb). Declared at
+// global scope so the member pointer below matches stb's own
+// `typedef struct stb_vorbis stb_vorbis;` without pulling the header in here.
+struct stb_vorbis;
+
 #ifdef HAVE_OGGDEMUXER
 
 namespace PsyMP3 {
@@ -90,12 +95,17 @@ private:
 
 /**
  * @brief Container-agnostic Vorbis audio codec
- * 
+ *
  * This codec decodes Vorbis bitstream data from any container format
- * (primarily Ogg Vorbis) into standard 16-bit PCM audio. It uses libvorbis
- * directly for efficient, accurate decoding and supports all Vorbis quality
- * levels and encoding configurations.
- * 
+ * (primarily Ogg Vorbis) into standard 16-bit PCM audio. Decoding is done by
+ * the vendored stb_vorbis (third_party/stb) in pushdata mode — no libvorbis.
+ *
+ * stb_vorbis's pushdata API consumes Ogg PAGE bytes, while the demuxer
+ * delivers de-paged raw Vorbis packets; the codec bridges the two by wrapping
+ * every packet back into minimal Ogg page framing (real lacing, continuation
+ * pages for oversized packets, and a valid page CRC — the CRC is ignored on
+ * the normal decode path but validated by stb's post-seek resync scan).
+ *
  * Requirements: 11.1, 2.8
  */
 class VorbisCodec : public AudioCodec
@@ -110,11 +120,8 @@ public:
     explicit VorbisCodec(const StreamInfo& stream_info);
     
     /**
-     * @brief Destructor with proper libvorbis cleanup
-     * 
-     * Cleans up libvorbis structures in reverse initialization order:
-     * vorbis_block_clear, vorbis_dsp_clear, vorbis_comment_clear, vorbis_info_clear
-     * 
+     * @brief Destructor; closes the stb_vorbis decoder instance
+     *
      * Requirements: 2.8
      */
     ~VorbisCodec() override;
@@ -128,13 +135,24 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    // ========== libvorbis decoder state ==========
+    // ========== stb_vorbis decoder state ==========
     // Requirements: 2.1, 2.8
-    vorbis_info m_vorbis_info;
-    vorbis_comment m_vorbis_comment;
-    vorbis_dsp_state m_vorbis_dsp;
-    vorbis_block m_vorbis_block;
-    
+    ::stb_vorbis* m_stb = nullptr;
+
+    // Synthetic Ogg page byte stream pending decode. Packets from the demuxer
+    // are re-paged into here; stb_vorbis consumes it page by page. Bytes it
+    // declines (needs the whole next packet in one buffer) stay for the next
+    // decode() call.
+    std::vector<uint8_t> m_input;
+
+    // Buffered header packets (id/comment/setup); the decoder is opened once
+    // all three have arrived.
+    std::vector<uint8_t> m_header_data[3];
+
+    // Ogg page sequence number for the synthetic framing; monotonic across
+    // seeks (the resync scanner does not check continuity).
+    uint32_t m_page_counter = 0;
+
     // ========== Stream configuration ==========
     uint32_t m_sample_rate = 0;
     uint16_t m_channels = 0;
@@ -148,7 +166,11 @@ private:
     // ========== Decoding buffers ==========
     // Requirements: 7.1, 7.2, 7.4
     std::vector<int16_t> m_output_buffer;
-    float** m_pcm_channels = nullptr;
+
+    // Cap on m_input growth: if stb_vorbis declines this much re-paged data
+    // the stream is pathological, and unbounded buffering would just defer
+    // the failure to OOM.
+    static constexpr size_t MAX_PENDING_INPUT = 4 * 1024 * 1024;
     
     // ========== Streaming and buffer management ==========
     // Requirements: 7.1, 7.2, 7.4
@@ -204,7 +226,10 @@ private:
     
     // ========== Audio decoding (private unlocked methods) ==========
     AudioFrame decodeAudioPacket_unlocked(const std::vector<uint8_t>& packet_data);
-    bool synthesizeBlock_unlocked();
+    void appendPacketAsPages_unlocked(const uint8_t* packet, size_t size, bool bos);
+    void appendResyncPrimerPage_unlocked();
+    bool openDecoder_unlocked();
+    void drainDecoder_unlocked();
     void convertFloatToPCM_unlocked(float** pcm, int samples, AudioFrame& frame);
     
 public:
@@ -282,10 +307,7 @@ public:
     void clearErrorState();
     
 private:
-    
-    // ========== Block size and windowing (private unlocked methods) ==========
-    void handleVariableBlockSizes_unlocked(const vorbis_block* block);
-    
+
     // ========== Streaming and buffer management (private unlocked methods) ==========
     // Requirements: 7.1, 7.2, 7.4
     /**

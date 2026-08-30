@@ -27,9 +27,50 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+// Declarations only; the implementation is compiled separately as a C object
+// (stb_vorbis_impl.c) because stb_vorbis defines collision-prone globals.
+// The define set must match the impl so the declaration surface agrees.
+#define STB_VORBIS_HEADER_ONLY
+#define STB_VORBIS_NO_PULLDATA_API
+#include "../../../third_party/stb/stb_vorbis.c"
+#undef STB_VORBIS_HEADER_ONLY
+
 namespace PsyMP3 {
 namespace Codec {
 namespace Vorbis {
+
+namespace {
+
+/// Ogg page CRC (RFC 3533): poly 0x04C11DB7, unreflected, zero init, no
+/// final xor. stb_vorbis ignores the CRC on its normal decode path but
+/// validates it while resynchronizing after a seek, so the synthetic pages
+/// built below always carry the real checksum.
+uint32_t oggCrc32(const uint8_t* data, size_t len)
+{
+    static const std::array<uint32_t, 256> table = [] {
+        std::array<uint32_t, 256> t{};
+        for (uint32_t i = 0; i < 256; ++i) {
+            uint32_t r = i << 24;
+            for (int j = 0; j < 8; ++j) {
+                r = (r & 0x80000000u) ? (r << 1) ^ 0x04C11DB7u : (r << 1);
+            }
+            t[i] = r;
+        }
+        return t;
+    }();
+
+    uint32_t crc = 0;
+    for (size_t i = 0; i < len; ++i) {
+        crc = (crc << 8) ^ table[((crc >> 24) ^ data[i]) & 0xFF];
+    }
+    return crc;
+}
+
+/// Arbitrary constant serial number for the synthetic logical stream;
+/// stb_vorbis reads and discards it.
+constexpr uint32_t kSyntheticSerial = 0x33505350; // "PSP3"
+
+} // namespace
 
 // ========== VorbisHeaderInfo Implementation ==========
 
@@ -206,22 +247,15 @@ bool Vorbis::eof()
 VorbisCodec::VorbisCodec(const StreamInfo& stream_info) : AudioCodec(stream_info)
 {
     Debug::log("vorbis", "VorbisCodec constructor called");
-    
-    // Note: libvorbis structures are initialized in initialize() method (Requirement 2.1)
-    // This follows the pattern where constructor sets up member variables,
-    // and initialize() performs the actual codec setup
-    
-    // Zero-initialize libvorbis structures (will be properly initialized in initialize())
-    std::memset(&m_vorbis_info, 0, sizeof(m_vorbis_info));
-    std::memset(&m_vorbis_comment, 0, sizeof(m_vorbis_comment));
-    std::memset(&m_vorbis_dsp, 0, sizeof(m_vorbis_dsp));
-    std::memset(&m_vorbis_block, 0, sizeof(m_vorbis_block));
-    
+
+    // The stb_vorbis instance is created in decode() once all three header
+    // packets have arrived; the constructor only sets up member state.
+
     // Initialize atomic variables
     m_samples_decoded.store(0);
     m_granule_position.store(0);
     m_error_state.store(false);
-    
+
     // Initialize state variables
     m_header_packets_received = 0;
     m_decoder_initialized = false;
@@ -230,8 +264,7 @@ VorbisCodec::VorbisCodec(const StreamInfo& stream_info) : AudioCodec(stream_info
     m_bits_per_sample = 16;  // Always output 16-bit PCM
     m_block_size_short = 0;
     m_block_size_long = 0;
-    m_pcm_channels = nullptr;
-    
+
     Debug::log("vorbis", "VorbisCodec constructor completed");
 }
 
@@ -266,14 +299,8 @@ bool VorbisCodec::initialize()
     Debug::log("vorbis", "VorbisCodec::initialize called");
     
     // Clean up any existing state first (Requirement 2.8)
-    if (m_decoder_initialized) {
-        cleanupVorbisStructures_unlocked();
-    }
-    
-    // Initialize libvorbis structures (Requirement 2.1)
-    vorbis_info_init(&m_vorbis_info);
-    vorbis_comment_init(&m_vorbis_comment);
-    
+    cleanupVorbisStructures_unlocked();
+
     // Reset state for fresh initialization
     m_header_packets_received = 0;
     m_decoder_initialized = false;
@@ -309,9 +336,6 @@ bool VorbisCodec::initialize()
         m_last_error = "Memory allocation failed during initialization: " + std::string(e.what());
         Debug::log("vorbis", m_last_error);
         Debug::log("error", "VorbisCodec: ", m_last_error);
-        // Clean up partially initialized state
-        vorbis_comment_clear(&m_vorbis_comment);
-        vorbis_info_clear(&m_vorbis_info);
         throw BadFormatException(m_last_error);
     }
     
@@ -396,34 +420,17 @@ AudioFrame VorbisCodec::decode(const MediaChunk& chunk)
         if (processHeaderPacket_unlocked(chunk.data)) {
             m_header_packets_received++;
             Debug::log("vorbis", "Header packet ", m_header_packets_received, " processed successfully");
-            
-            // After all 3 headers, initialize synthesis (Requirement 2.3)
+
+            // After all 3 headers, open the stb_vorbis decoder (Requirement 2.3)
             if (m_header_packets_received == 3) {
-                // Initialize synthesis - handle memory allocation failures (Requirement 8.6)
-                int synth_result = vorbis_synthesis_init(&m_vorbis_dsp, &m_vorbis_info);
-                if (synth_result != 0) {
+                if (!openDecoder_unlocked()) {
                     m_error_state.store(true);
-                    m_last_error = "Failed to initialize Vorbis synthesis (error: " + 
-                                   std::to_string(synth_result) + ")";
                     Debug::log("vorbis", m_last_error);
                     Debug::log("error", "VorbisCodec: ", m_last_error);
-                    // Memory allocation failure during synthesis init
-                    throw BadFormatException(m_last_error);
-                }
-                
-                int block_result = vorbis_block_init(&m_vorbis_dsp, &m_vorbis_block);
-                if (block_result != 0) {
-                    vorbis_dsp_clear(&m_vorbis_dsp);
-                    m_error_state.store(true);
-                    m_last_error = "Failed to initialize Vorbis block (error: " + 
-                                   std::to_string(block_result) + ")";
-                    Debug::log("vorbis", m_last_error);
-                    Debug::log("error", "VorbisCodec: ", m_last_error);
-                    // Memory allocation failure during block init
                     throw BadFormatException(m_last_error);
                 }
                 m_decoder_initialized = true;
-                Debug::log("vorbis", "Vorbis synthesis initialized successfully");
+                Debug::log("vorbis", "stb_vorbis decoder opened successfully");
             }
         } else {
             Debug::log("vorbis", "Header packet processing failed");
@@ -459,11 +466,15 @@ AudioFrame VorbisCodec::flush()
     Debug::log("vorbis", "VorbisCodec::flush called");
     
     AudioFrame frame;
-    
+
     if (m_decoder_initialized) {
-        // Process any remaining samples (Requirement 4.8, 7.5)
-        synthesizeBlock_unlocked();
-        
+        // Drain anything stb_vorbis can still decode from buffered pages, then
+        // hand over whatever is left in the output buffer (Requirement 4.8, 7.5).
+        // Vorbis itself holds back the final half-window (it needs the next
+        // packet for overlap-add), matching the old libvorbis behavior of never
+        // performing end-of-stream tail synthesis.
+        drainDecoder_unlocked();
+
         if (!m_output_buffer.empty()) {
             frame.sample_rate = m_sample_rate;
             frame.channels = m_channels;
@@ -472,7 +483,7 @@ AudioFrame VorbisCodec::flush()
             Debug::log("vorbis", "Flushed ", frame.samples.size(), " samples");
         }
     }
-    
+
     return frame;
 }
 
@@ -482,13 +493,25 @@ void VorbisCodec::reset()
     
     Debug::log("vorbis", "VorbisCodec::reset called");
     
-    // For seeking, we use vorbis_synthesis_restart() to reset synthesis state
-    // without reinitializing headers (Requirement 2.7)
-    if (m_decoder_initialized) {
-        vorbis_synthesis_restart(&m_vorbis_dsp);
-        Debug::log("vorbis", "Vorbis synthesis restarted for seeking");
+    // For seeking, flush the pushdata decoder without reopening headers
+    // (Requirement 2.7). This arms stb_vorbis's CRC-validated page resync.
+    if (m_decoder_initialized && m_stb) {
+        stb_vorbis_flush_pushdata(m_stb);
+        Debug::log("vorbis", "stb_vorbis flushed for seeking");
     }
-    
+
+    // Drop any re-paged bytes from before the seek (Requirement 7.6, 11.5)
+    m_input.clear();
+
+    // Let the resync scanner lock on a packet-less primer page instead of
+    // eating the first real post-seek packet: the scan consumes the entire
+    // page it validates, and without the primer that would cost one full
+    // audio packet on every seek beyond the warm-up frame libvorbis also
+    // discarded after vorbis_synthesis_restart().
+    if (m_decoder_initialized && m_stb) {
+        appendResyncPrimerPage_unlocked();
+    }
+
     // Clear internal buffers (Requirement 7.6, 11.5)
     m_output_buffer.clear();
     
@@ -542,93 +565,274 @@ bool VorbisCodec::processHeaderPacket_unlocked(const std::vector<uint8_t>& packe
 bool VorbisCodec::processIdentificationHeader_unlocked(const std::vector<uint8_t>& packet_data)
 {
     Debug::log("vorbis", "Processing identification header (\\x01vorbis)");
-    
-    // Create ogg_packet structure for libvorbis (Requirement 2.2)
-    ogg_packet packet;
-    packet.packet = const_cast<unsigned char*>(packet_data.data());
-    packet.bytes = static_cast<long>(packet_data.size());
-    packet.b_o_s = 1;  // Beginning of stream
-    packet.e_o_s = 0;
-    packet.granulepos = -1;
-    packet.packetno = 0;
-    
-    // Process header using libvorbis
-    int result = vorbis_synthesis_headerin(&m_vorbis_info, &m_vorbis_comment, &packet);
-    
-    if (result < 0) {
-        handleVorbisError_unlocked(result);
-        return false;
+
+    // Parse and validate the fixed-layout identification header ourselves
+    // (Requirement 1.2); stb_vorbis re-validates it when the decoder opens.
+    VorbisHeaderInfo info = VorbisHeaderInfo::parseFromPacket(packet_data);
+    if (!info.isValid()) {
+        // Fatal, matching the old libvorbis OV_EBADHEADER path: without a
+        // valid identification header the stream can never decode, and
+        // silently returning empty frames forever would just hide that.
+        m_error_state.store(true);
+        m_last_error = "Invalid Vorbis identification header";
+        Debug::log("vorbis", m_last_error);
+        Debug::log("error", "VorbisCodec: FATAL - ", m_last_error);
+        throw BadFormatException(m_last_error);
     }
-    
-    // Extract configuration from vorbis_info (Requirement 1.2)
-    m_sample_rate = m_vorbis_info.rate;
-    m_channels = m_vorbis_info.channels;
-    
-    // Extract block sizes (Requirement 4.1, 4.2)
-    // vorbis_info stores blocksize as log2 values
-    m_block_size_short = vorbis_info_blocksize(&m_vorbis_info, 0);
-    m_block_size_long = vorbis_info_blocksize(&m_vorbis_info, 1);
-    
-    Debug::log("vorbis", "Identification header parsed: rate=", m_sample_rate, 
+
+    m_sample_rate = info.sample_rate;
+    m_channels = info.channels;
+
+    // Block sizes are stored as log2 values (Requirement 4.1, 4.2)
+    m_block_size_short = 1u << info.blocksize_0;
+    m_block_size_long = 1u << info.blocksize_1;
+
+    m_header_data[0] = packet_data;
+
+    Debug::log("vorbis", "Identification header parsed: rate=", m_sample_rate,
                " channels=", m_channels,
                " block_short=", m_block_size_short,
                " block_long=", m_block_size_long);
-    
+
     return true;
 }
 
 bool VorbisCodec::processCommentHeader_unlocked(const std::vector<uint8_t>& packet_data)
 {
     Debug::log("vorbis", "Processing comment header (\\x03vorbis)");
-    
-    // Create ogg_packet structure for libvorbis (Requirement 2.2)
-    ogg_packet packet;
-    packet.packet = const_cast<unsigned char*>(packet_data.data());
-    packet.bytes = static_cast<long>(packet_data.size());
-    packet.b_o_s = 0;
-    packet.e_o_s = 0;
-    packet.granulepos = -1;
-    packet.packetno = 1;
-    
-    // Process header using libvorbis (Requirement 1.3)
-    int result = vorbis_synthesis_headerin(&m_vorbis_info, &m_vorbis_comment, &packet);
-    
-    if (result < 0) {
-        handleVorbisError_unlocked(result);
-        return false;
-    }
-    
-    // Comment header data is now available in m_vorbis_comment for demuxer access (Requirement 14.1)
-    Debug::log("vorbis", "Comment header parsed successfully, vendor: ", 
-               m_vorbis_comment.vendor ? m_vorbis_comment.vendor : "unknown");
-    
+
+    // The signature was already checked by processHeaderPacket_unlocked; the
+    // comment contents don't affect decoding, so parse only for the log
+    // (Requirement 1.3, 14.1 — tag extraction happens demuxer-side).
+    VorbisCommentInfo info = VorbisCommentInfo::parseFromPacket(packet_data);
+
+    m_header_data[1] = packet_data;
+
+    Debug::log("vorbis", "Comment header parsed successfully, vendor: ",
+               info.vendor_string.empty() ? "unknown" : info.vendor_string);
+
     return true;
 }
 
 bool VorbisCodec::processSetupHeader_unlocked(const std::vector<uint8_t>& packet_data)
 {
     Debug::log("vorbis", "Processing setup header (\\x05vorbis)");
-    
-    // Create ogg_packet structure for libvorbis (Requirement 2.2)
-    ogg_packet packet;
-    packet.packet = const_cast<unsigned char*>(packet_data.data());
-    packet.bytes = static_cast<long>(packet_data.size());
-    packet.b_o_s = 0;
-    packet.e_o_s = 0;
-    packet.granulepos = -1;
-    packet.packetno = 2;
-    
-    // Process header using libvorbis (Requirement 1.4)
-    int result = vorbis_synthesis_headerin(&m_vorbis_info, &m_vorbis_comment, &packet);
-    
-    if (result < 0) {
-        handleVorbisError_unlocked(result);
+
+    // The setup header's codebooks can only be validated by the decoder
+    // itself; buffer it and let openDecoder_unlocked() do the parse
+    // (Requirement 1.4).
+    m_header_data[2] = packet_data;
+
+    Debug::log("vorbis", "Setup header buffered - decoder ready for initialization");
+
+    return true;
+}
+
+bool VorbisCodec::openDecoder_unlocked()
+{
+    // Rebuild the three header packets as an Ogg page stream and hand it to
+    // stb_vorbis_open_pushdata. The identification header must be the sole
+    // packet of the first (BOS-flagged) page — stb enforces exactly one
+    // 30-byte segment there — and the comment/setup packets follow on
+    // ordinary pages.
+    m_input.clear();
+    m_page_counter = 0;
+    // The identification header is a fixed 30-byte structure and stb demands
+    // exactly one 30-byte segment on the first page; libvorbis tolerated
+    // trailing garbage after the framing bit, so truncate rather than reject.
+    appendPacketAsPages_unlocked(m_header_data[0].data(),
+                                 std::min<size_t>(m_header_data[0].size(), 30), true);
+    appendPacketAsPages_unlocked(m_header_data[1].data(), m_header_data[1].size(), false);
+    appendPacketAsPages_unlocked(m_header_data[2].data(), m_header_data[2].size(), false);
+
+    int consumed = 0;
+    int stb_error = 0;
+    {
+        // stb_vorbis rewrites its file-global CRC table on every open with
+        // plain stores; two codec instances opening/decoding concurrently is
+        // a data race TSan flags. The writes are idempotent, but serializing
+        // opens costs nothing and keeps --enable-tsan runs clean.
+        static std::mutex s_open_mutex;
+        std::lock_guard<std::mutex> open_lock(s_open_mutex);
+        m_stb = stb_vorbis_open_pushdata(m_input.data(), static_cast<int>(m_input.size()),
+                                         &consumed, &stb_error, nullptr);
+    }
+    if (!m_stb) {
+        // All three headers are complete in the buffer, so need_more_data
+        // cannot legitimately happen — treat every failure as a bad stream
+        // (the old code's fatal OV_EBADHEADER path).
+        m_last_error = "stb_vorbis rejected the Vorbis headers (error " +
+                       std::to_string(stb_error) + ")";
         return false;
     }
-    
-    Debug::log("vorbis", "Setup header parsed successfully - decoder ready for initialization");
-    
+    m_input.erase(m_input.begin(), m_input.begin() + consumed);
+
+    stb_vorbis_info info = stb_vorbis_get_info(m_stb);
+    m_sample_rate = info.sample_rate;
+    m_channels = static_cast<uint16_t>(info.channels);
+
+    // The header packets are no longer needed once the decoder holds the
+    // parsed setup; free the (potentially large) setup copy.
+    for (auto& h : m_header_data) {
+        h.clear();
+        h.shrink_to_fit();
+    }
+
     return true;
+}
+
+void VorbisCodec::appendPacketAsPages_unlocked(const uint8_t* packet, size_t size, bool bos)
+{
+    // Wrap one raw Vorbis packet in minimal Ogg page framing and append the
+    // page bytes to m_input. The demuxer de-paged the stream (one packet per
+    // MediaChunk); stb_vorbis's pushdata API consumes pages, so the framing
+    // is rebuilt here. Granulepos is always -1 (unknown): timestamps are the
+    // demuxer's job, and it keeps stb's end-of-stream trimming and location
+    // tracking inert, matching the old libvorbis packet-mode behavior.
+    size_t offset = 0;
+    bool continued = false;
+    bool finished = false;
+
+    while (!finished) {
+        // Lacing: a packet of L bytes uses floor(L/255)+1 lacing values, the
+        // last one < 255 (0 for exact multiples). A page holds at most 255
+        // lacing values; if the packet doesn't complete within them, every
+        // value is 255 and the packet continues on the next page, which is
+        // flagged 0x01.
+        uint8_t lacing[255];
+        int n_lacing = 0;
+        size_t payload = 0;
+        while (n_lacing < 255) {
+            size_t left = size - offset - payload;
+            uint8_t seg = left >= 255 ? 255 : static_cast<uint8_t>(left);
+            lacing[n_lacing++] = seg;
+            payload += seg;
+            if (seg < 255) {
+                finished = true;
+                break;
+            }
+        }
+
+        const size_t header_size = 27 + static_cast<size_t>(n_lacing);
+        const size_t page_start = m_input.size();
+        m_input.resize(page_start + header_size + payload);
+        uint8_t* h = m_input.data() + page_start;
+
+        std::memcpy(h, "OggS", 4);
+        h[4] = 0; // stream structure version
+        h[5] = static_cast<uint8_t>((continued ? 0x01 : 0x00) | (bos ? 0x02 : 0x00));
+        std::memset(h + 6, 0xFF, 8); // granulepos = -1 (no position claimed)
+        h[14] = static_cast<uint8_t>(kSyntheticSerial);
+        h[15] = static_cast<uint8_t>(kSyntheticSerial >> 8);
+        h[16] = static_cast<uint8_t>(kSyntheticSerial >> 16);
+        h[17] = static_cast<uint8_t>(kSyntheticSerial >> 24);
+        const uint32_t pageno = m_page_counter++;
+        h[18] = static_cast<uint8_t>(pageno);
+        h[19] = static_cast<uint8_t>(pageno >> 8);
+        h[20] = static_cast<uint8_t>(pageno >> 16);
+        h[21] = static_cast<uint8_t>(pageno >> 24);
+        std::memset(h + 22, 0, 4); // CRC computed below over the zeroed field
+        h[26] = static_cast<uint8_t>(n_lacing);
+        std::memcpy(h + 27, lacing, static_cast<size_t>(n_lacing));
+        if (payload > 0) {
+            std::memcpy(h + header_size, packet + offset, payload);
+        }
+
+        const uint32_t crc = oggCrc32(h, header_size + payload);
+        h[22] = static_cast<uint8_t>(crc);
+        h[23] = static_cast<uint8_t>(crc >> 8);
+        h[24] = static_cast<uint8_t>(crc >> 16);
+        h[25] = static_cast<uint8_t>(crc >> 24);
+
+        offset += payload;
+        continued = true; // any further page continues this packet
+        bos = false;
+    }
+}
+
+void VorbisCodec::appendResyncPrimerPage_unlocked()
+{
+    // A zero-segment Ogg page: valid framing and CRC, but no packets. The
+    // post-flush resync scanner CRC-validates it and locks without consuming
+    // any audio; the normal parser then just steps past it to the next page.
+    const size_t page_start = m_input.size();
+    m_input.resize(page_start + 27);
+    uint8_t* h = m_input.data() + page_start;
+
+    std::memcpy(h, "OggS", 4);
+    h[4] = 0;
+    h[5] = 0;
+    std::memset(h + 6, 0xFF, 8); // granulepos = -1
+    h[14] = static_cast<uint8_t>(kSyntheticSerial);
+    h[15] = static_cast<uint8_t>(kSyntheticSerial >> 8);
+    h[16] = static_cast<uint8_t>(kSyntheticSerial >> 16);
+    h[17] = static_cast<uint8_t>(kSyntheticSerial >> 24);
+    const uint32_t pageno = m_page_counter++;
+    h[18] = static_cast<uint8_t>(pageno);
+    h[19] = static_cast<uint8_t>(pageno >> 8);
+    h[20] = static_cast<uint8_t>(pageno >> 16);
+    h[21] = static_cast<uint8_t>(pageno >> 24);
+    std::memset(h + 22, 0, 4);
+    h[26] = 0; // zero lacing values: a page with no packets
+
+    const uint32_t crc = oggCrc32(h, 27);
+    h[22] = static_cast<uint8_t>(crc);
+    h[23] = static_cast<uint8_t>(crc >> 8);
+    h[24] = static_cast<uint8_t>(crc >> 16);
+    h[25] = static_cast<uint8_t>(crc >> 24);
+}
+
+void VorbisCodec::drainDecoder_unlocked()
+{
+    // Feed buffered synthetic pages to stb_vorbis until it wants more data.
+    // Each audio packet yields at most one frame (≤ 4096 samples/channel);
+    // a return of 0 bytes consumed means the whole next packet isn't in the
+    // buffer yet, so the remaining bytes wait for the next chunk.
+    if (!m_stb) {
+        return;
+    }
+
+    while (!m_input.empty()) {
+        int channels = 0;
+        float** outputs = nullptr;
+        int samples = 0;
+        int used = stb_vorbis_decode_frame_pushdata(
+            m_stb, m_input.data(), static_cast<int>(m_input.size()),
+            &channels, &outputs, &samples);
+        if (used == 0) {
+            break;
+        }
+        m_input.erase(m_input.begin(), m_input.begin() + used);
+
+        if (samples > 0 && outputs != nullptr) {
+            // Reuse the existing float→s16 conversion so output semantics
+            // (clamp then ×32767 truncation) are unchanged from libvorbis.
+            AudioFrame temp;
+            convertFloatToPCM_unlocked(outputs, samples, temp);
+            m_output_buffer.insert(m_output_buffer.end(),
+                                   temp.samples.begin(), temp.samples.end());
+            updateBackpressureState_unlocked();
+        } else {
+            // 0 samples with bytes consumed: warm-up frame after open/seek,
+            // a skipped corrupt packet, or resync progress. A real decode
+            // error auto-flushes stb into its CRC page scan; our pages all
+            // carry valid CRCs, so the scan re-locks on the next packet —
+            // the same skip-and-continue contract the libvorbis path had
+            // (Requirement 8.3).
+            int stb_error = stb_vorbis_get_error(m_stb);
+            if (stb_error != 0 && stb_error != VORBIS_need_more_data) {
+                handleVorbisError_unlocked(stb_error);
+            }
+        }
+    }
+
+    // A stream whose packets never satisfy stb's whole-packet check would
+    // otherwise grow m_input without bound.
+    if (m_input.size() > MAX_PENDING_INPUT) {
+        Debug::log("vorbis", "Pending input exceeded ", MAX_PENDING_INPUT,
+                   " bytes; dropping buffered data");
+        m_input.clear();
+    }
 }
 
 AudioFrame VorbisCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& packet_data)
@@ -649,63 +853,12 @@ AudioFrame VorbisCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& p
         return frame;
     }
     
-    // Create ogg_packet structure (Requirement 2.4)
-    ogg_packet packet;
-    packet.packet = const_cast<unsigned char*>(packet_data.data());
-    packet.bytes = static_cast<long>(packet_data.size());
-    packet.b_o_s = 0;
-    packet.e_o_s = 0;
-    packet.granulepos = -1;
-    packet.packetno = m_header_packets_received + m_samples_decoded.load();
-    
-    // Decode the packet using vorbis_synthesis (Requirement 2.4)
-    // Skip corrupted packets (vorbis_synthesis returns non-zero) and continue (Requirement 8.3)
-    int synthesis_result = vorbis_synthesis(&m_vorbis_block, &packet);
-    
-    if (synthesis_result == 0) {
-        // Add block to DSP state (Requirement 2.4)
-        int blockin_result = vorbis_synthesis_blockin(&m_vorbis_dsp, &m_vorbis_block);
-        
-        if (blockin_result == 0) {
-            // Extract PCM samples (Requirement 2.5)
-            synthesizeBlock_unlocked();
-        } else {
-            // Log errors via vorbis_synthesis_blockin failures (Requirement 8.4)
-            Debug::log("vorbis", "vorbis_synthesis_blockin failed with error: ", blockin_result);
-            Debug::log("error", "VorbisCodec: vorbis_synthesis_blockin failed (", blockin_result, ")");
-            
-            // Check if this indicates state inconsistency
-            if (blockin_result == OV_EFAULT) {
-                // Call vorbis_synthesis_restart() on state inconsistency (Requirement 8.7)
-                Debug::log("vorbis", "State inconsistency detected, calling vorbis_synthesis_restart()");
-                vorbis_synthesis_restart(&m_vorbis_dsp);
-                m_output_buffer.clear();
-                m_backpressure_active = false;
-            }
-            
-            handleVorbisError_unlocked(blockin_result);
-        }
-    } else if (synthesis_result == OV_ENOTAUDIO) {
-        // OV_ENOTAUDIO means this packet doesn't contain audio (e.g., metadata)
-        // This is not an error, just skip silently
-        Debug::log("vorbis", "Non-audio packet received, skipping");
-    } else {
-        // Corrupted packet - skip and continue (Requirement 8.3)
-        Debug::log("vorbis", "vorbis_synthesis failed with error: ", synthesis_result, " - skipping corrupted packet");
-        Debug::log("error", "VorbisCodec: Corrupted packet skipped (vorbis_synthesis error: ", synthesis_result, ")");
-        
-        // Check for state inconsistency errors that require reset (Requirement 8.7)
-        if (synthesis_result == OV_EFAULT) {
-            Debug::log("vorbis", "State inconsistency detected in synthesis, calling vorbis_synthesis_restart()");
-            vorbis_synthesis_restart(&m_vorbis_dsp);
-            m_output_buffer.clear();
-            m_backpressure_active = false;
-        }
-        
-        // Log the error but don't throw - we continue with next packet
-        handleVorbisError_unlocked(synthesis_result);
-    }
-    
+    // Re-page the packet for stb_vorbis and decode whatever is now complete
+    // in the buffer (Requirement 2.4). Corrupt packets are skipped inside
+    // drainDecoder_unlocked and decoding continues (Requirement 8.3).
+    appendPacketAsPages_unlocked(packet_data.data(), packet_data.size(), false);
+    drainDecoder_unlocked();
+
     // Return accumulated samples
     if (!m_output_buffer.empty()) {
         frame.sample_rate = m_sample_rate;
@@ -718,65 +871,6 @@ AudioFrame VorbisCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& p
     }
     
     return frame;
-}
-
-bool VorbisCodec::synthesizeBlock_unlocked()
-{
-    float **pcm_channels;
-    int samples_available;
-    
-    // Update backpressure state before processing (Requirement 7.4)
-    updateBackpressureState_unlocked();
-    
-    // If backpressure is active, don't process more samples
-    if (m_backpressure_active) {
-        Debug::log("vorbis", "Backpressure active, buffer at ", getBufferFillPercent_unlocked(), "% - deferring processing");
-        return !m_output_buffer.empty();
-    }
-    
-    // Get available PCM samples using vorbis_synthesis_pcmout (Requirement 2.5)
-    while ((samples_available = vorbis_synthesis_pcmout(&m_vorbis_dsp, &pcm_channels)) > 0) {
-        int channels = m_vorbis_info.channels;
-        
-        // Check if we can accept more samples (Requirement 7.2, 7.4)
-        if (!canAcceptMoreSamples_unlocked()) {
-            Debug::log("vorbis", "Buffer full at ", m_output_buffer.size(), " samples, applying backpressure");
-            m_backpressure_active = true;
-            break;
-        }
-        
-        // Calculate how many samples we can actually accept
-        size_t space_available = MAX_BUFFER_SAMPLES - m_output_buffer.size();
-        size_t samples_to_process = static_cast<size_t>(samples_available) * static_cast<size_t>(channels);
-        
-        if (samples_to_process > space_available) {
-            // Partial processing - only take what we can fit
-            samples_available = static_cast<int>(space_available / channels);
-            if (samples_available <= 0) {
-                Debug::log("vorbis", "No space for even one sample, buffer full");
-                m_backpressure_active = true;
-                break;
-            }
-            Debug::log("vorbis", "Partial processing: ", samples_available, " samples (space limited)");
-        }
-        
-        // Convert float samples to 16-bit PCM (Requirement 1.5)
-        AudioFrame temp_frame;
-        convertFloatToPCM_unlocked(pcm_channels, samples_available, temp_frame);
-        
-        // Append to output buffer
-        m_output_buffer.insert(m_output_buffer.end(), 
-                               temp_frame.samples.begin(), 
-                               temp_frame.samples.end());
-        
-        // Tell libvorbis we consumed these samples (Requirement 2.5)
-        vorbis_synthesis_read(&m_vorbis_dsp, samples_available);
-        
-        // Update backpressure state after adding samples
-        updateBackpressureState_unlocked();
-    }
-    
-    return !m_output_buffer.empty();
 }
 
 // ========== Streaming and Buffer Management Methods ==========
@@ -963,21 +1057,6 @@ void VorbisCodec::interleaveChannels(float** pcm, int samples, int channels,
     }
 }
 
-void VorbisCodec::handleVariableBlockSizes_unlocked(const vorbis_block* block)
-{
-    // libvorbis handles windowing and overlap-add internally (Requirement 4.3, 4.4)
-    // We just track block sizes for buffer management
-    if (block) {
-        uint32_t current_block_size = block->pcmend;
-        
-        // Adjust output buffer size if needed
-        size_t required_size = current_block_size * m_channels;
-        if (m_output_buffer.capacity() < required_size) {
-            m_output_buffer.reserve(required_size);
-        }
-    }
-}
-
 bool VorbisCodec::validateVorbisPacket_unlocked(const std::vector<uint8_t>& packet_data)
 {
     // Basic packet validation (Requirement 1.8)
@@ -1001,88 +1080,37 @@ bool VorbisCodec::validateVorbisPacket_unlocked(const std::vector<uint8_t>& pack
 
 void VorbisCodec::handleVorbisError_unlocked(int vorbis_error)
 {
-    // Handle libvorbis error codes (Requirement 2.6, 8.1-8.7)
-    // This method implements comprehensive error handling per Requirements 8.1, 8.2, 8.5, 8.6
-    // 
-    // Error handling strategy:
-    // - Fatal errors (OV_EBADHEADER, OV_EVERSION): Set error state and throw BadFormatException
-    // - Recoverable errors (OV_ENOTVORBIS, OV_EINVAL): Log and continue (skip packet)
-    // - State errors (OV_EFAULT): Reset decoder state and continue
-    // - All errors: Report through PsyMP3's Debug logging system (Requirement 8.8)
-    
+    // Handle stb_vorbis error codes (Requirement 2.6, 8.1-8.7)
+    //
+    // Mid-stream decode errors are all recoverable by design: stb_vorbis
+    // auto-flushes into its CRC-validated page scan, and since every
+    // synthetic page carries a real CRC it re-locks on the next packet —
+    // log and continue (Requirement 8.3). Only feature limits are worth
+    // distinguishing; header-parse failures are handled fatally at
+    // openDecoder_unlocked() before this is ever reached.
     switch (vorbis_error) {
-        case OV_ENOTVORBIS:
-            // Not Vorbis data - reject packet (Requirement 8.1)
-            // This error indicates the packet is not valid Vorbis data
-            // We log the error but continue - this is a per-packet rejection
-            m_last_error = "Not Vorbis data (OV_ENOTVORBIS) - packet rejected";
-            Debug::log("vorbis", m_last_error);
-            Debug::log("error", "VorbisCodec: ", m_last_error);
-            // Note: We don't set m_error_state here because this is a per-packet
-            // rejection, not a fatal codec error. The codec can continue with
-            // subsequent valid packets (Requirement 8.3).
-            break;
-            
-        case OV_EBADHEADER:
-            // Corrupted header - reject initialization (Requirement 8.2)
-            // This is a fatal error during header processing
-            m_last_error = "Bad Vorbis header (OV_EBADHEADER) - initialization rejected";
-            m_error_state.store(true);
-            Debug::log("vorbis", m_last_error);
-            Debug::log("error", "VorbisCodec: FATAL - ", m_last_error);
-            // Throw exception to signal initialization failure
-            throw BadFormatException(m_last_error);
-            break;
-            
-        case OV_EFAULT:
-            // Internal error - reset decoder state (Requirement 8.5, 8.7)
-            // This indicates internal inconsistency in libvorbis state
-            m_last_error = "Internal Vorbis error (OV_EFAULT) - resetting decoder state";
-            Debug::log("vorbis", m_last_error);
-            Debug::log("error", "VorbisCodec: ", m_last_error);
-            // Attempt recovery by restarting synthesis (Requirement 8.7)
-            // Note: The actual vorbis_synthesis_restart() call is done in the caller
-            // (decodeAudioPacket_unlocked) to avoid double-reset
-            // Clear output buffer to ensure clean state
-            m_output_buffer.clear();
-            m_backpressure_active = false;
-            break;
-            
-        case OV_EINVAL:
-            // Invalid data - skip packet and continue (Requirement 8.3)
-            m_last_error = "Invalid Vorbis data (OV_EINVAL) - packet skipped";
+        case VORBIS_feature_not_supported:
+            // Floor-0 streams (pre-2004 encoders) are the one class of valid
+            // Vorbis stb_vorbis cannot decode. In practice this error only
+            // arises at openDecoder_unlocked() (setup-header parse), which
+            // fails the stream fatally there; it cannot occur mid-stream.
+            m_last_error = "Vorbis feature not supported by stb_vorbis (floor 0)";
             Debug::log("vorbis", m_last_error);
             Debug::log("error", "VorbisCodec: ", m_last_error);
             break;
-            
-        case OV_EREAD:
-            // Read error - typically I/O related, skip and continue
-            m_last_error = "Vorbis read error (OV_EREAD) - packet skipped";
+
+        case VORBIS_bad_packet_type:
+            // Header-typed packet in the audio phase (e.g. a chained stream's
+            // new headers) - skipped, keep using the current setup
+            m_last_error = "Unexpected Vorbis packet type - packet skipped";
             Debug::log("vorbis", m_last_error);
-            Debug::log("error", "VorbisCodec: ", m_last_error);
             break;
-            
-        case OV_EIMPL:
-            // Unimplemented feature - this is a codec limitation
-            // Report through Debug logging system (Requirement 8.8)
-            m_last_error = "Unimplemented Vorbis feature (OV_EIMPL)";
-            Debug::log("vorbis", m_last_error);
-            Debug::log("error", "VorbisCodec: ", m_last_error);
-            break;
-            
-        case OV_EVERSION:
-            // Version mismatch - incompatible Vorbis version
-            // This is a fatal error - the stream cannot be decoded
-            m_last_error = "Vorbis version mismatch (OV_EVERSION) - stream incompatible";
-            m_error_state.store(true);
-            Debug::log("vorbis", m_last_error);
-            Debug::log("error", "VorbisCodec: FATAL - ", m_last_error);
-            throw BadFormatException(m_last_error);
-            break;
-            
+
         default:
-            // Unknown error - log and continue (Requirement 8.8)
-            m_last_error = "Unknown Vorbis error: " + std::to_string(vorbis_error);
+            // Corrupt packet or transient stream damage - stb has already
+            // armed its resync scan; continue with the next packet
+            m_last_error = "Vorbis decode error " + std::to_string(vorbis_error) +
+                           " - packet skipped, resynchronizing";
             Debug::log("vorbis", m_last_error);
             Debug::log("error", "VorbisCodec: ", m_last_error);
             break;
@@ -1092,14 +1120,10 @@ void VorbisCodec::handleVorbisError_unlocked(int vorbis_error)
 void VorbisCodec::resetDecoderState_unlocked()
 {
     Debug::log("vorbis", "resetDecoderState_unlocked called");
-    
+
     // Clean up existing structures
     cleanupVorbisStructures_unlocked();
-    
-    // Reinitialize libvorbis structures
-    vorbis_info_init(&m_vorbis_info);
-    vorbis_comment_init(&m_vorbis_comment);
-    
+
     // Reset state variables
     m_header_packets_received = 0;
     m_decoder_initialized = false;
@@ -1120,24 +1144,23 @@ void VorbisCodec::resetDecoderState_unlocked()
 void VorbisCodec::cleanupVorbisStructures_unlocked()
 {
     Debug::log("vorbis", "cleanupVorbisStructures_unlocked called");
-    
-    // Clean up in reverse order of initialization (Requirement 2.8)
-    // vorbis_block_clear and vorbis_dsp_clear must only be called if synthesis was initialized
-    if (m_decoder_initialized) {
-        vorbis_block_clear(&m_vorbis_block);
-        vorbis_dsp_clear(&m_vorbis_dsp);
-        m_decoder_initialized = false;
+
+    // Close the decoder and drop all buffered data (Requirement 2.8)
+    if (m_stb) {
+        stb_vorbis_close(m_stb);
+        m_stb = nullptr;
     }
-    
-    // vorbis_comment_clear and vorbis_info_clear are safe to call on initialized structures
-    // They check internal state before freeing
-    vorbis_comment_clear(&m_vorbis_comment);
-    vorbis_info_clear(&m_vorbis_info);
-    
+    m_decoder_initialized = false;
+    m_input.clear();
+    m_page_counter = 0;
+    for (auto& h : m_header_data) {
+        h.clear();
+    }
+
     // Reset header count since structures are cleared
     m_header_packets_received = 0;
-    
-    Debug::log("vorbis", "Vorbis structures cleaned up");
+
+    Debug::log("vorbis", "Vorbis decoder cleaned up");
 }
 
 // ========== Vorbis Codec Support Functions ==========
