@@ -37,14 +37,6 @@ endif
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
 
 # Optional codec flags
-if HAVE_FLAC
-endif
-
-
-if HAVE_VORBIS
-AM_CPPFLAGS += $(VORBIS_CFLAGS)
-endif
-
 if HAVE_OPUS
 AM_CPPFLAGS += $(OPUS_CFLAGS)
 endif
@@ -84,9 +76,8 @@ DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
 CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
 endif
 
-if HAVE_VORBIS
+# Vorbis codec is always built (bundled stb_vorbis has no external dependency)
 CODEC_LIBS += codecs/vorbis/libpsymp3-codec-vorbis.a
-endif
 
 if HAVE_OPUS
 CODEC_LIBS += codecs/opus/libpsymp3-codec-opus.a
@@ -104,8 +95,10 @@ bin_PROGRAMS = psymp3
 
 if FINAL_BUILD
 # Final build mode - single compilation unit
-# All sources are #included in psymp3.final.cpp, no static libraries needed
-psymp3_SOURCES = psymp3.final.cpp
+# All C++ sources are #included in psymp3.final.cpp, no static libraries
+# needed. stb_vorbis rides along as a separate C object (its global
+# typedefs/macros are hostile to C++ inclusion).
+psymp3_SOURCES = psymp3.final.cpp codecs/vorbis/stb_vorbis_impl.c
 # Final build still needs system libraries
 psymp3_LDADD = \
 	$(SDL_LIBS) \
@@ -187,10 +180,6 @@ psymp3_LDADD += \
 
 # Optional codec system libraries (must come after our libraries)
 
-if HAVE_VORBIS
-psymp3_LDADD += $(VORBIS_LIBS)
-endif
-
 if HAVE_OPUS
 psymp3_LDADD += $(OPUS_LIBS)
 endif
@@ -241,3 +230,5 @@ endif
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
+# The final build compiles codecs/vorbis/stb_vorbis_impl.c here; same hardening.
+AM_CFLAGS = $(PSYMP3_CXXFLAGS)

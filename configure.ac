@@ -181,12 +181,13 @@ fi
 # Check for libogg first - required for Vorbis, Opus, and optionally FLAC
 PKG_CHECK_MODULES([OGG], [ogg], [have_ogg=yes], [have_ogg=no])
 
+# Vorbis decoding is bundled (third_party/stb/stb_vorbis.c) — no libvorbis.
+# It still needs libogg, because the Ogg demuxer is the codec's packet source.
 if test "x$enable_vorbis" = "xyes"; then
   if test "x$have_ogg" = "xyes"; then
-    PKG_CHECK_MODULES([VORBIS], [vorbis], [have_vorbis=yes], [have_vorbis=no])
-    if test "x$have_vorbis" = "xyes"; then
-      AC_DEFINE([HAVE_VORBIS], [1], [Define to 1 if Vorbis support is enabled])
-    fi
+    have_vorbis=yes
+    AC_DEFINE([HAVE_VORBIS], [1], [Define to 1 if Vorbis support is enabled])
+    AC_MSG_NOTICE([Using bundled stb_vorbis decoder (no libvorbis dependency)])
   else
     have_vorbis=no
     AC_MSG_WARN([Vorbis support disabled: libogg not found])
@@ -194,6 +195,11 @@ if test "x$enable_vorbis" = "xyes"; then
 else
   have_vorbis=no
 fi
+
+# libvorbis/libvorbisenc are NOT linked into the player. The test suite's Ogg
+# integration test encodes its fixture at runtime with libvorbisenc; probe for
+# it so that one test is simply skipped when the encoder isn't installed.
+PKG_CHECK_MODULES([VORBISENC], [vorbisenc vorbis], [have_vorbisenc=yes], [have_vorbisenc=no])
 
 if test "x$enable_opus" = "xyes"; then
   if test "x$have_ogg" = "xyes"; then
@@ -316,6 +322,7 @@ fi
 AM_CONDITIONAL([HAVE_G711], [test "x$have_g711" = "xyes"])
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
+AM_CONDITIONAL([HAVE_VORBISENC_TESTS], [test "x$have_vorbisenc" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
 AM_CONDITIONAL([HAVE_G722], [test "x$have_g722" = "xyes"])
@@ -673,7 +680,11 @@ echo "  FLAC:              $have_flac"
 if test "x$have_flac" = "xyes"; then
   echo "    Implementation:  Native"
 fi
-echo "  Vorbis:            $have_vorbis"
+if test "x$have_vorbis" = "xyes"; then
+  echo "  Vorbis:            yes (bundled stb_vorbis, no external dependency)"
+else
+  echo "  Vorbis:            $have_vorbis"
+fi
 echo "  Opus:              $have_opus"
 echo "  AAC (faad2):       $have_aac"
 echo "  G.722 (spandsp):   $have_g722"
