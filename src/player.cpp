@@ -4819,10 +4819,29 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     const unsigned int rate = stream->getRate();
     const unsigned int bitrate = stream->getBitrate();
 
-    std::string codec_uc = codec;
-    std::transform(codec_uc.begin(), codec_uc.end(), codec_uc.begin(), ::toupper);
     std::string codec_lc = codec;
     std::transform(codec_lc.begin(), codec_lc.end(), codec_lc.begin(), ::tolower);
+    // Registry codec names are all-lowercase short ids ("flac", "mp3"):
+    // uppercase those for display. A name that already carries uppercase is
+    // the RTTI class-name fallback - show it verbatim, don't shout it.
+    std::string codec_uc = codec;
+    const bool registry_name = std::none_of(codec.begin(), codec.end(),
+        [](unsigned char c) { return std::isupper(c); });
+    if (registry_name) {
+        std::transform(codec_uc.begin(), codec_uc.end(), codec_uc.begin(), ::toupper);
+    }
+
+    // For container formats whose "codec" is really a sample encoding, the
+    // Codec row names the CONTAINER and the encoding moves to Format:
+    // raw .alaw -> Codec: Raw / Format: G.711 A-law;
+    // .wav PCM  -> Codec: WAVE / Format: PCM S16 LE.
+    std::string codec_display = codec_uc;
+    if (auto* demuxed = dynamic_cast<DemuxedStream*>(stream)) {
+        const std::string container = demuxed->getDemuxerType();
+        if (container == "Raw" || container == "WAVE" || container == "AIFF") {
+            codec_display = container;
+        }
+    }
 
     // Format descriptor, "PCM S32 LE" style. Uncompressed sources name their
     // wire format exactly; lossless coders show the sample format they carry;
@@ -4863,7 +4882,7 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     }
 
     return {
-        {"Codec:", codec_uc},
+        {"Codec:", codec_display},
         {"Sampling Rate:", rate > 0 ? std::to_string(rate) + " Hz" : "Unknown"},
         {"Bit Depth:", bits > 0 ? std::to_string(bits) + "-bit" : "Unknown"},
         {"Bitrate:", bitrate > 0 ? std::to_string((bitrate + 500) / 1000) + " kbps" : "Unknown"},
