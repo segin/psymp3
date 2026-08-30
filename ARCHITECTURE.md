@@ -51,6 +51,8 @@ This file is the compact architectural map. Detailed subsystem notes, policy-lev
 
 PsyMP3 is chunk-driven. Containers are parsed into compressed `MediaChunk`s, codecs decode on demand, and decoded PCM is buffered only far enough ahead to support smooth playback and responsive interaction.
 
+**Metadata flow.** Demuxers that understand their container's tags populate `Demuxer::m_tag` with the in-house Tag framework (`include/tag/`): Ogg and FLAC store a `VorbisCommentTag`, and the MP3 demuxer parses the leading ID3v2 and trailing ID3v1 blocks into an `ID3v2Tag`/`ID3v1Tag` (merged as `MergedID3Tag` when both exist, ID3v2 taking precedence per field). `DemuxedStream`'s metadata getters (`getArtist`/`getTitle`/`getAlbum`/`getMusicBrainzID`/…) read `m_tag` first and fall back per-field to the base `Stream` implementation (TagLib `FileRef`) when a field is missing, so the titlebar, MPRIS, Last.fm, and Discord all see the same values. ID3v1 fields are decoded ISO-8859-1 → UTF-8 at parse time, matching ID3v2's encoding-0 handling.
+
 ## Primary Subsystems
 
 - `src/codecs/`: Decode AAC, FLAC, MP3, Opus, Vorbis, PCM-family, G.711, and G.722 streams into PCM.

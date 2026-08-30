@@ -123,18 +123,24 @@ bool MP3NullDemuxer::parseContainer_unlocked() {
     // would leave the other trailers counted as audio, inflating the CBR
     // duration estimate and feeding tag bytes to the frame-sync scanner at
     // track end. Mirrors FLACDemuxer::detectTrailingTags_unlocked().
+    std::vector<uint8_t> id3v1_data;
     {
         bool changed = true;
         while (changed && m_data_end_offset > m_data_start_offset) {
             changed = false;
             const uint64_t end = m_data_end_offset;
 
-            // ID3v1 / ID3v1.1: exactly 128 bytes, starting with "TAG".
+            // ID3v1 / ID3v1.1: exactly 128 bytes, starting with "TAG". Keep
+            // the outermost block's bytes (the one nearest the file end is the
+            // canonical tag) for the Tag framework.
             if (end - m_data_start_offset >= 128) {
-                uint8_t magic[3] = {};
+                uint8_t tag_block[128] = {};
                 if (m_handler->seek(static_cast<off_t>(end - 128), SEEK_SET) == 0 &&
-                    m_handler->read(magic, 1, 3) == 3 &&
-                    magic[0] == 'T' && magic[1] == 'A' && magic[2] == 'G') {
+                    m_handler->read(tag_block, 1, 128) == 128 &&
+                    tag_block[0] == 'T' && tag_block[1] == 'A' && tag_block[2] == 'G') {
+                    if (id3v1_data.empty()) {
+                        id3v1_data.assign(tag_block, tag_block + 128);
+                    }
                     m_data_end_offset = end - 128;
                     changed = true;
                     continue;
@@ -187,6 +193,10 @@ bool MP3NullDemuxer::parseContainer_unlocked() {
         // Restore position to data start
         m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
     }
+
+    // Feed the ID3 tags into the Tag framework so DemuxedStream's metadata
+    // getters (titlebar, MPRIS, scrobbling, Discord) read them from here.
+    parseTags_unlocked(id3v1_data);
 
     // Find and parse first valid MP3 frame
     if (!parseFirstFrame_unlocked()) {
@@ -241,6 +251,52 @@ bool MP3NullDemuxer::skipID3v2Tag_unlocked() {
     Debug::log("mp3demux", "MP3NullDemuxer: Skipping ID3v2 tag, ", m_data_start_offset, " bytes");
     m_handler->seek(static_cast<off_t>(m_data_start_offset), SEEK_SET);
     return true;
+}
+
+void MP3NullDemuxer::parseTags_unlocked(const std::vector<uint8_t>& id3v1_data) {
+    // Parse the leading ID3v2 tag (if any) through the in-house Tag framework.
+    // Mirrors TagFactory::parseMP3Tags but reads via the IOHandler, so it also
+    // works for non-file sources (HTTP streams).
+    std::unique_ptr<PsyMP3::Tag::ID3v2Tag> id3v2_tag;
+    uint8_t header[10] = {};
+    if (m_handler->seek(0, SEEK_SET) == 0 &&
+        m_handler->read(header, 1, 10) == 10 &&
+        header[0] == 'I' && header[1] == 'D' && header[2] == '3') {
+        // getTagSize returns header + declared synchsafe body, and 0 for a
+        // size that fails its sanity bounds. Clamp to the file so a crafted
+        // header can't force a huge allocation for a tiny file.
+        size_t tag_size = PsyMP3::Tag::ID3v2Tag::getTagSize(header);
+        if (tag_size > 10) {
+            if (tag_size > m_file_size) {
+                tag_size = static_cast<size_t>(m_file_size);
+            }
+            std::vector<uint8_t> tag_data(tag_size);
+            if (m_handler->seek(0, SEEK_SET) == 0 &&
+                m_handler->read(tag_data.data(), 1, tag_data.size()) == tag_data.size()) {
+                id3v2_tag = PsyMP3::Tag::ID3v2Tag::parse(tag_data.data(), tag_data.size());
+            }
+        }
+    }
+
+    // The trailing ID3v1 bytes were captured during trailer peeling.
+    std::unique_ptr<PsyMP3::Tag::ID3v1Tag> id3v1_tag;
+    if (id3v1_data.size() >= PsyMP3::Tag::ID3v1Tag::TAG_SIZE) {
+        id3v1_tag = PsyMP3::Tag::ID3v1Tag::parse(id3v1_data.data(), id3v1_data.size());
+    }
+
+    if (id3v1_tag && id3v2_tag) {
+        m_tag = std::make_unique<PsyMP3::Tag::MergedID3Tag>(std::move(id3v1_tag),
+                                                            std::move(id3v2_tag));
+    } else if (id3v2_tag) {
+        m_tag = std::move(id3v2_tag);
+    } else if (id3v1_tag) {
+        m_tag = std::move(id3v1_tag);
+    }
+
+    if (m_tag) {
+        Debug::log("mp3demux", "MP3NullDemuxer: Parsed ", m_tag->formatName(),
+                   " - title='", m_tag->title(), "', artist='", m_tag->artist(), "'");
+    }
 }
 
 bool MP3NullDemuxer::parseFirstFrame_unlocked() {

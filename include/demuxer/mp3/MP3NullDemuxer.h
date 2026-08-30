@@ -45,6 +45,7 @@ private:
 
     // MP3 frame parsing helpers
     bool skipID3v2Tag_unlocked();
+    void parseTags_unlocked(const std::vector<uint8_t>& id3v1_data);
     bool parseFirstFrame_unlocked();
     bool parseXingHeader_unlocked(const std::vector<uint8_t>& frame_data, uint32_t sample_rate, uint16_t channels);
     bool findFrameSync_unlocked();
