@@ -295,9 +295,14 @@ bool MP3NullDemuxer::parseFirstFrame_unlocked() {
             if (m_handler->read(frame_data.data(), 1, frame_size) == frame_size) {
                 parseXingHeader_unlocked(frame_data, sample_rate, channels);
             }
-            // If Xing found, skip past the Xing frame
+            // If Xing found, skip past the Xing frame. Clamp at the audio end:
+            // on a truncated file whose only frame carries the Xing header,
+            // frame_offset + frame_size can land past m_data_end_offset, and an
+            // unclamped start would make the audio_data_size subtraction in
+            // seekTo_unlocked wrap to a huge value.
             if (m_total_frames > 0) {
-                m_data_start_offset = frame_offset + frame_size;
+                m_data_start_offset = std::min<uint64_t>(frame_offset + frame_size,
+                                                         m_data_end_offset);
             }
         }
 
@@ -484,6 +489,18 @@ MediaChunk MP3NullDemuxer::readChunk_unlocked() {
             return MediaChunk();
         }
         continue; // re-run from the top (was a recursive call)
+    }
+
+    // A final frame whose declared size extends past the audio end is
+    // truncated (the audio was cut mid-frame before a tagger appended its
+    // trailer). Reading it anyway would hand trailing tag bytes to the
+    // decoder as MP3 payload, so end the stream here instead.
+    if (frame_offset + frame_size > m_data_end_offset) {
+        m_eof_flag.store(true);
+        MediaChunk eos;
+        eos.stream_id = 1;
+        eos.end_of_stream = true;
+        return eos;
     }
 
     // Read the complete frame (including header)
