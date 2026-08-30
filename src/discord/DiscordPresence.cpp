@@ -338,8 +338,36 @@ void DiscordPresence::resolveArtwork(Activity& a)
                       PsyMP3::IO::HTTP::HTTPClient::urlEncode(query);
 
     DEBUG_LOG_LAZY("discord", "MusicBrainz release-group lookup: ", artist, " / ", a.album);
-    PsyMP3::IO::HTTP::HTTPClient::Response response = PsyMP3::IO::HTTP::HTTPClient::get(
-        url, {{"User-Agent", "PsyMP3/" PSYMP3_VERSION " ( segin2005@gmail.com )"}}, 5);
+
+    // MusicBrainz is routinely briefly overloaded (HTTP 503 "server busy").
+    // Retry a couple of times, and memoize only definitive answers — a 200
+    // (match or genuine no-match) or a 4xx query rejection. A transport
+    // failure or 5xx must NOT be memoized: presence updates are sparse
+    // (track change, pause, seek), so a memoized flake would cost the whole
+    // track its artwork AND the album tooltip that rides on it.
+    PsyMP3::IO::HTTP::HTTPClient::Response response;
+    bool definitive = false;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        if (attempt > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+            if (m_shutdown) return;
+            m_last_mb_query = std::chrono::steady_clock::now();
+        }
+        response = PsyMP3::IO::HTTP::HTTPClient::get(
+            url, {{"User-Agent", "PsyMP3/" PSYMP3_VERSION " ( segin2005@gmail.com )"}}, 5);
+        if (response.success ||
+            (response.statusCode >= 400 && response.statusCode < 500)) {
+            definitive = true;
+            break;
+        }
+        DEBUG_LOG_LAZY("discord", "MusicBrainz lookup attempt ", attempt + 1,
+                       " failed: ", response.statusMessage);
+    }
+    if (!definitive) {
+        DEBUG_LOG_LAZY("discord",
+                       "MusicBrainz lookup transient failure; retrying on next update");
+        return;
+    }
 
     m_memo_key = key;
     m_memo_mbid.clear();
