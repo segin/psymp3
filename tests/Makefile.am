@@ -3312,6 +3312,7 @@ clean-local:
 	rm -f final_validation_report.html
 	rm -rf /tmp/mpris_*
 	rm -rf validation_results_*
+	rm -rf tests # corpus generators (run as TESTS) write tests/data/fuzz_corpus/ here; distcleancheck flags leftovers
 
 # ISO Demuxer Compliance Validation Tests
 
