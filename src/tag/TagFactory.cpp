@@ -228,8 +228,10 @@ std::unique_ptr<Tag> TagFactory::createFromFile(const std::string& filepath) {
     
     Debug::log("tag", "TagFactory::createFromFile: File extension: ", ext);
     
-    // MP3 files may have both ID3v1 and ID3v2
-    if (ext == "mp3") {
+    // MPEG audio files may have both ID3v1 and ID3v2. The demuxer layer
+    // treats .mp2/.mp1/.mpa as the same MPEG family as .mp3, so give them the
+    // same leading-ID3v2 + trailing-ID3v1 treatment here.
+    if (ext == "mp3" || ext == "mp2" || ext == "mp1" || ext == "mpa") {
         return parseMP3Tags(filepath);
     }
     
