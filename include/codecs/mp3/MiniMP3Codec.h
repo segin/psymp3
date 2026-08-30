@@ -34,9 +34,19 @@ private:
     AudioFrame flush_unlocked();
     void reset_unlocked();
 
+    // Decode ALL complete frames available, buffering any partial frame at
+    // the tail for the next call. Shared by decode (appends chunk data first)
+    // and flush (drains what remains at EOF).
+    AudioFrame decodeBuffered_unlocked(uint64_t timestamp_samples, bool flushing);
+
     mp3dec_t m_decoder;
     uint32_t m_sample_rate = 0;
     uint16_t m_channels = 0;
+    // Accumulates compressed input across decode() calls. Demuxers are free
+    // to slice the bitstream arbitrarily (ChunkDemuxer emits fixed-size
+    // blocks of a WAVE data chunk, cutting frames at the boundary); decoding
+    // one frame per chunk and discarding the rest loses almost everything.
+    std::vector<uint8_t> m_input;
     mutable std::mutex m_mutex;
 };
 

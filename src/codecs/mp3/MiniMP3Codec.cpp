@@ -16,6 +16,15 @@ namespace PsyMP3 {
 namespace Codec {
 namespace MP3 {
 
+// Cap for the compressed input accumulator; a valid stream never gets close
+// (the largest MP3 frame is ~2 KB), so exceeding this means garbage input.
+static constexpr size_t kMaxPendingInput = 512 * 1024;
+
+// Minimum bytes that must remain past a decode position: the largest MPEG-1
+// frame (~1441 bytes) plus the following header minimp3 peeks to confirm it,
+// with slack. Below this, decoding is deferred until more data arrives.
+static constexpr size_t kDecodeLookahead = 4096;
+
 MiniMP3Codec::MiniMP3Codec(const StreamInfo& stream_info)
     : AudioCodec(stream_info),
       m_sample_rate(stream_info.sample_rate),
@@ -59,52 +68,81 @@ bool MiniMP3Codec::initialize_unlocked() {
 }
 
 AudioFrame MiniMP3Codec::decode_unlocked(const MediaChunk& chunk) {
-    if (!m_initialized) {
+    if (!m_initialized || chunk.data.empty()) {
         return AudioFrame();
     }
+    m_input.insert(m_input.end(), chunk.data.begin(), chunk.data.end());
+    return decodeBuffered_unlocked(chunk.timestamp_samples, false);
+}
 
-    if (chunk.data.empty()) {
-        return AudioFrame();
-    }
-
-    mp3dec_frame_info_t frame_info = {};
-    mp3d_sample_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
-
-    int samples = mp3dec_decode_frame(
-        &m_decoder,
-        chunk.data.data(),
-        static_cast<int>(chunk.data.size()),
-        pcm,
-        &frame_info);
-
-    if (samples == 0 || frame_info.channels == 0 || frame_info.hz == 0) {
-        return AudioFrame();
-    }
-
-    // Update stream info from decoded frame
-    m_sample_rate = static_cast<uint32_t>(frame_info.hz);
-    m_channels = static_cast<uint16_t>(frame_info.channels);
-
-    // Build AudioFrame with decoded PCM samples
-    size_t total_samples = static_cast<size_t>(samples) * frame_info.channels;
+AudioFrame MiniMP3Codec::decodeBuffered_unlocked(uint64_t timestamp_samples, bool flushing) {
     AudioFrame frame;
-    frame.samples.assign(pcm, pcm + total_samples);
+    mp3d_sample_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
+    size_t pos = 0;
+
+    while (pos < m_input.size()) {
+        // Lookahead margin: minimp3 confirms a frame by peeking the NEXT
+        // header; near the end of the buffer that peek fails and it CONSUMES
+        // real frames reporting zero samples (measured: ~2 frames lost per
+        // chunk boundary). Never decode inside the margin unless flushing,
+        // where end-of-buffer really is end-of-stream.
+        if (!flushing && m_input.size() - pos < kDecodeLookahead) {
+            break;
+        }
+        mp3dec_frame_info_t frame_info = {};
+        int samples = mp3dec_decode_frame(
+            &m_decoder,
+            m_input.data() + pos,
+            static_cast<int>(m_input.size() - pos),
+            pcm,
+            &frame_info);
+
+        if (frame_info.frame_bytes <= 0) {
+            break; // no complete frame in the remaining bytes: keep the tail
+        }
+        pos += static_cast<size_t>(frame_info.frame_bytes);
+
+        if (samples > 0 && frame_info.channels > 0 && frame_info.hz > 0) {
+            m_sample_rate = static_cast<uint32_t>(frame_info.hz);
+            m_channels = static_cast<uint16_t>(frame_info.channels);
+            const size_t total = static_cast<size_t>(samples) * frame_info.channels;
+            frame.samples.insert(frame.samples.end(), pcm, pcm + total);
+        }
+        // samples == 0 with frame_bytes > 0 is skipped garbage (leading junk,
+        // tag remnants) or a reservoir warm-up frame - keep consuming.
+    }
+
+    if (pos > 0) {
+        m_input.erase(m_input.begin(), m_input.begin() + static_cast<std::ptrdiff_t>(pos));
+    } else if (m_input.size() > kMaxPendingInput) {
+        // A pathological stream that never yields a frame must not grow the
+        // buffer without bound.
+        m_input.clear();
+    }
+
+    if (frame.samples.empty()) {
+        return AudioFrame();
+    }
     frame.sample_rate = m_sample_rate;
     frame.channels = m_channels;
-    frame.timestamp_samples = chunk.timestamp_samples;
+    frame.timestamp_samples = timestamp_samples;
     if (m_sample_rate != 0) {
-        frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / m_sample_rate;
+        frame.timestamp_ms = (timestamp_samples * 1000ULL) / m_sample_rate;
     }
-
     return frame;
 }
 
 AudioFrame MiniMP3Codec::flush_unlocked() {
-    return AudioFrame();
+    if (!m_initialized || m_input.empty()) {
+        return AudioFrame();
+    }
+    // Drain whatever complete frames remain buffered at end of stream.
+    return decodeBuffered_unlocked(0, true);
 }
 
 void MiniMP3Codec::reset_unlocked() {
     mp3dec_init(&m_decoder);
+    m_input.clear(); // seek: buffered bitstream is from the old position
 }
 
 // --- Support namespace ---
