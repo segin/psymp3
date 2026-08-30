@@ -81,7 +81,6 @@ EXTRA_DIST = \
 	include/core/utility/Base64.h \
 	include/core/utility/G711.h \
 	include/core/utility/UTF8Util.h \
-	include/core/utility/XMLUtil.h \
 	include/core/utility/utility.h \
 	include/debug.h \
 	include/demuxer/ChainedStream.h \
@@ -216,6 +215,8 @@ EXTRA_DIST = \
 	third_party/kjmp2/kjmp2.h \
 	third_party/kjmp2/kjmp2.txt \
 	third_party/minimp3/minimp3.h \
+	third_party/pugixml/pugiconfig.hpp \
+	third_party/pugixml/pugixml.hpp \
 	third_party/stb/stb_vorbis.c
 
 # Include threading safety makefile
