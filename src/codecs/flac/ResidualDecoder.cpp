@@ -81,13 +81,20 @@ bool ResidualDecoder::decodeResidual(int32_t *output, uint32_t block_size,
   // With an attacker-controlled partition_order, samples_per_partition can be
   // smaller than predictor_order; the unsigned subtraction below would then
   // wrap to a huge value and overrun the (block_size - predictor_order) output
-  // buffer. RFC 9639 Section 9.2.7 requires (block size >> partition order) to
-  // be strictly LARGER than the predictor order, so equality (a zero-sample
-  // first partition) is also invalid and rejected.
-  if (samples_per_partition <= predictor_order) {
+  // buffer, so strictly-smaller is rejected.
+  //
+  // EQUALITY is accepted deliberately, against the letter of RFC 9639
+  // Section 9.2.7 ("(block size >> partition order) MUST be larger than the
+  // predictor order"): the reference libFLAC encoder EMITS such frames (e.g.
+  // LPC order 32 with 4096-sample blocks at partition order 7 = 32 samples
+  // per partition) and every mainstream decoder accepts them. A zero-sample
+  // first partition is well-defined - it still carries its Rice parameter,
+  // followed by no residuals - and rejecting it made real files skip audibly
+  // (two frames of "Bounce Man" dropped like a CD scratch).
+  if (samples_per_partition < predictor_order) {
     m_last_error = "Partition order too large for predictor order";
     Debug::log("residual_decoder", "samples_per_partition ",
-               samples_per_partition, " <= predictor_order ", predictor_order);
+               samples_per_partition, " < predictor_order ", predictor_order);
     return false;
   }
 
