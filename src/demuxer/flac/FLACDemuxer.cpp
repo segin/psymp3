@@ -1231,6 +1231,37 @@ void FLACDemuxer::detectTrailingTags_unlocked()
                 }
             }
         }
+
+        // Lyrics3v1: ends with the 9-byte "LYRICSEND" signature and has NO
+        // size field; the block starts at "LYRICSBEGIN" with at most 5100
+        // bytes of lyrics between (max block 11 + 5100 + 9 = 5120 bytes).
+        if (end - m_audio_data_offset >= 20) { // LYRICSBEGIN + LYRICSEND minimum
+            uint8_t sig[9];
+            if (m_handler->seek(static_cast<off_t>(end - 9), SEEK_SET) == 0 &&
+                m_handler->read(sig, 1, 9) == 9 &&
+                std::memcmp(sig, "LYRICSEND", 9) == 0) {
+                uint64_t window = std::min<uint64_t>(end - m_audio_data_offset, 5120);
+                std::vector<uint8_t> buf(static_cast<size_t>(window));
+                if (m_handler->seek(static_cast<off_t>(end - window), SEEK_SET) == 0 &&
+                    m_handler->read(buf.data(), 1, buf.size()) == buf.size()) {
+                    // Scan backwards for the "LYRICSBEGIN" closest to the end:
+                    // minimal trim, so lyrics text quoting the magic (or audio
+                    // bytes that happen to match) can never eat frame data.
+                    for (size_t pos = static_cast<size_t>(window) - 20 + 1; pos-- > 0; ) {
+                        if (std::memcmp(buf.data() + pos, "LYRICSBEGIN", 11) == 0) {
+                            m_audio_data_end = end - window + pos;
+                            changed = true;
+                            FLAC_DEBUG("[detectTrailingTags] Trimmed ", window - pos,
+                                       "-byte Lyrics3v1 trailer");
+                            break;
+                        }
+                    }
+                    if (changed) {
+                        continue;
+                    }
+                }
+            }
+        }
     }
 
     if (m_audio_data_end != m_file_size) {
