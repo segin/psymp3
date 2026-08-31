@@ -34,6 +34,7 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "Copyright © 2009-2026 Kirn Gill II <segin2005@gmail.com>\n"
             "Copyright © 2010-2026 Mattis Michel <sic_zer0@hotmail.com>\n"
             "Copyright © 2009-2026 Rajesh Rajan <seanawake@gmail.com>\n"
+            "\n"
             "Copyright © 2003 Bitstream, Inc. (DejaVu Sans font)\n"
             "Copyright © 2006 Tavmjong Bah (DejaVu Sans font)\n"
             "Copyright © 2011 Apple Inc. (ALAC decoder, Apache License 2.0)\n"
