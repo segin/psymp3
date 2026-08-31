@@ -4955,6 +4955,8 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     } else if (codec_lc.find("ulaw") != std::string::npos || codec_lc.find("mulaw") != std::string::npos ||
                codec_lc.find("mu-law") != std::string::npos) {
         format = "G.711 \xc2\xb5-law";
+    } else if (codec_lc.find("g722") != std::string::npos) {
+        format = "G.722";
     } else if (codec_lc == "flac" || codec_lc == "alac") {
         format = codec_uc + (bits > 0 ? " S" + std::to_string(bits) + " LE" : "");
     } else {
