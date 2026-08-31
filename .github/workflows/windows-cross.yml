@@ -259,6 +259,7 @@ jobs:
         make -j"$(nproc)"
 
         BUILD=$(grep -oP 'FILEVERSION \d+,\d+,\d+,\K\d+' res/psymp3.rc | tr -d '\r')
+        echo "BUILD=${BUILD}" >> "$GITHUB_ENV"
         mkdir -p dist
         cp src/psymp3.exe "dist/psymp3-${{ matrix.arch }}-b${BUILD}-debug.exe"
         cp src/psymp3.exe "dist/psymp3-${{ matrix.arch }}-b${BUILD}.exe"
@@ -269,6 +270,6 @@ jobs:
     - name: Upload binaries
       uses: actions/upload-artifact@v6
       with:
-        name: psymp3-windows-${{ matrix.arch }}
+        name: psymp3-windows-${{ matrix.arch }}-b${{ env.BUILD }}
         path: dist/*.exe
         if-no-files-found: error
