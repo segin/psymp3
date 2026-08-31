@@ -115,6 +115,7 @@ private:
     static constexpr uint16_t WAVE_FORMAT_ALAW = 0x0006;
     static constexpr uint16_t WAVE_FORMAT_MULAW = 0x0007;
     static constexpr uint16_t WAVE_FORMAT_EXTENSIBLE = 0xFFFE;
+    static constexpr uint16_t WAVE_FORMAT_G722 = 0x028F;
     
     // AIFF compression types
     static constexpr uint32_t AIFF_NONE = 0x4E4F4E45; // "NONE"

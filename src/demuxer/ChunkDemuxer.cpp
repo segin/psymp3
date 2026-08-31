@@ -212,6 +212,13 @@ std::vector<StreamInfo> ChunkDemuxer::getStreams() const {
             // Use fact chunk data for accurate duration
             info.duration_samples = audio_data.total_samples;
             info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
+        } else if (audio_data.format_tag == WAVE_FORMAT_G722) {
+            // 2 samples per byte per channel (4-bit codes; bytes_per_frame is 0)
+            uint64_t ch = std::max<uint64_t>(1, audio_data.channels);
+            info.duration_samples = (audio_data.data_size * 2) / ch;
+            if (audio_data.sample_rate > 0) {
+                info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
+            }
         } else if (audio_data.bytes_per_frame > 0) {
             // Calculate from data size
             info.duration_samples = audio_data.data_size / audio_data.bytes_per_frame;
@@ -317,14 +324,21 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
         }
     }
     
-    // Calculate timestamps
-    if (stream_data.bytes_per_frame > 0) {
+    // Calculate timestamps (G.722's 4-bit samples make bytes_per_frame 0,
+    // but its own branch below needs no frame size)
+    if (stream_data.bytes_per_frame > 0 || stream_data.format_tag == WAVE_FORMAT_G722) {
         chunk.timestamp_samples = m_current_sample;
         
         // Advance sample counter based on actual data read
         if (stream_data.format_tag == WAVE_FORMAT_PCM || stream_data.format_tag == WAVE_FORMAT_IEEE_FLOAT) {
             // For PCM, calculate samples directly from bytes
             m_current_sample += chunk.data.size() / stream_data.bytes_per_frame;
+        } else if (stream_data.format_tag == WAVE_FORMAT_G722) {
+            // G.722 codes exactly 2 samples per byte (4 bits/sample); the
+            // byte-rate estimate below can't be trusted for it — encoders
+            // disagree about whether nAvgBytesPerSec is 8000 or 16000.
+            uint64_t ch = std::max<uint64_t>(1, stream_data.channels);
+            m_current_sample += (chunk.data.size() * 2) / ch;
         } else {
             // For compressed formats, estimate based on average bitrate
             uint64_t bytes_per_ms = (stream_data.avg_bytes_per_sec + 999) / 1000; // Round up
@@ -518,6 +532,8 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
             return "g721";
         case 0x0042: // WAVE_FORMAT_G728_CELP
             return "g728";
+        case WAVE_FORMAT_G722:
+            return "g722";
         default:
             Debug::log("chunk", "ChunkDemuxer: Unknown WAV format tag: 0x", std::hex, format_tag);
             return "unknown";
@@ -672,11 +688,20 @@ double ChunkDemuxer::ieee80ToDouble(const uint8_t ieee80[10]) const {
 
 uint64_t ChunkDemuxer::byteOffsetToMs(uint64_t byte_offset, uint32_t stream_id) const {
     auto it = m_audio_streams.find(stream_id);
-    if (it == m_audio_streams.end() || it->second.bytes_per_frame == 0) {
+    if (it == m_audio_streams.end()) {
         return 0;
     }
-    
+
     const auto& stream_data = it->second;
+    if (stream_data.format_tag == WAVE_FORMAT_G722) {
+        // 2 samples per byte per channel; bytes_per_frame is 0 for 4-bit codes
+        uint64_t ch = std::max<uint64_t>(1, stream_data.channels);
+        uint64_t samples = (byte_offset * 2) / ch;
+        return stream_data.sample_rate > 0 ? (samples * 1000ULL) / stream_data.sample_rate : 0;
+    }
+    if (stream_data.bytes_per_frame == 0) {
+        return 0;
+    }
     uint64_t samples = byte_offset / stream_data.bytes_per_frame;
     return (samples * 1000ULL) / stream_data.sample_rate;
 }
@@ -686,9 +711,13 @@ uint64_t ChunkDemuxer::msToByteOffset(uint64_t timestamp_ms, uint32_t stream_id)
     if (it == m_audio_streams.end()) {
         return 0;
     }
-    
+
     const auto& stream_data = it->second;
     uint64_t samples = (timestamp_ms * stream_data.sample_rate) / 1000ULL;
+    if (stream_data.format_tag == WAVE_FORMAT_G722) {
+        uint64_t ch = std::max<uint64_t>(1, stream_data.channels);
+        return (samples * ch) / 2;
+    }
     return samples * stream_data.bytes_per_frame;
 }
 
