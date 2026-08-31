@@ -382,6 +382,12 @@ bool ListViewWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int re
 bool ListViewWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     if (m_drag_from >= 0) {
+        // A drag-reorder is a LEFT-button gesture: releases of other buttons
+        // (routed here via the capture) must not commit the reorder and drop
+        // the capture while the left button is still physically held.
+        if (event.button != SDL_BUTTON_LEFT) {
+            return true; // swallow the stray release; the gesture continues
+        }
         releaseMouse();
         int from = m_drag_from;
         bool dragged = m_dragging;
