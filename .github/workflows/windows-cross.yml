@@ -1,0 +1,272 @@
+name: Windows cross-build
+
+# Builds the llvm-mingw toolchain from source, cross-builds the static
+# dependency stack, and produces PsyMP3 for all three Windows architectures
+# (x86_64, i686, aarch64) in both debug (-g, unstripped) and stripped
+# configurations — the same recipe as build-win.sh on the release build host.
+#
+# The toolchain (~2h) and the per-arch dependency prefixes are cached, so a
+# warm run only compiles PsyMP3 itself. The weekly cron keeps the caches from
+# aging out of GitHub's 7-day eviction window.
+
+on:
+  push:
+    branches: [ "master" ]
+    tags: [ "*" ]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: windows-cross-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LLVM_MINGW_TAG: "20260826"
+  # Bump DEPS_REV to force a dependency-stack rebuild without version changes.
+  DEPS_REV: "1"
+  ZLIB_VER: "1.3.2"
+  OPENSSL_VER: "4.0.2"
+  CURL_VER: "8.21.0"
+  TAGLIB_VER: "2.3.1"
+  FREETYPE_VER: "2.14.3"
+  OGG_VER: "1.3.6"
+  OPUS_VER: "1.5.2"
+  SDL3_VER: "3.4.14"
+
+jobs:
+  toolchain:
+    name: llvm-mingw toolchain
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    outputs:
+      cache-key: ${{ steps.key.outputs.key }}
+    steps:
+    - name: Compute cache key
+      id: key
+      run: echo "key=llvm-mingw-${LLVM_MINGW_TAG}-ucrt-3arch-v1" >> "$GITHUB_OUTPUT"
+
+    - name: Check toolchain cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/llvm-mingw
+        key: ${{ steps.key.outputs.key }}
+
+    - name: Install build prerequisites
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          cmake ninja-build python3 git ca-certificates curl xz-utils
+
+    - name: Build llvm-mingw from source
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: |
+        set -euxo pipefail
+        git clone --depth 1 --branch "$LLVM_MINGW_TAG" \
+          https://github.com/mstorsjo/llvm-mingw.git llvm-mingw-src
+        cd llvm-mingw-src
+        # armv7/arm64ec are not PsyMP3 targets; skipping them trims the build.
+        export TOOLCHAIN_ARCHS="i686 x86_64 aarch64"
+        ./build-all.sh --disable-lldb "$HOME/llvm-mingw"
+        "$HOME"/llvm-mingw/bin/x86_64-w64-mingw32-clang --version
+
+  windows:
+    name: PsyMP3 ${{ matrix.arch }}
+    needs: toolchain
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x86_64
+          tuple: x86_64-w64-mingw32
+          openssl_target: mingw64
+        - arch: i686
+          tuple: i686-w64-mingw32
+          openssl_target: mingw
+        - arch: aarch64
+          tuple: aarch64-w64-mingw32
+          openssl_target: mingw-arm64
+    env:
+      TUPLE: ${{ matrix.tuple }}
+      PREFIX: /home/runner/xwin/${{ matrix.tuple }}
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Restore toolchain
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/llvm-mingw
+        key: ${{ needs.toolchain.outputs.cache-key }}
+        fail-on-cache-miss: true
+
+    - name: Install host tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          autoconf automake libtool autoconf-archive pkgconf \
+          cmake ninja-build make curl ca-certificates xz-utils perl
+
+    - name: Check dependency cache
+      id: deps
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.PREFIX }}
+        key: xwin-deps-${{ matrix.tuple }}-r${{ env.DEPS_REV }}-zlib${{ env.ZLIB_VER }}-ssl${{ env.OPENSSL_VER }}-curl${{ env.CURL_VER }}-tag${{ env.TAGLIB_VER }}-ft${{ env.FREETYPE_VER }}-ogg${{ env.OGG_VER }}-opus${{ env.OPUS_VER }}-sdl${{ env.SDL3_VER }}
+
+    - name: Build dependency stack
+      if: steps.deps.outputs.cache-hit != 'true'
+      run: |
+        set -euxo pipefail
+        export PATH="$HOME/llvm-mingw/bin:$PATH"
+        export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
+        mkdir -p "$PREFIX/lib/pkgconfig" "$PREFIX/include" deps
+        cd deps
+
+        # ---- zlib (win32 makefile; write the .pc by hand — its configure
+        #      refuses mingw and the CMake path renames the archive) ----
+        curl -fsSLO "https://zlib.net/zlib-${ZLIB_VER}.tar.gz" ||
+          curl -fsSLO "https://github.com/madler/zlib/releases/download/v${ZLIB_VER}/zlib-${ZLIB_VER}.tar.gz"
+        tar xf "zlib-${ZLIB_VER}.tar.gz"
+        make -C "zlib-${ZLIB_VER}" -f win32/Makefile.gcc -j"$(nproc)" \
+          PREFIX="$TUPLE-" libz.a
+        install -m644 "zlib-${ZLIB_VER}"/zlib.h "zlib-${ZLIB_VER}"/zconf.h "$PREFIX/include/"
+        install -m644 "zlib-${ZLIB_VER}"/libz.a "$PREFIX/lib/"
+        cat > "$PREFIX/lib/pkgconfig/zlib.pc" <<EOF
+        prefix=$PREFIX
+        exec_prefix=\${prefix}
+        libdir=\${exec_prefix}/lib
+        includedir=\${prefix}/include
+
+        Name: zlib
+        Description: zlib compression library
+        Version: ${ZLIB_VER}
+        Libs: -L\${libdir} -lz
+        Cflags: -I\${includedir}
+        EOF
+
+        # ---- OpenSSL ----
+        curl -fsSLO "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VER}/openssl-${OPENSSL_VER}.tar.gz"
+        tar xf "openssl-${OPENSSL_VER}.tar.gz"
+        cd "openssl-${OPENSSL_VER}"
+        ./Configure "${{ matrix.openssl_target }}" \
+          --cross-compile-prefix="$TUPLE-" \
+          --prefix="$PREFIX" --libdir=lib \
+          no-shared no-tests no-apps no-docs
+        make -j"$(nproc)"
+        make install_sw
+        cd ..
+
+        # ---- libcurl (TLS via the OpenSSL just built) ----
+        curl -fsSLO "https://curl.se/download/curl-${CURL_VER}.tar.xz"
+        tar xf "curl-${CURL_VER}.tar.xz"
+        cd "curl-${CURL_VER}"
+        ./configure --host="$TUPLE" --prefix="$PREFIX" \
+          --disable-shared --enable-static \
+          --with-openssl --with-zlib="$PREFIX" \
+          --without-libpsl --without-brotli --without-zstd \
+          --without-nghttp2 --without-libidn2 \
+          --disable-ldap --disable-ldaps \
+          PKG_CONFIG="pkg-config --static"
+        make -j"$(nproc)"
+        make install
+        cd ..
+
+        # ---- TagLib (taglib.org tarball bundles utfcpp) ----
+        curl -fsSLO "https://taglib.org/releases/taglib-${TAGLIB_VER}.tar.gz"
+        tar xf "taglib-${TAGLIB_VER}.tar.gz"
+        cmake -S "taglib-${TAGLIB_VER}" -B taglib-build -G Ninja \
+          -DCMAKE_SYSTEM_NAME=Windows \
+          -DCMAKE_C_COMPILER="$TUPLE-clang" \
+          -DCMAKE_CXX_COMPILER="$TUPLE-clang++" \
+          -DCMAKE_RC_COMPILER="$TUPLE-windres" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF \
+          -DBUILD_EXAMPLES=OFF -DBUILD_BINDINGS=OFF \
+          -DZLIB_ROOT="$PREFIX"
+        ninja -C taglib-build install
+
+        # ---- FreeType (font rendering only; no png/harfbuzz/brotli) ----
+        curl -fsSLO "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VER}.tar.xz"
+        tar xf "freetype-${FREETYPE_VER}.tar.xz"
+        cd "freetype-${FREETYPE_VER}"
+        ./configure --host="$TUPLE" --prefix="$PREFIX" \
+          --disable-shared --enable-static \
+          --with-zlib=yes --without-png --without-harfbuzz \
+          --without-brotli --without-bzip2 \
+          PKG_CONFIG="pkg-config --static"
+        make -j"$(nproc)"
+        make install
+        cd ..
+
+        # ---- libogg ----
+        curl -fsSLO "https://downloads.xiph.org/releases/ogg/libogg-${OGG_VER}.tar.gz"
+        tar xf "libogg-${OGG_VER}.tar.gz"
+        cd "libogg-${OGG_VER}"
+        ./configure --host="$TUPLE" --prefix="$PREFIX" --disable-shared --enable-static
+        make -j"$(nproc)"
+        make install
+        cd ..
+
+        # ---- Opus (rtcd off on aarch64, mirroring the release host sysroot) ----
+        curl -fsSLO "https://downloads.xiph.org/releases/opus/opus-${OPUS_VER}.tar.gz"
+        tar xf "opus-${OPUS_VER}.tar.gz"
+        cd "opus-${OPUS_VER}"
+        RTCD_FLAG=""
+        [ "${{ matrix.arch }}" = "aarch64" ] && RTCD_FLAG="--disable-rtcd"
+        ./configure --host="$TUPLE" --prefix="$PREFIX" \
+          --disable-shared --enable-static \
+          --disable-extra-programs --disable-doc $RTCD_FLAG
+        make -j"$(nproc)"
+        make install
+        cd ..
+
+        # ---- SDL3 (static, same CMake recipe as the release host) ----
+        curl -fsSLO "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VER}/SDL3-${SDL3_VER}.tar.gz"
+        tar xf "SDL3-${SDL3_VER}.tar.gz"
+        cmake -S "SDL3-${SDL3_VER}" -B sdl3-build -G Ninja \
+          -DCMAKE_SYSTEM_NAME=Windows \
+          -DCMAKE_C_COMPILER="$TUPLE-clang" \
+          -DCMAKE_CXX_COMPILER="$TUPLE-clang++" \
+          -DCMAKE_RC_COMPILER="$TUPLE-windres" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+          -DCMAKE_INSTALL_LIBDIR=lib \
+          -DSDL_SHARED=OFF -DSDL_STATIC=ON \
+          -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+        ninja -C sdl3-build install
+
+        ls "$PREFIX/lib/pkgconfig"
+
+    - name: Build PsyMP3 (debug + stripped)
+      run: |
+        set -euxo pipefail
+        export PATH="$HOME/llvm-mingw/bin:$PATH"
+        export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
+
+        ./generate-configure.sh
+        ./configure --host="$TUPLE" --enable-static-binary --enable-final \
+          "PKG_CONFIG=pkg-config --static" \
+          CFLAGS="-g -Os -D_FILE_OFFSET_BITS=64" \
+          CXXFLAGS="-g -Os -D_FILE_OFFSET_BITS=64"
+        make -j"$(nproc)"
+
+        BUILD=$(grep -oP 'FILEVERSION \d+,\d+,\d+,\K\d+' res/psymp3.rc | tr -d '\r')
+        mkdir -p dist
+        cp src/psymp3.exe "dist/psymp3-${{ matrix.arch }}-b${BUILD}-debug.exe"
+        cp src/psymp3.exe "dist/psymp3-${{ matrix.arch }}-b${BUILD}.exe"
+        "$TUPLE-strip" -s "dist/psymp3-${{ matrix.arch }}-b${BUILD}.exe"
+        ls -la dist/
+        file dist/*.exe
+
+    - name: Upload binaries
+      uses: actions/upload-artifact@v6
+      with:
+        name: psymp3-windows-${{ matrix.arch }}
+        path: dist/*.exe
+        if-no-files-found: error
