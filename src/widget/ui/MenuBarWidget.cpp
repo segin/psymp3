@@ -462,8 +462,14 @@ int MenuBarWidget::stepSelectable(const std::vector<Item>& items, int from, int 
 {
     int n = static_cast<int>(items.size());
     if (n == 0) return -1;
+    if (from < 0) {
+        // No current selection: enter the list from the edge the step
+        // direction implies, so Up selects the LAST item (from=-1 fed into
+        // the wrap arithmetic used to land on last-minus-one).
+        from = (dir < 0) ? n : -1;
+    }
     for (int k = 0; k < n; ++k) {
-        from = (from + dir % n + n) % n;
+        from = (from + dir + n) % n;
         if (!items[from].separator) return from;
     }
     return -1;
