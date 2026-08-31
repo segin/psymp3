@@ -89,7 +89,7 @@ jobs:
           openssl_target: mingw
         - arch: aarch64
           tuple: aarch64-w64-mingw32
-          openssl_target: mingw-arm64
+          openssl_target: mingwarm64
     env:
       TUPLE: ${{ matrix.tuple }}
       PREFIX: /home/runner/xwin/${{ matrix.tuple }}
@@ -192,7 +192,9 @@ jobs:
         ninja -C taglib-build install
 
         # ---- FreeType (font rendering only; no png/harfbuzz/brotli) ----
-        curl -fsSLO "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VER}.tar.xz"
+        # savannah 502s intermittently; fall back to the sourceforge mirror
+        curl -fsSLO "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VER}.tar.xz" ||
+          curl -fsSL -o "freetype-${FREETYPE_VER}.tar.xz" "https://downloads.sourceforge.net/freetype/freetype-${FREETYPE_VER}.tar.xz"
         tar xf "freetype-${FREETYPE_VER}.tar.xz"
         cd "freetype-${FREETYPE_VER}"
         ./configure --host="$TUPLE" --prefix="$PREFIX" \
