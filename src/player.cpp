@@ -2780,12 +2780,15 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         Widget::getMouseCapturedWidget() == nullptr ||
         (m_menu_bar && m_menu_bar->isOpen());
 
-    // While the equalizer window is open, offer keys to its menu first so its
-    // Alt+<mnemonic> accelerators and open-menu navigation work. m_eq_client is
-    // non-null only while that window is open; its menu returns false unless it
-    // claims the key (its own Alt+mnemonic, or navigation while open), so global
-    // shortcuts still work when its menu is closed.
-    if (menu_may_take_keys && m_eq_client && m_eq_client->handleMenuKey(keysym)) {
+    // While the equalizer window is the ACTIVE window, offer keys to its menu
+    // first so its Alt+<mnemonic> accelerators and open-menu navigation work.
+    // The active-window gate matters: the EQ's "&Presets" mnemonic collides
+    // with the main menu's "&Playback", and without it Alt+P always opened the
+    // EQ dropdown — making the Playback menu unreachable by keyboard whenever
+    // the equalizer existed anywhere on the desktop.
+    if (menu_may_take_keys && m_eq_client && m_eq_window &&
+        WindowFrameWidget::activeWindow() == m_eq_window &&
+        m_eq_client->handleMenuKey(keysym)) {
         return false;
     }
 
