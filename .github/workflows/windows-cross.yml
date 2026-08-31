@@ -267,9 +267,16 @@ jobs:
         ls -la dist/
         file dist/*.exe
 
-    - name: Upload binaries
+    - name: Upload stripped binary
       uses: actions/upload-artifact@v6
       with:
-        name: psymp3-windows-${{ matrix.arch }}-b${{ env.BUILD }}
-        path: dist/*.exe
+        name: psymp3-${{ matrix.arch }}-b${{ env.BUILD }}.exe
+        path: dist/psymp3-${{ matrix.arch }}-b${{ env.BUILD }}.exe
+        if-no-files-found: error
+
+    - name: Upload debug binary
+      uses: actions/upload-artifact@v6
+      with:
+        name: psymp3-${{ matrix.arch }}-b${{ env.BUILD }}-debug.exe
+        path: dist/psymp3-${{ matrix.arch }}-b${{ env.BUILD }}-debug.exe
         if-no-files-found: error
