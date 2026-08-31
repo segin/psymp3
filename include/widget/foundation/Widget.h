@@ -46,7 +46,17 @@ namespace Foundation {
  * - Position and bounds management
  * - Z-order management for proper layering
  * - Visibility and enabled state management
- * - Thread safety using Public/Private Lock Pattern
+ *
+ * ## Threading contract
+ * The widget tree is MAIN-THREAD-ONLY, like every retained-mode toolkit:
+ * construction, event dispatch, layout, invalidation, and rendering all run
+ * on the SDL/UI thread. (It briefly carried a per-widget mutex, but that
+ * covered only a fraction of the state — event dispatch, setPos and
+ * setSurface never locked — and the parent-chain invalidation walk made the
+ * claimed Public/Private Lock Pattern unsatisfiable without ABBA deadlocks
+ * against the top-down render walk. The locks synchronized nothing real and
+ * were removed.) Cross-thread work communicates with the UI via the SDL
+ * event queue or DrawableWidget's atomic redraw flag.
  * 
  * @see DrawableWidget for widgets that require custom drawing
  * @see LayoutWidget for container widgets without subclassing
@@ -86,9 +96,9 @@ class Widget : public Surface
         /**
          * @brief Move constructor is deleted.
          *
-         * Widget holds a std::mutex (m_mutex), which is non-movable, so the
-         * compiler would implicitly delete a defaulted move anyway. Declaring
-         * it deleted is explicit and avoids clang's -Wdefaulted-function-deleted.
+         * A widget's address is its identity: parent/child links, the global
+         * mouse capture, and focus pointers all hold raw Widget*. Moving one
+         * would dangle them.
          */
         Widget(Widget&&) = delete;
 
@@ -490,26 +500,10 @@ class Widget : public Surface
          * regardless of mouse position.
          */
         static Widget* s_mouse_captured_widget;
-        
-        /**
-         * @brief Mutex for thread safety (Public/Private Lock Pattern).
-         * 
-         * Public methods acquire this lock before calling private _unlocked methods.
-         */
-        mutable std::mutex m_mutex;
-        
+
     private:
-        // Private unlocked methods - assume lock is already held
-
-        void invalidate_unlocked();
-        void invalidateArea_unlocked(const Rect& area);
-
-        bool hitTest_unlocked(int x, int y) const;
-        std::pair<int, int> transformCoordinates_unlocked(int parent_x, int parent_y) const;
-
-        void addChild_unlocked(std::unique_ptr<Widget> child);
-        void removeChild_unlocked(Widget* child);
-        void destroy_unlocked();
+        /// Recursively clear the child list (destructor / root destroy path).
+        void destroyChildren();
 };
 
 } // namespace Foundation
