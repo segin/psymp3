@@ -135,6 +135,17 @@ void Label::setText(const TagLib::String& text)
         return;
     }
 
+    // Empty text means "show nothing": drop the text surface entirely, so the
+    // blit path clears the old glyphs once and then stops painting. (RenderLCD
+    // of "" yields a valid 1x1 surface, which used to keep the full opaque
+    // background box painted every frame.)
+    if (m_text.isEmpty()) {
+        m_text_surface.reset();
+        setSurface(nullptr);
+        invalidate();
+        return;
+    }
+
     // Multi-line reflow path: word-wrap to the configured width and stack lines.
     if (m_reflow && m_reflow_width > 0) {
         renderReflowed();
@@ -266,6 +277,17 @@ void Label::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
 void Label::blitWithBackgroundClear(Surface& target, const Rect& absolute_pos)
 {
     if (!m_text_surface || !m_text_surface->isValid()) {
+        // Text was cleared: erase the previous glyphs from the persistent
+        // target once, then paint nothing at all.
+        if (m_last_drawn_width > 0 || m_last_drawn_height > 0) {
+            target.box(absolute_pos.x(), absolute_pos.y(),
+                       absolute_pos.x() + m_last_drawn_width - 1,
+                       absolute_pos.y() + m_last_drawn_height - 1,
+                       target.MapRGB(m_background_color.r, m_background_color.g,
+                                     m_background_color.b));
+            m_last_drawn_width = 0;
+            m_last_drawn_height = 0;
+        }
         return;
     }
 
