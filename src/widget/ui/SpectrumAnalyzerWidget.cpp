@@ -156,7 +156,11 @@ void SpectrumAnalyzerWidget::draw(Surface& surface)
     
     // Calculate alpha for fade (0-255). Original: decayfactor from 0.5 to 2.0
     // Original formula: (255 * (decayfactor / 4.0f))  where decayfactor=1.0 gives 63 alpha
-    uint8_t fade_alpha = static_cast<uint8_t>(255 * (m_decay_factor / 4.0f));
+    // Clamp before the cast: the decay factor arrives from --decay unchecked,
+    // and a float-to-uint8_t conversion of an out-of-range value (factor > 4
+    // or negative) is undefined behavior, not a saturating truncation.
+    uint8_t fade_alpha = static_cast<uint8_t>(
+        std::clamp(255.0f * (m_decay_factor / 4.0f), 0.0f, 255.0f));
     
     // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
     if (fade_alpha != cached_fade_alpha) {
