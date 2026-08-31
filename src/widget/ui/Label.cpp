@@ -323,9 +323,25 @@ void Label::blitWithBackgroundClear(Surface& target, const Rect& absolute_pos)
             if (m_align == Align::Center) off_x = slack / 2;
             else if (m_align == Align::Right) off_x = slack;
         }
+        // Clip to the label's own viewport for the blit: Surface::Blit
+        // ignores the destination rect's size, so a text surface wider than
+        // the label used to bleed into the neighboring widgets' areas.
+        SDL_Surface* handle = target.getHandle();
+        SDL_Rect saved_clip{};
+        if (handle) {
+            SDL_GetSurfaceClipRect(handle, &saved_clip);
+            SDL_Rect label_clip{absolute_pos.x(), absolute_pos.y(),
+                                viewport_width, viewport_height};
+            SDL_Rect merged{};
+            SDL_GetRectIntersection(&saved_clip, &label_clip, &merged);
+            SDL_SetSurfaceClipRect(handle, &merged);
+        }
         target.Blit(*m_text_surface,
                     Rect(absolute_pos.x() + off_x, absolute_pos.y(),
                          m_text_surface->width(), m_text_surface->height()));
+        if (handle) {
+            SDL_SetSurfaceClipRect(handle, &saved_clip);
+        }
     }
 
     m_last_drawn_width = viewport_width;
