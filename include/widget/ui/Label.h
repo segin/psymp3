@@ -76,6 +76,9 @@ class Label : public Widget
         int m_last_drawn_width{0};
         int m_last_drawn_height{0};
         bool m_marquee_enabled{false};
+        /// Constructed with a zero-sized rect: adopt the rendered text's size
+        /// on every setText so centering math based on getPos() works.
+        bool m_auto_size{false};
         bool m_reflow{false};
         int m_reflow_width{0};
         void renderReflowed(); // multi-line wrapped render into the widget surface

@@ -65,6 +65,11 @@ Label::Label(Font* font, const Rect& position, const TagLib::String& initial_tex
       m_color(color),
       m_background_color(background_color)
 {
+    // A zero-sized construction rect means "size to the text": without this,
+    // getPos() reported 0x0 forever and centering math placed the label's
+    // top-left at the intended midpoint (the PAUSED overlay did exactly that).
+    m_auto_size = (position.width() == 0 && position.height() == 0);
+
     // The initial render is done by calling setText.
     setText(initial_text);
 }
@@ -170,7 +175,13 @@ void Label::setText(const TagLib::String& text)
     widget_surface->FillRect(widget_surface->MapRGBA(0, 0, 0, 0));
     widget_surface->Blit(*m_text_surface, Rect(0, 0, m_text_surface->width(), m_text_surface->height()));
     setSurface(std::move(widget_surface));
-    
+
+    if (m_auto_size) {
+        Rect pos = getPos();
+        setPos(Rect(pos.x(), pos.y(),
+                    m_text_surface->width(), m_text_surface->height()));
+    }
+
     // Notify parent that this widget needs repainting
     invalidate();
 }
