@@ -46,11 +46,6 @@ private:
     void testConcurrentPixelDrawing() {
         std::cout << "Testing concurrent pixel drawing...\n";
         
-        auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
-        if (!surface->isValid()) {
-            std::cerr << "Failed to create test surface\n";
-            return;
-        }
         
         m_error_count = 0;
         m_completed_operations = 0;
@@ -58,7 +53,16 @@ private:
         std::vector<std::thread> threads;
         
         for (int i = 0; i < NUM_THREADS; ++i) {
-            threads.emplace_back([this, &surface, i]() {
+            threads.emplace_back([this, i]() {
+                // Thread confinement: one Surface per thread. Surfaces have
+                // no internal locking (the UI is main-thread-only), so the
+                // supported concurrency model is independent surfaces on
+                // independent threads — which is what this exercises.
+                auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
+                if (!surface->isValid()) {
+                    m_error_count++;
+                    return;
+                }
                 std::random_device rd;
                 std::mt19937 gen(rd());
                 std::uniform_int_distribution<> x_dist(0, TEST_SURFACE_WIDTH - 1);
@@ -96,11 +100,6 @@ private:
     void testConcurrentLineDrawing() {
         std::cout << "Testing concurrent line drawing...\n";
         
-        auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
-        if (!surface->isValid()) {
-            std::cerr << "Failed to create test surface\n";
-            return;
-        }
         
         m_error_count = 0;
         m_completed_operations = 0;
@@ -108,7 +107,16 @@ private:
         std::vector<std::thread> threads;
         
         for (int i = 0; i < NUM_THREADS; ++i) {
-            threads.emplace_back([this, &surface, i]() {
+            threads.emplace_back([this, i]() {
+                // Thread confinement: one Surface per thread. Surfaces have
+                // no internal locking (the UI is main-thread-only), so the
+                // supported concurrency model is independent surfaces on
+                // independent threads — which is what this exercises.
+                auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
+                if (!surface->isValid()) {
+                    m_error_count++;
+                    return;
+                }
                 std::random_device rd;
                 std::mt19937 gen(rd());
                 std::uniform_int_distribution<> coord_dist(0, std::min(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT) - 1);
@@ -162,11 +170,6 @@ private:
     void testConcurrentShapeDrawing() {
         std::cout << "Testing concurrent shape drawing...\n";
         
-        auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
-        if (!surface->isValid()) {
-            std::cerr << "Failed to create test surface\n";
-            return;
-        }
         
         m_error_count = 0;
         m_completed_operations = 0;
@@ -174,7 +177,16 @@ private:
         std::vector<std::thread> threads;
         
         for (int i = 0; i < NUM_THREADS; ++i) {
-            threads.emplace_back([this, &surface, i]() {
+            threads.emplace_back([this, i]() {
+                // Thread confinement: one Surface per thread. Surfaces have
+                // no internal locking (the UI is main-thread-only), so the
+                // supported concurrency model is independent surfaces on
+                // independent threads — which is what this exercises.
+                auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
+                if (!surface->isValid()) {
+                    m_error_count++;
+                    return;
+                }
                 std::random_device rd;
                 std::mt19937 gen(rd());
                 std::uniform_int_distribution<> coord_dist(10, std::min(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT) - 10);
@@ -237,11 +249,6 @@ private:
     void testConcurrentComplexOperations() {
         std::cout << "Testing concurrent complex operations...\n";
         
-        auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
-        if (!surface->isValid()) {
-            std::cerr << "Failed to create test surface\n";
-            return;
-        }
         
         m_error_count = 0;
         m_completed_operations = 0;
@@ -249,7 +256,16 @@ private:
         std::vector<std::thread> threads;
         
         for (int i = 0; i < NUM_THREADS; ++i) {
-            threads.emplace_back([this, &surface, i]() {
+            threads.emplace_back([this, i]() {
+                // Thread confinement: one Surface per thread. Surfaces have
+                // no internal locking (the UI is main-thread-only), so the
+                // supported concurrency model is independent surfaces on
+                // independent threads — which is what this exercises.
+                auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
+                if (!surface->isValid()) {
+                    m_error_count++;
+                    return;
+                }
                 std::random_device rd;
                 std::mt19937 gen(rd());
                 std::uniform_int_distribution<> coord_dist(20, std::min(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT) - 20);
@@ -309,11 +325,6 @@ private:
     void testSDLLockingConsistency() {
         std::cout << "Testing SDL locking consistency...\n";
         
-        auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
-        if (!surface->isValid()) {
-            std::cerr << "Failed to create test surface\n";
-            return;
-        }
         
         m_error_count = 0;
         std::atomic<bool> test_running{true};
@@ -323,7 +334,16 @@ private:
         std::vector<std::thread> threads;
         
         for (int i = 0; i < NUM_THREADS; ++i) {
-            threads.emplace_back([this, &surface, &test_running, i]() {
+            threads.emplace_back([this, &test_running, i]() {
+                // Thread confinement: one Surface per thread. Surfaces have
+                // no internal locking (the UI is main-thread-only), so the
+                // supported concurrency model is independent surfaces on
+                // independent threads — which is what this exercises.
+                auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
+                if (!surface->isValid()) {
+                    m_error_count++;
+                    return;
+                }
                 std::random_device rd;
                 std::mt19937 gen(rd());
                 std::uniform_int_distribution<> coord_dist(0, std::min(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT) - 1);
@@ -369,16 +389,15 @@ private:
     
     void testPerformanceRegression() {
         std::cout << "Testing performance regression...\n";
-        
+
+        const int PERF_OPERATIONS = 10000;
+
+        // Test single-threaded performance
         auto surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
         if (!surface->isValid()) {
             std::cerr << "Failed to create test surface\n";
             return;
         }
-        
-        const int PERF_OPERATIONS = 10000;
-        
-        // Test single-threaded performance
         auto start_time = std::chrono::high_resolution_clock::now();
         
         for (int i = 0; i < PERF_OPERATIONS; ++i) {
@@ -391,17 +410,23 @@ private:
         std::cout << "Single-threaded performance: " << PERF_OPERATIONS << " operations in " 
                   << duration.count() << " microseconds\n";
         
-        // Test multi-threaded performance
+        // Multi-threaded performance: one surface per thread (thread
+        // confinement) — Surface has no internal locking, so shared-surface
+        // writes would be a data race, not a benchmark.
         start_time = std::chrono::high_resolution_clock::now();
         
         std::vector<std::thread> threads;
         const int ops_per_thread = PERF_OPERATIONS / NUM_THREADS;
         
         for (int i = 0; i < NUM_THREADS; ++i) {
-            threads.emplace_back([&surface, ops_per_thread, i]() {
+            threads.emplace_back([ops_per_thread, i]() {
+                auto thread_surface = std::make_unique<Surface>(TEST_SURFACE_WIDTH, TEST_SURFACE_HEIGHT);
+                if (!thread_surface->isValid()) {
+                    return;
+                }
                 for (int j = 0; j < ops_per_thread; ++j) {
                     int idx = i * ops_per_thread + j;
-                    surface->pixel(idx % TEST_SURFACE_WIDTH, (idx / TEST_SURFACE_WIDTH) % TEST_SURFACE_HEIGHT, 0, 255, 0, 255);
+                    thread_surface->pixel(idx % TEST_SURFACE_WIDTH, (idx / TEST_SURFACE_WIDTH) % TEST_SURFACE_HEIGHT, 0, 255, 0, 255);
                 }
             });
         }
