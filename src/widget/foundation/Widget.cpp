@@ -327,12 +327,23 @@ bool Widget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x
             
             // Forward event to child
             if (child->handleMouseMotion(event, child_relative_x, child_relative_y)) {
+                // Hover moved to a different child: tell the old one the
+                // pointer is gone (it will never see a motion event again).
+                if (m_motion_child && m_motion_child != child.get()) {
+                    m_motion_child->handleMouseLeave();
+                }
+                m_motion_child = child.get();
                 return true; // Event was handled by child
             }
         }
     }
     
     // Event not handled by any child
+    // No child handled the motion: whatever child had hover has lost it.
+    if (m_motion_child) {
+        m_motion_child->handleMouseLeave();
+        m_motion_child = nullptr;
+    }
     return false;
 }
 
@@ -473,9 +484,21 @@ std::pair<int, int> Widget::transformCoordinates(int parent_x, int parent_y) con
     return std::make_pair(widget_x, widget_y);
 }
 
+void Widget::handleMouseLeave()
+{
+    // Forward down the last-motion chain so nested hover states clear too.
+    if (m_motion_child) {
+        m_motion_child->handleMouseLeave();
+        m_motion_child = nullptr;
+    }
+}
+
 void Widget::removeChild(Widget* child)
 {
     if (child) {
+        if (child == m_motion_child) {
+            m_motion_child = nullptr;
+        }
         auto it = std::find_if(m_children.begin(), m_children.end(),
             [child](const std::unique_ptr<Widget>& c) { return c.get() == child; });
         if (it != m_children.end()) {
@@ -498,6 +521,7 @@ void Widget::destroy()
 
 void Widget::destroyChildren()
 {
+    m_motion_child = nullptr;
     for (auto& child : m_children) {
         child->destroyChildren();
     }

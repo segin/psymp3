@@ -104,6 +104,7 @@ public:
      * @return true if the event was handled
      */
     virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
+    void handleMouseLeave() override;
     
     /**
      * @brief Handles mouse motion events for hover effects.

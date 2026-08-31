@@ -246,6 +246,17 @@ class Widget : public Surface
         virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
 
         /**
+         * @brief Notifies this widget that the pointer has left it.
+         *
+         * Motion events are only delivered to the widget under the cursor, so
+         * without this a widget that keyed hover state off motion never
+         * learned the pointer was gone and kept its hover visuals forever.
+         * The base implementation forwards the leave down the last-motion
+         * chain; overrides clear their hover state and call the base.
+         */
+        virtual void handleMouseLeave();
+
+        /**
          * @brief Handles mouse wheel events.
          *
          * The default implementation forwards to the child under the cursor
@@ -462,6 +473,15 @@ class Widget : public Surface
          * Null for root widgets.
          */
         Widget* m_parent;
+
+        /**
+         * @brief Last child that handled a motion event (non-owning).
+         *
+         * Used to synthesize handleMouseLeave() when the pointer moves to a
+         * different child (or off every child); cleared when that child is
+         * removed or destroyed so it can never dangle.
+         */
+        Widget* m_motion_child = nullptr;
         
         /**
          * @brief Z-order level for layering widgets.

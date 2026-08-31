@@ -109,6 +109,18 @@ bool TextInputWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int r
     return hovered || m_pressed;
 }
 
+void TextInputWidget::handleMouseLeave()
+{
+    // Motion events stop arriving the moment the pointer leaves; this is the
+    // only notification, so the hover ring must clear here.
+    if (m_hovered) {
+        m_hovered = false;
+        rebuildSurface();
+        invalidate();
+    }
+    Widget::handleMouseLeave();
+}
+
 void TextInputWidget::setText(const TagLib::String& text)
 {
     if (m_text == text) {

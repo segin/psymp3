@@ -266,6 +266,22 @@ bool ButtonWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int rela
     return m_hovered || m_held;
 }
 
+void ButtonWidget::handleMouseLeave()
+{
+    // The pointer left without another motion event arriving here; clear the
+    // hover (and a pointer-tracked press sinks back up) so the button doesn't
+    // stay lit under a cursor that is elsewhere.
+    if (m_hovered || (m_held && m_pressed)) {
+        m_hovered = false;
+        if (m_held) {
+            m_pressed = false;
+        }
+        rebuildSurface();
+        invalidate();
+    }
+    Widget::handleMouseLeave();
+}
+
 void ButtonWidget::setSymbol(ButtonSymbol symbol)
 {
     if (m_symbol != symbol) {

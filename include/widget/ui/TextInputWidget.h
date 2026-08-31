@@ -22,6 +22,7 @@ public:
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
+    void handleMouseLeave() override;
 
     void setText(const TagLib::String& text);
     const TagLib::String& getText() const { return m_text; }
