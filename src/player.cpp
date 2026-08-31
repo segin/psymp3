@@ -2725,6 +2725,19 @@ void Player::toggleZoom()
  */
 bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
+    // An open dropdown is modal for the keyboard: it must see keys before Tab
+    // cycling and the focused-widget handlers, or a focused text box, list, or
+    // button underneath it steals the menu's arrows, Enter, and Escape.
+    if (m_eq_client && m_eq_client->isMenuOpen()) {
+        if (m_eq_client->handleMenuKey(keysym)) {
+            return false;
+        }
+    } else if (m_menu_bar && m_menu_bar->isOpen()) {
+        if (m_menu_bar->handleKey(keysym)) {
+            return false;
+        }
+    }
+
     // Tab / Shift+Tab cycle keyboard focus through the active window's
     // controls (text inputs, lists, push buttons), Windows-style. Checked
     // before the focused-widget handlers so a text box can't swallow Tab.
@@ -3613,6 +3626,12 @@ void Player::EventLoop() {
             }
             case SDL_EVENT_TEXT_INPUT:
             {
+                // An open dropdown is modal: don't type into a focused text
+                // box sitting underneath it.
+                if ((m_menu_bar && m_menu_bar->isOpen()) ||
+                    (m_eq_client && m_eq_client->isMenuOpen())) {
+                    break;
+                }
                 TextInputWidget::handleFocusedTextInput(event.text.text);
                 break;
             }

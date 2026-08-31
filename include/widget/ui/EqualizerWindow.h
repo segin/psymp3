@@ -58,6 +58,10 @@ public:
     // Esc/mnemonics to navigate while open). Returns true if the menu consumed it.
     bool handleMenuKey(const SDL_keysym& keysym);
 
+    // Whether this window's menu bar has an open dropdown (which is modal for
+    // the keyboard and must see navigation keys before focused widgets).
+    bool isMenuOpen() const { return m_menu && m_menu->isOpen(); }
+
     // User preset slots (1..kUserPresets), stored as .psymp3eq files in the
     // config directory.
     void loadUserPreset(int slot);
