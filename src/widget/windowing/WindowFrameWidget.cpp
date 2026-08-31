@@ -361,7 +361,10 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                     }
                     return true;
                 } else {
-                    // Single click - toggle the control menu
+                    // Single click - toggle the control menu. Raise the window
+                    // first: the menu is modal, and opening it underneath an
+                    // overlapping sibling would leave covered items unclickable.
+                    bringToFront();
                     m_last_click_time = current_time;
                     m_double_click_pending = true;
 
@@ -385,6 +388,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             Rect minimize_bounds = getMinimizeButtonBounds();
             if (relative_x >= minimize_bounds.x() && relative_x < minimize_bounds.x() + minimize_bounds.width() &&
                 relative_y >= minimize_bounds.y() && relative_y < minimize_bounds.y() + minimize_bounds.height()) {
+                bringToFront(); // titlebar clicks raise, like any other press
                 m_pressed_titlebar_button = 1;
                 m_titlebar_button_hover = true;
                 captureMouse();
@@ -395,6 +399,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             Rect maximize_bounds = getMaximizeButtonBounds();
             if (relative_x >= maximize_bounds.x() && relative_x < maximize_bounds.x() + maximize_bounds.width() &&
                 relative_y >= maximize_bounds.y() && relative_y < maximize_bounds.y() + maximize_bounds.height()) {
+                bringToFront();
                 m_pressed_titlebar_button = 2;
                 m_titlebar_button_hover = true;
                 captureMouse();
