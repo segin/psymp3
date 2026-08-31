@@ -616,16 +616,18 @@ Player::Player() : m_rng(std::random_device{}()) {
  * joins the loader and playlist-populator threads, and clears the Windows
  * now-playing status.
  */
-namespace {
 // Last.fm credentials-test worker plumbing. The worker owns only the shared
 // state block so the dialog can close mid-handshake, but its thread handle
 // lives here so ~Player can reap it — a worker running past main() races
-// curl/OpenSSL static teardown.
+// curl/OpenSSL static teardown. The struct has external linkage (outside the
+// anonymous namespace) because it becomes a member type of the named dialog
+// class below — -Wsubobject-linkage rejects internal-linkage member types.
 struct LastFmTestState {
     std::mutex mutex;
     std::string result;
     bool done = false;
 };
+namespace {
 std::thread s_lastfm_test_worker;
 std::weak_ptr<LastFmTestState> s_lastfm_test_state;
 } // namespace
