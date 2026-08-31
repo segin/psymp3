@@ -103,7 +103,10 @@ void ButtonWidget::activate()
 
 bool ButtonWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
 {
-    if (!s_focused_widget) {
+    // A button disabled after taking focus (its own click callback can do
+    // that) must not sink visually on Space or swallow Enter — falling
+    // through also lets the dialog's default-button fallback run.
+    if (!s_focused_widget || !s_focused_widget->m_enabled) {
         return false;
     }
     switch (keysym.sym) {
@@ -130,7 +133,8 @@ bool ButtonWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
 bool ButtonWidget::handleFocusedKeyUp(const SDL_keysym& keysym)
 {
     if (!s_focused_widget || keysym.sym != SDLK_SPACE ||
-        !s_focused_widget->m_key_pressed) {
+        !s_focused_widget->m_key_pressed ||
+        !s_focused_widget->m_enabled) {
         return false;
     }
     ButtonWidget& w = *s_focused_widget;
@@ -279,8 +283,11 @@ void ButtonWidget::setEnabled(bool enabled)
             m_hovered = false;
             // Abandon an in-flight press: without this a button disabled while
             // held (e.g. by its own click callback) kept the global mouse
-            // capture forever, wedging all mouse input.
+            // capture forever, wedging all mouse input. A held Space press is
+            // abandoned the same way, or its release after re-enabling would
+            // fire a click with no corresponding press.
             m_held = false;
+            m_key_pressed = false;
             releaseMouse();
         }
         rebuildSurface();
