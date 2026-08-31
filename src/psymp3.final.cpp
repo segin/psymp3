@@ -45,11 +45,16 @@
 #include "core/utility/UTF8Util.cpp"
 // GCC -Wmaybe-uninitialized false-positives inside pugixml's document-move
 // code when the unity TU gives it extra inlining context; the standalone
-// compile of the same file is clean.
+// compile of the same file is clean. Clang has no such warning group and
+// would fail the pragma itself under -Werror=unknown-warning-option.
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 #include "../third_party/pugixml/pugixml.cpp"
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
 #include "core/utility/utility.cpp"
 
 // ============================================================================
