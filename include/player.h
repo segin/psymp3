@@ -335,6 +335,7 @@ class Player
         // when a window (which occludes the desktop) is under the cursor.
         bool handleWindowMouseWheel(int mouse_x, int mouse_y, int delta);
         bool windowOwnsMouseCapture() const;
+        bool desktopOwnsMouseCapture() const;
         void toggleTestWindowH();
         void toggleTestWindowB();
         void togglePlaylistManager();

@@ -2758,12 +2758,21 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
+    // A mouse gesture in progress owns the interaction: an open menu consumes
+    // every motion and the button release, so opening one mid-drag (e.g.
+    // Alt+F while scrubbing the seek bar) starves the captured widget of its
+    // release and wedges its drag state. Don't let keys OPEN a menu while a
+    // capture is live; an already-open menu still gets its navigation keys.
+    const bool menu_may_take_keys =
+        Widget::getMouseCapturedWidget() == nullptr ||
+        (m_menu_bar && m_menu_bar->isOpen());
+
     // While the equalizer window is open, offer keys to its menu first so its
     // Alt+<mnemonic> accelerators and open-menu navigation work. m_eq_client is
     // non-null only while that window is open; its menu returns false unless it
     // claims the key (its own Alt+mnemonic, or navigation while open), so global
     // shortcuts still work when its menu is closed.
-    if (m_eq_client && m_eq_client->handleMenuKey(keysym)) {
+    if (menu_may_take_keys && m_eq_client && m_eq_client->handleMenuKey(keysym)) {
         return false;
     }
 
@@ -2771,7 +2780,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     // Alt+<mnemonic> (to open a menu); while open it captures all navigation
     // keys (arrows/Enter/Esc/mnemonics) so they don't fall through to the
     // global shortcuts below.
-    if (m_menu_bar && m_menu_bar->handleKey(keysym)) {
+    if (menu_may_take_keys && m_menu_bar && m_menu_bar->handleKey(keysym)) {
         return false;
     }
 
@@ -3630,6 +3639,10 @@ void Player::EventLoop() {
                 bool handled = false;
                 if (windowOwnsMouseCapture()) {
                     handled = handleWindowMouseEvents(event);
+                } else if (desktopOwnsMouseCapture()) {
+                    // A desktop-tree capture (e.g. seek-bar drag) is just as
+                    // authoritative: don't let the menu bar steal its events.
+                    handled = m_ui_root->handleMouseDown(event.button, event.button.x, event.button.y);
                 } else {
                     if (m_menu_bar && m_menu_bar->handleMouseDown(event.button, event.button.x, event.button.y)) {
                         handled = true;
@@ -3677,6 +3690,10 @@ void Player::EventLoop() {
                 bool handled = false;
                 if (windowOwnsMouseCapture()) {
                     handled = handleWindowMouseEvents(event);
+                } else if (desktopOwnsMouseCapture()) {
+                    // Feed the captured desktop widget directly; an open menu
+                    // must not starve its drag of motion events.
+                    handled = m_ui_root->handleMouseMotion(event.motion, event.motion.x, event.motion.y);
                 } else {
                     if (m_menu_bar && m_menu_bar->handleMouseMotion(event.motion, event.motion.x, event.motion.y)) {
                         handled = true; // an open menu owns hover
@@ -3710,6 +3727,10 @@ void Player::EventLoop() {
                 bool handled = false;
                 if (windowOwnsMouseCapture()) {
                     handled = handleWindowMouseEvents(event);
+                } else if (desktopOwnsMouseCapture()) {
+                    // The captured desktop widget must see its own release, or
+                    // its drag state (and the global capture) wedges.
+                    handled = m_ui_root->handleMouseUp(event.button, event.button.x, event.button.y);
                 } else {
                     if (m_menu_bar && m_menu_bar->handleMouseUp(event.button, event.button.x, event.button.y)) {
                         handled = true;
@@ -4159,6 +4180,24 @@ bool Player::handleWindowMouseWheel(int mouse_x, int mouse_y, int delta)
             window->handleMouseWheel(delta, mouse_x - r.x(), mouse_y - r.y());
             return true; // occlude the desktop
         }
+    }
+    return false;
+}
+
+/**
+ * @brief Whether the widget currently holding the mouse capture lives in the
+ *        desktop widget tree (m_ui_root) rather than a floating window.
+ *
+ * Such a capture is just as authoritative as a window-owned one: its motion
+ * and release events must not be intercepted by the menu bar, or the drag
+ * (e.g. seek-bar scrubbing) is starved of its release and wedges.
+ */
+bool Player::desktopOwnsMouseCapture() const
+{
+    Widget* captured = Widget::getMouseCapturedWidget();
+    if (!captured || !m_ui_root) return false;
+    for (Widget* w = captured; w; w = w->getParent()) {
+        if (w == m_ui_root) return true;
     }
     return false;
 }
