@@ -231,6 +231,9 @@ bool WindowFrameWidget::dismissOpenSystemMenuAt(int x, int y)
         return false;
     }
     w->closeControlMenu();
+    // The dismissing click also breaks the icon's pending double-click, so a
+    // later click on the icon reopens the menu instead of closing the window.
+    w->m_double_click_pending = false;
     return true;
 }
 
@@ -320,6 +323,20 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
         }
 
         setActiveWindow(this);
+
+        // Any left press that is NOT on the control-menu icon breaks a pending
+        // icon double-click: without this, dismissing the menu with a click
+        // elsewhere and re-clicking the icon inside the double-click window
+        // closed the window instead of reopening its menu.
+        {
+            const Rect icon = getControlMenuBounds();
+            const bool on_icon =
+                relative_x >= icon.x() && relative_x < icon.x() + icon.width() &&
+                relative_y >= icon.y() && relative_y < icon.y() + icon.height();
+            if (!on_icon) {
+                m_double_click_pending = false;
+            }
+        }
 
         // While the control menu is open, the titlebar icon keeps first claim
         // (its toggle closes the menu and its double-click still closes the
