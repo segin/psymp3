@@ -312,6 +312,16 @@ void WindowFrameWidget::requestClose()
 
 bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
+    // The open control menu is modal for EVERY button: a right/middle click
+    // dismisses it and is consumed, instead of falling through to the client
+    // area underneath (where it could, e.g., open a ListView context menu on
+    // top of the "modal" popup).
+    if (event.button != SDL_BUTTON_LEFT && m_control_menu && m_control_menu->isOpen()) {
+        closeControlMenu();
+        m_double_click_pending = false;
+        return true;
+    }
+
     if (event.button == SDL_BUTTON_LEFT) {
         // A click while the control-menu "Move" mode is active settles the
         // window at its current position and consumes the click.
