@@ -46,9 +46,17 @@ FadingWidget::FadingWidget() : Widget()
  */
 void FadingWidget::fadeIn()
 {
-    if (m_state == FadeState::Hidden || m_state == FadeState::FadingOut) {
+    if (m_state == FadeState::Hidden) {
         m_state = FadeState::FadingIn;
         m_state_change_time = SDL_GetTicks();
+    } else if (m_state == FadeState::FadingOut) {
+        // Reverse from the CURRENT alpha, not from zero: back-date the start
+        // so the fade-in resumes where the fade-out had gotten to, instead of
+        // snapping fully transparent and fading up from black.
+        const Uint32 now = SDL_GetTicks();
+        const Uint32 elapsed = std::min(now - m_state_change_time, m_fade_duration);
+        m_state = FadeState::FadingIn;
+        m_state_change_time = now - (m_fade_duration - elapsed);
     }
 }
 
@@ -61,9 +69,17 @@ void FadingWidget::fadeIn()
  */
 void FadingWidget::fadeOut()
 {
-    if (m_state == FadeState::Visible || m_state == FadeState::FadingIn) {
+    if (m_state == FadeState::Visible) {
         m_state = FadeState::FadingOut;
         m_state_change_time = SDL_GetTicks();
+    } else if (m_state == FadeState::FadingIn) {
+        // Mirror of fadeIn's reversal: a tap that releases before the fade-in
+        // completes fades back down from the alpha it reached, instead of
+        // snapping to fully opaque first.
+        const Uint32 now = SDL_GetTicks();
+        const Uint32 elapsed = std::min(now - m_state_change_time, m_fade_duration);
+        m_state = FadeState::FadingOut;
+        m_state_change_time = now - (m_fade_duration - elapsed);
     }
 }
 
