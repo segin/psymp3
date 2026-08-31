@@ -1147,7 +1147,12 @@ void Player::toggleMPRISErrorNotifications() {
  */
 void Player::showNotification(const std::string& message, NotificationType type) {
     auto* data = new std::pair<std::string, NotificationType>(message, type);
-    synthesizeUserEvent(SHOW_NOTIFICATION, data, nullptr);
+    if (!synthesizeUserEvent(SHOW_NOTIFICATION, data, nullptr)) {
+        // Push failed (queue full, or the event subsystem is quiescing at
+        // shutdown): the main thread will never free the payload, so do it
+        // here — same discipline as the loader thread's failure path.
+        delete data;
+    }
 }
 
 /**
