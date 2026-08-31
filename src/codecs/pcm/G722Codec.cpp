@@ -46,7 +46,11 @@ bool G722Codec::canDecode(const StreamInfo& stream_info) const
         return false;
     }
 
-    if (stream_info.bits_per_sample != 0 && stream_info.bits_per_sample != 8) {
+    // WAV headers for G.722 disagree on wBitsPerSample: 4 (bits per sample,
+    // two samples per code octet), 8 (bits per octet), or 0 (unspecified).
+    if (stream_info.bits_per_sample != 0 &&
+        stream_info.bits_per_sample != 4 &&
+        stream_info.bits_per_sample != 8) {
         return false;
     }
 
