@@ -616,8 +616,29 @@ Player::Player() : m_rng(std::random_device{}()) {
  * joins the loader and playlist-populator threads, and clears the Windows
  * now-playing status.
  */
+namespace {
+// Last.fm credentials-test worker plumbing. The worker owns only the shared
+// state block so the dialog can close mid-handshake, but its thread handle
+// lives here so ~Player can reap it — a worker running past main() races
+// curl/OpenSSL static teardown.
+struct LastFmTestState {
+    std::mutex mutex;
+    std::string result;
+    bool done = false;
+};
+std::thread s_lastfm_test_worker;
+std::weak_ptr<LastFmTestState> s_lastfm_test_state;
+} // namespace
+
 Player::~Player() {
     saveSettings(); // persist volume + EQ state before teardown
+
+    // Reap the Last.fm credentials-test worker (bounded by wsCall's 10s
+    // timeout; it only blocks when quitting moments after a Test on a dead
+    // network). Letting it run past main() races static teardown.
+    if (s_lastfm_test_worker.joinable()) {
+        s_lastfm_test_worker.join();
+    }
 
     // Stop audio first to join decoder threads before deleting other members
     audio.reset();
@@ -4702,11 +4723,7 @@ public:
     }
 
 private:
-    struct TestState {
-        std::mutex mutex;
-        std::string result;
-        bool done = false;
-    };
+    using TestState = LastFmTestState; // hoisted to file scope for the reaper
 
     std::string usernameText() const { return m_username->getText().to8Bit(true); }
     std::string passwordText() const { return m_password->getText().to8Bit(true); }
@@ -4716,18 +4733,34 @@ private:
         if (m_test_state) {
             return; // one test at a time
         }
+        // A previous dialog's worker may still be inside its 10s network
+        // handshake; starting another would orphan its joinable handle.
+        if (auto previous = s_lastfm_test_state.lock()) {
+            std::lock_guard<std::mutex> lock(previous->mutex);
+            if (!previous->done) {
+                m_status->setText(TagLib::String("Status: a test is still running..."));
+                return;
+            }
+        }
+        if (s_lastfm_test_worker.joinable()) {
+            s_lastfm_test_worker.join(); // finished (checked above); reap it
+        }
         m_status->setText(TagLib::String("Status: testing..."));
         auto state = std::make_shared<TestState>();
         m_test_state = state;
+        s_lastfm_test_state = state;
         // The worker owns only the shared state block, never `this`, so the
-        // dialog can be closed while the handshake is still in flight.
-        std::thread([state, user = usernameText(), pass = passwordText()]() mutable {
+        // dialog can be closed while the handshake is still in flight. It is
+        // kept joinable (not detached) so Player teardown can join it —
+        // a worker running past main() races curl/OpenSSL static teardown.
+        s_lastfm_test_worker =
+            std::thread([state, user = usernameText(), pass = passwordText()]() mutable {
             std::string result = LastFM::testCredentials(user, pass);
             OPENSSL_cleanse(&pass[0], pass.empty() ? 0 : pass.length());
             std::lock_guard<std::mutex> lock(state->mutex);
             state->result = std::move(result);
             state->done = true;
-        }).detach();
+        });
     }
 
     void pollTestResult()
