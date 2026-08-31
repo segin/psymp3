@@ -199,10 +199,15 @@ bool ButtonWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relati
 
 bool ButtonWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    if (!m_enabled || event.button != SDL_BUTTON_LEFT) {
+    // NOTE: the release must be processed even when disabled — a click
+    // callback can disable this button while its own press is still held
+    // (Playlist Manager's Delete button on the last track does exactly that),
+    // and skipping the cleanup would leak the global mouse capture and wedge
+    // all mouse input. Only the click callback is gated on m_enabled below.
+    if (event.button != SDL_BUTTON_LEFT) {
         return false;
     }
-    
+
     if (m_held) {
         // Clear the gesture and release the capture taken in handleMouseDown,
         // regardless of where the release landed.
@@ -217,7 +222,7 @@ bool ButtonWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative
                                  relative_y >= 0 && relative_y < pos.height());
 
         rebuildSurface();
-        if (mouse_over_button) {
+        if (mouse_over_button && m_enabled) {
             if (m_on_click) {
                 // Copy-free is fine for position, but the callback may destroy
                 // this button; call last and touch nothing afterwards.
@@ -272,6 +277,11 @@ void ButtonWidget::setEnabled(bool enabled)
         if (!enabled) {
             m_pressed = false;
             m_hovered = false;
+            // Abandon an in-flight press: without this a button disabled while
+            // held (e.g. by its own click callback) kept the global mouse
+            // capture forever, wedging all mouse input.
+            m_held = false;
+            releaseMouse();
         }
         rebuildSurface();
     }
