@@ -538,7 +538,25 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
         m_last_mouse_y += dy;
 
         if (m_on_drag && (dx != 0 || dy != 0)) {
-            m_on_drag(dx, dy);
+            // Clamp so the titlebar stays reachable. SDL auto-captures the
+            // mouse for the duration of the drag, so motion events carry
+            // coordinates outside the OS window — unclamped deltas could push
+            // the window (and its only grab handle) entirely off the canvas,
+            // beyond recovery by mouse. The titlebar must stay fully on-canvas
+            // vertically; horizontally at least a grabbable sliver remains.
+            if (Widget* parent = getParent()) {
+                constexpr int kMinVisiblePx = 40;
+                const Rect pos = getPos();
+                const Rect parent_pos = parent->getPos();
+                const int min_x = kMinVisiblePx - pos.width();
+                const int max_x = std::max(min_x, parent_pos.width() - kMinVisiblePx);
+                const int max_y = std::max(0, parent_pos.height() - TITLEBAR_HEIGHT);
+                dx = std::clamp(pos.x() + dx, min_x, max_x) - pos.x();
+                dy = std::clamp(pos.y() + dy, 0, max_y) - pos.y();
+            }
+            if (dx != 0 || dy != 0) {
+                m_on_drag(dx, dy);
+            }
         }
 
         return true;
