@@ -5419,22 +5419,27 @@ void Player::startTrackScrobbling()
  */
 void Player::submitNowPlaying()
 {
-    if (!stream || !m_lastfm) {
+    if (!stream) {
         return;
     }
-    
-    // Create track object from stream data
-    // Use a dummy path since we're creating this for metadata only
-    track now_playing_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
-    now_playing_track.SetLen(static_cast<unsigned int>(stream->getLength() / 1000)); // Convert to seconds
-    now_playing_track.setAlbum(stream->getAlbum());
-    // Last.fm gets the first credited artist and the MusicBrainz ID; the
-    // full joined credit stays on screen.
-    now_playing_track.setScrobbleArtist(stream->getPrimaryArtist());
-    now_playing_track.setMusicBrainzID(stream->getMusicBrainzID());
 
-    m_lastfm->setNowPlaying(now_playing_track);
+    if (m_lastfm) {
+        // Create track object from stream data
+        // Use a dummy path since we're creating this for metadata only
+        track now_playing_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
+        now_playing_track.SetLen(static_cast<unsigned int>(stream->getLength() / 1000)); // Convert to seconds
+        now_playing_track.setAlbum(stream->getAlbum());
+        // Last.fm gets the first credited artist and the MusicBrainz ID; the
+        // full joined credit stays on screen.
+        now_playing_track.setScrobbleArtist(stream->getPrimaryArtist());
+        now_playing_track.setMusicBrainzID(stream->getMusicBrainzID());
 
+        m_lastfm->setNowPlaying(now_playing_track);
+    }
+
+    // Discord mirrors playback state and has nothing to do with scrobbling.
+    // Sharing the early return meant no presence update whenever m_lastfm was
+    // absent -- including the window where saving credentials resets it.
     updateDiscordPresence();
 }
 
