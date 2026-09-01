@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+#
+# debian/rules - PsyMP3 Debian package build.
+# Driven by package/dpkg/build-deb.sh, which copies this directory to the
+# tree root (dpkg-buildpackage insists on ./debian/) and generates the
+# changelog. See package/README.md.
+
+# Full dpkg hardening. configure.ac only adds its own -D_FORTIFY_SOURCE=2
+# when the flag is not already defined, so the distro's (=3 on trixie) wins
+# instead of colliding under the project's -Werror.
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@
+
+# configure is generated, not committed.
+override_dh_auto_configure:
+	./autogen.sh
+	dh_auto_configure
+
+# The test harness wants fixture media and a session D-Bus for the MPRIS
+# tests, and exercises the live audio graph; none of that belongs in a
+# package build.
+override_dh_auto_test:
+
+# NEWS/ChangeLog in the tree predate the 2.x rewrite; shipping them as the
+# package changelog would be actively misleading.
+override_dh_installchangelogs:
+	dh_installchangelogs --no-package=psymp3

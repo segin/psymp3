@@ -1,0 +1,41 @@
+Source: psymp3
+Section: sound
+Priority: optional
+Maintainer: Kirn Gill II <segin2005@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ autoconf,
+ automake,
+ libtool,
+ autoconf-archive,
+ pkgconf,
+ libsdl3-dev,
+ libtag-dev | libtag1-dev,
+ libfreetype-dev,
+ libssl-dev,
+ libcurl4-openssl-dev,
+ libogg-dev,
+ libopus-dev,
+ libfaad-dev,
+ libspandsp-dev,
+ libspeex-dev,
+ libdbus-1-dev,
+ qt6-base-dev,
+Standards-Version: 4.7.0
+Homepage: https://github.com/segin/psymp3
+Rules-Requires-Root: no
+
+Package: psymp3
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: audio player with FFT spectrum visualization
+ PsyMP3 is a cross-platform audio player built around a real-time FFT
+ spectrum analyzer and a Windows 3.x-styled in-application window system.
+ .
+ It decodes MP3, MP2, FLAC, Ogg Vorbis, Opus, Speex, AAC, ALAC, WAV
+ (PCM, A-law, mu-law and G.722) and raw streams, using bundled decoders
+ for Vorbis (stb_vorbis), MP3 (minimp3), MP2 (kjmp2) and ALAC so the
+ codec set does not vary with what the system happens to provide.
+ .
+ Playback integrates with the desktop through MPRIS, scrobbles to
+ Last.fm, and can publish now-playing state to Discord.
