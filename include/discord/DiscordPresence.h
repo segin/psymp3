@@ -128,6 +128,9 @@ private:
     Activity m_pending;   // last-write-wins
     Activity m_current;   // re-sent after reconnect
     Activity m_last_visible; // last visible activity, restored on re-enable
+    // Expiry for the artwork memo: default-constructed = definitive (holds for
+    // the session); a set value marks a transient failure worth retrying after.
+    std::chrono::steady_clock::time_point m_memo_expiry;
     uint64_t m_nonce = 0;
     // resolveArtwork() state (worker-thread only, no locking)
     std::string m_memo_key;

@@ -45,6 +45,10 @@ static constexpr uint32_t kOpClose = 2;
 static constexpr uint32_t kOpPing = 3;
 static constexpr uint32_t kOpPong = 4;
 
+// MusicBrainz relevance score (0-100) below which its best hit is treated as
+// no match rather than as artwork.
+static constexpr long kMinMatchScore = 85;
+
 // Appended to the artist while paused. Sized here so the clamp can reserve
 // room for it instead of truncating it back off.
 static const char kPausedSuffix[] = " (paused)";
@@ -411,8 +415,23 @@ void DiscordPresence::resolveArtwork(Activity& a)
     if (m_shutdown) {
         return; // quitting: never start a network lookup the join must await
     }
-    if (!a.art_url.empty() || a.album.empty()) {
-        return; // tagged art wins; no album = nothing to search for
+    if (!a.art_url.empty()) {
+        // Art from a tagged MUSICBRAINZ_ALBUMID: trust it, but confirm the
+        // image actually exists. Not every release has a front cover in the
+        // Cover Art Archive, and taking the tag's word for it meant the
+        // best-tagged files were the ones that ended up with no artwork --
+        // and no album tooltip, which rides on the image.
+        auto probe = PsyMP3::IO::HTTP::HTTPClient::head(
+            a.art_url, {{"User-Agent", "PsyMP3/" PSYMP3_VERSION " ( segin2005@gmail.com )"}}, 5);
+        if (probe.success) {
+            return;
+        }
+        DEBUG_LOG_LAZY("discord", "Tagged release has no front cover (",
+                       probe.statusCode, "); falling back to release-group search");
+        a.art_url.clear();
+    }
+    if (a.album.empty()) {
+        return; // no album = nothing to search for
     }
     const std::string& artist = a.lookup_artist.empty() ? a.artist : a.lookup_artist;
     if (artist.empty()) {
@@ -423,7 +442,11 @@ void DiscordPresence::resolveArtwork(Activity& a)
     // would otherwise hit MusicBrainz again. Deliberately NOT a persistent
     // cache - a new album is a fresh query every time.
     const std::string key = artist + "\n" + a.album;
-    if (key == m_memo_key) {
+    if (key == m_memo_key &&
+        (m_memo_expiry == std::chrono::steady_clock::time_point{} ||
+         std::chrono::steady_clock::now() < m_memo_expiry)) {
+        // A definitive answer has no expiry; a transient failure gets a short
+        // one so the album can recover its artwork later in the session.
         if (!m_memo_mbid.empty()) {
             a.art_url = "https://coverartarchive.org/release-group/" + m_memo_mbid +
                         "/front-250";
@@ -439,13 +462,29 @@ void DiscordPresence::resolveArtwork(Activity& a)
     }
     m_last_mb_query = std::chrono::steady_clock::now();
 
-    // Lucene query; embedded quotes would break the phrase syntax.
-    auto strip_quotes = [](std::string v) {
-        v.erase(std::remove(v.begin(), v.end(), '"'), v.end());
-        return v;
+    // Lucene phrase term. Stripping only the quote left backslashes in place,
+    // and a trailing one escapes the closing quote: the query then fails to
+    // parse and the empty result was cached as a definitive "no artwork".
+    // Clamped too -- a pathological tag would otherwise become a multi-megabyte
+    // request to musicbrainz.org.
+    auto lucene_phrase = [](const std::string& v) {
+        static constexpr size_t kMaxTerm = 200;
+        std::string in = v;
+        if (in.size() > kMaxTerm) {
+            size_t cut = kMaxTerm;
+            while (cut > 0 && (static_cast<unsigned char>(in[cut]) & 0xC0) == 0x80) --cut;
+            in.resize(cut);
+        }
+        std::string out;
+        out.reserve(in.size() + 8);
+        for (char c : in) {
+            if (c == '\\' || c == '"') out += '\\';
+            out += c;
+        }
+        return out;
     };
-    std::string query = "artist:\"" + strip_quotes(artist) + "\" AND releasegroup:\"" +
-                        strip_quotes(a.album) + "\"";
+    std::string query = "artist:\"" + lucene_phrase(artist) + "\" AND releasegroup:\"" +
+                        lucene_phrase(a.album) + "\"";
     std::string url = "https://musicbrainz.org/ws/2/release-group/?limit=1&fmt=json&query=" +
                       PsyMP3::IO::HTTP::HTTPClient::urlEncode(query);
 
@@ -467,8 +506,14 @@ void DiscordPresence::resolveArtwork(Activity& a)
         }
         response = PsyMP3::IO::HTTP::HTTPClient::get(
             url, {{"User-Agent", "PsyMP3/" PSYMP3_VERSION " ( segin2005@gmail.com )"}}, 5);
+        // 408 (timeout), 425 (too early) and 429 (rate limited) are 4xx but
+        // say nothing about whether the album exists; treating them as
+        // definitive permanently suppressed artwork for that album.
+        const bool retryable_4xx = response.statusCode == 408 ||
+                                   response.statusCode == 425 ||
+                                   response.statusCode == 429;
         if (response.success ||
-            (response.statusCode >= 400 && response.statusCode < 500)) {
+            (response.statusCode >= 400 && response.statusCode < 500 && !retryable_4xx)) {
             definitive = true;
             break;
         }
@@ -476,13 +521,20 @@ void DiscordPresence::resolveArtwork(Activity& a)
                        " failed: ", response.statusMessage);
     }
     if (!definitive) {
+        // Remember the failure briefly. Not remembering it at all meant every
+        // pause, seek and resume on the same track re-ran the whole 3-request
+        // retry loop, stalling the presence worker each time.
         DEBUG_LOG_LAZY("discord",
-                       "MusicBrainz lookup transient failure; retrying on next update");
+                       "MusicBrainz lookup transient failure; backing off briefly");
+        m_memo_key = key;
+        m_memo_mbid.clear();
+        m_memo_expiry = std::chrono::steady_clock::now() + std::chrono::seconds(60);
         return;
     }
 
     m_memo_key = key;
     m_memo_mbid.clear();
+    m_memo_expiry = {}; // definitive: hold for the rest of the session
     if (response.success) {
         // First group id in the result: "release-groups":[{"id":"<uuid>",...
         size_t groups = response.body.find("\"release-groups\"");
@@ -490,7 +542,20 @@ void DiscordPresence::resolveArtwork(Activity& a)
             size_t idpos = response.body.find("\"id\":\"", groups);
             if (idpos != std::string::npos && idpos + 7 + 36 <= response.body.size()) {
                 std::string mbid = response.body.substr(idpos + 6, 36);
-                if (PsyMP3::LastFM::LastFM::isValidMBID(mbid)) {
+                // MusicBrainz always returns its best hit, however poor: with
+                // limit=1 a misspelled or obscure album still yields SOME
+                // release group, and accepting it unconditionally put
+                // confidently wrong cover art on screen. Its relevance score
+                // (0-100) is the guard.
+                long score = 0;
+                size_t spos = response.body.find("\"score\":", groups);
+                if (spos != std::string::npos) {
+                    score = strtol(response.body.c_str() + spos + 8, nullptr, 10);
+                }
+                if (score < kMinMatchScore) {
+                    DEBUG_LOG_LAZY("discord", "MusicBrainz best match scored ", score,
+                                   " (< ", kMinMatchScore, ") - treating as no match");
+                } else if (PsyMP3::LastFM::LastFM::isValidMBID(mbid)) {
                     m_memo_mbid = mbid;
                 }
             }
