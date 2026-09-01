@@ -590,11 +590,13 @@ Player::Player() : m_rng(std::random_device{}()) {
     // Initialize Last.fm scrobbling
     m_lastfm = std::make_unique<LastFM>();
     m_discord = std::make_unique<DiscordPresence>();
-    m_discord->setEnabled(m_discord_presence);
     m_track_start_time = 0;
     m_track_scrobbled = false;
     m_volume = 0.75f; // default 75%; loadSettings() overrides from psymp3.conf if present
     loadSettings(); // volume + EQ state from psymp3.conf (applied to each Audio on creation)
+    // AFTER loadSettings: applying the member before it is read from
+    // psymp3.conf published presence for users who had turned it off.
+    m_discord->setEnabled(m_discord_presence);
 
 #ifdef HAVE_DBUS
     m_mpris_manager = std::make_unique<PsyMP3::MPRIS::MPRISManager>(this);
