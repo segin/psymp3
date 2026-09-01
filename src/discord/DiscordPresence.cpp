@@ -681,6 +681,15 @@ bool DiscordPresence::ipcConnect()
         std::string path = "\\\\.\\pipe\\discord-ipc-" + std::to_string(i);
         HANDLE h = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
                                nullptr, OPEN_EXISTING, 0, nullptr);
+        if (h == INVALID_HANDLE_VALUE && GetLastError() == ERROR_PIPE_BUSY) {
+            // The pipe exists and Discord IS running; every instance is just
+            // busy this instant. Treating that as "not installed" cost a full
+            // reconnect cycle, so wait briefly for a free instance instead.
+            if (WaitNamedPipeA(path.c_str(), 500)) {
+                h = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
+                                nullptr, OPEN_EXISTING, 0, nullptr);
+            }
+        }
         if (h == INVALID_HANDLE_VALUE) continue;
         m_pipe = h;
         std::string handshake = "{\"v\":1,\"client_id\":\"" + jsonEscape(m_client_id) + "\"}";
