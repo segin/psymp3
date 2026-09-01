@@ -377,6 +377,13 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, static_cast<long>(timeoutSeconds));
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // 10 second connect timeout
+    // Mandatory here: transfers run concurrently on the Discord artwork
+    // worker, the Last.fm thread and the HTTP IO threads. Without this libcurl
+    // installs a process-wide SIGPIPE handler around each transfer and
+    // restores it afterwards, so two overlapping transfers race over the
+    // disposition; it also uses alarm()/longjmp for DNS timeouts off-thread,
+    // which is not safe. Both explicit timeouts above remain in force.
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, headerCallback);
