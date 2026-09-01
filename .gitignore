@@ -154,3 +154,8 @@ test-driver
 tests/repro_wav_overflow
 vgcore.2578017
 tests/repro_ogg_duration_perf
+
+# Distribution packaging output (package/README.md)
+/debian/
+package/dpkg/out/
+package/rpm/out/
