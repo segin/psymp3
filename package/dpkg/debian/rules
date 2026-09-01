@@ -22,8 +22,3 @@ override_dh_auto_configure:
 # tests, and exercises the live audio graph; none of that belongs in a
 # package build.
 override_dh_auto_test:
-
-# NEWS/ChangeLog in the tree predate the 2.x rewrite; shipping them as the
-# package changelog would be actively misleading.
-override_dh_installchangelogs:
-	dh_installchangelogs --no-package=psymp3
