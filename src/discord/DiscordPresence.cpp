@@ -42,6 +42,8 @@ static constexpr int kSendFlags = 0;
 static constexpr uint32_t kOpHandshake = 0;
 static constexpr uint32_t kOpFrame = 1;
 static constexpr uint32_t kOpClose = 2;
+static constexpr uint32_t kOpPing = 3;
+static constexpr uint32_t kOpPong = 4;
 
 // Discord rejects activity strings outside 2..128 bytes. Truncate on a UTF-8
 // codepoint boundary; pad a 1-byte string (untagged single-letter filename)
@@ -342,12 +344,29 @@ bool DiscordPresence::sendActivity(const Activity& a)
     if (!ipcSend(kOpFrame, payload)) {
         return false;
     }
-    // Log Discord's verdict: a rejected payload (e.g. a field the client's
-    // validator refuses) comes back as an ERROR response, which is the only
-    // way to see that the presence silently failed to apply.
+    // Discord's verdict actually decides the outcome: a rejected payload (a
+    // field the client's validator refuses) comes back as an ERROR event, and
+    // reporting that as success meant the presence silently failed to apply
+    // while the log said it had been updated.
     std::string reply;
-    if (ipcReadFrame(reply, 1000)) {
-        DEBUG_LOG_LAZY("discord", "Response: ", reply);
+    uint32_t op = kOpFrame;
+    if (!ipcReadFrame(reply, 1000, &op)) {
+        DEBUG_LOG_LAZY("discord", "No reply to SET_ACTIVITY - assuming dead connection");
+        return false;
+    }
+    if (op == kOpClose) {
+        DEBUG_LOG_LAZY("discord", "Discord closed the connection: ", reply);
+        return false;
+    }
+    if (op == kOpPing) {
+        // Keep-alive interleaved with our reply: answer it and take the next
+        // frame as the actual response.
+        ipcSend(kOpPong, reply);
+        if (!ipcReadFrame(reply, 1000, &op)) return false;
+    }
+    if (reply.find("\"evt\":\"ERROR\"") != std::string::npos) {
+        DEBUG_LOG_LAZY("discord", "Discord rejected the activity: ", reply);
+        return false;
     }
     DEBUG_LOG_LAZY("discord", a.visible ? "Presence updated" : "Presence cleared");
     return true;
@@ -531,25 +550,37 @@ bool DiscordPresence::ipcSend(uint32_t opcode, const std::string& payload)
 #endif
 }
 
-bool DiscordPresence::ipcReadFrame(std::string& payload_out, int timeout_ms)
+bool DiscordPresence::ipcReadFrame(std::string& payload_out, int timeout_ms, uint32_t* opcode_out)
 {
 #ifdef _WIN32
     if (!m_pipe || m_pipe == INVALID_HANDLE_VALUE) return false;
-    // Wait for the header to be available (Discord replies promptly).
+    // Wait for the header to be available (Discord replies promptly). Falling
+    // out of this loop used to drop into a BLOCKING ReadFile, so an expired
+    // timeout blocked anyway; bail instead.
+    bool header_ready = false;
     for (int waited = 0; waited < timeout_ms; waited += 50) {
         DWORD avail = 0;
         if (!PeekNamedPipe(static_cast<HANDLE>(m_pipe), nullptr, 0, nullptr, &avail, nullptr))
             return false;
-        if (avail >= 8) break;
+        if (avail >= 8) { header_ready = true; break; }
         Sleep(50);
     }
+    if (!header_ready) return false;
     uint8_t hdr[8];
     DWORD got = 0;
     if (!ReadFile(static_cast<HANDLE>(m_pipe), hdr, 8, &got, nullptr) || got != 8)
         return false;
+    uint32_t op = hdr[0] | (hdr[1] << 8) | (hdr[2] << 16)
+                | (static_cast<uint32_t>(hdr[3]) << 24);
     uint32_t len = hdr[4] | (hdr[5] << 8) | (hdr[6] << 16)
                  | (static_cast<uint32_t>(hdr[7]) << 24);
-    if (len > 1024 * 1024) return false;
+    if (opcode_out) *opcode_out = op;
+    if (len > 1024 * 1024) {
+        // Header consumed: the stream cannot resynchronise. Close it.
+        DEBUG_LOG_LAZY("discord", "Oversized IPC frame (", len, " bytes) - closing");
+        ipcClose();
+        return false;
+    }
     payload_out.resize(len);
     DWORD off = 0;
     while (off < len) {
@@ -560,25 +591,51 @@ bool DiscordPresence::ipcReadFrame(std::string& payload_out, int timeout_ms)
     return true;
 #else
     if (m_fd < 0) return false;
-    struct pollfd pfd = {m_fd, POLLIN, 0};
-    if (poll(&pfd, 1, timeout_ms) <= 0 || !(pfd.revents & POLLIN)) return false;
+    // Every read is bounded by one deadline. Previously only the first poll()
+    // was timed: once a header arrived, the recv() loops blocked indefinitely,
+    // so a peer that sent a partial frame and stalled hung the worker (and
+    // therefore quit) forever.
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::milliseconds(timeout_ms);
+    auto recv_exact = [this, deadline](void* buf, size_t want) -> bool {
+        size_t off = 0;
+        while (off < want) {
+            auto now = std::chrono::steady_clock::now();
+            if (now >= deadline) return false;
+            auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+            struct pollfd pfd = {m_fd, POLLIN, 0};
+            int rc = poll(&pfd, 1, static_cast<int>(left.count()));
+            if (rc < 0) {
+                if (errno == EINTR) continue;
+                return false;
+            }
+            if (rc == 0) return false; // timed out
+            if (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) return false;
+            ssize_t n = ::recv(m_fd, static_cast<char*>(buf) + off, want - off, 0);
+            if (n < 0 && errno == EINTR) continue;
+            if (n <= 0) return false; // 0 = peer closed
+            off += static_cast<size_t>(n);
+        }
+        return true;
+    };
+
     uint8_t hdr[8];
-    size_t off = 0;
-    while (off < 8) {
-        ssize_t n = ::recv(m_fd, hdr + off, 8 - off, 0);
-        if (n <= 0) return false;
-        off += static_cast<size_t>(n);
-    }
+    if (!recv_exact(hdr, 8)) return false;
+    uint32_t op = hdr[0] | (hdr[1] << 8) | (hdr[2] << 16)
+                | (static_cast<uint32_t>(hdr[3]) << 24);
     uint32_t len = hdr[4] | (hdr[5] << 8) | (hdr[6] << 16)
                  | (static_cast<uint32_t>(hdr[7]) << 24);
-    if (len > 1024 * 1024) return false;
-    payload_out.resize(len);
-    off = 0;
-    while (off < len) {
-        ssize_t n = ::recv(m_fd, &payload_out[off], len - off, 0);
-        if (n <= 0) return false;
-        off += static_cast<size_t>(n);
+    if (opcode_out) *opcode_out = op;
+    if (len > 1024 * 1024) {
+        // The header is already consumed, so the stream can never resynchronise
+        // -- every later read would be misframed. Drop the connection instead
+        // of leaving a permanently desynchronised socket in place.
+        DEBUG_LOG_LAZY("discord", "Oversized IPC frame (", len, " bytes) - closing");
+        ipcClose();
+        return false;
     }
+    payload_out.resize(len);
+    if (len > 0 && !recv_exact(&payload_out[0], len)) return false;
     return true;
 #endif
 }
@@ -609,7 +666,10 @@ bool DiscordPresence::ipcDrain()
         // socket, which is where SIGPIPE came from.
         if (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) return false;
         if (!(pfd.revents & POLLIN)) return true;
-        if (!ipcReadFrame(sink, 0)) return false;
+        uint32_t op = kOpFrame;
+        if (!ipcReadFrame(sink, 0, &op)) return false;
+        if (op == kOpClose) return false;
+        if (op == kOpPing) ipcSend(kOpPong, sink); // Discord drops unanswered pings
     }
 #endif
 }

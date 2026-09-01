@@ -112,7 +112,7 @@ private:
     bool ipcConnect();
     void ipcClose();
     bool ipcSend(uint32_t opcode, const std::string& payload);
-    bool ipcReadFrame(std::string& payload_out, int timeout_ms);
+    bool ipcReadFrame(std::string& payload_out, int timeout_ms, uint32_t* opcode_out = nullptr);
     bool ipcDrain();
     bool sendActivity(const Activity& a);
 
