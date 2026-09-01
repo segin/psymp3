@@ -112,7 +112,7 @@ private:
     void ipcClose();
     bool ipcSend(uint32_t opcode, const std::string& payload);
     bool ipcReadFrame(std::string& payload_out, int timeout_ms);
-    void ipcDrain();
+    bool ipcDrain();
     bool sendActivity(const Activity& a);
 
     static std::string jsonEscape(const std::string& s);

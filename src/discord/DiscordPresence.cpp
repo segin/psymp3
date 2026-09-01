@@ -26,6 +26,18 @@ static const char kApplicationId[] = "1533216209661726720";
 // How often to retry connecting while Discord isn't running.
 static constexpr int kReconnectSeconds = 15;
 
+#ifndef _WIN32
+// Never let a write to a vanished Discord raise SIGPIPE: its default
+// disposition terminates the process. Linux and the BSDs spell the
+// per-call suppression MSG_NOSIGNAL; macOS/older BSD use the SO_NOSIGPIPE
+// socket option instead (applied in ipcConnect).
+#ifdef MSG_NOSIGNAL
+static constexpr int kSendFlags = MSG_NOSIGNAL;
+#else
+static constexpr int kSendFlags = 0;
+#endif
+#endif
+
 // IPC opcodes (the framed-JSON local RPC protocol).
 static constexpr uint32_t kOpHandshake = 0;
 static constexpr uint32_t kOpFrame = 1;
@@ -233,7 +245,12 @@ void DiscordPresence::workerLoop()
 
 bool DiscordPresence::sendActivity(const Activity& a)
 {
-    ipcDrain(); // discard any queued responses/events before writing
+    // Also the liveness check: a false return means Discord closed the
+    // socket, so writing would hit a dead peer.
+    if (!ipcDrain()) {
+        DEBUG_LOG_LAZY("discord", "Peer closed the connection before send");
+        return false;
+    }
 
     std::string payload;
     payload.reserve(512);
@@ -447,9 +464,15 @@ bool DiscordPresence::ipcSend(uint32_t opcode, const std::string& payload)
            written == frame.size();
 #else
     if (m_fd < 0) return false;
+    // MSG_NOSIGNAL: writing to a stream socket whose peer has gone (the user
+    // quit Discord) raises SIGPIPE, and SIGPIPE's default disposition kills
+    // the process -- from this worker thread, taking the player down mid-song.
+    // Nothing here installs a SIGPIPE handler, so the flag is the protection.
+    // EINTR is a retry, not a dead connection.
     size_t off = 0;
     while (off < frame.size()) {
-        ssize_t n = ::send(m_fd, frame.data() + off, frame.size() - off, 0);
+        ssize_t n = ::send(m_fd, frame.data() + off, frame.size() - off, kSendFlags);
+        if (n < 0 && errno == EINTR) continue;
         if (n <= 0) return false;
         off += static_cast<size_t>(n);
     }
@@ -509,21 +532,33 @@ bool DiscordPresence::ipcReadFrame(std::string& payload_out, int timeout_ms)
 #endif
 }
 
-void DiscordPresence::ipcDrain()
+bool DiscordPresence::ipcDrain()
 {
 #ifdef _WIN32
-    if (!m_pipe || m_pipe == INVALID_HANDLE_VALUE) return;
+    if (!m_pipe || m_pipe == INVALID_HANDLE_VALUE) return false;
     DWORD avail = 0;
     std::string sink;
     while (PeekNamedPipe(static_cast<HANDLE>(m_pipe), nullptr, 0, nullptr, &avail, nullptr) && avail >= 8) {
-        if (!ipcReadFrame(sink, 0)) break;
+        if (!ipcReadFrame(sink, 0)) return false;
     }
+    return true;
 #else
-    if (m_fd < 0) return;
+    if (m_fd < 0) return false;
     std::string sink;
-    struct pollfd pfd = {m_fd, POLLIN, 0};
-    while (poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN)) {
-        if (!ipcReadFrame(sink, 0)) break;
+    for (;;) {
+        struct pollfd pfd = {m_fd, POLLIN, 0};
+        int rc = poll(&pfd, 1, 0);
+        if (rc < 0) {
+            if (errno == EINTR) continue;
+            return false;
+        }
+        if (rc == 0) return true; // nothing queued, connection still good
+        // A closed peer reports POLLHUP (and POLLIN with a 0-byte read).
+        // Reporting that here is what stops the caller writing into a dead
+        // socket, which is where SIGPIPE came from.
+        if (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) return false;
+        if (!(pfd.revents & POLLIN)) return true;
+        if (!ipcReadFrame(sink, 0)) return false;
     }
 #endif
 }
@@ -561,6 +596,10 @@ bool DiscordPresence::ipcConnect()
                 std::string path = base + "/" + sub + "discord-ipc-" + std::to_string(i);
                 int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
                 if (fd < 0) return false;
+#if !defined(MSG_NOSIGNAL) && defined(SO_NOSIGPIPE)
+                // Platforms without MSG_NOSIGNAL suppress SIGPIPE per-socket.
+                { int on = 1; ::setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, sizeof(on)); }
+#endif
                 struct sockaddr_un addr;
                 memset(&addr, 0, sizeof(addr));
                 addr.sun_family = AF_UNIX;
