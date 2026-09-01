@@ -1,0 +1,177 @@
+name: Linux packages
+
+# Builds distribution packages from package/:
+#   .deb via package/dpkg  - Debian 13 (trixie) and Ubuntu 26.04 LTS
+#   .rpm via package/rpm   - Fedora (latest) and openSUSE Tumbleweed
+#
+# Every job runs in that distribution's own container on an Ubuntu runner --
+# GitHub does not offer Debian/Fedora/openSUSE runner images, and containers
+# are the supported way to pick the userland (see .github/workflows/c-cpp.yml,
+# which already builds in debian:trixie for its SDL3 packages).
+
+on:
+  push:
+    branches: [ "master" ]
+    tags: [ "*" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deb:
+    name: ${{ matrix.name }} (.deb)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: Debian 13
+          image: debian:trixie
+          artifact: debian-13
+        - name: Ubuntu 26.04
+          image: ubuntu:26.04
+          artifact: ubuntu-26.04
+    container: ${{ matrix.image }}
+    steps:
+    - name: Install packaging tools
+      run: |
+        set -eux
+        apt-get update
+        # git before checkout: without it actions/checkout silently falls back
+        # to a REST tarball, leaving no .git for the version/tarball steps.
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          git ca-certificates build-essential devscripts equivs lintian
+
+    - uses: actions/checkout@v5
+
+    - name: Install build dependencies
+      run: |
+        set -eux
+        # mk-build-deps reads debian/control, so the Build-Depends list stays
+        # single-sourced with the package itself.
+        DEBIAN_FRONTEND=noninteractive mk-build-deps -ir \
+          -t "apt-get -y --no-install-recommends" \
+          package/dpkg/debian/control
+
+    - name: Build package
+      run: |
+        set -eux
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        ./package/dpkg/build-deb.sh
+
+    - name: Inspect package
+      run: |
+        set -eux
+        cd package/dpkg/out
+        for f in *.deb; do
+          echo "=== $f ==="
+          dpkg-deb --info "$f"
+          dpkg-deb --contents "$f"
+        done
+        # Advisory only: this packaging is not aimed at Debian archive policy.
+        lintian --no-tag-display-limit *.deb || true
+
+    - name: Verify the package installs and runs
+      run: |
+        set -eux
+        apt-get update
+        # apt install resolves the runtime deps that dpkg -i alone would not.
+        DEBIAN_FRONTEND=noninteractive apt-get install -y ./package/dpkg/out/*.deb
+        psymp3 --version
+        test -f /usr/share/psymp3/data/vera.ttf
+        test -f /usr/share/applications/psymp3.desktop
+        test -f /usr/share/icons/hicolor/48x48/apps/psymp3.png
+
+    - name: Upload package
+      uses: actions/upload-artifact@v6
+      with:
+        name: psymp3-${{ matrix.artifact }}-deb
+        path: package/dpkg/out/*.deb
+        if-no-files-found: error
+
+  rpm:
+    name: ${{ matrix.name }} (.rpm)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: Fedora
+          image: fedora:latest
+          artifact: fedora
+        - name: openSUSE Tumbleweed
+          image: opensuse/tumbleweed
+          artifact: opensuse-tumbleweed
+    container: ${{ matrix.image }}
+    steps:
+    - name: Install packaging tools
+      run: |
+        set -eux
+        if command -v dnf >/dev/null; then
+          dnf -y install git-core rpm-build rpmdevtools tar gzip
+        else
+          zypper --non-interactive refresh
+          zypper --non-interactive install git-core rpm-build tar gzip
+        fi
+
+    - uses: actions/checkout@v5
+
+    - name: Install build dependencies
+      run: |
+        set -eux
+        # The spec's BuildRequires are the single source of truth; both
+        # resolvers can install straight from it.
+        if command -v dnf >/dev/null; then
+          dnf -y install 'dnf-command(builddep)'
+          dnf -y builddep package/rpm/psymp3.spec
+        else
+          # zypper's spec reader needs the version macro defined to parse.
+          zypper --non-interactive install $(
+            rpmspec -q --buildrequires \
+              --define "psymp3_version 0" package/rpm/psymp3.spec | tr '\n' ' ')
+        fi
+
+    - name: Build package
+      run: |
+        set -eux
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        ./package/rpm/build-rpm.sh
+
+    - name: Inspect package
+      run: |
+        set -eux
+        cd package/rpm/out
+        for f in *.rpm; do
+          echo "=== $f ==="
+          rpm -qip "$f"
+          rpm -qlp "$f"
+        done
+
+    - name: Verify the package installs and runs
+      run: |
+        set -eux
+        # Only the runtime package; the debuginfo/debugsource subpackages
+        # match the same arch glob but are not what we are exercising.
+        main=$(ls package/rpm/out/*."$(rpm --eval %_arch)".rpm | grep -v -- '-debug')
+        test -n "$main"
+        if command -v dnf >/dev/null; then
+          dnf -y install "$main"
+        else
+          zypper --non-interactive --no-gpg-checks install --allow-unsigned-rpm "$main"
+        fi
+        psymp3 --version
+        test -f /usr/share/psymp3/data/vera.ttf
+        test -f /usr/share/applications/psymp3.desktop
+        test -f /usr/share/icons/hicolor/48x48/apps/psymp3.png
+
+    - name: Upload package
+      uses: actions/upload-artifact@v6
+      with:
+        name: psymp3-${{ matrix.artifact }}-rpm
+        path: |
+          package/rpm/out/*.rpm
+        if-no-files-found: error
