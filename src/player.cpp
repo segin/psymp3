@@ -5456,15 +5456,22 @@ void Player::updateDiscordPresence()
             pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
         }
         // Fully untagged file: show the filename stem, matching the UI's own
-        // fallback, instead of a blank/"Unknown Track" card.
+        // fallback, instead of a blank/"Unknown Track" card. Local files only
+        // -- a remote URL's last path segment can carry a session token or an
+        // otherwise private path, and this text is published to a third party.
+        // DiscordPresence substitutes "Unknown Track" for an empty title.
         std::string title = stream->getTitle().to8Bit(true);
         if (title.empty()) {
             std::string path = stream->getFilePath().to8Bit(true);
-            size_t slash = path.find_last_of("/\\");
-            if (slash != std::string::npos) path.erase(0, slash + 1);
-            size_t dot = path.find_last_of('.');
-            if (dot != std::string::npos && dot > 0) path.erase(dot);
-            title = path;
+            const bool remote = path.compare(0, 7, "http://") == 0 ||
+                                path.compare(0, 8, "https://") == 0;
+            if (!remote) {
+                size_t slash = path.find_last_of("/\\");
+                if (slash != std::string::npos) path.erase(0, slash + 1);
+                size_t dot = path.find_last_of('.');
+                if (dot != std::string::npos && dot > 0) path.erase(dot);
+                title = path;
+            }
         }
         m_discord->setNowPlaying(stream->getArtist().to8Bit(true),
                                  title,
