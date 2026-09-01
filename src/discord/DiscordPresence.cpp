@@ -353,8 +353,20 @@ bool DiscordPresence::sendActivity(const Activity& a)
     return true;
 }
 
+bool DiscordPresence::waitOrShutdown(std::chrono::milliseconds d)
+{
+    // Returns false if shutdown was requested during the wait. Plain
+    // sleep_for() here made quit sit for seconds with the window still up:
+    // the worker has to finish its nap before it can see m_shutdown.
+    std::unique_lock<std::mutex> lock(m_mutex);
+    return !m_cv.wait_for(lock, d, [this] { return m_shutdown.load(); });
+}
+
 void DiscordPresence::resolveArtwork(Activity& a)
 {
+    if (m_shutdown) {
+        return; // quitting: never start a network lookup the join must await
+    }
     if (!a.art_url.empty() || a.album.empty()) {
         return; // tagged art wins; no album = nothing to search for
     }
@@ -379,8 +391,7 @@ void DiscordPresence::resolveArtwork(Activity& a)
     auto now = std::chrono::steady_clock::now();
     auto since = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_mb_query);
     if (m_last_mb_query.time_since_epoch().count() != 0 && since.count() < 1000) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000 - since.count()));
-        if (m_shutdown) return;
+        if (!waitOrShutdown(std::chrono::milliseconds(1000 - since.count()))) return;
     }
     m_last_mb_query = std::chrono::steady_clock::now();
 
@@ -405,9 +416,9 @@ void DiscordPresence::resolveArtwork(Activity& a)
     PsyMP3::IO::HTTP::HTTPClient::Response response;
     bool definitive = false;
     for (int attempt = 0; attempt < 3; ++attempt) {
+        if (m_shutdown) return; // don't start another 5s request while quitting
         if (attempt > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1200));
-            if (m_shutdown) return;
+            if (!waitOrShutdown(std::chrono::milliseconds(1200))) return;
             m_last_mb_query = std::chrono::steady_clock::now();
         }
         response = PsyMP3::IO::HTTP::HTTPClient::get(

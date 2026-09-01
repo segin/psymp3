@@ -104,6 +104,7 @@ private:
     // serves the art of a representative release that has some.
     // One-entry memo of the current album (seek/pause re-sends), >=1s between
     // queries; no persistent cache.
+    bool waitOrShutdown(std::chrono::milliseconds d);
     void resolveArtwork(Activity& a);
     void queue_unlocked(const Activity& a);
 
