@@ -45,20 +45,39 @@ static constexpr uint32_t kOpClose = 2;
 static constexpr uint32_t kOpPing = 3;
 static constexpr uint32_t kOpPong = 4;
 
-// Discord rejects activity strings outside 2..128 bytes. Truncate on a UTF-8
-// codepoint boundary; pad a 1-byte string (untagged single-letter filename)
-// rather than have the whole activity refused.
-static std::string clampActivityString(const std::string& s)
+// Appended to the artist while paused. Sized here so the clamp can reserve
+// room for it instead of truncating it back off.
+static const char kPausedSuffix[] = " (paused)";
+
+// Characters, not bytes: every byte that is not a UTF-8 continuation byte
+// starts a new codepoint.
+static size_t utf8Length(const std::string& s)
+{
+    size_t n = 0;
+    for (unsigned char c : s) {
+        if ((c & 0xC0) != 0x80) ++n;
+    }
+    return n;
+}
+
+// Discord rejects activity strings shorter than 2 characters or longer than
+// 128. Truncate on a UTF-8 codepoint boundary (bytes are the conservative
+// bound for the maximum), and pad a too-short string rather than have the
+// whole activity refused.
+static std::string clampActivityString(const std::string& s, size_t max_bytes = 128)
 {
     std::string out = s;
-    if (out.size() > 128) {
-        size_t cut = 128;
+    if (out.size() > max_bytes) {
+        size_t cut = max_bytes;
         while (cut > 0 && (static_cast<unsigned char>(out[cut]) & 0xC0) == 0x80) {
             --cut; // never split a multi-byte codepoint
         }
         out.resize(cut);
     }
-    if (out.size() == 1) {
+    // The minimum is two CHARACTERS. Testing out.size() measured bytes, so a
+    // title of a single non-ASCII codepoint ("↺", 3 bytes) sailed past the
+    // check as if it were long enough and Discord refused the activity.
+    while (!out.empty() && utf8Length(out) < 2) {
         out += ' ';
     }
     return out;
@@ -312,8 +331,14 @@ bool DiscordPresence::sendActivity(const Activity& a)
         }
         payload += ",\"details\":\"" + jsonEscape(a.title) + "\"";
         if (!a.artist.empty()) {
+            // Reserve room for the marker BEFORE appending it: the artist is
+            // already clamped to 128 bytes, so appending first and clamping
+            // after simply cut the marker away again for long artist names.
             std::string state = a.artist;
-            if (a.paused) state += " (paused)";
+            if (a.paused) {
+                state = clampActivityString(a.artist, 128 - (sizeof(kPausedSuffix) - 1));
+                state += kPausedSuffix;
+            }
             payload += ",\"state\":\"" + jsonEscape(clampActivityString(state)) + "\"";
         } else if (a.paused) {
             payload += ",\"state\":\"(paused)\"";
