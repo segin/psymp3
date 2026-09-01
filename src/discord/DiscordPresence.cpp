@@ -298,6 +298,11 @@ void DiscordPresence::workerLoop()
         }
 
         if (!connected) {
+            // Nothing to publish: don't dial out. ipcConnect() sweeps three
+            // base directories x three sandbox subpaths x ten socket indices,
+            // so an idle player with Discord not installed was making ~90
+            // socket()/connect() syscalls every 15 seconds, all session long.
+            if (!have_work) continue;
             connected = ipcConnect();
             if (!connected) {
                 if (m_shutdown) break;
