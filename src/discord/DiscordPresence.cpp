@@ -49,6 +49,10 @@ static constexpr uint32_t kOpPong = 4;
 // no match rather than as artwork.
 static constexpr long kMinMatchScore = 85;
 
+// Floor between visible activity sends. Discord allows roughly 5 updates per
+// 20 seconds; a held seek key would otherwise emit one every 100ms.
+static constexpr std::chrono::milliseconds kMinSendInterval{4000};
+
 // Appended to the artist while paused. Sized here so the clamp can reserve
 // room for it instead of truncating it back off.
 static const char kPausedSuffix[] = " (paused)";
@@ -223,6 +227,9 @@ void DiscordPresence::workerLoop()
     // it needs no lock; used to avoid dialling up Discord purely to clear a
     // presence that was never displayed.
     bool displayed = false;
+    // Last successful send, for the rate-limit floor. Epoch = never sent, so
+    // the first update goes out immediately.
+    auto last_send = std::chrono::steady_clock::time_point{};
     while (!m_shutdown) {
         Activity to_send;
         bool have_work = false;
@@ -238,6 +245,21 @@ void DiscordPresence::workerLoop()
                 });
             }
             if (m_shutdown && !m_has_pending) break;
+            // Discord rate-limits activity updates (about 5 per 20s). Holding
+            // an arrow key to seek calls updateDiscordPresence() on every
+            // repeat -- roughly every 100ms -- which sails straight past that
+            // and gets the client throttled. Make visible updates wait out the
+            // minimum interval; they keep collapsing into m_pending meanwhile,
+            // so what finally goes out is the newest state, not a backlog.
+            // A CLEAR is exempt: stopping should take effect at once.
+            if (m_has_pending && m_pending.visible && !m_shutdown) {
+                auto since = std::chrono::steady_clock::now() - last_send;
+                if (since < kMinSendInterval) {
+                    m_cv.wait_for(lock, kMinSendInterval - since,
+                                  [this] { return m_shutdown.load(); });
+                    if (!m_shutdown) continue;
+                }
+            }
             if (m_has_pending) {
                 to_send = m_pending;
                 m_has_pending = false;
@@ -294,6 +316,7 @@ void DiscordPresence::workerLoop()
             // old track in m_current and republished it on reconnect.
             if (sendActivity(to_send)) {
                 displayed = to_send.visible;
+                last_send = std::chrono::steady_clock::now();
             } else {
                 DEBUG_LOG_LAZY("discord", "Send failed - dropping connection");
                 ipcClose();
