@@ -100,8 +100,11 @@ void DiscordPresence::setEnabled(bool on)
         if (!on) {
             Activity gone;
             queue_unlocked(gone); // clear before the worker disconnects
-        } else if (m_current.visible) {
-            queue_unlocked(m_current); // re-show what was playing
+        } else if (m_last_visible.visible) {
+            // m_last_visible, not m_current: m_current tracks the last state
+            // the worker acted on, which after a disable is the CLEAR, so
+            // re-enabling while paused used to restore nothing at all.
+            queue_unlocked(m_last_visible); // re-show what was playing
         }
     }
     m_cv.notify_one();
@@ -164,6 +167,17 @@ void DiscordPresence::clear()
 
 void DiscordPresence::queue_unlocked(const Activity& a)
 {
+    if (a.visible) {
+        // Remembered so re-enabling can restore what was on screen: m_current
+        // follows the CLEAR that disabling queues, so it cannot serve here.
+        m_last_visible = a;
+        if (!m_enabled) {
+            // Dropping visible updates while disabled is not just an
+            // optimisation: letting one through would overwrite the CLEAR
+            // queued by the disable, and the presence would stay on screen.
+            return;
+        }
+    }
     m_pending = a;
     m_has_pending = true;
 }
@@ -180,6 +194,10 @@ void DiscordPresence::workerLoop()
     }
 
     bool connected = false;
+    // Whether Discord is currently showing a presence for us. Worker-only, so
+    // it needs no lock; used to avoid dialling up Discord purely to clear a
+    // presence that was never displayed.
+    bool displayed = false;
     while (!m_shutdown) {
         Activity to_send;
         bool have_work = false;
@@ -199,6 +217,17 @@ void DiscordPresence::workerLoop()
                 to_send = m_pending;
                 m_has_pending = false;
                 have_work = true;
+                // Record the DESIRED state here, not after a successful send.
+                // Recording it only on success meant a failed connect threw
+                // the activity away entirely -- and since the reconnect
+                // re-send below is gated on m_current.visible, starting
+                // PsyMP3 before Discord left the presence permanently blank
+                // until the user happened to pause, seek or change track.
+                // Assigning at dequeue also keeps ordering honest: a newer
+                // update queued while we are out of the lock sends next and
+                // overwrites this, instead of a stale value being written
+                // back after the send window.
+                m_current = to_send;
             } else if (!connected && m_enabled && m_current.visible) {
                 to_send = m_current; // reconnect attempt: restore the presence
                 have_work = true;
@@ -206,11 +235,17 @@ void DiscordPresence::workerLoop()
         }
 
         if (!m_enabled) {
-            // Disabled: only a queued CLEAR passes through (so the visible
-            // presence vanishes); anything else waits, and an idle
-            // connection is dropped.
-            if (!have_work || to_send.visible) {
-                if (connected && !have_work) { ipcClose(); connected = false; }
+            // Disabled: a queued CLEAR still goes out so a visible presence
+            // vanishes; everything else is dropped. Closing here is what
+            // actually releases the socket when the user turns the
+            // integration off -- the old `connected && !have_work` guard
+            // could not fire on the disable path, because disabling queues a
+            // CLEAR and so always arrived with have_work set.
+            if (!have_work || to_send.visible || !displayed) {
+                // !displayed: nothing is on screen, so there is nothing to
+                // clear and no reason to dial up a fresh RPC session (which
+                // is what made quitting connect to Discord while disabled).
+                if (connected) { ipcClose(); connected = false; }
                 continue;
             }
         }
@@ -227,17 +262,22 @@ void DiscordPresence::workerLoop()
             if (to_send.visible) {
                 resolveArtwork(to_send); // network lookup, worker thread only
             }
+            // m_current already holds this activity (recorded at dequeue), so
+            // neither path writes it back: doing so on success could clobber
+            // a newer update queued during the send window, and doing so only
+            // for visible activities on failure meant a failed CLEAR left the
+            // old track in m_current and republished it on reconnect.
             if (sendActivity(to_send)) {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_current = to_send;
+                displayed = to_send.visible;
             } else {
                 DEBUG_LOG_LAZY("discord", "Send failed - dropping connection");
                 ipcClose();
                 connected = false;
-                // Keep the state for the reconnect re-send.
-                std::lock_guard<std::mutex> lock(m_mutex);
-                if (to_send.visible) m_current = to_send;
             }
+            // Having delivered the CLEAR that disabling queued, let go of the
+            // socket rather than sitting on an idle connection to a service
+            // the user has switched off.
+            if (!m_enabled && connected) { ipcClose(); connected = false; }
         }
         if (m_shutdown) break;
     }

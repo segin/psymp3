@@ -126,6 +126,7 @@ private:
     bool m_has_pending = false;
     Activity m_pending;   // last-write-wins
     Activity m_current;   // re-sent after reconnect
+    Activity m_last_visible; // last visible activity, restored on re-enable
     uint64_t m_nonce = 0;
     // resolveArtwork() state (worker-thread only, no locking)
     std::string m_memo_key;
