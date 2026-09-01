@@ -574,18 +574,22 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             // mouse for the duration of the drag, so motion events carry
             // coordinates outside the OS window — unclamped deltas could push
             // the window (and its only grab handle) entirely off the canvas,
-            // beyond recovery by mouse. The titlebar must stay fully on-canvas
-            // vertically; horizontally at least a grabbable sliver remains.
-            if (Widget* parent = getParent()) {
-                constexpr int kMinVisiblePx = 40;
-                const Rect pos = getPos();
-                const Rect parent_pos = parent->getPos();
-                const int min_x = kMinVisiblePx - pos.width();
-                const int max_x = std::max(min_x, parent_pos.width() - kMinVisiblePx);
-                const int max_y = std::max(0, parent_pos.height() - TITLEBAR_HEIGHT);
-                dx = std::clamp(pos.x() + dx, min_x, max_x) - pos.x();
-                dy = std::clamp(pos.y() + dy, 0, max_y) - pos.y();
-            }
+            // beyond recovery by mouse. The titlebar must stay fully within the
+            // work area vertically; horizontally a grabbable sliver remains.
+            // Bounds come from s_maximize_bounds, the same work area maximize
+            // uses, so the menu bar is excluded. Window frames are widget-tree
+            // roots (Player owns and blits them), so there is no parent rect to
+            // consult — an earlier parent-gated version of this clamp never ran.
+            constexpr int kMinVisiblePx = 40;
+            const Rect pos = getPos();
+            const int min_x = s_maximize_bounds.x() + kMinVisiblePx - pos.width();
+            const int max_x = std::max(min_x,
+                s_maximize_bounds.x() + s_maximize_bounds.width() - kMinVisiblePx);
+            const int min_y = s_maximize_bounds.y();
+            const int max_y = std::max(min_y,
+                s_maximize_bounds.y() + s_maximize_bounds.height() - TITLEBAR_HEIGHT);
+            dx = std::clamp(pos.x() + dx, min_x, max_x) - pos.x();
+            dy = std::clamp(pos.y() + dy, min_y, max_y) - pos.y();
             if (dx != 0 || dy != 0) {
                 m_on_drag(dx, dy);
             }
