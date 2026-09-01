@@ -107,6 +107,25 @@ make -j$(nproc)
 - `--enable-test-harness` — build the test harness (default: yes)
 - `--enable-asan` / `--enable-ubsan` / `--enable-tsan` — sanitizer builds (debug only)
 
+### Distribution packages
+
+`package/` holds native packaging, built for every push by the
+[Linux packages](.github/workflows/packages.yml) workflow:
+
+| Format | Targets |
+|---|---|
+| `.deb` | Debian 13 (trixie), Ubuntu 26.04 LTS |
+| `.rpm` | Fedora, openSUSE Tumbleweed |
+
+```bash
+./package/dpkg/build-deb.sh      # -> package/dpkg/out/*.deb
+./package/rpm/build-rpm.sh       # -> package/rpm/out/*.rpm
+```
+
+Both build from a clean export of `HEAD`, so commit before packaging. See
+[package/README.md](package/README.md) for the dependency-installation
+one-liners and how the version label is mapped to a legal package version.
+
 ## Usage
 
 Pass the paths of audio files or playlists (`.m3u`/`.m3u8`) as program
