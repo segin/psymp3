@@ -532,6 +532,7 @@ using PsyMP3::Codec::Opus::OpusHeader;
 #endif
 #ifdef HAVE_AAC
 #include "codecs/aac/AACCodec.h"
+#include "codecs/aac/XHEAACCodec.h"
 using PsyMP3::Codec::AAC::AACCodec;
 #endif
 

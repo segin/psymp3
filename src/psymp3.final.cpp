@@ -178,6 +178,14 @@
 #endif
 
 // ============================================================================
+// Optional Codec: xHE-AAC / MPEG-D USAC (independent of faad2, which cannot
+// decode USAC at all)
+// ============================================================================
+#ifdef HAVE_XHE_AAC
+#include "codecs/aac/XHEAACCodec.cpp"
+#endif
+
+// ============================================================================
 // Optional Codec/Demuxer: FLAC
 // ============================================================================
 #ifdef HAVE_FLAC

@@ -15,6 +15,10 @@ if HAVE_AAC
 AM_CPPFLAGS += $(AAC_CFLAGS)
 endif
 
+if HAVE_XHE_AAC
+AM_CPPFLAGS += $(FDKAAC_CFLAGS)
+endif
+
 
 if HAVE_OPUS
 AM_CPPFLAGS += $(OPUS_CFLAGS)
@@ -31,7 +35,9 @@ endif
 noinst_LIBRARIES = libpsymp3-codec-aac.a
 
 libpsymp3_codec_aac_a_SOURCES = \
-	AACCodec.cpp
+	AACCodec.cpp \
+	XHEAACCodec.cpp \
+	xhe_fdk.cpp
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

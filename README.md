@@ -51,6 +51,7 @@ Highlights:
 - libogg (`ogg`) — required for Vorbis, Opus, and Ogg FLAC (container parsing)
 - libopus (`opus`) — Opus
 - faad2 (`faad2`) — AAC
+- FDK-AAC (`fdk-aac`) — xHE-AAC / MPEG-D USAC (optional, `--enable-xhe-aac`)
 - speex 1.2 or later (`speex`) — Speex
 - spandsp (`spandsp`) — G.722
 
@@ -99,6 +100,9 @@ make -j$(nproc)
 **Build Options:**
 - `--enable-flac` / `--enable-vorbis` / `--enable-opus` / `--enable-aac` /
   `--enable-speex` / `--enable-g722` / `--enable-g711` — per-codec toggles (default: yes)
+- `--enable-xhe-aac` — xHE-AAC (MPEG-D USAC) via FDK-AAC (default: yes when
+  `fdk-aac` is present). faad2 cannot decode USAC at all, so this is a second
+  AAC decoder rather than an option on the existing one.
 - `--enable-mpris` — MPRIS desktop integration over D-Bus (default: auto)
 - `--enable-final` — unity build: all sources in one translation unit (much
   faster full rebuilds; used for release builds)
@@ -130,7 +134,7 @@ one-liners and how the version label is mapped to a legal package version.
 
 Pass the paths of audio files or playlists (`.m3u`/`.m3u8`) as program
 arguments; they are played in order. Supported formats include MP3, MP2,
-Ogg Vorbis, Opus, FLAC (native and Ogg), WAV/RIFF, AAC/M4A, ALAC, Speex,
+Ogg Vorbis, Opus, FLAC (native and Ogg), WAV/RIFF, AAC/M4A, xHE-AAC, ALAC, Speex,
 G.711 (µ-law/A-law), G.722, and raw PCM.
 
 PsyMP3 has a full mouse-driven UI — a menu bar (`File`, `Playback`,

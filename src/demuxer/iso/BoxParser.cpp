@@ -1176,6 +1176,22 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
                                      esds.begin() + static_cast<std::ptrdiff_t>(descriptor_end));
             Debug::log("iso", "ISODemuxerBoxParser: extracted AAC AudioSpecificConfig of ",
                        track.codecConfig.size(), " bytes");
+            // xHE-AAC (MPEG-D USAC) shares objectTypeIndication 0x40 with plain
+            // AAC, so the object type inside the AudioSpecificConfig is the only
+            // thing that distinguishes them. It matters because faad2 cannot
+            // decode USAC at all -- routing one there fails at init with a
+            // misleading error. A 5-bit audioObjectType of 31 escapes to
+            // "32 + the next 6 bits"; 42 is USAC.
+            if (track.codecConfig.size() >= 2 &&
+                (track.codecConfig[0] >> 3) == 31) {
+                const unsigned ext = ((static_cast<unsigned>(track.codecConfig[0]) & 0x07) << 3) |
+                                     (static_cast<unsigned>(track.codecConfig[1]) >> 5);
+                if (32 + ext == 42) {
+                    track.codecType = "xhe-aac";
+                    Debug::log("iso", "ISODemuxerBoxParser: audioObjectType 42 (USAC) "
+                                      "- routing to the xHE-AAC decoder");
+                }
+            }
             return !track.codecConfig.empty();
         }
 

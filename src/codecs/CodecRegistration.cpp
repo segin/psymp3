@@ -104,6 +104,11 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Opus codec disabled at compile time");
 #endif
 
+#ifdef HAVE_XHE_AAC
+    PsyMP3::Codec::AAC::XHEAACCodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: Registered xHE-AAC (USAC) codec");
+#endif
+
 #ifdef HAVE_AAC
     PsyMP3::Codec::AAC::AACCodecSupport::registerCodec();
     Debug::log("codec", "registerAllCodecs: Registered AAC codec with AudioCodecFactory");
