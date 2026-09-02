@@ -134,9 +134,23 @@ bool DemuxedStream::setupCodec() {
 
 void DemuxedStream::updateStreamProperties() {
     StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
-    
+
     m_rate = stream_info.sample_rate;
     m_channels = stream_info.channels;
+    // The container header describes the ENCODED stream, which is not always
+    // the format the decoder actually emits. AAC is the clear case: libfaad
+    // up-matrixes mono to stereo (implicit Parametric Stereo) and doubles the
+    // rate for implicit SBR, so a 44.1kHz mono .m4a whose mp4a box says one
+    // channel really decodes to two. Since the audio device is opened from
+    // these values and copyFrameData() memcpy's decoded PCM straight into its
+    // buffer, believing the container played such files at half speed and an
+    // octave down. A codec that does not adjust anything reports the same
+    // StreamInfo it was constructed with, so this is a no-op for the rest.
+    if (m_codec) {
+        const StreamInfo& decoded = m_codec->getStreamInfo();
+        if (decoded.sample_rate != 0) m_rate = decoded.sample_rate;
+        if (decoded.channels != 0) m_channels = decoded.channels;
+    }
     m_bitrate = stream_info.bitrate;
     Debug::log("demux", "DemuxedStream::updateStreamProperties: duration_ms from demuxer=", stream_info.duration_ms);
     m_length = static_cast<int>(stream_info.duration_ms);
