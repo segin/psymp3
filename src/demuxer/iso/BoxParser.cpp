@@ -714,10 +714,39 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
     if (size >= 36) { // Minimum size for audio sample entry
         uint32_t entrySize = ReadUInt32BE(entryOffset);
         uint32_t codecType = ReadUInt32BE(entryOffset + 4);
-        
+
+        // entrySize comes from the file. Clamp it to what the stsd box
+        // actually contains: unclamped, a crafted size let the extension-box
+        // scan below run far past the sample entry and off into unrelated
+        // data. `size` is the stsd payload and entryOffset sits 8 bytes into
+        // it (version/flags + entry_count).
+        const uint64_t entryAvailable = (size > 8) ? (size - 8) : 0;
+        if (entrySize > entryAvailable) {
+            Debug::log("iso", "ISODemuxerBoxParser: stsd entry size ", entrySize,
+                       " exceeds the ", entryAvailable, " bytes available; clamping");
+            entrySize = static_cast<uint32_t>(entryAvailable);
+        }
+
         // Skip reserved fields (6 bytes) and data reference index (2 bytes)
         uint64_t audioEntryOffset = entryOffset + 16;
-        
+
+        // AudioSampleEntry version: 0 is the plain MPEG-4 layout, but
+        // QuickTime v1 appends four more 32-bit fields and v2 replaces the
+        // structure wholesale. Reading a v1/v2 entry with the v0 layout put
+        // the extension-box scan at the wrong offset, so the esds was never
+        // found and the file failed to play for want of an ASC.
+        const uint16_t entryVersion =
+            static_cast<uint16_t>(ReadUInt32BE(audioEntryOffset) >> 16);
+        uint64_t extensionOffset = audioEntryOffset + 20; // v0
+        if (entryVersion == 1) {
+            extensionOffset += 16; // samplesPerPacket, bytesPerPacket/Frame/Sample
+        } else if (entryVersion == 2) {
+            extensionOffset += 36; // v2 sound description is 36 bytes longer
+        }
+        const uint64_t extensionSize =
+            (entrySize > (extensionOffset - entryOffset))
+                ? (entrySize - (extensionOffset - entryOffset)) : 0;
+
         // Read audio sample entry fields (version 0)
         if (entrySize >= 36) {
             // Skip version (2 bytes) and revision level (2 bytes) and vendor (4 bytes)
@@ -736,9 +765,9 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
             case CODEC_AAC:
                 track.codecType = "aac";
                 // Look for esds box for AAC configuration
-                if (entrySize > 36) {
+                if (extensionSize > 0) {
                     // Parse additional boxes within the sample entry
-                    ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
+                    ParseBoxRecursively(extensionOffset, extensionSize,
                         [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
 
                             if (header.type == FOURCC('e','s','d','s')) {
@@ -755,8 +784,8 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
             case CODEC_ALAC:
                 track.codecType = "alac";
                 // Look for alac box for ALAC magic cookie
-                if (entrySize > 36) {
-                    ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
+                if (extensionSize > 0) {
+                    ParseBoxRecursively(extensionOffset, extensionSize,
                         [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
 
                             if (header.type == CODEC_ALAC) {
@@ -772,8 +801,8 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
             case CODEC_FLAC:
                 track.codecType = "flac";
                 // Look for dfLa box for FLAC configuration
-                if (entrySize > 36) {
-                    ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
+                if (extensionSize > 0) {
+                    ParseBoxRecursively(extensionOffset, extensionSize,
                         [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
 
                             if (header.type == FOURCC('d','f','L','a')) {
@@ -1126,6 +1155,17 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
                 Debug::log("iso", "ISODemuxerBoxParser: esds objectTypeIndication 0x",
                            std::hex, static_cast<int>(objectTypeIndication), std::dec,
                            " indicates MP3, not AAC");
+            } else if (objectTypeIndication != 0x40 && objectTypeIndication != 0x66 &&
+                       objectTypeIndication != 0x67 && objectTypeIndication != 0x68) {
+                // Anything else is not AAC (0x40 MPEG-4 Audio, 0x66/0x67/0x68
+                // MPEG-2 AAC Main/LC/SSR). Without this the caller kept
+                // codecType "aac" for, say, a private or video object type and
+                // fed its DecoderSpecificInfo to NeAACDecInit2 -- arbitrary
+                // file-controlled bytes handed to the AAC decoder as a config.
+                Debug::log("iso", "ISODemuxerBoxParser: esds objectTypeIndication 0x",
+                           std::hex, static_cast<int>(objectTypeIndication), std::dec,
+                           " is not AAC; rejecting this sample entry");
+                return false;
             }
             cursor += 13; // objectTypeIndication + streamType + bufferSizeDB + max/avg bitrate
             continue;
