@@ -138,6 +138,9 @@ private:
     uint64_t m_samples_consumed = 0;
     bool m_eof_reached = false;
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
+    // Counts chunks popped for decoding; used to tell "no progress" (a real
+    // livelock) apart from "decoded to nothing but consumed input" (damage).
+    uint64_t m_chunks_consumed = 0;
     
     /**
      * @brief Initialize demuxer and codec

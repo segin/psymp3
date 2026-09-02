@@ -172,6 +172,7 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
     uint8_t* output_buf = static_cast<uint8_t*>(buf);
     size_t bytes_written = 0;
     size_t consecutive_empty_frames = 0;
+    uint64_t chunks_consumed_before = m_chunks_consumed;
     
     while (bytes_written < len && !m_eof_reached) {
         // If we have a current frame with remaining data, use it
@@ -213,7 +214,18 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
                 buffer_empty = m_chunk_buffer.empty();
             }
 
-            consecutive_empty_frames++;
+            // Only count frames that made NO progress. A run of corrupt AAC
+            // access units returns empty frames while still consuming input;
+            // counting those latched EOF after 32 of them and silently ended
+            // the track mid-file instead of skipping the damage. The retry
+            // cap still catches a genuine livelock, where nothing is consumed
+            // and nothing is produced.
+            if (m_chunks_consumed != chunks_consumed_before) {
+                consecutive_empty_frames = 0;
+                chunks_consumed_before = m_chunks_consumed;
+            } else {
+                consecutive_empty_frames++;
+            }
             if (consecutive_empty_frames >= MAX_EMPTY_FRAME_RETRIES) {
                 Debug::log("demux", "DemuxedStream::getData: Aborting after ", consecutive_empty_frames,
                            " consecutive empty frames without reaching EOF");
@@ -282,6 +294,10 @@ AudioFrame DemuxedStream::getNextFrame() {
             // Update memory tracking
             m_current_buffer_bytes -= chunk_size;
             has_chunk = true;
+            // Consuming a chunk is forward progress even when it decodes to
+            // nothing, which is what lets getData() tell a damaged stretch
+            // apart from a livelock.
+            ++m_chunks_consumed;
         }
     }
     
