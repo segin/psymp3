@@ -220,6 +220,8 @@ private:
     
     // ========== Header processing (private unlocked methods) ==========
     bool processHeaderPacket_unlocked(const std::vector<uint8_t>& packet_data);
+    // Open the decoder from the demuxer-provided concatenated header blob.
+    bool initializeFromCodecData_unlocked();
     bool processIdentificationHeader_unlocked(const std::vector<uint8_t>& packet_data);
     bool processCommentHeader_unlocked(const std::vector<uint8_t>& packet_data);
     bool processSetupHeader_unlocked(const std::vector<uint8_t>& packet_data);

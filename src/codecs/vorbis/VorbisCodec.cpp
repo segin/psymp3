@@ -339,15 +339,25 @@ bool VorbisCodec::initialize()
         throw BadFormatException(m_last_error);
     }
     
-    // Process codec_data if available (may contain pre-extracted headers)
-    // This is useful when headers are stored in container metadata
-    if (!m_stream_info.codec_data.empty()) {
-        Debug::log("vorbis", "StreamInfo contains codec_data of size: ", 
+    // Headers pre-extracted by the demuxer (OggDemuxer concatenates the three
+    // Vorbis header packets into codec_data). Consuming them HERE rather than
+    // waiting for them to arrive as the first three decode() packets is what
+    // makes the decoder survive a seek that happens before any audio has been
+    // decoded: the headers exist only at the start of the stream, so once the
+    // seek moves past them they are never delivered and the codec could never
+    // open its decoder -- every subsequent read returned silence, forever.
+    if (!m_stream_info.codec_data.empty() && m_header_packets_received < 3) {
+        Debug::log("vorbis", "StreamInfo contains codec_data of size: ",
                    m_stream_info.codec_data.size());
-        // Note: codec_data processing is handled during decode() when headers arrive
-        // The demuxer typically sends headers as separate packets
+        if (initializeFromCodecData_unlocked()) {
+            Debug::log("vorbis", "Decoder opened from codec_data; ready before first decode");
+        } else {
+            // Not fatal: the packets may still arrive the usual way.
+            Debug::log("vorbis", "codec_data did not yield a complete header set; "
+                                 "falling back to headers arriving as packets");
+        }
     }
-    
+
     m_initialized = true;
     
     Debug::log("vorbis", "VorbisCodec::initialize completed successfully");
@@ -528,6 +538,53 @@ void VorbisCodec::reset()
 }
 
 // ========== Private Implementation Methods ==========
+
+// Split the demuxer's concatenated header blob back into the three Vorbis
+// header packets and run them through the normal header path. The blob has no
+// length prefixes, but each Vorbis header begins with its type byte followed
+// by the "vorbis" signature (0x01/0x03/0x05), which delimits them reliably.
+bool VorbisCodec::initializeFromCodecData_unlocked()
+{
+    const std::vector<uint8_t>& blob = m_stream_info.codec_data;
+    static const char kSig[6] = {'v','o','r','b','i','s'};
+
+    std::vector<size_t> starts;
+    for (size_t i = 0; i + 7 <= blob.size(); ++i) {
+        const uint8_t type = blob[i];
+        if ((type == 0x01 || type == 0x03 || type == 0x05) &&
+            std::memcmp(&blob[i + 1], kSig, 6) == 0) {
+            starts.push_back(i);
+        }
+    }
+    if (starts.size() < 3) {
+        return false;
+    }
+    // Keep the first three in order; anything after them is not a header.
+    starts.resize(3);
+    if (blob[starts[0]] != 0x01 || blob[starts[1]] != 0x03 || blob[starts[2]] != 0x05) {
+        return false;
+    }
+
+    for (size_t n = 0; n < 3; ++n) {
+        const size_t begin = starts[n];
+        const size_t end = (n + 1 < 3) ? starts[n + 1] : blob.size();
+        std::vector<uint8_t> packet(blob.begin() + static_cast<std::ptrdiff_t>(begin),
+                                    blob.begin() + static_cast<std::ptrdiff_t>(end));
+        if (!processHeaderPacket_unlocked(packet)) {
+            m_header_packets_received = 0;
+            return false;
+        }
+        ++m_header_packets_received;
+    }
+
+    if (!openDecoder_unlocked()) {
+        // Leave the error text for the caller's log; the packet path can retry.
+        m_header_packets_received = 0;
+        return false;
+    }
+    m_decoder_initialized = true;
+    return true;
+}
 
 bool VorbisCodec::processHeaderPacket_unlocked(const std::vector<uint8_t>& packet_data)
 {
