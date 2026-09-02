@@ -495,8 +495,14 @@ void DemuxedStream::seekTo(unsigned long pos) {
     m_position = static_cast<int>(pos);
     m_sposition = (static_cast<uint64_t>(pos) * m_rate) / 1000;
     
-    // CRITICAL: Sync sample counter with demuxer's granule position after seek
-    m_samples_consumed = m_demuxer->getGranulePosition(m_current_stream_id);
+    // CRITICAL: Sync sample counter with demuxer's granule position after seek.
+    // Only Ogg reports a real granule; every other container inherits the base
+    // class's 0. Taking that literally restarted the incremental sample counter
+    // from the beginning of the file, so for MP4/AAC the reported position
+    // jumped back to zero after every seek and the next keyboard seek measured
+    // its offset from the wrong origin. Anchor those at the seek target.
+    const uint64_t granule = m_demuxer->getGranulePosition(m_current_stream_id);
+    m_samples_consumed = (granule != 0) ? granule : m_sposition;
     
     m_eof = false;
     m_eof_reached = false;
