@@ -1167,6 +1167,26 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
                            " is not AAC; rejecting this sample entry");
                 return false;
             }
+            // DecoderConfigDescriptor after objectTypeIndication:
+            //   streamType/upStream/reserved (1), bufferSizeDB (3),
+            //   maxBitrate (4), avgBitrate (4).
+            // These were skipped wholesale, which is why Media Information
+            // reported "Unknown" for the bitrate of every MP4 track.
+            const uint32_t max_bitrate =
+                (static_cast<uint32_t>(esds[cursor + 5]) << 24) |
+                (static_cast<uint32_t>(esds[cursor + 6]) << 16) |
+                (static_cast<uint32_t>(esds[cursor + 7]) << 8) |
+                 static_cast<uint32_t>(esds[cursor + 8]);
+            const uint32_t avg_bitrate =
+                (static_cast<uint32_t>(esds[cursor + 9]) << 24) |
+                (static_cast<uint32_t>(esds[cursor + 10]) << 16) |
+                (static_cast<uint32_t>(esds[cursor + 11]) << 8) |
+                 static_cast<uint32_t>(esds[cursor + 12]);
+            // VBR streams commonly leave avgBitrate at 0; the peak is a more
+            // useful answer than nothing.
+            track.avgBitrate = avg_bitrate ? avg_bitrate : max_bitrate;
+            Debug::log("iso", "ISODemuxerBoxParser: esds bitrate avg=", avg_bitrate,
+                       " max=", max_bitrate);
             cursor += 13; // objectTypeIndication + streamType + bufferSizeDB + max/avg bitrate
             continue;
         }
