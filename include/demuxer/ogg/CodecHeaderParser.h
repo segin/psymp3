@@ -25,6 +25,10 @@ struct CodecInfo {
     int channels;
     long rate;
     uint64_t pre_skip = 0; // For Opus
+    // Encoder's nominal bitrate, when the codec's headers state one. Vorbis
+    // carries it in the identification header; Opus has no equivalent field,
+    // so it stays 0 and the average is derived from the file instead.
+    long nominal_bitrate = 0;
     // Add other common fields
 };
 

@@ -1238,6 +1238,12 @@ bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrac
         std::vector<uint8_t> cookie(static_cast<size_t>(size));
         io->seek(static_cast<off_t>(offset), SEEK_SET);
         io->read(cookie.data(), 1, cookie.size());
+        // Deliberately NOT taking the bitrate from the magic cookie: the alac
+        // box is a FullBox, so ALACSpecificConfig starts 4 bytes in, and even
+        // read correctly its avgBitRate field is unreliable -- ffmpeg writes
+        // the UNCOMPRESSED rate there (1411200 for 44.1k/16-bit stereo), which
+        // is not what the track occupies. DemuxedStream's file-size average is
+        // both simpler and closer to the truth.
         track.codecConfig = std::move(cookie);
         Debug::log("iso", "ISODemuxerBoxParser: stored ALAC magic cookie of ",
                    track.codecConfig.size(), " bytes");

@@ -172,6 +172,21 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
             // Reject non-positive or implausibly large rates (a top-bit-set value
             // could land negative in the signed field and pass an == 0 check).
             if (m_info.rate <= 0 || m_info.rate > 384000) return false;
+
+            // bitrate_nominal (bytes 20..23, signed little-endian). Encoders
+            // may leave it 0, or negative for some ancient files; treat only a
+            // positive value as usable and let the caller fall back.
+            {
+                // The header is already validated as >= 30 bytes above.
+                const int32_t nominal =
+                    static_cast<int32_t>(static_cast<uint32_t>(data[20]) |
+                                         (static_cast<uint32_t>(data[21]) << 8) |
+                                         (static_cast<uint32_t>(data[22]) << 16) |
+                                         (static_cast<uint32_t>(data[23]) << 24));
+                if (nominal > 0) {
+                    m_info.nominal_bitrate = nominal;
+                }
+            }
             
             // Framing flag (last byte of packet check? Or defined bit?)
             // Spec says "framing_flag" found at end of ID header?

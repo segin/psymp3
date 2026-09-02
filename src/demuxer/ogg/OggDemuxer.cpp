@@ -407,6 +407,9 @@ std::vector<StreamInfo> OggDemuxer::getStreams() const {
     info.codec_type = "audio"; // All currently supported Ogg codecs are audio
     info.channels = ci.channels;
     info.sample_rate = ci.rate;
+    // 0 when the codec states none (Opus); DemuxedStream then derives an
+    // average from the file size and duration.
+    info.bitrate = static_cast<uint32_t>(ci.nominal_bitrate > 0 ? ci.nominal_bitrate : 0);
     info.duration_ms = m_cached_duration.load();
     if (info.duration_ms > 0 && info.sample_rate > 0) {
       info.duration_samples = (info.duration_ms * info.sample_rate) / 1000;
@@ -438,6 +441,9 @@ StreamInfo OggDemuxer::getStreamInfo(uint32_t stream_id) const {
   info.codec_type = "audio"; // All currently supported Ogg codecs are audio
   info.channels = ci.channels;
   info.sample_rate = ci.rate;
+  // 0 when the codec states none (Opus); DemuxedStream then derives an
+  // average from the file size and duration.
+  info.bitrate = static_cast<uint32_t>(ci.nominal_bitrate > 0 ? ci.nominal_bitrate : 0);
   info.duration_ms = m_cached_duration.load();
   if (info.duration_ms > 0 && info.sample_rate > 0) {
     info.duration_samples = (info.duration_ms * info.sample_rate) / 1000;

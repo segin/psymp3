@@ -152,6 +152,19 @@ void DemuxedStream::updateStreamProperties() {
         if (decoded.channels != 0) m_channels = decoded.channels;
     }
     m_bitrate = stream_info.bitrate;
+    // Opus states no bitrate at all, and ALAC/Vorbis encoders often leave
+    // theirs at zero, so derive the average the way every other player does:
+    // payload bits over playing time. Only a fallback -- a codec that reports
+    // its own nominal rate keeps it.
+    if (m_bitrate == 0 && stream_info.duration_ms > 0) {
+        std::error_code ec;
+        const auto bytes = std::filesystem::file_size(
+            System::pathFromUtf8(m_path.to8Bit(true)), ec);
+        if (!ec && bytes > 0) {
+            m_bitrate = static_cast<unsigned int>((bytes * 8ULL * 1000ULL) /
+                                                  stream_info.duration_ms);
+        }
+    }
     Debug::log("demux", "DemuxedStream::updateStreamProperties: duration_ms from demuxer=", stream_info.duration_ms);
     m_length = static_cast<int>(stream_info.duration_ms);
     m_slength = stream_info.duration_samples;
