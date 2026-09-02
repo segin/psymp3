@@ -39,6 +39,8 @@ private:
     uint32_t m_sample_rate = 0;
     uint16_t m_channels = 0;
     bool m_decoder_initialized = false;
+    uint32_t m_container_sample_rate = 0;
+    int m_priming_frames = 0;  // post-seek warm-up frames to decode and discard
     mutable std::mutex m_mutex;
 };
 

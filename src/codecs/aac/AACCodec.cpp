@@ -20,7 +20,12 @@ namespace AAC {
 AACCodec::AACCodec(const StreamInfo& stream_info)
     : AudioCodec(stream_info),
       m_sample_rate(stream_info.sample_rate),
-      m_channels(stream_info.channels) {
+      m_channels(stream_info.channels),
+      // The container's rate, kept separately because m_sample_rate is later
+      // replaced by the decoder's (which SBR may have doubled). Chunk
+      // timestamps are counted in container sample units, so they must be
+      // converted with this one.
+      m_container_sample_rate(stream_info.sample_rate) {
 }
 
 AACCodec::~AACCodec() {
@@ -115,6 +120,12 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
         return AudioFrame();
     }
 
+    if (m_priming_frames > 0) {
+        // Post-seek warm-up frame: state is now primed, output is not usable.
+        --m_priming_frames;
+        return AudioFrame();
+    }
+
     m_sample_rate = frame_info.samplerate;
     m_channels = frame_info.channels;
     m_stream_info.sample_rate = m_sample_rate;
@@ -128,8 +139,13 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
     frame.sample_rate = m_sample_rate;
     frame.channels = m_channels;
     frame.timestamp_samples = chunk.timestamp_samples;
-    if (m_sample_rate != 0) {
-        frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / m_sample_rate;
+    // Convert with the CONTAINER rate: chunk.timestamp_samples is counted in
+    // the sample table's units, while m_sample_rate is the decoder's and may
+    // have been doubled by SBR -- dividing by that halved the reported time
+    // for implicit-SBR files.
+    const uint32_t ts_rate = m_container_sample_rate ? m_container_sample_rate : m_sample_rate;
+    if (ts_rate != 0) {
+        frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / ts_rate;
     }
 
     return frame;
@@ -146,6 +162,11 @@ void AACCodec::reset_unlocked() {
 
     if (m_decoder_initialized) {
         NeAACDecPostSeekReset(m_decoder, 0);
+        // The first access unit after a seek has no MDCT overlap from a
+        // preceding frame (nor any SBR/PS history), so emitting it produces an
+        // audible click on every seek. Decode it for its side effects and
+        // throw the audio away, which is what the format expects.
+        m_priming_frames = 1;
     }
 }
 
