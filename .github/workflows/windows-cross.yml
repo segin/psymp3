@@ -32,6 +32,7 @@ env:
   FREETYPE_VER: "2.14.3"
   OGG_VER: "1.3.6"
   OPUS_VER: "1.5.2"
+  FDKAAC_VER: "2.0.3"
   SDL3_VER: "3.4.14"
 
 jobs:
@@ -115,7 +116,7 @@ jobs:
       uses: actions/cache@v5
       with:
         path: ${{ env.PREFIX }}
-        key: xwin-deps-${{ matrix.tuple }}-r${{ env.DEPS_REV }}-zlib${{ env.ZLIB_VER }}-ssl${{ env.OPENSSL_VER }}-curl${{ env.CURL_VER }}-tag${{ env.TAGLIB_VER }}-ft${{ env.FREETYPE_VER }}-ogg${{ env.OGG_VER }}-opus${{ env.OPUS_VER }}-sdl${{ env.SDL3_VER }}
+        key: xwin-deps-${{ matrix.tuple }}-r${{ env.DEPS_REV }}-zlib${{ env.ZLIB_VER }}-ssl${{ env.OPENSSL_VER }}-curl${{ env.CURL_VER }}-tag${{ env.TAGLIB_VER }}-ft${{ env.FREETYPE_VER }}-ogg${{ env.OGG_VER }}-opus${{ env.OPUS_VER }}-fdk${{ env.FDKAAC_VER }}-sdl${{ env.SDL3_VER }}
 
     - name: Build dependency stack
       if: steps.deps.outputs.cache-hit != 'true'
@@ -224,6 +225,16 @@ jobs:
         ./configure --host="$TUPLE" --prefix="$PREFIX" \
           --disable-shared --enable-static \
           --disable-extra-programs --disable-doc $RTCD_FLAG
+        make -j"$(nproc)"
+        make install
+        cd ..
+
+        # ---- FDK-AAC (xHE-AAC / MPEG-D USAC; faad2 cannot decode it) ----
+        curl -fsSLO "https://downloads.sourceforge.net/opencore-amr/fdk-aac-${FDKAAC_VER}.tar.gz"
+        tar xf "fdk-aac-${FDKAAC_VER}.tar.gz"
+        cd "fdk-aac-${FDKAAC_VER}"
+        ./configure --host="$TUPLE" --prefix="$PREFIX" \
+          --disable-shared --enable-static --disable-example
         make -j"$(nproc)"
         make install
         cd ..
