@@ -3339,7 +3339,9 @@ bool Player::Initialize(const PlayerOptions& options) {
     add_label(*hud_panel_ptr, "title",    Rect(1, 19, 350, 16), true);
     add_label(*hud_panel_ptr, "album",    Rect(1, 34, 350, 16), true);
     add_label(*hud_panel_ptr, "playlist", Rect(270, 4, 120, 16));
-    add_label(*hud_panel_ptr, "position", Rect(400, 3, 150, 16));
+    // 165 wide, not 150: the full "Position: M:SS.hh / M:SS.hh" text clipped
+    // its last digit at the old width.
+    add_label(*hud_panel_ptr, "position", Rect(400, 3, 165, 16));
 
     // Repeat/Shuffle indicators: right-aligned to the progress bar's right edge
     // (x=399+222=621), in the row above it, to the right of the position text.
