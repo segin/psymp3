@@ -102,8 +102,12 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
         static_cast<unsigned long>(chunk.data.size()));
 
     if (frame_info.error != 0) {
-        Debug::log("aac", "AACCodec::decode_unlocked: decode error: ",
-                   NeAACDecGetErrorMessage(frame_info.error));
+        // NeAACDecGetErrorMessage returns NULL for an error code outside its
+        // table; streaming a null char* into an ostream is undefined.
+        const char* msg = NeAACDecGetErrorMessage(frame_info.error);
+        Debug::log("aac", "AACCodec::decode_unlocked: decode error ",
+                   static_cast<unsigned>(frame_info.error), ": ",
+                   msg ? msg : "(unknown error)");
         return AudioFrame();
     }
 
@@ -175,10 +179,16 @@ bool AACCodec::configureDecoder_unlocked() {
 
 bool AACCodec::initializeDecoderFromASC_unlocked() {
     mp4AudioSpecificConfig asc = {};
-    if (NeAACDecAudioSpecificConfig(
+    // NeAACDecAudioSpecificConfig returns plain `char`, which is UNSIGNED on
+    // ARM32/AArch64: comparing its result against < 0 there is always false,
+    // so this sanity check silently did nothing and a malformed ASC went
+    // straight to NeAACDecInit2. Compare through a signed type.
+    const signed char asc_result = static_cast<signed char>(
+        NeAACDecAudioSpecificConfig(
             const_cast<unsigned char*>(m_stream_info.codec_data.data()),
             static_cast<unsigned long>(m_stream_info.codec_data.size()),
-            &asc) < 0) {
+            &asc));
+    if (asc_result < 0) {
         Debug::log("aac", "AACCodec::initializeDecoderFromASC_unlocked: invalid AudioSpecificConfig");
         return false;
     }
