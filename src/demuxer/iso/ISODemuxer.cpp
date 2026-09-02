@@ -386,8 +386,13 @@ bool ISODemuxer::parseContainer() {
                 // Continue processing - may still be playable
             }
             
-            // Handle missing codec configuration
-            std::vector<uint8_t> sampleData; // Would need to extract first sample for inference
+            // Handle missing codec configuration.
+            // NOTE: sampleData is always empty here, and InferCodecConfig()
+            // rejects empty input, so codec-config inference never actually
+            // runs -- a track that reached here without a config stays
+            // without one. Wiring it up means reading the track's first
+            // sample; do not assume the inference path is exercised today.
+            std::vector<uint8_t> sampleData;
             if (!HandleMissingCodecConfig(track, sampleData)) {
                 reportError("CodecConfiguration", "Failed to resolve codec configuration for track " + 
                            std::to_string(track.trackId));

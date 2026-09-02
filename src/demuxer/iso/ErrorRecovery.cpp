@@ -474,7 +474,24 @@ bool ErrorRecovery::InferAACConfig(AudioTrackInfo& track, const std::vector<uint
     else if (track.sampleRate == 8000) samplingFrequencyIndex = 11;
     else if (track.sampleRate == 7350) samplingFrequencyIndex = 12;
     else samplingFrequencyIndex = 15; // Escape value
-    
+
+    // An AudioSpecificConfig is a BIT stream, not a byte stream. The escape
+    // form (index 15) splices a 24-bit frequency in at a non-byte-aligned
+    // position, and channelConfiguration only encodes 1-7 channels directly.
+    // Emitting a byte-aligned approximation would hand NeAACDecInit2 a config
+    // that decodes to the wrong thing rather than failing cleanly, so refuse
+    // the cases this simplified writer cannot express.
+    if (samplingFrequencyIndex == 15) {
+        LogError("AACConfig", "Sample rate " + std::to_string(track.sampleRate) +
+                              " needs an escape-coded AudioSpecificConfig, which is not supported");
+        return false;
+    }
+    if (track.channelCount == 0 || track.channelCount > 7) {
+        LogError("AACConfig", "Channel count " + std::to_string(track.channelCount) +
+                              " cannot be expressed as a channelConfiguration");
+        return false;
+    }
+
     // Create the configuration
     std::vector<uint8_t> config;
     
@@ -482,14 +499,7 @@ bool ErrorRecovery::InferAACConfig(AudioTrackInfo& track, const std::vector<uint
     config.push_back((2 << 3) | ((samplingFrequencyIndex & 0x0E) >> 1));
     
     // Second byte: Bottom bit of samplingFrequencyIndex, channel configuration, and frame length flag
-    config.push_back(((samplingFrequencyIndex & 0x01) << 7) | (track.channelCount << 3) | 0);
-    
-    // If we used escape value for sampling frequency index, add the actual frequency
-    if (samplingFrequencyIndex == 15) {
-        config.push_back((track.sampleRate >> 16) & 0xFF);
-        config.push_back((track.sampleRate >> 8) & 0xFF);
-        config.push_back(track.sampleRate & 0xFF);
-    }
+    config.push_back(((samplingFrequencyIndex & 0x01) << 7) | ((track.channelCount & 0x0F) << 3) | 0);
     
     // Store the configuration
     track.codecConfig = config;
