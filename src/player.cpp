@@ -4935,6 +4935,19 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     if (registry_name) {
         std::transform(codec_uc.begin(), codec_uc.end(), codec_uc.begin(), ::toupper);
     }
+    // Codecs whose accepted spelling is not simply the id in capitals.
+    // Acronyms (MP3, FLAC, AAC, PCM, ALAC) do shout; proper names do not --
+    // Xiph writes Vorbis, Opus and Speex, and the format is written xHE-AAC.
+    static const std::map<std::string, std::string> kCodecDisplayNames = {
+        {"vorbis",  "Vorbis"},
+        {"opus",    "Opus"},
+        {"speex",   "Speex"},
+        {"xhe-aac", "xHE-AAC"},
+        {"usac",    "xHE-AAC"},
+    };
+    if (auto it = kCodecDisplayNames.find(codec_lc); it != kCodecDisplayNames.end()) {
+        codec_uc = it->second;
+    }
 
     // For container formats whose "codec" is really a sample encoding, the
     // Codec row names the CONTAINER and the encoding moves to Format:
@@ -4961,6 +4974,7 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
         format = "G.711 \xc2\xb5-law";
     } else if (codec_lc.find("g722") != std::string::npos) {
         format = "G.722";
+
     } else if (codec_lc == "flac" || codec_lc == "alac") {
         format = codec_uc + (bits > 0 ? " S" + std::to_string(bits) + " LE" : "");
     } else {
