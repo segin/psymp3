@@ -64,6 +64,16 @@ void registerAllCodecs() {
     });
     Debug::log("codec", "registerAllCodecs: Registered ALAC codec with CodecRegistry");
 
+    // MLP / Dolby TrueHD (always available, bundled Apache-2.0 decoder)
+    PsyMP3::Codec::MLP::MLPCodecSupport::registerCodec();
+    CodecRegistry::registerCodec("truehd", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::MLP::MLPCodec>(info);
+    });
+    CodecRegistry::registerCodec("mlp", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::MLP::MLPCodec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered MLP/TrueHD codec with CodecRegistry");
+
 #ifdef HAVE_VORBIS
     // Register the new container-agnostic VorbisCodec with AudioCodecFactory
     PsyMP3::Codec::Vorbis::VorbisCodecSupport::registerCodec();
@@ -182,6 +192,12 @@ void registerAllDemuxers() {
         return std::make_unique<PsyMP3::Demuxer::MP3::MP3NullDemuxer>(std::move(handler));
     }, "MP3", {"mp3"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MP3 null demuxer");
+
+    // MLP/TrueHD null demuxer (always available - MLP is self-containerizing)
+    DemuxerRegistry::getInstance().registerDemuxer("truehd", [](std::unique_ptr<IOHandler> handler) {
+        return std::make_unique<PsyMP3::Demuxer::MLP::MLPNullDemuxer>(std::move(handler));
+    }, "MLP", {"thd", "truehd", "mlp"});
+    Debug::log("demuxer", "registerAllDemuxers: Registered MLP/TrueHD null demuxer");
 
     // FLAC demuxer registration
 #ifdef HAVE_FLAC

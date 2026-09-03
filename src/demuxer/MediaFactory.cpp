@@ -513,7 +513,25 @@ void MediaFactory::initializeDefaultFormats() {
             return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
         });
     }
-    
+
+    if (DemuxerRegistry::getInstance().isFormatSupported("truehd")) {
+        MediaFormat mlp_format;
+        mlp_format.format_id = "truehd";
+        mlp_format.display_name = "MLP/TrueHD";
+        mlp_format.extensions = {"THD", "TRUEHD", "MLP"};
+        mlp_format.mime_types = {"audio/true-hd", "audio/vnd.dolby.mlp", "audio/x-true-hd"};
+        mlp_format.magic_signatures = {"\xF8\x72\x6F\xBA", "\xF8\x72\x6F\xBB"};
+        mlp_format.priority = 10;
+        mlp_format.supports_streaming = true;
+        mlp_format.supports_seeking = true;
+        mlp_format.description = "Meridian Lossless Packing / Dolby TrueHD";
+
+        registerFormatInternal(mlp_format, [](const std::string& uri, const ContentInfo&) {
+            Debug::log("loader", "MediaFactory: Creating DemuxedStream for MLP/TrueHD file: ", uri);
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
+        });
+    }
+
 #ifdef HAVE_FLAC
     // FLAC format - uses legacy Stream architecture
     MediaFormat flac_format;

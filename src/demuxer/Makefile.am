@@ -9,7 +9,7 @@
 
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
-SUBDIRS = iso riff raw flac ogg mp3
+SUBDIRS = iso riff raw flac ogg mp3 mlp
 
 noinst_LIBRARIES = libpsymp3-demuxer.a
 

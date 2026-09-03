@@ -309,6 +309,10 @@ void DemuxerRegistry::initializeBuiltInFormats() {
     
     // MP3 signature (frame sync)
     registerSignatureInternal(FormatSignature("mp3", {0xFF, 0xFB}, 0, 70)); // MPEG frame sync
+
+    // MLP/TrueHD major sync, past the four-byte access unit header
+    registerSignatureInternal(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBA}, 4, 100)); // Dolby TrueHD
+    registerSignatureInternal(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBB}, 4, 100)); // Meridian MLP
     
     m_initialized = true;
 }

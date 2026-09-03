@@ -69,7 +69,10 @@ DEMUXER_LIBS =
 CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
 CODEC_LIBS += codecs/mp2/libpsymp3-codec-mp2.a
 CODEC_LIBS += codecs/alac/libpsymp3-codec-alac.a
+# MLP/TrueHD is always built (the decoder is bundled, no external dependency)
+CODEC_LIBS += codecs/mlp/libpsymp3-codec-mlp.a
 DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
+DEMUXER_LIBS += demuxer/mlp/libpsymp3-demuxer-mlp.a
 
 if HAVE_FLAC
 DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
@@ -102,7 +105,7 @@ if FINAL_BUILD
 # headers collide with faad2's, so it must remain its own translation unit --
 # the same reason stb_vorbis_impl.c is built apart.
 psymp3_SOURCES = psymp3.final.cpp codecs/vorbis/stb_vorbis_impl.c \
-	codecs/aac/xhe_fdk.cpp
+	codecs/aac/xhe_fdk.cpp codecs/mlp/mlp_decoder_impl.cpp
 # Final build still needs system libraries
 psymp3_LDADD = \
 	$(SDL_LIBS) \
@@ -142,7 +145,8 @@ psymp3_SOURCES = \
  player.cpp playlist.cpp \
  stream.cpp core/surface.cpp \
  system.cpp \
- track.cpp core/truetype.cpp
+ track.cpp core/truetype.cpp \
+ codecs/mlp/mlp_decoder_impl.cpp
 
 # Link static libraries from subdirectories FIRST (regular build only)
 # Order matters: our convenience libraries must come BEFORE system libraries

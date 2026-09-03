@@ -57,6 +57,11 @@ void DemuxerFactory::initializeBuiltInFormats() {
     registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xF3}, 0, 70)); // MPEG-2 Layer III
     registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xF5}, 0, 70)); // MPEG-2 Layer II
 
+    // MLP/TrueHD major sync, which follows the four-byte access unit header.
+    // 0xF8726FBA is Dolby TrueHD (FBA), 0xF8726FBB is Meridian MLP (FBB).
+    registerSignature_unlocked(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBA}, 4, 100));
+    registerSignature_unlocked(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBB}, 4, 100));
+
     // Register file extensions
     s_extension_to_format["wav"] = "riff";
     s_extension_to_format["wave"] = "riff";
@@ -72,6 +77,9 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["mp3"] = "mp3";
     s_extension_to_format["mp2"] = "mp3"; // Layer II elementary stream -> MP3 demuxer
     s_extension_to_format["mpa"] = "mp3"; // generic MPEG audio -> MP3 demuxer
+    s_extension_to_format["thd"] = "truehd";
+    s_extension_to_format["truehd"] = "truehd";
+    s_extension_to_format["mlp"] = "truehd";
     s_extension_to_format["pcm"] = "raw";
     s_extension_to_format["raw"] = "raw";
     s_extension_to_format["s8"] = "raw";

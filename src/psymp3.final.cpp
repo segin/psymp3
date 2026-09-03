@@ -157,6 +157,14 @@
 #include "codecs/alac/ALACCodec.cpp"
 
 // ============================================================================
+// MLP / Dolby TrueHD Codec/Demuxer (always available via the bundled decoder;
+// the decoder body is a separate object -- see codecs/mlp/mlp_decoder_impl.cpp
+// -- because both the codec and the demuxer link against it)
+// ============================================================================
+#include "codecs/mlp/MLPCodec.cpp"
+#include "demuxer/mlp/MLPNullDemuxer.cpp"
+
+// ============================================================================
 // Vorbis Codec (always available via bundled stb_vorbis; the C implementation
 // is a separate object — see codecs/vorbis/stb_vorbis_impl.c — and the codec
 // body self-guards on HAVE_OGGDEMUXER, its packet source)
