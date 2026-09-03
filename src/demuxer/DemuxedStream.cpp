@@ -138,7 +138,7 @@ void DemuxedStream::updateStreamProperties() {
     m_rate = stream_info.sample_rate;
     m_channels = stream_info.channels;
     // The container header describes the ENCODED stream, which is not always
-    // the format the decoder actually emits. AAC is the clear case: libfaad
+    // the format the decoder actually emits. AAC is the clear case: the decoder
     // up-matrixes mono to stereo (implicit Parametric Stereo) and doubles the
     // rate for implicit SBR, so a 44.1kHz mono .m4a whose mp4a box says one
     // channel really decodes to two. Since the audio device is opened from

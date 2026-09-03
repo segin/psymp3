@@ -1198,9 +1198,11 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
                        track.codecConfig.size(), " bytes");
             // xHE-AAC (MPEG-D USAC) shares objectTypeIndication 0x40 with plain
             // AAC, so the object type inside the AudioSpecificConfig is the only
-            // thing that distinguishes them. It matters because faad2 cannot
-            // decode USAC at all -- routing one there fails at init with a
-            // misleading error. A 5-bit audioObjectType of 31 escapes to
+            // thing that distinguishes them. One FDK-AAC decoder handles both,
+            // but the name still has to differ: it is what Media Info spells
+            // xHE-AAC, and what decides whether loudness normalisation is
+            // applied -- USAC carries programme loudness metadata and expects
+            // it, plain AAC does not. A 5-bit audioObjectType of 31 escapes to
             // "32 + the next 6 bits"; 42 is USAC.
             if (track.codecConfig.size() >= 2 &&
                 (track.codecConfig[0] >> 3) == 31) {
@@ -1209,7 +1211,7 @@ bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrack
                 if (32 + ext == 42) {
                     track.codecType = "xhe-aac";
                     Debug::log("iso", "ISODemuxerBoxParser: audioObjectType 42 (USAC) "
-                                      "- routing to the xHE-AAC decoder");
+                                      "- tagging the stream xHE-AAC");
                 }
             }
             return !track.codecConfig.empty();
