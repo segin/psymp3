@@ -712,8 +712,11 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     frame.channels = m_channels;
 
     if (samples_to_keep > 0) {
-        frame.samples.assign(m_output_buffer.begin() + offset_samples,
-                             m_output_buffer.begin() + offset_samples + samples_to_keep);
+        // libopus decodes 16-bit PCM; the pipeline carries full-scale S32.
+        frame.samples.resize(samples_to_keep);
+        for (size_t i = 0; i < samples_to_keep; ++i) {
+            frame.samples[i] = static_cast<AudioSample>(m_output_buffer[offset_samples + i]) * 65536;
+        }
     }
     
     return frame;
@@ -1773,20 +1776,23 @@ void OpusCodec::applyOutputGain_unlocked(AudioFrame& frame)
     const float gain_factor = std::pow(10.0f, gain_db / 20.0f);
     
     // Apply gain to all samples with proper clamping to prevent artifacts
-    for (int16_t& sample : frame.samples) {
+    for (AudioSample& sample : frame.samples) {
         // Convert to float for precise calculation
         const float original_sample = static_cast<float>(sample);
         const float adjusted_sample = original_sample * gain_factor;
         
-        // Clamp to 16-bit signed integer range with proper rounding
-        // This prevents audio artifacts from overflow/underflow
-        if (adjusted_sample > 32767.0f) {
-            sample = 32767;
-        } else if (adjusted_sample < -32768.0f) {
-            sample = -32768;
+        // Clamp to the pipeline's full 32-bit range with proper rounding.
+        // These bounds were 16-bit, which after the widening would have
+        // crushed every sample to a fraction of full scale.
+        constexpr float kMax = 2147483520.0f;  // largest float < INT32_MAX
+        constexpr float kMin = -2147483648.0f;
+        if (adjusted_sample > kMax) {
+            sample = std::numeric_limits<AudioSample>::max();
+        } else if (adjusted_sample < kMin) {
+            sample = std::numeric_limits<AudioSample>::min();
         } else {
             // Round to nearest integer for better audio quality
-            sample = static_cast<int16_t>(adjusted_sample + (adjusted_sample >= 0.0f ? 0.5f : -0.5f));
+            sample = static_cast<AudioSample>(adjusted_sample + (adjusted_sample >= 0.0f ? 0.5f : -0.5f));
         }
     }
     

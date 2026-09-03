@@ -29,14 +29,14 @@ public:
     Audio(std::unique_ptr<Stream> stream_to_own,
           FastFourier *fft,
           std::mutex *player_mutex,
-          std::vector<int16_t> primed_samples = {},
+          std::vector<AudioSample> primed_samples = {},
           bool primed_eof = false);
     ~Audio();
 
     void play(bool go);
     bool isFinished() const;
     std::unique_ptr<Stream> setStream(std::unique_ptr<Stream> new_stream,
-                                      std::vector<int16_t> primed_samples = {},
+                                      std::vector<AudioSample> primed_samples = {},
                                       bool primed_eof = false);
 
     int getRate() const { return m_rate; }
@@ -66,9 +66,9 @@ private:
     // into a scratch buffer and push it with SDL_PutAudioStreamData.
     static void SDLCALL callback(void *userdata, SDL_AudioStream *stream,
                                  int additional_amount, int total_amount);
-    static void toFloat(int channels, const int16_t *in, float *out,
+    static void toFloat(int channels, const AudioSample *in, float *out,
                         size_t in_frames, size_t out_frames);
-    static std::pair<std::vector<int16_t>, bool> primeStream(Stream* stream, size_t max_samples);
+    static std::pair<std::vector<AudioSample>, bool> primeStream(Stream* stream, size_t max_samples);
 
     // Private unlocked versions of public methods (assumes locks are already held)
     // Lock acquisition order: m_stream_mutex before m_buffer_mutex
@@ -76,7 +76,7 @@ private:
     // to prevent deadlocks and improve performance
     bool isFinished_unlocked() const;
     std::unique_ptr<Stream> setStream_unlocked(std::unique_ptr<Stream> new_stream,
-                                               std::vector<int16_t> primed_samples,
+                                               std::vector<AudioSample> primed_samples,
                                                bool primed_eof);
     void resetBuffer_unlocked();
     uint64_t getBufferLatencyMs_unlocked() const;
@@ -84,7 +84,7 @@ private:
     // Decoder thread and buffer
     void decoderThreadLoop();
     std::thread m_decoder_thread;
-    std::vector<int16_t> m_buffer;
+    std::vector<AudioSample> m_buffer;
     mutable std::mutex m_buffer_mutex;
     mutable std::mutex m_stream_mutex;
     std::condition_variable m_stream_cv;

@@ -33,7 +33,7 @@ public:
      * 
      * Requirements: 9, 10
      */
-    void reconstructSamples(int16_t* output, 
+    void reconstructSamples(AudioSample* output, 
                           int32_t** channels,
                           uint32_t block_size, 
                           uint32_t channel_count,
@@ -49,7 +49,7 @@ private:
      * 
      * Requirements: 9
      */
-    int32_t convertTo16Bit(int32_t sample, uint32_t source_bit_depth);
+    AudioSample convertToFullScale(int32_t sample, uint32_t source_bit_depth);
     
     /**
      * Upscale 8-bit sample to 16-bit

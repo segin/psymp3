@@ -1041,48 +1041,25 @@ void VorbisCodec::convertFloatToPCM_unlocked(float** pcm, int samples, AudioFram
 
 // ========== Static Float to PCM Conversion Helpers ==========
 
-int16_t VorbisCodec::floatToInt16(float sample)
+AudioSample VorbisCodec::floatToSample(float sample)
 {
-    // Convert a single float sample to 16-bit PCM with proper clamping
-    // (Requirement 1.5, 5.1, 5.2)
+    // stb_vorbis produces float samples nominally in [-1.0, 1.0]; the pipeline
+    // carries full-scale S32. Converting straight from float means no
+    // intermediate 16-bit rounding, so this is more accurate than the previous
+    // float -> int16 step, not merely wider.
     //
-    // libvorbis outputs float samples nominally in [-1.0, 1.0]
-    // We convert to 16-bit signed PCM in [-32768, 32767]
-    //
-    // Clamping is essential because:
-    // 1. libvorbis can produce samples slightly outside [-1.0, 1.0] due to
-    //    floating-point precision in the MDCT and windowing operations
-    // 2. Some encoders may produce slightly out-of-range values
-    // 3. Prevents integer overflow during conversion
-    
-    // Clamp to valid range first
-    if (sample > 1.0f) {
-        sample = 1.0f;
-    } else if (sample < -1.0f) {
-        sample = -1.0f;
-    }
-    
-    // Scale to 16-bit range
-    // Using 32767.0f ensures positive samples map to [0, 32767]
-    // and negative samples map to [-32767, 0]
-    // The asymmetry of int16_t (-32768 to 32767) means -1.0f maps to -32767,
-    // not -32768, which is standard practice for audio conversion
-    int32_t scaled = static_cast<int32_t>(sample * 32767.0f);
-    
-    // Final safety clamp (handles floating-point edge cases)
-    if (scaled > 32767) {
-        scaled = 32767;
-    } else if (scaled < -32768) {
-        scaled = -32768;
-    }
-    
-    return static_cast<int16_t>(scaled);
+    // Clamping is essential: the MDCT and windowing can push samples slightly
+    // outside [-1.0, 1.0], and some encoders emit out-of-range values.
+    constexpr float kScale = 2147483520.0f; // largest float below INT32_MAX
+    if (sample >= 1.0f)  return std::numeric_limits<AudioSample>::max();
+    if (sample <= -1.0f) return std::numeric_limits<AudioSample>::min();
+    return static_cast<AudioSample>(sample * kScale);
 }
 
 void VorbisCodec::interleaveChannels(float** pcm, int samples, int channels,
-                                     std::vector<int16_t>& output)
+                                     std::vector<AudioSample>& output)
 {
-    // Interleave multi-channel float arrays into 16-bit PCM output
+    // Interleave multi-channel float arrays into full-scale S32 PCM output
     // (Requirement 5.5, 5.7)
     //
     // Vorbis channel ordering (from specification):
@@ -1109,7 +1086,7 @@ void VorbisCodec::interleaveChannels(float** pcm, int samples, int channels,
     // Interleave: for each sample position, output all channels in order
     for (int i = 0; i < samples; i++) {
         for (int ch = 0; ch < channels; ch++) {
-            output.push_back(floatToInt16(pcm[ch][i]));
+            output.push_back(floatToSample(pcm[ch][i]));
         }
     }
 }

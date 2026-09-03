@@ -78,7 +78,7 @@ bool PCMCodec::canDecode(const StreamInfo& stream_info) const {
 }
 
 size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data, 
-                               std::vector<int16_t>& output_samples) {
+                               std::vector<AudioSample>& output_samples) {
     const uint8_t* input_ptr = input_data.data();
     size_t input_size = input_data.size();
     size_t bytes_per_sample = getBytesPerInputSample();
@@ -94,55 +94,58 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
     
     output_samples.resize(num_samples);
     
+    // Everything lands as full-scale S32, so each depth is scaled up rather
+    // than down. 24- and 32-bit sources used to be shifted DOWN into int16,
+    // which threw away the extra resolution they exist to carry.
     switch (m_pcm_format) {
         case PCMFormat::PCM_8_UNSIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                // Convert 8-bit unsigned to 16-bit signed. Scale by
-                // multiplication: shifting the negative half of the range
-                // left by 8 (the previous code) is UB in C++17.
-                output_samples[i] = static_cast<int16_t>((static_cast<int32_t>(input_ptr[i]) - 128) * 256);
+                // 8-bit unsigned -> signed, then up to full scale. Multiply
+                // rather than shift: shifting a negative value left is UB.
+                output_samples[i] =
+                    static_cast<AudioSample>((static_cast<int32_t>(input_ptr[i]) - 128) * 16777216);
             }
             break;
-            
+
         case PCMFormat::PCM_16_SIGNED:
-            // Direct copy (little-endian assumed)
-            std::memcpy(output_samples.data(), input_ptr, num_samples * sizeof(int16_t));
+            for (size_t i = 0; i < num_samples; ++i) {
+                int16_t sample16;
+                std::memcpy(&sample16, &input_ptr[i * 2], sizeof(int16_t));
+                output_samples[i] = static_cast<AudioSample>(sample16) * 65536;
+            }
             break;
-            
+
         case PCMFormat::PCM_24_SIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                // Build the 24-bit value (little-endian) in unsigned, then
-                // sign-extend from bit 23. Shifting a negative int8_t left
-                // by 16 (the previous code) is UB in C++17.
+                // Build the 24-bit value (little-endian) unsigned, then
+                // sign-extend from bit 23 and scale to full range.
                 uint32_t raw = (static_cast<uint32_t>(input_ptr[i*3 + 2]) << 16) |
                                (static_cast<uint32_t>(input_ptr[i*3 + 1]) << 8) |
                                 static_cast<uint32_t>(input_ptr[i*3]);
                 int32_t sample24 = (raw & 0x800000u) ? static_cast<int32_t>(raw | 0xFF000000u)
                                                      : static_cast<int32_t>(raw);
-                output_samples[i] = static_cast<int16_t>(sample24 >> 8);
+                output_samples[i] = static_cast<AudioSample>(sample24) * 256;
             }
             break;
-            
+
         case PCMFormat::PCM_32_SIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                // Convert 32-bit to 16-bit
                 int32_t sample32;
                 std::memcpy(&sample32, &input_ptr[i*4], sizeof(int32_t));
-                output_samples[i] = static_cast<int16_t>(sample32 >> 16);
+                output_samples[i] = static_cast<AudioSample>(sample32); // already full scale
             }
             break;
-            
+
         case PCMFormat::PCM_32_FLOAT:
             for (size_t i = 0; i < num_samples; ++i) {
-                // Convert 32-bit float to 16-bit signed
                 float sample_float;
                 std::memcpy(&sample_float, &input_ptr[i*4], sizeof(float));
                 sample_float = std::clamp(sample_float, -1.0f, 1.0f);
-                output_samples[i] = static_cast<int16_t>(sample_float * 32767.0f);
+                output_samples[i] = static_cast<AudioSample>(sample_float * 2147483520.0f);
             }
             break;
     }
-    
+
     return num_samples;
 }
 

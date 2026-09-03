@@ -45,7 +45,7 @@ public:
     
 protected:
     size_t convertSamples(const std::vector<uint8_t>& input_data, 
-                          std::vector<int16_t>& output_samples) override;
+                          std::vector<AudioSample>& output_samples) override;
     size_t getBytesPerInputSample() const override;
     
 private:

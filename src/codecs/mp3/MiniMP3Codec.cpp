@@ -106,7 +106,13 @@ AudioFrame MiniMP3Codec::decodeBuffered_unlocked(uint64_t timestamp_samples, boo
             m_sample_rate = static_cast<uint32_t>(frame_info.hz);
             m_channels = static_cast<uint16_t>(frame_info.channels);
             const size_t total = static_cast<size_t>(samples) * frame_info.channels;
-            frame.samples.insert(frame.samples.end(), pcm, pcm + total);
+            // minimp3 emits 16-bit PCM (mp3d_sample_t); the pipeline carries
+            // full-scale S32.
+            const size_t base = frame.samples.size();
+            frame.samples.resize(base + total);
+            for (size_t i = 0; i < total; ++i) {
+                frame.samples[base + i] = static_cast<AudioSample>(pcm[i]) * 65536;
+            }
         }
         // samples == 0 with frame_bytes > 0 is skipped garbage (leading junk,
         // tag remnants) or a reservoir warm-up frame - keep consuming.

@@ -78,7 +78,7 @@ void codecWorkerThread(const std::string& codec_name,
         std::vector<uint8_t> test_data = generateTestData(PACKET_SIZE);
         
         size_t operations = 0;
-        std::vector<int16_t> expected_output;
+        std::vector<AudioSample> expected_output;
         bool first_decode = true;
         
         while (!should_stop && operations < OPERATIONS_PER_THREAD) {

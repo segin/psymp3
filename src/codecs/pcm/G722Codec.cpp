@@ -105,10 +105,12 @@ AudioFrame G722Codec::decode(const MediaChunk& chunk)
         frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / m_stream_info.sample_rate;
     }
 
-    frame.samples.resize(chunk.data.size() * 2);
+    // spandsp writes 16-bit PCM, so decode into a scratch buffer and scale up
+    // into the frame: the pipeline carries full-scale S32.
+    std::vector<int16_t> pcm(chunk.data.size() * 2);
     int samples_decoded = g722_decode(
         static_cast<g722_decode_state_t*>(m_decoder),
-        frame.samples.data(),
+        pcm.data(),
         chunk.data.data(),
         static_cast<int>(chunk.data.size()));
 
@@ -118,6 +120,9 @@ AudioFrame G722Codec::decode(const MediaChunk& chunk)
     }
 
     frame.samples.resize(static_cast<size_t>(samples_decoded));
+    for (size_t i = 0; i < frame.samples.size(); ++i) {
+        frame.samples[i] = static_cast<AudioSample>(pcm[i]) * 65536;
+    }
     return frame;
 }
 

@@ -280,7 +280,7 @@ AudioFrame SpeexCodec::decode(const MediaChunk& chunk) {
     // Copy data to SpeexBits
     speex_bits_read_from((SpeexBits*)m_bits, (char*)chunk.data.data(), chunk.data.size());
     
-    std::vector<int16_t> decoded_samples;
+    std::vector<AudioSample> decoded_samples;
     
     while (true) {
         // Try to decode a frame
@@ -301,7 +301,8 @@ AudioFrame SpeexCodec::decode(const MediaChunk& chunk) {
             produced = 2048;
         }
         for (size_t i = 0; i < produced; ++i) {
-            decoded_samples.push_back(output[i]);
+            // Speex decodes 16-bit PCM; the pipeline carries full-scale S32.
+            decoded_samples.push_back(static_cast<AudioSample>(output[i]) * 65536);
         }
 
         if (speex_bits_remaining((SpeexBits*)m_bits) <= 0) break;

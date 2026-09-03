@@ -24,6 +24,20 @@
 #ifndef ENHANCEDAUDIOBUFFERPOOL_H
 #define ENHANCEDAUDIOBUFFERPOOL_H
 
+
+/**
+ * @brief The pipeline's PCM sample type: 32-bit signed, FULL SCALE.
+ *
+ * A sample occupies the whole int32 range whatever the source's bit depth, so
+ * codecs scale what they decode (16-bit shifts left by 16, 24-bit by 8, 32-bit
+ * passes through). Defined here rather than beside AudioFrame because this
+ * header is included first and the buffer pool is typed on it.
+ *
+ * The pipeline was int16 until 2026-09, which silently truncated every 24-bit
+ * source -- discarding what makes a lossless format lossless.
+ */
+using AudioSample = int32_t;
+
 #include "io/EnhancedTemplateBufferPool.h"
 
 namespace PsyMP3 {
@@ -35,7 +49,7 @@ namespace IO {
  * This class provides an enhanced buffer pool specifically for audio samples
  * with memory pressure awareness, usage statistics tracking, and adaptive buffer management.
  */
-class EnhancedAudioBufferPool : public EnhancedTemplateBufferPool<int16_t> {
+class EnhancedAudioBufferPool : public EnhancedTemplateBufferPool<AudioSample> {
 public:
     /**
      * @brief Get the singleton instance
@@ -49,7 +63,7 @@ public:
      * @param preferred_samples Preferred number of samples (0 = use min_samples)
      * @return Buffer vector with at least min_samples capacity
      */
-    std::vector<int16_t> getSampleBuffer(size_t min_samples, size_t preferred_samples = 0) {
+    std::vector<AudioSample> getSampleBuffer(size_t min_samples, size_t preferred_samples = 0) {
         return getBuffer(min_samples, preferred_samples);
     }
     
@@ -57,7 +71,7 @@ public:
      * @brief Return a sample buffer to the pool for reuse
      * @param buffer Buffer to return (moved)
      */
-    void returnSampleBuffer(std::vector<int16_t>&& buffer) {
+    void returnSampleBuffer(std::vector<AudioSample>&& buffer) {
         returnBuffer(std::move(buffer));
     }
 

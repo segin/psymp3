@@ -221,10 +221,14 @@ AudioFrame ALACCodec::decode_unlocked(const MediaChunk& chunk) {
     AudioFrame frame;
     frame.samples.resize(total);
 
-    // The audio pipeline is int16; downconvert wider depths to 16-bit.
+    // The pipeline carries full-scale S32, so every depth is scaled UP. This
+    // used to downconvert to int16, which threw away 8 bits of every 24-bit
+    // ALAC -- exactly the resolution a lossless format exists to preserve.
     if (m_bit_depth <= 16) {
         const int16_t* s = reinterpret_cast<const int16_t*>(out.data());
-        for (size_t i = 0; i < total; ++i) frame.samples[i] = s[i];
+        for (size_t i = 0; i < total; ++i) {
+            frame.samples[i] = static_cast<AudioSample>(s[i]) * 65536;
+        }
     } else if (m_bit_depth <= 24) {
         // 20/24-bit are written as little-endian 3-byte samples.
         const uint8_t* s = out.data();
@@ -233,11 +237,11 @@ AudioFrame ALACCodec::decode_unlocked(const MediaChunk& chunk) {
                         (static_cast<int32_t>(s[i * 3 + 1]) << 8) |
                         (static_cast<int32_t>(s[i * 3 + 2]) << 16);
             if (v & 0x00800000) v |= ~0x00FFFFFF; // sign-extend 24 -> 32
-            frame.samples[i] = static_cast<int16_t>(v >> 8);
+            frame.samples[i] = static_cast<AudioSample>(v) * 256;
         }
     } else {
         const int32_t* s = reinterpret_cast<const int32_t*>(out.data());
-        for (size_t i = 0; i < total; ++i) frame.samples[i] = static_cast<int16_t>(s[i] >> 16);
+        for (size_t i = 0; i < total; ++i) frame.samples[i] = static_cast<AudioSample>(s[i]);
     }
 
     frame.sample_rate = m_sample_rate;

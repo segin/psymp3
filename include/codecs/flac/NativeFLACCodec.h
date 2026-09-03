@@ -490,7 +490,7 @@ private:
     // Post-decorrelation narrowed samples (all values fit the frame bit depth,
     // at most 32 bits) for SampleReconstructor and MD5Validator.
     std::vector<int32_t> m_narrow_buffer[MAX_CHANNELS];
-    std::vector<int16_t> m_output_buffer;
+    std::vector<AudioSample> m_output_buffer;
     
     // Performance statistics
     mutable FLACCodecStats m_stats;

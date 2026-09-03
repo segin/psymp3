@@ -165,7 +165,7 @@ private:
     
     // ========== Decoding buffers ==========
     // Requirements: 7.1, 7.2, 7.4
-    std::vector<int16_t> m_output_buffer;
+    std::vector<AudioSample> m_output_buffer;
 
     // Cap on m_input growth: if stb_vorbis declines this much re-paged data
     // the stream is pathological, and unbounded buffering would just defer
@@ -243,7 +243,7 @@ public:
      * 
      * Requirements: 1.5, 5.1, 5.2
      */
-    static int16_t floatToInt16(float sample);
+    static AudioSample floatToSample(float sample);
     
     /**
      * @brief Interleave multi-channel float arrays into 16-bit PCM output
@@ -255,7 +255,7 @@ public:
      * Requirements: 5.5, 5.7
      */
     static void interleaveChannels(float** pcm, int samples, int channels, 
-                                   std::vector<int16_t>& output);
+                                   std::vector<AudioSample>& output);
     
     // ========== Buffer status methods (public for testing and integration) ==========
     /**

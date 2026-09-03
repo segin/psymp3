@@ -254,7 +254,7 @@ AudioFrame ALawCodec::decode(const MediaChunk& chunk) {
 }
 
 size_t ALawCodec::convertSamples(const std::vector<uint8_t>& input_data, 
-                                std::vector<int16_t>& output_samples) {
+                                std::vector<AudioSample>& output_samples) {
     const size_t input_samples = input_data.size();
     auto start_time = std::chrono::high_resolution_clock::now();
     
@@ -281,7 +281,8 @@ size_t ALawCodec::convertSamples(const std::vector<uint8_t>& input_data,
             
             // Direct lookup - no validation needed as all 8-bit values are valid
             const int16_t pcm_sample = ALAW_TO_PCM[alaw_sample];
-            output_samples.push_back(pcm_sample);
+            // The table holds 16-bit PCM; the pipeline is full-scale S32.
+            output_samples.push_back(static_cast<AudioSample>(pcm_sample) * 65536);
         }
         
         // Performance metrics for large conversions

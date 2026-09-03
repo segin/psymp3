@@ -100,7 +100,11 @@ AudioFrame MP2Codec::decode_unlocked(const MediaChunk& chunk) {
     }
 
     AudioFrame frame;
-    frame.samples.assign(pcm, pcm + (KJMP2_SAMPLES_PER_FRAME * 2));
+    // kjmp2 emits 16-bit PCM; the pipeline carries full-scale S32.
+    frame.samples.resize(KJMP2_SAMPLES_PER_FRAME * 2);
+    for (size_t i = 0; i < frame.samples.size(); ++i) {
+        frame.samples[i] = static_cast<AudioSample>(pcm[i]) * 65536;
+    }
     frame.sample_rate = m_sample_rate;
     frame.channels = 2; // kjmp2 output is always stereo-interleaved
     frame.timestamp_samples = chunk.timestamp_samples;

@@ -109,7 +109,7 @@ class Player
             Stream* stream;
             TagLib::String error_message;
             size_t num_chained_tracks; // How many tracks are in this stream (for playlist advancement)
-            std::vector<int16_t> primed_samples;
+            std::vector<AudioSample> primed_samples;
             bool primed_eof = false;
         };
 
@@ -349,7 +349,7 @@ class Player
         
         Stream* stream = nullptr;
         std::unique_ptr<Stream> m_next_stream; // Slot for the pre-loaded next track
-        std::vector<int16_t> m_next_stream_primed_samples;
+        std::vector<AudioSample> m_next_stream_primed_samples;
         bool m_next_stream_primed_eof = false;
         size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
         size_t m_num_tracks_in_current_stream = 0; // How many playlist entries the current stream represents

@@ -126,7 +126,7 @@ void Equalizer::recompute()
     }
 }
 
-void Equalizer::process(int16_t* samples, size_t frame_count, int channels)
+void Equalizer::process(AudioSample* samples, size_t frame_count, int channels)
 {
     const bool enabled = m_enabled.load(std::memory_order_relaxed);
     // Reset history on the disabled->enabled rising edge, detected here on the
@@ -166,9 +166,14 @@ void Equalizer::process(int16_t* samples, size_t frame_count, int channels)
                 m_z2[c][b] = q.b2 * s - q.a2 * y;
                 s = y;
             }
-            if (s >  32767.0) s =  32767.0;
-            if (s < -32768.0) s = -32768.0;
-            samples[f * channels + c] = static_cast<int16_t>(std::lround(s));
+            // Clamp to the pipeline's full 32-bit range. These bounds were
+            // 16-bit; left alone after the widening they would have crushed
+            // every sample to a thousandth of full scale.
+            constexpr double kMax =  2147483647.0;
+            constexpr double kMin = -2147483648.0;
+            if (s > kMax) s = kMax;
+            if (s < kMin) s = kMin;
+            samples[f * channels + c] = static_cast<AudioSample>(std::llround(s));
         }
     }
 

@@ -157,9 +157,14 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
     m_stream_info.bits_per_sample = 16;
 
     AudioFrame frame;
-    frame.samples.assign(
-        static_cast<const int16_t*>(decoded),
-        static_cast<const int16_t*>(decoded) + frame_info.samples);
+    // faad is configured for FAAD_FMT_16BIT; scale to full-scale S32.
+    {
+        const int16_t* pcm = static_cast<const int16_t*>(decoded);
+        frame.samples.resize(frame_info.samples);
+        for (size_t i = 0; i < frame.samples.size(); ++i) {
+            frame.samples[i] = static_cast<AudioSample>(pcm[i]) * 65536;
+        }
+    }
     frame.sample_rate = m_sample_rate;
     frame.channels = m_channels;
     frame.timestamp_samples = chunk.timestamp_samples;

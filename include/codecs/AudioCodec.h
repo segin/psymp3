@@ -31,8 +31,11 @@
 /**
  * @brief Decoded audio frame with optimized memory management
  */
+// AudioSample (int32, full scale) is defined in EnhancedAudioBufferPool.h,
+// which is included before this header and is typed on it.
+
 struct AudioFrame {
-    std::vector<int16_t> samples;    // Decoded PCM samples (16-bit signed)
+    std::vector<AudioSample> samples; // Decoded PCM, 32-bit signed full scale
     uint32_t sample_rate = 0;        // Sample rate of this frame
     uint16_t channels = 0;           // Number of channels
     uint64_t timestamp_samples = 0;  // Timestamp in sample units
@@ -67,7 +70,7 @@ struct AudioFrame {
      * @brief Get the number of bytes in this frame
      */
     size_t getByteCount() const {
-        return samples.size() * sizeof(int16_t);
+        return samples.size() * sizeof(AudioSample);
     }
     
     /**
@@ -226,7 +229,7 @@ protected:
      * @return Number of samples converted
      */
     virtual size_t convertSamples(const std::vector<uint8_t>& input_data, 
-                                  std::vector<int16_t>& output_samples) = 0;
+                                  std::vector<AudioSample>& output_samples) = 0;
     
     /**
      * @brief Get number of bytes per input sample

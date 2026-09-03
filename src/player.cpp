@@ -212,16 +212,16 @@ size_t getPrimeSampleCount(Stream* stream)
     return std::max<size_t>(4096, samples_per_half_second);
 }
 
-std::pair<std::vector<int16_t>, bool> primeLoadedStream(Stream* stream)
+std::pair<std::vector<AudioSample>, bool> primeLoadedStream(Stream* stream)
 {
     if (!stream) {
         return {{}, false};
     }
 
     const size_t prime_samples = getPrimeSampleCount(stream);
-    std::vector<int16_t> primed_samples(prime_samples);
-    const size_t bytes_read = stream->getData(prime_samples * sizeof(int16_t), primed_samples.data());
-    primed_samples.resize(bytes_read / sizeof(int16_t));
+    std::vector<AudioSample> primed_samples(prime_samples);
+    const size_t bytes_read = stream->getData(prime_samples * sizeof(AudioSample), primed_samples.data());
+    primed_samples.resize(bytes_read / sizeof(AudioSample));
     return {std::move(primed_samples), stream->eof()};
 }
 
@@ -842,7 +842,7 @@ void Player::loaderThreadLoop() {
         Stream* new_stream = nullptr;
         TagLib::String error_msg;
         size_t num_chained = 1;
-        std::vector<int16_t> primed_samples;
+        std::vector<AudioSample> primed_samples;
         bool primed_eof = false;
 
         try {
@@ -5654,7 +5654,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     m_skip_attempts = 0; // Reset skip counter on a successful load.
     Stream* new_stream = result->stream;
     m_num_tracks_in_current_stream = result->num_chained_tracks;
-    std::vector<int16_t> primed_samples = std::move(result->primed_samples);
+    std::vector<AudioSample> primed_samples = std::move(result->primed_samples);
     const bool primed_eof = result->primed_eof;
     delete result; // Free the result struct
 

@@ -82,57 +82,27 @@ int16_t SampleReconstructor::validateAndClip(int32_t sample) {
   return static_cast<int16_t>(sample);
 }
 
-int32_t SampleReconstructor::convertTo16Bit(int32_t sample,
-                                            uint32_t source_bit_depth) {
-  // Requirement 9: Bit depth conversion
-
-  switch (source_bit_depth) {
-  case 16:
-    // Requirement 9.1: 16-bit passthrough (no conversion)
-    return sample;
-
-  case 8:
-    // Requirement 9.2: 8-bit to 16-bit upscaling
-    return upscale8To16(sample);
-
-  case 24:
-    // Requirement 9.3: 24-bit to 16-bit downscaling with rounding
-    return downscale24To16(sample);
-
-  case 32:
-    // Requirement 9.4: 32-bit to 16-bit downscaling
-    return downscale32To16(sample);
-
-  case 20:
-    // Requirement 9.6: 20-bit to 16-bit downscaling
-    return downscale20To16(sample);
-
-  case 4:
-  case 5:
-  case 6:
-  case 7:
-  case 9:
-  case 10:
-  case 11:
-  case 12:
-  case 13:
-  case 14:
-  case 15:
-    // Requirement 9.5: 4-15 bit depths upscaling
-    return upscaleTo16(sample, source_bit_depth);
-
-  default:
-    // For any other bit depth, attempt to scale appropriately
-    if (source_bit_depth < 16) {
-      return upscaleTo16(sample, source_bit_depth);
-    } else {
-      // Downscale by appropriate amount, rounding half away from zero.
-      return roundedDownshift(sample, source_bit_depth - 16);
-    }
+AudioSample SampleReconstructor::convertToFullScale(int32_t sample,
+                                                   uint32_t source_bit_depth) {
+  // Align the source's most significant bit with bit 31 so every depth uses
+  // the full int32 range. Computed in int64 and clamped: shifting a negative
+  // value left is undefined behaviour, and a malformed stream can present a
+  // sample wider than its declared depth.
+  if (source_bit_depth >= 32) {
+    return static_cast<AudioSample>(sample);
   }
+  const int64_t scaled = static_cast<int64_t>(sample) *
+                         (static_cast<int64_t>(1) << (32 - source_bit_depth));
+  if (scaled > static_cast<int64_t>(std::numeric_limits<AudioSample>::max())) {
+    return std::numeric_limits<AudioSample>::max();
+  }
+  if (scaled < static_cast<int64_t>(std::numeric_limits<AudioSample>::min())) {
+    return std::numeric_limits<AudioSample>::min();
+  }
+  return static_cast<AudioSample>(scaled);
 }
 
-void SampleReconstructor::reconstructSamples(int16_t *output,
+void SampleReconstructor::reconstructSamples(AudioSample *output,
                                              int32_t **channels,
                                              uint32_t block_size,
                                              uint32_t channel_count,
@@ -168,18 +138,10 @@ void SampleReconstructor::reconstructSamples(int16_t *output,
       // Get the sample from this channel
       int32_t sample = channels[channel_idx][sample_idx];
 
-      // Convert to 16-bit with bit depth conversion
-      // Requirement 9: Bit depth conversion
-      int32_t converted = convertTo16Bit(sample, source_bit_depth);
-
-      // Validate and clip to prevent overflow
-      // Requirement 10.5: Ensure values are within valid 16-bit range
-      // Requirement 57: Sample value range validation
-      // Requirement 9.8: Prevent clipping during conversion
-      converted = validateAndClip(converted);
-
-      // Store interleaved sample
-      output[output_index++] = converted;
+      // Scale the source depth UP to full-scale S32 rather than down to 16
+      // bits. The old path discarded 8 bits of every 24-bit FLAC, which is
+      // precisely the resolution a lossless format exists to preserve.
+      output[output_index++] = convertToFullScale(sample, source_bit_depth);
     }
   }
 

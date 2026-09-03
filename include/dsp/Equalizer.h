@@ -47,7 +47,7 @@ public:
 
     // Audio thread: filter `frame_count` interleaved frames of `channels`
     // samples in place. RT-safe. A no-op when disabled.
-    void process(int16_t* samples, size_t frame_count, int channels);
+    void process(AudioSample* samples, size_t frame_count, int channels);
 
     // Audio thread, and it MUST be called while holding the same lock the
     // producers hold when they requestReset() (the PCM buffer mutex): moves a

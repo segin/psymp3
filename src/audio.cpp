@@ -61,7 +61,7 @@ bool ensureSDLAudioSubsystem()
 Audio::Audio(std::unique_ptr<Stream> stream_to_own,
              FastFourier *fft,
              std::mutex *player_mutex,
-             std::vector<int16_t> primed_samples,
+             std::vector<AudioSample> primed_samples,
              bool primed_eof)
     : m_active(true),
       m_owned_stream(std::move(stream_to_own)),
@@ -151,9 +151,9 @@ void Audio::setup() {
 
     // Use m_current_stream_raw_ptr to get rate and channels
     desired.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
-    desired.format = SDL_AUDIO_S16; /* native-endian signed 16-bit */
+    desired.format = SDL_AUDIO_S32; /* native-endian signed 32-bit, full scale */
     desired.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
-    Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: SDL_AUDIO_S16");
+    Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: SDL_AUDIO_S32");
 
     // A stream reporting zero rate or channels is malformed; opening the device
     // would let the audio callback divide by zero (SIGFPE). Throw so the caller
@@ -224,7 +224,7 @@ void Audio::play(bool go) {
  * @param new_stream A pointer to the new Stream object.
  */
 std::unique_ptr<Stream> Audio::setStream(std::unique_ptr<Stream> new_stream,
-                                         std::vector<int16_t> primed_samples,
+                                         std::vector<AudioSample> primed_samples,
                                          bool primed_eof)
 {
     if (new_stream && primed_samples.empty() && !primed_eof) {
@@ -328,7 +328,7 @@ void Audio::decoderThreadLoop() {
     System::setThisThreadName("audio-decoder");
     System::setThreadPriority(System::ThreadPriority::High);
     System::pinThreadToRole(System::CpuRole::Decoder);
-    std::vector<int16_t> decode_chunk(4096); // Decode in 8KB chunks
+    std::vector<AudioSample> decode_chunk(4096); // Decode in 8KB chunks
     // The high water mark prevents the decoder from reading too far ahead,
     // which is important for responsive seeking and track changes. It defines
     // the maximum amount of decoded audio to keep in the buffer.
@@ -403,7 +403,7 @@ void Audio::decoderThreadLoop() {
 
             // Perform decoding WITHOUT holding player mutex (prevents GUI deadlock)
             if (validated_stream) {
-                bytes_read = validated_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
+                bytes_read = validated_stream->getData(decode_chunk.size() * sizeof(AudioSample), decode_chunk.data());
                 eof = validated_stream->eof();
                 
                 size_t buffer_size = 0;
@@ -446,7 +446,7 @@ void Audio::decoderThreadLoop() {
             }
 
             if (bytes_read > 0) {
-                size_t samples_read = bytes_read / sizeof(int16_t);
+                size_t samples_read = bytes_read / sizeof(AudioSample);
                 // Keep the queue frame-aligned: a decoder returning a byte
                 // count that is not a multiple of the frame size would
                 // channel-rotate every subsequent buffer, corrupting the EQ's
@@ -532,12 +532,12 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
 
         if (!self->m_buffer.empty() && self->m_active && self->m_playing) {
             size_t bytes_to_copy = len;
-            size_t bytes_available = self->m_buffer.size() * sizeof(int16_t);
+            size_t bytes_available = self->m_buffer.size() * sizeof(AudioSample);
             bytes_copied = std::min(bytes_to_copy, bytes_available);
 
             if (bytes_copied > 0) {
                 memcpy(buf, self->m_buffer.data(), bytes_copied);
-                size_t samples_copied = bytes_copied / sizeof(int16_t);
+                size_t samples_copied = bytes_copied / sizeof(AudioSample);
                 self->m_buffer.erase(self->m_buffer.begin(), self->m_buffer.begin() + samples_copied);
                 self->m_samples_played += samples_copied / self->m_channels;
                 
@@ -578,8 +578,8 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
         // a device buffer smaller than the 512-frame window we requested, and
         // reading the window blindly would run off the end of `buf`.
         const size_t in_frames = static_cast<size_t>(len) /
-                                 (static_cast<size_t>(self->m_channels) * sizeof(int16_t));
-        toFloat(self->m_channels, reinterpret_cast<const int16_t*>(buf),
+                                 (static_cast<size_t>(self->m_channels) * sizeof(AudioSample));
+        toFloat(self->m_channels, reinterpret_cast<const AudioSample*>(buf),
                 self->m_fft->getTimeDom(), in_frames,
                 static_cast<size_t>(self->m_fft->getFFTSize()));
         self->m_fft->doFFT();
@@ -588,10 +588,17 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
     // Apply volume scaling
     float volume = self->m_volume.load();
     if (bytes_copied > 0 && volume < 1.0f) {
-        int16_t* samples = reinterpret_cast<int16_t*>(buf);
-        size_t count = bytes_copied / sizeof(int16_t);
+        AudioSample* samples = reinterpret_cast<AudioSample*>(buf);
+        size_t count = bytes_copied / sizeof(AudioSample);
         for (size_t i = 0; i < count; ++i) {
-            samples[i] = static_cast<int16_t>(samples[i] * volume);
+            // Compute in float and clamp: a full-scale int32 scaled by a
+            // volume above unity would wrap.
+            const float scaled = static_cast<float>(samples[i]) * volume;
+            samples[i] = (scaled >= 2147483520.0f)
+                             ? std::numeric_limits<AudioSample>::max()
+                             : (scaled <= -2147483648.0f
+                                    ? std::numeric_limits<AudioSample>::min()
+                                    : static_cast<AudioSample>(scaled));
         }
     }
 
@@ -602,8 +609,8 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
     // therefore sees the raw pre-EQ signal (the spectrum stays volume- and
     // EQ-independent, as it was before the equalizer existed).
     if (bytes_copied > 0 && self->m_channels > 0) {
-        size_t eq_frames = (bytes_copied / sizeof(int16_t)) / static_cast<size_t>(self->m_channels);
-        self->m_eq.process(reinterpret_cast<int16_t*>(buf), eq_frames, self->m_channels);
+        size_t eq_frames = (bytes_copied / sizeof(AudioSample)) / static_cast<size_t>(self->m_channels);
+        self->m_eq.process(reinterpret_cast<AudioSample*>(buf), eq_frames, self->m_channels);
     }
 
     // SDL3: hand the assembled PCM (data + any silence fill) to the stream.
@@ -648,7 +655,7 @@ bool Audio::isFinished_unlocked() const {
  * @return nullptr (ownership transferred)
  */
 std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_stream,
-                                                  std::vector<int16_t> primed_samples,
+                                                  std::vector<AudioSample> primed_samples,
                                                   bool primed_eof) {
     // Invariant guard: the device (and the EQ coefficients) were configured
     // for m_rate/m_channels; callers must only swap in a matching stream (the
@@ -695,7 +702,7 @@ uint64_t Audio::getBufferLatencyMs_unlocked() const {
     return (static_cast<uint64_t>(samples_in_buffer) * 1000) / m_rate;
 }
 
-std::pair<std::vector<int16_t>, bool> Audio::primeStream(Stream* stream, size_t max_samples)
+std::pair<std::vector<AudioSample>, bool> Audio::primeStream(Stream* stream, size_t max_samples)
 {
     if (!stream) {
         return {{}, false};
@@ -707,9 +714,9 @@ std::pair<std::vector<int16_t>, bool> Audio::primeStream(Stream* stream, size_t 
         max_samples = std::max<size_t>(4096, samples_per_ms / 2);
     }
 
-    std::vector<int16_t> primed_samples(max_samples);
-    const size_t bytes_read = stream->getData(max_samples * sizeof(int16_t), primed_samples.data());
-    size_t samples_read = bytes_read / sizeof(int16_t);
+    std::vector<AudioSample> primed_samples(max_samples);
+    const size_t bytes_read = stream->getData(max_samples * sizeof(AudioSample), primed_samples.data());
+    size_t samples_read = bytes_read / sizeof(AudioSample);
     // Keep the primed data frame-aligned for the same reason as the decoder
     // loop: a partial trailing frame would channel-rotate everything after it.
     const size_t channels = static_cast<size_t>(stream->getChannels());
@@ -733,10 +740,14 @@ std::pair<std::vector<int16_t>, bool> Audio::primeStream(Stream* stream, size_t 
  * @param in A pointer to the buffer of 16-bit signed integer input samples.
  * @param out A pointer to the destination buffer for the converted float samples.
  */
-void Audio::toFloat(int channels, const int16_t *in, float *out,
+void Audio::toFloat(int channels, const AudioSample *in, float *out,
                     size_t in_frames, size_t out_frames) {
-    const float scale_mono = 1.0f / 32768.0f;
-    const float scale_stereo = 1.0f / 65536.0f;
+    // The pipeline is full-scale S32, so normalise by 2^31 (and 2^32 for a
+    // stereo pair summed to mono). Converting int32 is simpler in SSE2 than
+    // the int16 version this replaced: _mm_cvtepi32_ps takes a loaded vector
+    // directly, with no unpack/sign-extend step.
+    const float scale_mono = 1.0f / 2147483648.0f;
+    const float scale_stereo = 1.0f / 4294967296.0f;
 
     // Convert only as many frames as the callback actually delivered. `in` holds
     // in_frames frames (SDL may negotiate a device buffer smaller than the FFT
@@ -749,86 +760,50 @@ void Audio::toFloat(int channels, const int16_t *in, float *out,
     }
 
     if (channels == 1) {
-        // SIMD optimization for mono conversion
         #ifdef __SSE2__
-        constexpr size_t simd_batch = 8; // Process 8 samples at once with SSE2
+        constexpr size_t simd_batch = 4; // 4 int32 per 128-bit vector
         const size_t simd_end = (n / simd_batch) * simd_batch;
-
         __m128 scale_vec = _mm_set1_ps(scale_mono);
-
         for (size_t x = 0; x < simd_end; x += simd_batch) {
-            // Load 8 int16_t values (128 bits)
-            __m128i int16_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x]));
-
-            // Convert to two sets of 4 int32_t values
-            __m128i int32_lo = _mm_unpacklo_epi16(int16_vec, _mm_srai_epi16(int16_vec, 15));
-            __m128i int32_hi = _mm_unpackhi_epi16(int16_vec, _mm_srai_epi16(int16_vec, 15));
-
-            // Convert to float and scale
-            __m128 float_lo = _mm_mul_ps(_mm_cvtepi32_ps(int32_lo), scale_vec);
-            __m128 float_hi = _mm_mul_ps(_mm_cvtepi32_ps(int32_hi), scale_vec);
-
-            // Store results
-            _mm_storeu_ps(&out[x], float_lo);
-            _mm_storeu_ps(&out[x + 4], float_hi);
+            __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x]));
+            _mm_storeu_ps(&out[x], _mm_mul_ps(_mm_cvtepi32_ps(v), scale_vec));
         }
-
-        // Handle remaining samples with scalar code
         for (size_t x = simd_end; x < n; x++) {
-            out[x] = in[x] * scale_mono;
+            out[x] = static_cast<float>(in[x]) * scale_mono;
         }
         #else
-        // Fallback scalar implementation
         for (size_t x = 0; x < n; x++) {
-            out[x] = in[x] * scale_mono;
+            out[x] = static_cast<float>(in[x]) * scale_mono;
         }
         #endif
     } else if (channels == 2) {
-        // SIMD optimization for stereo to mono conversion
         #ifdef __SSE2__
-        constexpr size_t simd_batch = 4; // Process 4 stereo pairs at once
+        constexpr size_t simd_batch = 4; // 4 stereo pairs = 8 int32
         const size_t simd_end = (n / simd_batch) * simd_batch;
-
         __m128 scale_vec = _mm_set1_ps(scale_stereo);
-
         for (size_t x = 0; x < simd_end; x += simd_batch) {
-            // Load 8 int16_t values (4 stereo pairs, 128 bits)
-            __m128i stereo_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x * 2]));
-
-            // Convert to int32_t with sign extension
-            __m128i int32_lo = _mm_unpacklo_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
-            __m128i int32_hi = _mm_unpackhi_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
-
-            // Convert to float: float_lo = [L0,R0,L1,R1], float_hi = [L2,R2,L3,R3]
-            __m128 float_lo = _mm_cvtepi32_ps(int32_lo);
-            __m128 float_hi = _mm_cvtepi32_ps(int32_hi);
-
-            // Gather the left and right channels separately, then add, so each
-            // output is L_i + R_i. (The previous shuffle summed same-channel
-            // neighbours, producing L0+L1 / R0+R1 instead of L0+R0 / L1+R1.)
-            __m128 lefts  = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(2, 0, 2, 0)); // L0,L1,L2,L3
-            __m128 rights = _mm_shuffle_ps(float_lo, float_hi, _MM_SHUFFLE(3, 1, 3, 1)); // R0,R1,R2,R3
-            __m128 sum = _mm_add_ps(lefts, rights);                                       // L0+R0, L1+R1, L2+R2, L3+R3
-
-            // Scale and store
-            __m128 result = _mm_mul_ps(sum, scale_vec);
-            _mm_storeu_ps(&out[x], result);
+            __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x * 2]));      // L0,R0,L1,R1
+            __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x * 2 + 4]));  // L2,R2,L3,R3
+            __m128 fa = _mm_cvtepi32_ps(a);
+            __m128 fb = _mm_cvtepi32_ps(b);
+            // Gather channels separately so each output is L_i + R_i.
+            __m128 lefts  = _mm_shuffle_ps(fa, fb, _MM_SHUFFLE(2, 0, 2, 0));
+            __m128 rights = _mm_shuffle_ps(fa, fb, _MM_SHUFFLE(3, 1, 3, 1));
+            __m128 sum = _mm_add_ps(lefts, rights);
+            _mm_storeu_ps(&out[x], _mm_mul_ps(sum, scale_vec));
         }
-
-        // Handle remaining samples with scalar code
         for (size_t x = simd_end; x < n; x++) {
-            out[x] = (static_cast<int32_t>(in[x * 2]) + in[(x * 2) + 1]) * scale_stereo;
+            // Sum in float: two full-scale int32 values would overflow int32.
+            out[x] = (static_cast<float>(in[x * 2]) + static_cast<float>(in[x * 2 + 1])) * scale_stereo;
         }
         #else
-        // Fallback scalar implementation
         for (size_t x = 0; x < n; x++) {
-            out[x] = (static_cast<int32_t>(in[x * 2]) + in[(x * 2) + 1]) * scale_stereo;
+            out[x] = (static_cast<float>(in[x * 2]) + static_cast<float>(in[x * 2 + 1])) * scale_stereo;
         }
         #endif
     }
 
-    // Zero the unfilled tail of the FFT window (short device buffer, or an
-    // unhandled channel count) so the transform never sees stale samples.
+    // Zero any remainder of the FFT window the callback did not fill.
     for (size_t x = n; x < out_frames; x++) {
         out[x] = 0.0f;
     }

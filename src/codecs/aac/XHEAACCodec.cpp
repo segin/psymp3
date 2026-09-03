@@ -185,8 +185,11 @@ AudioFrame XHEAACCodec::decode_unlocked(const MediaChunk& chunk)
         static_cast<size_t>(frame_size) * static_cast<size_t>(channels);
 
     AudioFrame frame;
-    frame.samples.assign(pcm.begin(),
-                         pcm.begin() + static_cast<std::ptrdiff_t>(sample_count));
+    // The FDK shim hands back 16-bit PCM; scale to full-scale S32.
+    frame.samples.resize(sample_count);
+    for (size_t i = 0; i < sample_count; ++i) {
+        frame.samples[i] = static_cast<AudioSample>(pcm[i]) * 65536;
+    }
     frame.sample_rate = m_sample_rate;
     frame.channels = m_channels;
     frame.timestamp_samples = chunk.timestamp_samples;

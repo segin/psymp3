@@ -221,7 +221,7 @@ FLACCodecStats FLACCodec::getStats() const {
         stats.memory_usage_bytes += m_decode_buffer[i].capacity() * sizeof(int64_t);
         stats.memory_usage_bytes += m_narrow_buffer[i].capacity() * sizeof(int32_t);
     }
-    stats.memory_usage_bytes += m_output_buffer.capacity() * sizeof(int16_t);
+    stats.memory_usage_bytes += m_output_buffer.capacity() * sizeof(AudioSample);
 
     // Add component memory estimates if available
     // (This is a basic estimate, components allocate their own memory)
