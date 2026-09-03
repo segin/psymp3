@@ -32,6 +32,35 @@ static_assert(sizeof(INT_PCM) == 2, "PsyMP3 expects an FDK-AAC built for 16-bit 
 
 extern "C" {
 
+unsigned psymp3_fdk_capabilities(void)
+{
+    LIB_INFO info[FDK_MODULE_LAST];
+    FDKinitLibInfo(info);
+    if (aacDecoder_GetLibInfo(info) != 0) {
+        return 0;
+    }
+
+    // SBR and Parametric Stereo are the SBR module's to report, not the core
+    // decoder's.
+    const UINT core = FDKlibInfo_getCapabilities(info, FDK_AACDEC);
+    const UINT sbr = FDKlibInfo_getCapabilities(info, FDK_SBRDEC);
+
+    unsigned caps = 0;
+    if (core & CAPF_AAC_LC) {
+        caps |= PSYMP3_FDK_CAP_AAC_LC;
+    }
+    if (core & CAPF_AAC_USAC) {
+        caps |= PSYMP3_FDK_CAP_USAC;
+    }
+    if (sbr & (CAPF_SBR_HQ | CAPF_SBR_LP)) {
+        caps |= PSYMP3_FDK_CAP_SBR;
+    }
+    if (sbr & CAPF_SBR_PS_MPEG) {
+        caps |= PSYMP3_FDK_CAP_PS;
+    }
+    return caps;
+}
+
 void* psymp3_fdk_open(void)
 {
     // TT_MP4_RAW: bare access units, configuration supplied out of band from

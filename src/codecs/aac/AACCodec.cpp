@@ -128,6 +128,30 @@ bool AACCodec::initialize_unlocked() {
                 m_stream_info.codec_name == "usac" ||
                 isUSACConfig(m_stream_info.codec_data);
 
+    // FDK can be built with profiles removed and still present the same API
+    // and pkg-config name, so ask what this one actually implements. A zero
+    // mask means the library declined to say, which is treated as unknown
+    // rather than as nothing.
+    const unsigned caps = psymp3_fdk_capabilities();
+    if (caps != 0) {
+        static std::once_flag caps_logged;
+        std::call_once(caps_logged, [caps] {
+            Debug::log("aac", "FDK-AAC profiles available:",
+                       (caps & PSYMP3_FDK_CAP_AAC_LC) ? " AAC-LC" : "",
+                       (caps & PSYMP3_FDK_CAP_SBR)    ? " HE-AACv1" : "",
+                       (caps & PSYMP3_FDK_CAP_PS)     ? " HE-AACv2" : "",
+                       (caps & PSYMP3_FDK_CAP_USAC)   ? " xHE-AAC" : "");
+        });
+
+        // Refusing beats decoding it wrong: a stripped build would otherwise
+        // render the USAC core as noise rather than failing.
+        if (m_is_usac && !(caps & PSYMP3_FDK_CAP_USAC)) {
+            Debug::log("aac", "AACCodec::initialize: this FDK-AAC build has no USAC "
+                              "support, so the xHE-AAC stream cannot be decoded");
+            return false;
+        }
+    }
+
     m_decoder = psymp3_fdk_open();
     if (!m_decoder) {
         Debug::log("aac", "AACCodec::initialize: decoder open failed");

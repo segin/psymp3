@@ -40,6 +40,29 @@ extern "C" {
 #define PSYMP3_FDK_AOT_ER_AAC_ELD 39
 #define PSYMP3_FDK_AOT_USAC       42
 
+/*
+ * What the linked FDK actually implements, as returned by
+ * psymp3_fdk_capabilities().
+ *
+ * FDK can be built with profiles removed, and distributions do exactly that:
+ * Fedora's fdk-aac-free strips the parts it considers patent-encumbered while
+ * still providing the same pkg-config name and the same API. Without asking,
+ * a stripped build decodes an HE-AAC file to its core rate with no SBR --
+ * right duration, right speed, half the bandwidth -- and nothing in the build
+ * or the bitstream says so.
+ */
+#define PSYMP3_FDK_CAP_AAC_LC  0x1u  /**< AAC-LC. */
+#define PSYMP3_FDK_CAP_SBR     0x2u  /**< Spectral Band Replication: HE-AACv1. */
+#define PSYMP3_FDK_CAP_PS      0x4u  /**< Parametric Stereo: HE-AACv2. */
+#define PSYMP3_FDK_CAP_USAC    0x8u  /**< MPEG-D USAC: xHE-AAC. */
+
+/**
+ * Profiles the linked FDK supports, as a mask of PSYMP3_FDK_CAP_*.
+ * Zero if the library refuses to report, which is treated as "unknown"
+ * rather than "nothing".
+ */
+unsigned psymp3_fdk_capabilities(void);
+
 /** Open a decoder for raw access units. NULL on failure. */
 void* psymp3_fdk_open(void);
 
