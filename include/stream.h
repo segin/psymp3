@@ -97,6 +97,8 @@ class Stream
         // polymorphic object names the derived type) - every Stream subclass
         // therefore self-describes even without an override.
         virtual TagLib::String getCodecName();
+        /// Decoder-reported profile ("AAC-LC", "HE-AACv2", ...); empty if none.
+        virtual TagLib::String getCodecProfile() { return TagLib::String(); }
         virtual size_t getData(size_t len, void *buf) = 0;
         virtual void seekTo(unsigned long pos) = 0;
         virtual bool canSeek() const;

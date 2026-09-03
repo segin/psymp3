@@ -740,6 +740,16 @@ TagLib::String DemuxedStream::getCodecName() {
     return Stream::getCodecName(); // RTTI class-name fallback
 }
 
+TagLib::String DemuxedStream::getCodecProfile() {
+    // Some decoders only learn the exact profile once they have seen a frame
+    // (HE-AAC's SBR/PS are usually signalled implicitly, not in the header),
+    // so this is asked of the codec rather than the container.
+    if (!m_codec) {
+        return TagLib::String();
+    }
+    return TagLib::String(m_codec->getCodecProfile(), TagLib::String::UTF8);
+}
+
 TagLib::String DemuxedStream::getPrimaryArtist() {
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();

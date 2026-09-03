@@ -126,6 +126,30 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
         return AudioFrame();
     }
 
+    // Profile, for display. It has to come from a decoded frame rather than
+    // the AudioSpecificConfig: HE-AAC's SBR and HE-AACv2's Parametric Stereo
+    // are usually signalled IMPLICITLY, i.e. discovered only once the decoder
+    // meets them in the bitstream, so the header alone would call almost every
+    // HE-AAC file plain AAC-LC.
+    {
+        const char* profile = nullptr;
+        if (frame_info.ps != 0) {
+            profile = "HE-AACv2";
+        } else if (frame_info.sbr == SBR_UPSAMPLED || frame_info.sbr == SBR_DOWNSAMPLED) {
+            profile = "HE-AAC";
+        } else {
+            switch (frame_info.object_type) {
+                case MAIN: profile = "AAC Main"; break;
+                case LC:   profile = "AAC-LC";   break;
+                case SSR:  profile = "AAC-SSR";  break;
+                case LTP:  profile = "AAC-LTP";  break;
+                case LD:   profile = "AAC-LD";   break;
+                default:   profile = "AAC";      break;
+            }
+        }
+        m_profile = profile;
+    }
+
     m_sample_rate = frame_info.samplerate;
     m_channels = frame_info.channels;
     m_stream_info.sample_rate = m_sample_rate;

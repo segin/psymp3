@@ -24,6 +24,12 @@ public:
     AudioFrame flush() override;
     void reset() override;
     std::string getCodecName() const override { return "aac"; }
+    /// "AAC-LC", "HE-AAC", "HE-AACv2", ... Empty until a frame has decoded,
+    /// because SBR/PS are usually only discovered in the bitstream.
+    std::string getCodecProfile() const override {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_profile;
+    }
     bool canDecode(const StreamInfo& stream_info) const override;
 
 private:
@@ -39,6 +45,7 @@ private:
     uint32_t m_sample_rate = 0;
     uint16_t m_channels = 0;
     bool m_decoder_initialized = false;
+    std::string m_profile;  ///< set from the first decoded frame
     uint32_t m_container_sample_rate = 0;
     int m_priming_frames = 0;  // post-seek warm-up frames to decode and discard
     mutable std::mutex m_mutex;

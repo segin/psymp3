@@ -4961,6 +4961,12 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
         }
     }
 
+    // A decoder that can name its profile wins: only the decoder knows an
+    // AAC stream is HE-AACv2 rather than plain LC, because SBR and Parametric
+    // Stereo are normally signalled implicitly in the bitstream rather than in
+    // the container's header.
+    const std::string codec_profile = stream->getCodecProfile().to8Bit(true);
+
     // Format descriptor, "PCM S32 LE" style. Uncompressed sources name their
     // wire format exactly; lossless coders show the sample format they carry;
     // lossy coders have no PCM sample format, so the codec stands alone.
@@ -4979,6 +4985,10 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
         format = codec_uc + (bits > 0 ? " S" + std::to_string(bits) + " LE" : "");
     } else {
         format = codec_uc;
+    }
+
+    if (!codec_profile.empty()) {
+        format = codec_profile;
     }
 
     // Size on disk (unknown for non-file sources)

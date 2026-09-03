@@ -37,6 +37,7 @@ public:
     AudioFrame flush() override;
     void reset() override;
     std::string getCodecName() const override { return "xhe-aac"; }
+    std::string getCodecProfile() const override { return "xHE-AAC"; }
     bool canDecode(const StreamInfo& stream_info) const override;
 
     /// True when the AudioSpecificConfig describes USAC (object type 42).

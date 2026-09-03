@@ -160,6 +160,13 @@ public:
      * @brief Get stream information
      */
     const StreamInfo& getStreamInfo() const { return m_stream_info; }
+
+    /**
+     * @brief Human-readable profile of the stream being decoded, if the codec
+     *        can tell one (e.g. "AAC-LC" vs "HE-AACv2"). Empty when the codec
+     *        has nothing more specific to say than its name.
+     */
+    virtual std::string getCodecProfile() const { return {}; }
     
 protected:
     StreamInfo m_stream_info;
