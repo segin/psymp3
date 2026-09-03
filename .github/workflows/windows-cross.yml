@@ -229,7 +229,7 @@ jobs:
         make install
         cd ..
 
-        # ---- FDK-AAC (xHE-AAC / MPEG-D USAC; faad2 cannot decode it) ----
+        # ---- FDK-AAC (the whole AAC family: LC, HE-AACv1/v2, xHE-AAC) ----
         curl -fsSLO "https://downloads.sourceforge.net/opencore-amr/fdk-aac-${FDKAAC_VER}.tar.gz"
         tar xf "fdk-aac-${FDKAAC_VER}.tar.gz"
         cd "fdk-aac-${FDKAAC_VER}"

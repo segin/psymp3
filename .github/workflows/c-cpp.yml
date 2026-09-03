@@ -34,7 +34,7 @@ jobs:
           libogg-dev \
           libvorbis-dev \
           libopus-dev \
-          libfaad-dev \
+          libfdk-aac-dev \
           libspeex-dev \
           libspandsp-dev \
           libdbus-1-dev \

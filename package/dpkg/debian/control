@@ -16,7 +16,7 @@ Build-Depends:
  libcurl4-openssl-dev,
  libogg-dev,
  libopus-dev,
- libfaad-dev,
+ libfdk-aac-dev,
  libspandsp-dev,
  libspeex-dev,
  libdbus-1-dev,
