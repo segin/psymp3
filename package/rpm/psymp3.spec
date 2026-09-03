@@ -38,7 +38,18 @@ BuildRequires:  pkgconfig(freetype2)
 BuildRequires:  pkgconfig(libcurl)
 BuildRequires:  pkgconfig(ogg)
 BuildRequires:  pkgconfig(opus)
+# Fedora ships only fdk-aac-free, a build with the profiles it considers
+# patent-encumbered stripped out. It keeps the same pkg-config name and the
+# same API, so configure would find it and the player would then decode
+# HE-AAC to its core rate with no SBR -- right duration, half the bandwidth,
+# and nothing in the build saying so. AAC is dropped there rather than
+# shipped half-working. openSUSE builds against the real fdk-aac from Packman.
+%if 0%{?fedora}
+%global psymp3_aac_args --disable-aac
+%else
+%global psymp3_aac_args %{nil}
 BuildRequires:  pkgconfig(fdk-aac)
+%endif
 BuildRequires:  pkgconfig(spandsp)
 BuildRequires:  pkgconfig(speex)
 BuildRequires:  pkgconfig(dbus-1)
@@ -55,10 +66,21 @@ BuildRequires:  desktop-file-utils
 PsyMP3 is a cross-platform audio player built around a real-time FFT
 spectrum analyzer and a Windows 3.x-styled in-application window system.
 
-It decodes MP3, MP2, FLAC, Ogg Vorbis, Opus, Speex, AAC, ALAC, WAV (PCM,
-A-law, mu-law and G.722) and raw streams, using bundled decoders for
-Vorbis (stb_vorbis), MP3 (minimp3), MP2 (kjmp2) and ALAC so the codec set
-does not vary with what the system happens to provide.
+%if 0%{?fedora}
+It decodes MP3, MP2, FLAC, Ogg Vorbis, Opus, Speex, ALAC, MLP/Dolby TrueHD,
+WAV (PCM, A-law, mu-law and G.722) and raw streams, using bundled decoders
+for Vorbis (stb_vorbis), MP3 (minimp3), MP2 (kjmp2), ALAC and MLP/TrueHD so
+the codec set does not vary with what the system happens to provide.
+
+AAC is not built on Fedora: only fdk-aac-free is available there, and it
+omits the profiles needed to decode HE-AAC and xHE-AAC correctly.
+%else
+It decodes MP3, MP2, FLAC, Ogg Vorbis, Opus, Speex, AAC, ALAC, MLP/Dolby
+TrueHD, WAV (PCM, A-law, mu-law and G.722) and raw streams, using bundled
+decoders for Vorbis (stb_vorbis), MP3 (minimp3), MP2 (kjmp2), ALAC and
+MLP/TrueHD so the codec set does not vary with what the system happens to
+provide.
+%endif
 
 Playback integrates with the desktop through MPRIS, scrobbles to Last.fm,
 and can publish now-playing state to Discord.
@@ -69,7 +91,7 @@ and can publish now-playing state to Discord.
 %build
 # configure is generated, not shipped in the git tree.
 ./autogen.sh
-%configure
+%configure %{psymp3_aac_args}
 %make_build
 
 %install

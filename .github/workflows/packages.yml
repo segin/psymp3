@@ -129,6 +129,13 @@ jobs:
           dnf -y install 'dnf-command(builddep)'
           dnf -y builddep package/rpm/psymp3.spec
         else
+          # fdk-aac lives in Packman on openSUSE rather than the OSS repo, the
+          # same place the unrestricted ffmpeg does. Without it configure would
+          # quietly disable AAC instead of failing.
+          zypper --non-interactive addrepo --refresh --priority 90 \
+            https://ftp.gwdg.de/pub/linux/misc/packman/suse/openSUSE_Tumbleweed/ \
+            packman
+          zypper --non-interactive --gpg-auto-import-keys refresh
           # zypper's spec reader needs the version macro defined to parse.
           zypper --non-interactive install $(
             rpmspec -q --buildrequires \
