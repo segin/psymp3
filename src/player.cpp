@@ -4944,6 +4944,8 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
         {"speex",   "Speex"},
         {"xhe-aac", "xHE-AAC"},
         {"usac",    "xHE-AAC"},
+        {"truehd",  "TrueHD"},
+        {"mlp",     "MLP"},
     };
     if (auto it = kCodecDisplayNames.find(codec_lc); it != kCodecDisplayNames.end()) {
         codec_uc = it->second;
@@ -4981,7 +4983,8 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     } else if (codec_lc.find("g722") != std::string::npos) {
         format = "G.722";
 
-    } else if (codec_lc == "flac" || codec_lc == "alac") {
+    } else if (codec_lc == "flac" || codec_lc == "alac" ||
+               codec_lc == "truehd" || codec_lc == "mlp") {
         format = codec_uc + (bits > 0 ? " S" + std::to_string(bits) + " LE" : "");
     } else {
         format = codec_uc;
