@@ -1,6 +1,8 @@
 /*
  * mlp_decoder.h - Meridian Lossless Packing / Dolby TrueHD decoder
  * This file is part of PsyMP3.
+ *
+ * Copyright © 2025 Rainbaby (truehdd)
  * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
  *
  * Unlike the rest of PsyMP3, which is ISC, this file is Apache-2.0: it is a
@@ -19,10 +21,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * This is an independent C++ implementation of the MLP/TrueHD bitstream, written
- * against truehdd <https://github.com/truehdd/truehdd> as its reference for the
- * format. truehdd is Copyright © the truehdd contributors and is licensed under
- * the Apache License, Version 2.0.
+ * This is a C++ implementation of the MLP/TrueHD bitstream derived from truehdd
+ * <https://github.com/truehdd/truehdd> (truehd 0.7.1), Copyright © 2025
+ * Rainbaby, used under the Apache License, Version 2.0. The bitstream syntax,
+ * the Huffman tables, the dither table and the recorrelation and matrixing
+ * arithmetic all follow that work; this is a translation of it into C++ rather
+ * than an independent reimplementation.
+ *
+ * Changes from the original, as Apache-2.0 section 4(b) requires them to be
+ * stated: translated from Rust to C++; the parser and decoder state are merged
+ * and driven per access unit; the timing, FIFO and lossless-check validation
+ * are omitted; and the recorrelator's 24-bit range assertions are not
+ * enforced.
  */
 
 #ifndef PSYMP3_THIRD_PARTY_MLP_DECODER_H

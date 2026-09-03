@@ -61,7 +61,8 @@ Highlights:
 - MP3 — minimp3 (`third_party/minimp3`)
 - MP2 — kjmp2 (`third_party/kjmp2`)
 - ALAC — Apple's reference decoder (`third_party/alac`)
-- MLP / Dolby TrueHD — bundled decoder (`third_party/mlp`)
+- MLP / Dolby TrueHD — bundled decoder (`third_party/mlp`), derived from
+  [truehdd](https://github.com/truehdd/truehdd) © 2025 Rainbaby (Apache-2.0)
 - G.711 µ-law/A-law, and raw PCM formats
 
 **Optional integration dependencies**:
