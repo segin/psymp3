@@ -340,7 +340,13 @@ uint32_t mapSamplingFrequency(uint8_t code)
     throw Error("invalid audio_sampling_frequency code " + std::to_string(code));
 }
 
+} // namespace
+
 // ---------------------------------------------------------- substream state
+//
+// These two are implementation detail, but they cannot live in the anonymous
+// namespace above: DecoderState is named by the header and so has external
+// linkage, and a type with internal linkage cannot be one of its members.
 
 /// Everything one substream carries between blocks and access units.
 struct SubstreamState {
@@ -429,8 +435,6 @@ struct Matrixing {
     int32_t m_coeff[MAX_CHANNELS][MAX_CHANNELS] = {};
     int32_t delta_cf[MAX_CHANNELS][MAX_CHANNELS] = {};
 };
-
-} // namespace
 
 // --------------------------------------------------------------- decoder
 
