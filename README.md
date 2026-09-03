@@ -61,6 +61,7 @@ Highlights:
 - MP3 — minimp3 (`third_party/minimp3`)
 - MP2 — kjmp2 (`third_party/kjmp2`)
 - ALAC — Apple's reference decoder (`third_party/alac`)
+- MLP / Dolby TrueHD — bundled decoder (`third_party/mlp`)
 - G.711 µ-law/A-law, and raw PCM formats
 
 **Optional integration dependencies**:
@@ -135,7 +136,7 @@ one-liners and how the version label is mapped to a legal package version.
 Pass the paths of audio files or playlists (`.m3u`/`.m3u8`) as program
 arguments; they are played in order. Supported formats include MP3, MP2,
 Ogg Vorbis, Opus, FLAC (native and Ogg), WAV/RIFF, AAC/M4A, xHE-AAC, ALAC, Speex,
-G.711 (µ-law/A-law), G.722, and raw PCM.
+MLP/Dolby TrueHD (`.thd`/`.truehd`/`.mlp`), G.711 (µ-law/A-law), G.722, and raw PCM.
 
 PsyMP3 has a full mouse-driven UI — a menu bar (`File`, `Playback`,
 `Settings`, `Help` — Alt+F/P/S mnemonics work) plus movable in-app windows
