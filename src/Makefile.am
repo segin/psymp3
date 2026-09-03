@@ -101,11 +101,12 @@ if FINAL_BUILD
 # All C++ sources are #included in psymp3.final.cpp, no static libraries
 # needed. stb_vorbis rides along as a separate C object (its global
 # typedefs/macros are hostile to C++ inclusion).
-# xhe_fdk.cpp is listed separately, not #included by psymp3.final.cpp: FDK-AAC's
-# headers collide with faad2's, so it must remain its own translation unit --
-# the same reason stb_vorbis_impl.c is built apart.
+# fdk_aac.cpp is listed separately, not #included by psymp3.final.cpp: it is
+# the only place FDK-AAC's headers appear, and confining them to one object
+# keeps them out of the unity translation unit -- the same reason
+# stb_vorbis_impl.c is built apart.
 psymp3_SOURCES = psymp3.final.cpp codecs/vorbis/stb_vorbis_impl.c \
-	codecs/aac/xhe_fdk.cpp codecs/mlp/mlp_decoder_impl.cpp
+	codecs/aac/fdk_aac.cpp codecs/mlp/mlp_decoder_impl.cpp
 # Final build still needs system libraries
 psymp3_LDADD = \
 	$(SDL_LIBS) \
@@ -194,9 +195,6 @@ endif
 
 if HAVE_AAC
 psymp3_LDADD += $(AAC_LIBS)
-endif
-if HAVE_XHE_AAC
-psymp3_LDADD += $(FDKAAC_LIBS)
 endif
 
 if HAVE_G722

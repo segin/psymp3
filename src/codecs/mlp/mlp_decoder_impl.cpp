@@ -18,6 +18,6 @@
 // putting its object above the build root.
 //
 // This is also why psymp3.final.cpp does not #include it: like
-// stb_vorbis_impl.c and xhe_fdk.cpp, it stays its own translation unit in the
+// stb_vorbis_impl.c and fdk_aac.cpp, it stays its own translation unit in the
 // --enable-final build.
 #include "../../../third_party/mlp/mlp_decoder.cpp"

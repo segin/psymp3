@@ -17,20 +17,65 @@ namespace PsyMP3 {
 namespace Codec {
 namespace AAC {
 
+namespace {
+
+/// Object type for MPEG-D USAC, what Fraunhofer markets as xHE-AAC.
+constexpr unsigned kAotUSAC = PSYMP3_FDK_AOT_USAC;
+
+/// Output scratch: 8 channels x 2048 samples covers every frame size in the
+/// family (AAC frames are 960 or 1024 samples per channel, doubled to 2048 by
+/// SBR; USAC frames are 768, 1024 or 2048).
+constexpr int kPcmBufferSamples = 8 * 2048;
+
+/// Target loudness for xHE-AAC's mandatory loudness normalisation, in dBFS.
+/// xHE streams carry loudness metadata and expect the decoder to normalise;
+/// leaving it off makes these tracks noticeably quieter or louder than the
+/// rest of a library. -16 LUFS is the usual streaming target and matches what
+/// other players default to. Deliberately NOT applied to AAC-LC/HE-AAC, where
+/// it would shift levels relative to every other decoder.
+constexpr int kTargetLoudnessDbfs = -16;
+
+} // namespace
+
+bool AACCodec::isUSACConfig(const std::vector<uint8_t>& asc)
+{
+    // AudioSpecificConfig begins with a 5-bit audioObjectType; the value 31 is
+    // an escape meaning "32 + the next 6 bits". USAC is 42, so it is always
+    // spelled with the escape form.
+    if (asc.size() < 2) {
+        return false;
+    }
+    const unsigned first5 = static_cast<unsigned>(asc[0] >> 3);
+    if (first5 != 31) {
+        return false; // 42 cannot be spelled without the escape
+    }
+    // Next 6 bits span the low 3 bits of byte 0 and the top 3 of byte 1.
+    const unsigned ext = ((static_cast<unsigned>(asc[0]) & 0x07) << 3) |
+                         (static_cast<unsigned>(asc[1]) >> 5);
+    return (32 + ext) == kAotUSAC;
+}
+
 AACCodec::AACCodec(const StreamInfo& stream_info)
     : AudioCodec(stream_info),
       m_sample_rate(stream_info.sample_rate),
       m_channels(stream_info.channels),
-      // The container's rate, kept separately because m_sample_rate is later
-      // replaced by the decoder's (which SBR may have doubled). Chunk
-      // timestamps are counted in container sample units, so they must be
-      // converted with this one.
       m_container_sample_rate(stream_info.sample_rate) {
 }
 
 AACCodec::~AACCodec() {
     std::lock_guard<std::mutex> lock(m_mutex);
     destroyDecoder_unlocked();
+}
+
+bool AACCodec::canDecode(const StreamInfo& stream_info) const {
+    return AACCodecSupport::isAACStream(stream_info);
+}
+
+std::string AACCodec::getCodecName() const {
+    // The demuxer names a USAC stream separately (see BoxParser), and Media
+    // Info spells that one xHE-AAC rather than AAC.
+    return (m_stream_info.codec_name == "xhe-aac" || m_stream_info.codec_name == "usac")
+        ? "xhe-aac" : "aac";
 }
 
 bool AACCodec::initialize() {
@@ -44,79 +89,118 @@ AudioFrame AACCodec::decode(const MediaChunk& chunk) {
 }
 
 AudioFrame AACCodec::flush() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return flush_unlocked();
+    // FDK hands back every frame as it is fed; nothing is held back.
+    return AudioFrame();
 }
 
 void AACCodec::reset() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    reset_unlocked();
-}
 
-bool AACCodec::canDecode(const StreamInfo& stream_info) const {
-    return stream_info.codec_type == "audio" && stream_info.codec_name == "aac";
+    if (!m_decoder || !m_decoder_initialized) {
+        return;
+    }
+
+    // Drops decoder history without discarding the configuration, which is
+    // what a seek needs.
+    psymp3_fdk_reset(m_decoder);
+
+    // The first access unit after a seek has no MDCT overlap from a preceding
+    // frame (nor any SBR/PS history), so emitting it produces an audible click
+    // on every seek. Decode it for its side effects and throw the audio away,
+    // which is what the format expects.
+    m_priming_frames = 1;
 }
 
 bool AACCodec::initialize_unlocked() {
     destroyDecoder_unlocked();
 
     if (!canDecode(m_stream_info)) {
-        Debug::log("aac", "AACCodec::initialize_unlocked: unsupported stream type");
+        Debug::log("aac", "AACCodec::initialize: unsupported stream type");
         return false;
     }
 
     if (m_stream_info.codec_data.empty()) {
-        Debug::log("aac", "AACCodec::initialize_unlocked: missing AudioSpecificConfig");
+        Debug::log("aac", "AACCodec::initialize: missing AudioSpecificConfig");
         return false;
     }
 
-    m_decoder = NeAACDecOpen();
+    m_is_usac = m_stream_info.codec_name == "xhe-aac" ||
+                m_stream_info.codec_name == "usac" ||
+                isUSACConfig(m_stream_info.codec_data);
+
+    m_decoder = psymp3_fdk_open();
     if (!m_decoder) {
-        Debug::log("aac", "AACCodec::initialize_unlocked: NeAACDecOpen failed");
+        Debug::log("aac", "AACCodec::initialize: decoder open failed");
         return false;
     }
 
-    if (!configureDecoder_unlocked()) {
+    if (psymp3_fdk_configure(m_decoder, m_stream_info.codec_data.data(),
+                             static_cast<unsigned>(m_stream_info.codec_data.size()))
+            != PSYMP3_FDK_OK) {
+        Debug::log("aac", "AACCodec::initialize: decoder rejected the AudioSpecificConfig");
         destroyDecoder_unlocked();
         return false;
     }
 
-    if (!initializeDecoderFromASC_unlocked()) {
-        destroyDecoder_unlocked();
-        return false;
+    if (m_is_usac &&
+        psymp3_fdk_set_target_loudness(m_decoder, kTargetLoudnessDbfs) != PSYMP3_FDK_OK) {
+        // Not fatal: the stream still decodes, only its level may be off.
+        Debug::log("aac", "AACCodec::initialize: loudness configuration rejected");
     }
 
+    m_pcm.resize(kPcmBufferSamples);
+    m_stream_info.bits_per_sample = 16;
+    m_decoder_initialized = true;
     m_initialized = true;
+    Debug::log("aac", "AACCodec::initialize: decoder ready (",
+               m_is_usac ? "USAC" : "AAC", ")");
     return true;
 }
 
+void AACCodec::updateProfile_unlocked(int aot, int ext_aot) {
+    // The profile has to come from a decoded frame rather than the
+    // AudioSpecificConfig: HE-AACv1's SBR and HE-AACv2's Parametric Stereo are
+    // usually signalled IMPLICITLY, i.e. discovered only once the decoder meets
+    // them in the bitstream, so the header alone would call almost every
+    // HE-AAC file plain AAC-LC.
+    const char* profile = "AAC";
+
+    if (aot == PSYMP3_FDK_AOT_USAC) {
+        profile = "xHE-AAC";
+    } else if (ext_aot == PSYMP3_FDK_AOT_PS) {
+        profile = "HE-AACv2";
+    } else if (ext_aot == PSYMP3_FDK_AOT_SBR) {
+        profile = "HE-AACv1";
+    } else {
+        switch (aot) {
+            case PSYMP3_FDK_AOT_AAC_MAIN:    profile = "AAC Main"; break;
+            case PSYMP3_FDK_AOT_AAC_LC:      profile = "AAC-LC";   break;
+            case PSYMP3_FDK_AOT_AAC_SSR:     profile = "AAC-SSR";  break;
+            case PSYMP3_FDK_AOT_AAC_LTP:     profile = "AAC-LTP";  break;
+            case PSYMP3_FDK_AOT_ER_AAC_LD:   profile = "AAC-LD";   break;
+            case PSYMP3_FDK_AOT_ER_AAC_ELD:  profile = "AAC-ELD";  break;
+            default: break;
+        }
+    }
+
+    m_profile = profile;
+}
+
 AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
-    if (!m_initialized || !m_decoder_initialized || !m_decoder) {
+    if (!m_initialized || !m_decoder_initialized || !m_decoder || chunk.data.empty()) {
         return AudioFrame();
     }
 
-    if (chunk.data.empty()) {
-        return AudioFrame();
+    int frame_size = 0, rate = 0, channels = 0, aot = 0, ext_aot = 0;
+    const int rc = psymp3_fdk_decode(m_decoder, chunk.data.data(),
+                                     static_cast<unsigned>(chunk.data.size()),
+                                     m_pcm.data(), static_cast<int>(m_pcm.size()),
+                                     &frame_size, &rate, &channels, &aot, &ext_aot);
+    if (rc == PSYMP3_FDK_NEED_MORE_DATA) {
+        return AudioFrame(); // needs another access unit first
     }
-
-    NeAACDecFrameInfo frame_info = {};
-    void* decoded = NeAACDecDecode(
-        m_decoder,
-        &frame_info,
-        const_cast<unsigned char*>(chunk.data.data()),
-        static_cast<unsigned long>(chunk.data.size()));
-
-    if (frame_info.error != 0) {
-        // NeAACDecGetErrorMessage returns NULL for an error code outside its
-        // table; streaming a null char* into an ostream is undefined.
-        const char* msg = NeAACDecGetErrorMessage(frame_info.error);
-        Debug::log("aac", "AACCodec::decode_unlocked: decode error ",
-                   static_cast<unsigned>(frame_info.error), ": ",
-                   msg ? msg : "(unknown error)");
-        return AudioFrame();
-    }
-
-    if (!decoded || frame_info.samples == 0 || frame_info.channels == 0 || frame_info.samplerate == 0) {
+    if (rc != PSYMP3_FDK_OK || frame_size <= 0 || channels <= 0 || rate <= 0) {
+        Debug::log("aac", "AACCodec::decode: frame failed (", chunk.data.size(), " bytes)");
         return AudioFrame();
     }
 
@@ -126,45 +210,30 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
         return AudioFrame();
     }
 
-    // Profile, for display. It has to come from a decoded frame rather than
-    // the AudioSpecificConfig: HE-AAC's SBR and HE-AACv2's Parametric Stereo
-    // are usually signalled IMPLICITLY, i.e. discovered only once the decoder
-    // meets them in the bitstream, so the header alone would call almost every
-    // HE-AAC file plain AAC-LC.
-    {
-        const char* profile = nullptr;
-        if (frame_info.ps != 0) {
-            profile = "HE-AACv2";
-        } else if (frame_info.sbr == SBR_UPSAMPLED || frame_info.sbr == SBR_DOWNSAMPLED) {
-            profile = "HE-AAC";
-        } else {
-            switch (frame_info.object_type) {
-                case MAIN: profile = "AAC Main"; break;
-                case LC:   profile = "AAC-LC";   break;
-                case SSR:  profile = "AAC-SSR";  break;
-                case LTP:  profile = "AAC-LTP";  break;
-                case LD:   profile = "AAC-LD";   break;
-                default:   profile = "AAC";      break;
-            }
-        }
-        m_profile = profile;
-    }
+    updateProfile_unlocked(aot, ext_aot);
 
-    m_sample_rate = frame_info.samplerate;
-    m_channels = frame_info.channels;
+    // Follow what the decoder reports rather than the container header: SBR
+    // doubles the output rate, and USAC can change the channel count too.
+    m_sample_rate = static_cast<uint32_t>(rate);
+    m_channels = static_cast<uint16_t>(channels);
     m_stream_info.sample_rate = m_sample_rate;
     m_stream_info.channels = m_channels;
     m_stream_info.bits_per_sample = 16;
 
-    AudioFrame frame;
-    // faad is configured for FAAD_FMT_16BIT; scale to full-scale S32.
-    {
-        const int16_t* pcm = static_cast<const int16_t*>(decoded);
-        frame.samples.resize(frame_info.samples);
-        for (size_t i = 0; i < frame.samples.size(); ++i) {
-            frame.samples[i] = static_cast<AudioSample>(pcm[i]) * 65536;
-        }
+    const size_t sample_count =
+        static_cast<size_t>(frame_size) * static_cast<size_t>(channels);
+    if (sample_count > m_pcm.size()) {
+        Debug::log("aac", "AACCodec::decode: frame larger than the scratch buffer");
+        return AudioFrame();
     }
+
+    AudioFrame frame;
+    // FDK hands back 16-bit PCM; scale to full-scale S32.
+    frame.samples.resize(sample_count);
+    for (size_t i = 0; i < sample_count; ++i) {
+        frame.samples[i] = static_cast<AudioSample>(m_pcm[i]) * 65536;
+    }
+
     frame.sample_rate = m_sample_rate;
     frame.channels = m_channels;
     frame.timestamp_samples = chunk.timestamp_samples;
@@ -180,95 +249,24 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
     return frame;
 }
 
-AudioFrame AACCodec::flush_unlocked() {
-    return AudioFrame();
-}
-
-void AACCodec::reset_unlocked() {
-    if (!m_decoder) {
-        return;
-    }
-
-    if (m_decoder_initialized) {
-        NeAACDecPostSeekReset(m_decoder, 0);
-        // The first access unit after a seek has no MDCT overlap from a
-        // preceding frame (nor any SBR/PS history), so emitting it produces an
-        // audible click on every seek. Decode it for its side effects and
-        // throw the audio away, which is what the format expects.
-        m_priming_frames = 1;
-    }
-}
-
 void AACCodec::destroyDecoder_unlocked() {
     if (m_decoder) {
-        NeAACDecClose(m_decoder);
+        psymp3_fdk_close(m_decoder);
         m_decoder = nullptr;
     }
     m_decoder_initialized = false;
     m_initialized = false;
 }
 
-bool AACCodec::configureDecoder_unlocked() {
-    NeAACDecConfigurationPtr config = NeAACDecGetCurrentConfiguration(m_decoder);
-    if (!config) {
-        Debug::log("aac", "AACCodec::configureDecoder_unlocked: failed to get decoder configuration");
-        return false;
-    }
-
-    config->outputFormat = FAAD_FMT_16BIT;
-    config->downMatrix = 0;
-    config->dontUpSampleImplicitSBR = 0;
-
-    if (!NeAACDecSetConfiguration(m_decoder, config)) {
-        Debug::log("aac", "AACCodec::configureDecoder_unlocked: failed to apply decoder configuration");
-        return false;
-    }
-
-    return true;
-}
-
-bool AACCodec::initializeDecoderFromASC_unlocked() {
-    mp4AudioSpecificConfig asc = {};
-    // NeAACDecAudioSpecificConfig returns plain `char`, which is UNSIGNED on
-    // ARM32/AArch64: comparing its result against < 0 there is always false,
-    // so this sanity check silently did nothing and a malformed ASC went
-    // straight to NeAACDecInit2. Compare through a signed type.
-    const signed char asc_result = static_cast<signed char>(
-        NeAACDecAudioSpecificConfig(
-            const_cast<unsigned char*>(m_stream_info.codec_data.data()),
-            static_cast<unsigned long>(m_stream_info.codec_data.size()),
-            &asc));
-    if (asc_result < 0) {
-        Debug::log("aac", "AACCodec::initializeDecoderFromASC_unlocked: invalid AudioSpecificConfig");
-        return false;
-    }
-
-    unsigned long sample_rate = 0;
-    unsigned char channels = 0;
-    if (NeAACDecInit2(
-            m_decoder,
-            const_cast<unsigned char*>(m_stream_info.codec_data.data()),
-            static_cast<unsigned long>(m_stream_info.codec_data.size()),
-            &sample_rate,
-            &channels) != 0) {
-        Debug::log("aac", "AACCodec::initializeDecoderFromASC_unlocked: NeAACDecInit2 failed");
-        return false;
-    }
-
-    m_sample_rate = sample_rate;
-    m_channels = channels;
-    m_stream_info.sample_rate = m_sample_rate;
-    m_stream_info.channels = m_channels;
-    m_stream_info.bits_per_sample = 16;
-    m_decoder_initialized = true;
-    return true;
-}
-
 namespace AACCodecSupport {
 
 void registerCodec() {
     Debug::log("aac", "AACCodecSupport::registerCodec: Registering AAC codec");
+    // One decoder covers the family, so it answers to every name the demuxers
+    // use for it.
     AudioCodecFactory::registerCodec("aac", createCodec);
+    AudioCodecFactory::registerCodec("xhe-aac", createCodec);
+    AudioCodecFactory::registerCodec("usac", createCodec);
 }
 
 std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info) {
@@ -279,7 +277,10 @@ std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info) {
 }
 
 bool isAACStream(const StreamInfo& stream_info) {
-    return stream_info.codec_type == "audio" && stream_info.codec_name == "aac";
+    return stream_info.codec_type == "audio" &&
+           (stream_info.codec_name == "aac" ||
+            stream_info.codec_name == "xhe-aac" ||
+            stream_info.codec_name == "usac");
 }
 
 } // namespace AACCodecSupport

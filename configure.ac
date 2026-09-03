@@ -152,12 +152,8 @@ AC_ARG_ENABLE([opus],
   [enable_opus=$enableval], [enable_opus=yes])
 
 AC_ARG_ENABLE([aac],
-  [AS_HELP_STRING([--enable-aac], [Enable AAC support via faad2 @<:@default=yes@:>@])],
+  [AS_HELP_STRING([--enable-aac], [Enable AAC support via FDK-AAC @<:@default=yes@:>@])],
   [enable_aac=$enableval], [enable_aac=yes])
-
-AC_ARG_ENABLE([xhe-aac],
-  [AS_HELP_STRING([--enable-xhe-aac], [Enable xHE-AAC (MPEG-D USAC) support via FDK-AAC @<:@default=yes@:>@])],
-  [enable_xhe_aac=$enableval], [enable_xhe_aac=yes])
 
 AC_ARG_ENABLE([g722],
   [AS_HELP_STRING([--enable-g722], [Enable G.722 support via spandsp @<:@default=yes@:>@])],
@@ -219,30 +215,21 @@ else
   have_opus=no
 fi
 
+# One FDK-AAC decoder covers the whole family: AAC-LC, HE-AACv1, HE-AACv2 and
+# xHE-AAC (MPEG-D USAC, object type 42). faad2 used to serve the first three
+# but stops at object type 27, so it could not decode USAC at all and a second
+# decoder had to be carried alongside it. FDK also decodes SBR and Parametric
+# Stereo far more accurately, is actively maintained, and is what the Windows
+# cross-build already had.
 if test "x$enable_aac" = "xyes"; then
-  PKG_CHECK_MODULES([AAC], [faad2], [have_aac=yes], [have_aac=no])
+  PKG_CHECK_MODULES([AAC], [fdk-aac], [have_aac=yes], [have_aac=no])
   if test "x$have_aac" = "xyes"; then
     AC_DEFINE([HAVE_AAC], [1], [Define to 1 if AAC support is enabled])
   else
-    AC_MSG_WARN([AAC support disabled: faad2 not found])
+    AC_MSG_WARN([AAC support disabled: fdk-aac not found])
   fi
 else
   have_aac=no
-fi
-
-# xHE-AAC (MPEG-D USAC, audio object type 42). faad2 cannot decode it at all --
-# its object types stop at 27 -- so this is a separate decoder, not an option
-# on the existing one. FDK-AAC is the only free implementation that handles it
-# (FFmpeg's native decoder still rejects real-world xHE streams).
-if test "x$enable_xhe_aac" = "xyes"; then
-  PKG_CHECK_MODULES([FDKAAC], [fdk-aac], [have_xhe_aac=yes], [have_xhe_aac=no])
-  if test "x$have_xhe_aac" = "xyes"; then
-    AC_DEFINE([HAVE_XHE_AAC], [1], [Define to 1 if xHE-AAC support is enabled])
-  else
-    AC_MSG_WARN([xHE-AAC support disabled: fdk-aac not found])
-  fi
-else
-  have_xhe_aac=no
 fi
 
 if test "x$enable_g722" = "xyes"; then
@@ -344,7 +331,6 @@ AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBISENC_TESTS], [test "x$have_vorbisenc" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
-AM_CONDITIONAL([HAVE_XHE_AAC], [test "x$have_xhe_aac" = "xyes"])
 AM_CONDITIONAL([HAVE_G722], [test "x$have_g722" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
@@ -706,7 +692,7 @@ else
   echo "  Vorbis:            $have_vorbis"
 fi
 echo "  Opus:              $have_opus"
-echo "  AAC (faad2):       $have_aac"
+echo "  AAC (FDK-AAC):     $have_aac"
 echo "  G.722 (spandsp):   $have_g722"
 echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"

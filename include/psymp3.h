@@ -531,16 +531,10 @@ using PsyMP3::Codec::Opus::OpusCodec;
 using PsyMP3::Codec::Opus::OpusHeader;
 #endif
 #ifdef HAVE_AAC
+// The C shim comes first: AACCodec names its result codes and object types.
+#include "codecs/aac/fdk_aac.h"
 #include "codecs/aac/AACCodec.h"
 using PsyMP3::Codec::AAC::AACCodec;
-#endif
-// Independent of HAVE_AAC: faad2 cannot decode USAC, so a build may well have
-// FDK-AAC and no faad2 (the Windows cross-build is exactly that). Guarding
-// this on HAVE_AAC left XHEAACCodec undeclared there while its .cpp still
-// compiled, which the unity build reported as an undeclared identifier.
-#ifdef HAVE_XHE_AAC
-#include "codecs/aac/XHEAACCodec.h"
-using PsyMP3::Codec::AAC::XHEAACCodec;
 #endif
 
 // Demuxer subsystem - Ogg
