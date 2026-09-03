@@ -50,8 +50,8 @@ Highlights:
 **Optional codec dependencies** (auto-detected; each can be disabled at build time):
 - libogg (`ogg`) — required for Vorbis, Opus, and Ogg FLAC (container parsing)
 - libopus (`opus`) — Opus
-- faad2 (`faad2`) — AAC
-- FDK-AAC (`fdk-aac`) — xHE-AAC / MPEG-D USAC (optional, `--enable-xhe-aac`)
+- FDK-AAC (`fdk-aac`) — the whole AAC family: AAC-LC, HE-AACv1, HE-AACv2 and
+  xHE-AAC / MPEG-D USAC
 - speex 1.2 or later (`speex`) — Speex
 - spandsp (`spandsp`) — G.722
 
@@ -102,9 +102,6 @@ make -j$(nproc)
 **Build Options:**
 - `--enable-flac` / `--enable-vorbis` / `--enable-opus` / `--enable-aac` /
   `--enable-speex` / `--enable-g722` / `--enable-g711` — per-codec toggles (default: yes)
-- `--enable-xhe-aac` — xHE-AAC (MPEG-D USAC) via FDK-AAC (default: yes when
-  `fdk-aac` is present). faad2 cannot decode USAC at all, so this is a second
-  AAC decoder rather than an option on the existing one.
 - `--enable-mpris` — MPRIS desktop integration over D-Bus (default: auto)
 - `--enable-final` — unity build: all sources in one translation unit (much
   faster full rebuilds; used for release builds)
