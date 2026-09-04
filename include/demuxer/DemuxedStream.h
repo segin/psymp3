@@ -140,6 +140,10 @@ private:
     /// from the tail. Returns false when nothing of the frame survives.
     bool trimEncoderDelay(AudioFrame& frame);
 
+    /// Drops whatever of a frame precedes the sample a seek asked for.
+    /// Returns false when the whole frame is before it.
+    bool discardToSeekTarget(AudioFrame& frame);
+
     uint64_t m_samples_consumed = 0;
 
     // Encoder delay trimming. AAC warms its transform up over the first frames
@@ -148,6 +152,12 @@ private:
     uint32_t m_encoder_delay_remaining = 0;  ///< priming still to be dropped
     uint64_t m_valid_samples = 0;            ///< real frames, 0 when unstated
     uint64_t m_frames_emitted = 0;           ///< frames handed on after trimming
+
+    /// Sample a seek asked for, while the audio before it is still being
+    /// dropped. A seek can only land on a container boundary -- an Ogg page
+    /// holds about a second -- so without this the track resumes up to a
+    /// page early. Zero once the target has been reached.
+    uint64_t m_discard_until_samples = 0;
     bool m_eof_reached = false;
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real

@@ -337,6 +337,37 @@ bool DemuxedStream::trimEncoderDelay(AudioFrame& frame) {
     return true;
 }
 
+bool DemuxedStream::discardToSeekTarget(AudioFrame& frame) {
+    const uint16_t channels = frame.channels ? frame.channels : 1;
+    const uint64_t frames = frame.samples.size() / channels;
+    if (frames == 0) {
+        return false;
+    }
+
+    const uint64_t start = frame.timestamp_samples;
+    const uint64_t target = m_discard_until_samples;
+
+    if (start >= target) {
+        m_discard_until_samples = 0; // Already there; nothing to drop.
+        return true;
+    }
+
+    if (start + frames <= target) {
+        return false; // Wholly before the target.
+    }
+
+    const uint64_t drop = target - start;
+    frame.samples.erase(frame.samples.begin(),
+                        frame.samples.begin() + static_cast<std::ptrdiff_t>(drop * channels));
+    frame.timestamp_samples = target;
+    if (m_rate > 0) {
+        frame.timestamp_ms = (target * 1000ULL) / m_rate;
+    }
+    m_samples_consumed = target + (frames - drop);
+    m_discard_until_samples = 0;
+    return true;
+}
+
 AudioFrame DemuxedStream::getNextFrame() {
     // Ensure we have buffered chunks to decode from
     fillChunkBuffer();
@@ -423,6 +454,10 @@ AudioFrame DemuxedStream::getNextFrame() {
             // getPosition()/getSPosition() were frozen during playback — which
             // also made the seek-error monitor compare a seek target against
             // itself and broke keyboard-seek origin and Winamp IPC position.
+            if (m_discard_until_samples != 0 && !discardToSeekTarget(frame)) {
+                return AudioFrame{}; // Entirely before the requested sample.
+            }
+
             m_position = static_cast<int>(frame.timestamp_ms);
             m_sposition = frame.timestamp_samples;
 
@@ -583,14 +618,26 @@ void DemuxedStream::seekTo(unsigned long pos) {
     // from the beginning of the file, so for MP4/AAC the reported position
     // jumped back to zero after every seek and the next keyboard seek measured
     // its offset from the wrong origin. Anchor those at the seek target.
+    // Where the seek actually landed. A demuxer that reports granules is
+    // believed even when it says zero, because zero is the head of the stream
+    // and a seek into the first page lands there legitimately. One that does
+    // not report them is seeking by sample table and is already exact, so its
+    // position is the target.
+    const bool granular = m_demuxer->providesGranulePositions();
     const uint64_t granule = m_demuxer->getGranulePosition(m_current_stream_id);
-    m_samples_consumed = (granule != 0) ? granule : m_sposition;
+    m_samples_consumed = granular ? granule : m_sposition;
 
     // The priming sits at the very start of the file, so anywhere a seek lands
     // is already past it -- re-dropping it would eat real audio. The tail trim
     // still applies, so the emitted count is anchored at the seek target.
     m_encoder_delay_remaining = 0;
     m_frames_emitted = m_samples_consumed;
+
+    // The seek landed on a page boundary at or before the target. Everything
+    // between the two is real audio the listener did not ask for, so it is
+    // dropped as the frames come through. Only for demuxers that seek to a
+    // boundary; a sample table already lands exactly.
+    m_discard_until_samples = granular ? m_sposition : 0;
 
     m_eof = false;
     m_eof_reached = false;

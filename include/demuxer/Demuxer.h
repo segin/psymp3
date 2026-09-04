@@ -459,6 +459,12 @@ public:
     /**
      * @brief Get the last known granule position for a stream
      */
+    /// True when getGranulePosition() reports a real stream position rather
+    /// than the base class's literal zero. Without this a granule of 0 --
+    /// the head of the stream, which is exactly where a seek into the first
+    /// page lands -- cannot be told apart from "this demuxer does not know".
+    virtual bool providesGranulePositions() const { return false; }
+
     virtual uint64_t getGranulePosition(uint32_t stream_id) const {
         return 0; // Default implementation for non-Ogg formats
     }
