@@ -171,6 +171,25 @@ void DemuxedStream::updateStreamProperties() {
     m_position = 0;
     m_sposition = 0;
     m_samples_consumed = 0;
+
+    // Encoder delay, when the container states it. valid_samples counts only
+    // the real audio, so it is the better duration: the sample table spans the
+    // priming and padding too.
+    m_encoder_delay_remaining = stream_info.encoder_delay;
+    m_valid_samples = stream_info.valid_samples;
+    m_frames_emitted = 0;
+    if (m_valid_samples > 0) {
+        m_slength = m_valid_samples;
+        if (m_rate > 0) {
+            m_length = static_cast<int>((m_valid_samples * 1000ULL) / m_rate);
+        }
+    }
+    if (stream_info.encoder_delay != 0 || stream_info.encoder_padding != 0) {
+        Debug::log("demux", "DemuxedStream: trimming encoder delay - priming=",
+                   stream_info.encoder_delay, " padding=", stream_info.encoder_padding,
+                   " valid=", stream_info.valid_samples);
+    }
+
     m_eof = false;
 }
 
@@ -278,6 +297,46 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
     return bytes_written;
 }
 
+bool DemuxedStream::trimEncoderDelay(AudioFrame& frame) {
+    if (m_encoder_delay_remaining == 0 && m_valid_samples == 0) {
+        return true; // Nothing stated, nothing to do.
+    }
+
+    const uint16_t channels = frame.channels ? frame.channels : 1;
+    uint64_t frames = frame.samples.size() / channels;
+    if (frames == 0) {
+        return false;
+    }
+
+    // Head: the encoder's warm-up. It can span more than one frame.
+    if (m_encoder_delay_remaining > 0) {
+        const uint64_t drop = std::min<uint64_t>(m_encoder_delay_remaining, frames);
+        frame.samples.erase(frame.samples.begin(),
+                            frame.samples.begin() + static_cast<std::ptrdiff_t>(drop * channels));
+        m_encoder_delay_remaining -= static_cast<uint32_t>(drop);
+        frames -= drop;
+        if (frames == 0) {
+            return false;
+        }
+    }
+
+    // Tail: everything past the real sample count is padding to fill the last
+    // block. Only applied when the container said how many samples are real.
+    if (m_valid_samples > 0) {
+        if (m_frames_emitted >= m_valid_samples) {
+            return false;
+        }
+        const uint64_t remaining = m_valid_samples - m_frames_emitted;
+        if (frames > remaining) {
+            frame.samples.resize(static_cast<size_t>(remaining * channels));
+            frames = remaining;
+        }
+    }
+
+    m_frames_emitted += frames;
+    return true;
+}
+
 AudioFrame DemuxedStream::getNextFrame() {
     // Ensure we have buffered chunks to decode from
     fillChunkBuffer();
@@ -333,6 +392,10 @@ AudioFrame DemuxedStream::getNextFrame() {
         }
         
         AudioFrame frame = m_codec->decode(chunk);
+        if (!frame.samples.empty() && !trimEncoderDelay(frame)) {
+            // Entirely priming, or entirely past the last real sample.
+            return AudioFrame{};
+        }
         if (!frame.samples.empty()) {
             if (m_codec->getCodecName() == "opus") {
                 if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
@@ -376,6 +439,12 @@ AudioFrame DemuxedStream::getNextFrame() {
     if (m_demuxer && m_demuxer->isEOF() && m_codec) {
         Debug::log("demux", "DemuxedStream: Attempting to flush codec");
         AudioFrame frame = m_codec->flush();
+        // The drained tail is as much a part of the stream as any decoded
+        // frame, so the encoder's padding has to come off it too -- otherwise
+        // everything the trim removed at the end comes straight back.
+        if (!frame.samples.empty() && !trimEncoderDelay(frame)) {
+            frame.samples.clear();
+        }
         if (!frame.samples.empty()) {
             Debug::log("demux", "DemuxedStream: Flushed frame with ", frame.samples.size(), " samples");
             return frame;
@@ -516,7 +585,13 @@ void DemuxedStream::seekTo(unsigned long pos) {
     // its offset from the wrong origin. Anchor those at the seek target.
     const uint64_t granule = m_demuxer->getGranulePosition(m_current_stream_id);
     m_samples_consumed = (granule != 0) ? granule : m_sposition;
-    
+
+    // The priming sits at the very start of the file, so anywhere a seek lands
+    // is already past it -- re-dropping it would eat real audio. The tail trim
+    // still applies, so the emitted count is anchored at the seek target.
+    m_encoder_delay_remaining = 0;
+    m_frames_emitted = m_samples_consumed;
+
     m_eof = false;
     m_eof_reached = false;
 }

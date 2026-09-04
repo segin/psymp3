@@ -136,7 +136,18 @@ private:
     size_t m_temp_buffer_bytes = 0;
     
     // Position tracking based on audio consumption, not packet timestamps
+    /// Drops the encoder's priming from the head of a frame and its padding
+    /// from the tail. Returns false when nothing of the frame survives.
+    bool trimEncoderDelay(AudioFrame& frame);
+
     uint64_t m_samples_consumed = 0;
+
+    // Encoder delay trimming. AAC warms its transform up over the first frames
+    // and pads the last one out to a whole block; the container states how much
+    // of each to drop. Counted in sample frames, not interleaved samples.
+    uint32_t m_encoder_delay_remaining = 0;  ///< priming still to be dropped
+    uint64_t m_valid_samples = 0;            ///< real frames, 0 when unstated
+    uint64_t m_frames_emitted = 0;           ///< frames handed on after trimming
     bool m_eof_reached = false;
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real
