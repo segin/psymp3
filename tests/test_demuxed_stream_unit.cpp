@@ -416,8 +416,9 @@ protected:
                 ASSERT_EQUALS(2u, frame.channels, "Frame channels should be correct");
                 ASSERT_EQUALS(1024u, frame.samples.size(), "Frame sample count should be correct");
                 
-                // Verify frame data size (samples are int16_t, so 2 bytes each)
-                size_t expected_size = 1024 * sizeof(int16_t);
+                // Verify frame data size. Samples are AudioSample (int32)
+                // since the pipeline was widened to full-scale 32-bit.
+                size_t expected_size = 1024 * sizeof(AudioSample);
                 ASSERT_EQUALS(expected_size, frame.getByteCount(), "Frame data size should be correct");
                 
                 frames.push_back(frame);

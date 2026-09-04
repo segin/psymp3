@@ -436,7 +436,7 @@ bool test_opus_output_quality() {
             }
             
             // Check sample value ranges (16-bit PCM)
-            for (int16_t sample : frame.samples) {
+            for (AudioSample sample : frame.samples) {
                 if (sample < -32768 || sample > 32767) {
                     printf("FAIL: Sample out of 16-bit range in packet %d: %d\n", i, sample);
                     return false;

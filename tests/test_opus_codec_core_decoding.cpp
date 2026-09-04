@@ -184,7 +184,7 @@ AudioFrame decodeFirstNonEmptyFrame(OpusCodec& codec,
 int32_t peakAbsoluteSample(const AudioFrame& frame)
 {
     int32_t peak = 0;
-    for (int16_t sample : frame.samples) {
+    for (AudioSample sample : frame.samples) {
         int32_t magnitude = std::abs(static_cast<int32_t>(sample));
         if (magnitude > peak) {
             peak = magnitude;
@@ -200,7 +200,7 @@ int64_t meanAbsoluteSample(const AudioFrame& frame)
     }
 
     int64_t total = 0;
-    for (int16_t sample : frame.samples) {
+    for (AudioSample sample : frame.samples) {
         total += std::abs(static_cast<int32_t>(sample));
     }
 

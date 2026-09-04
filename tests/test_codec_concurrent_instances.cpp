@@ -59,7 +59,10 @@ void testConcurrentInstances(const std::string& codec_name, size_t num_instances
         std::atomic<int> success_count{0};
         std::atomic<int> error_count{0};
         std::vector<std::thread> threads;
-        std::vector<std::vector<int16_t>> results(num_instances);
+        // AudioSample, not int16_t: truncating the widened samples to their low
+        // 16 bits zeroes every one of them, and the independence check then
+        // compares all-zero buffers and calls them identical.
+        std::vector<std::vector<AudioSample>> results(num_instances);
         
         // Launch concurrent codec instances
         for (size_t i = 0; i < num_instances; ++i) {
@@ -84,7 +87,7 @@ void testConcurrentInstances(const std::string& codec_name, size_t num_instances
                     std::vector<uint8_t> test_data = generateUniqueTestData(i, PACKET_SIZE);
                     
                     // Perform decoding operations
-                    std::vector<int16_t> accumulated_samples;
+                    std::vector<AudioSample> accumulated_samples;
                     
                     for (size_t op = 0; op < OPERATIONS_PER_INSTANCE; ++op) {
                         MediaChunk chunk;

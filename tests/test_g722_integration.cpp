@@ -95,7 +95,7 @@ int main()
             }
             AudioFrame frame = codec.decode(chunk);
             decoded_samples += frame.samples.size();
-            for (int16_t sample : frame.samples) {
+            for (AudioSample sample : frame.samples) {
                 total_energy += std::abs(static_cast<int>(sample));
             }
         }

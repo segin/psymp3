@@ -52,8 +52,12 @@ int main() {
     }
     
     // Test A-law closest-to-silence (0x55 should map to -8 per ITU-T G.711)
-    if (frame.samples[0] != -8) {
-        printf("ERROR: A-law closest-to-silence (0x55) should map to -8, got %d\n", frame.samples[0]);
+    // Samples are full-scale S32 since the pipeline widening; the A-law
+    // reference values are 16-bit, and the scaling is exact, so dividing by
+    // 65536 recovers the value the table describes.
+    if (frame.samples[0] / 65536 != -8) {
+        printf("ERROR: A-law closest-to-silence (0x55) should map to -8, got %d\n",
+               frame.samples[0] / 65536);
         return 1;
     }
     

@@ -377,7 +377,7 @@ bool test_media_chunk_processing_and_audio_frame_output() {
         // Validate samples are 16-bit PCM
         if (!audio_frame.samples.empty()) {
             // Check that samples are within valid 16-bit range
-            for (int16_t sample : audio_frame.samples) {
+            for (AudioSample sample : audio_frame.samples) {
                 if (sample < -32768 || sample > 32767) {
                     Debug::log("test", "FAIL: Sample out of 16-bit range: ", sample);
                     return false;

@@ -37,7 +37,9 @@ int main() {
         return 1;
     }
 
-    const int16_t silence_value = silence_frame.samples[0];
+    // Full-scale S32 since the widening; the scaling is exact, so dividing
+    // by 65536 recovers the 16-bit value G.711 Table 2 describes.
+    const int silence_value = static_cast<int>(silence_frame.samples[0] / 65536);
     Debug::log("A-law near-silence value (0x55) maps to: %d", silence_value);
 
     if (silence_value != -8) {
@@ -59,7 +61,7 @@ int main() {
             return 1;
         }
         
-        int16_t value = test_frame.samples[0];
+        int value = static_cast<int>(test_frame.samples[0] / 65536);
         Debug::log("A-law %s maps to: %d", test_names[i], value);
     }
     
@@ -78,7 +80,8 @@ int main() {
             return 1;
         }
         
-        const int16_t sample = test_frame.samples[0];
+        // Full-scale S32 since the widening; recover the 16-bit table value.
+        const int sample = static_cast<int>(test_frame.samples[0] / 65536);
         if (i == 0x55 && sample != -8) {
             Debug::log("ERROR: A-law value 0x55 should decode to -8, got %d", sample);
             sign_test_passed = false;
@@ -103,7 +106,8 @@ int main() {
             return 1;
         }
         
-        const int16_t sample = test_frame.samples[0];
+        // Full-scale S32 since the widening; recover the 16-bit table value.
+        const int sample = static_cast<int>(test_frame.samples[0] / 65536);
         if (i == 0xD5 && sample != 8) {
             Debug::log("ERROR: A-law value 0xD5 should decode to +8, got %d", sample);
             sign_test_passed = false;
