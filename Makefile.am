@@ -38,7 +38,9 @@ EXTRA_DIST = \
 	include/codecs/FLACCodec.h \
 	include/codecs/OggCodecs.h \
 	include/codecs/aac/AACCodec.h \
+	include/codecs/aac/fdk_aac.h \
 	include/codecs/alac/ALACCodec.h \
+	include/codecs/mlp/MLPCodec.h \
 	include/codecs/flac/BitstreamReader.h \
 	include/codecs/flac/CRCValidator.h \
 	include/codecs/flac/ChannelDecorrelator.h \
@@ -102,6 +104,7 @@ EXTRA_DIST = \
 	include/demuxer/iso/SampleTableManager.h \
 	include/demuxer/iso/SeekingEngine.h \
 	include/demuxer/iso/StreamManager.h \
+	include/demuxer/mlp/MLPNullDemuxer.h \
 	include/demuxer/mp3/MP3NullDemuxer.h \
 	include/demuxer/ogg/CodecHeaderParser.h \
 	include/demuxer/ogg/FLACHeaderParser.h \
@@ -215,7 +218,10 @@ EXTRA_DIST = \
 	third_party/kjmp2/kjmp2.h \
 	third_party/kjmp2/kjmp2.txt \
 	third_party/minimp3/minimp3.h \
+	third_party/mlp/mlp_decoder.cpp \
+	third_party/mlp/mlp_decoder.h \
 	third_party/pugixml/pugiconfig.hpp \
+	third_party/pugixml/pugixml.cpp \
 	third_party/pugixml/pugixml.hpp \
 	third_party/stb/stb_vorbis.c
 
