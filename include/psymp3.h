@@ -291,9 +291,6 @@ using SDLKey = SDL_Keycode;
 #include <speex/speex_header.h>
 #include <speex/speex_stereo.h>
 #endif
-#ifdef HAVE_AAC
-#include <neaacdec.h>
-#endif
 #ifdef HAVE_OGGDEMUXER
 #include <opus/opus.h>
 #include <opus/opus_multistream.h>
