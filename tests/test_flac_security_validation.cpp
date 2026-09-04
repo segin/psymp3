@@ -15,6 +15,11 @@
 #include <iostream>
 #include <limits>
 
+// psymp3.h first: the codec headers carry no includes of their own by
+// project convention, and SampleReconstructor.h needs AudioSample, which
+// io/EnhancedAudioBufferPool.h defines.
+#include "psymp3.h"
+
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/FrameParser.h"
 #include "codecs/flac/SubframeDecoder.h"
