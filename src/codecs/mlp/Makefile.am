@@ -13,10 +13,13 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 
 noinst_LIBRARIES = libpsymp3-codec-mlp.a
 
-# The decoder itself is not built here: src/Makefile.am compiles
-# codecs/mlp/mlp_decoder_impl.cpp straight into the binary, because the demuxer
-# needs it too and an archive would have to be scanned twice to satisfy both.
+# The decoder is also compiled straight into the binary by src/Makefile.am,
+# because the demuxer needs it too and CODEC_LIBS is scanned before
+# DEMUXER_LIBS. Carrying it here as well costs one extra compile and lets the
+# test suite pull it from the archive on demand -- an archive member is only
+# taken when something still needs it, so the two copies can never collide.
 libpsymp3_codec_mlp_a_SOURCES = \
-	MLPCodec.cpp
+	MLPCodec.cpp \
+	mlp_decoder_impl.cpp
 
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

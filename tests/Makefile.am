@@ -37,11 +37,13 @@ CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
 CODEC_LIBS += $(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a
 CODEC_LIBS += $(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a
 CODEC_LIBS += $(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a
-# A plain object, not an archive: src/Makefile.am builds the MLP decoder
-# straight into the binary because both the codec and the demuxer need it.
-CODEC_LIBS += $(top_builddir)/src/codecs/mlp/mlp_decoder_impl.o
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/mp3/libpsymp3-demuxer-mp3.a
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a
+# Repeated after the demuxer: the MLP demuxer decodes the first access unit
+# to learn the channel layout, so it needs the decoder, and ld resolves
+# archives left to right -- the codec archive has already been passed by the
+# time the demuxer's reference to it appears.
+DEMUXER_LIBS += $(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a
 
 if HAVE_FLAC
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a
@@ -91,7 +93,7 @@ SYSTEM_LIBS = \
 COMMON_TEST_LIBS = \
 	$(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a \
 	$(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a \
-	$(top_builddir)/src/codecs/mlp/mlp_decoder_impl.o \
+	$(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
 	$(top_builddir)/src/dsp/Equalizer.o \
@@ -3004,6 +3006,7 @@ test_opus_codec_core_decoding_SOURCES = test_opus_codec_core_decoding.cpp
 test_opus_codec_core_decoding_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
@@ -3038,6 +3041,7 @@ test_opus_codec_error_handling_SOURCES = test_opus_codec_error_handling.cpp
 test_opus_codec_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
@@ -3071,6 +3075,7 @@ test_opus_integration_SOURCES = test_opus_integration.cpp
 test_opus_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
@@ -3108,6 +3113,7 @@ test_opus_compatibility_performance_SOURCES = test_opus_compatibility_performanc
 test_opus_compatibility_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
