@@ -28,6 +28,9 @@ std::vector<StreamInfo> StreamManager::GetStreamInfos() const {
         info.bits_per_sample = track.bitsPerSample;
         info.bitrate = track.avgBitrate;
         info.codec_data = track.codecConfig;
+        info.encoder_delay = track.encoderDelay;
+        info.encoder_padding = track.encoderPadding;
+        info.valid_samples = track.validSampleCount;
         info.artist = track.artist;
         info.title = track.title;
         info.album = track.album;

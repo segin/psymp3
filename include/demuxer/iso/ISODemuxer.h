@@ -65,6 +65,15 @@ struct AudioTrackInfo {
     // Track timing
     uint64_t duration = 0;       // in track timescale units
     uint32_t timescale = 0;      // samples per second for timing
+
+    // Encoder delay. A perceptual encoder cannot emit valid output until its
+    // transform has filled, so the first samples of the file are warm-up and
+    // the last frame is padded out to a whole block. Both must be dropped for
+    // a sample-accurate start and for gapless playback.
+    uint32_t encoderDelay = 0;        // priming samples at the head
+    uint32_t encoderPadding = 0;      // padding samples at the tail
+    uint64_t validSampleCount = 0;    // real samples, 0 when unstated
+    uint64_t editSegmentDuration = 0; // elst segment_duration, MOVIE timescale
     
     // Current playback state
     uint64_t currentSampleIndex = 0;
@@ -149,6 +158,7 @@ constexpr uint32_t BOX_SIDX = FOURCC('s','i','d','x'); // Segment index
 constexpr uint32_t BOX_ILST = FOURCC('i','l','s','t'); // Item list
 constexpr uint32_t BOX_KEYS = FOURCC('k','e','y','s'); // Keys
 constexpr uint32_t BOX_DATA = FOURCC('d','a','t','a'); // Data
+constexpr uint32_t BOX_FREEFORM = FOURCC('-','-','-','-'); // Freeform metadata item
 constexpr uint32_t BOX_MEAN = FOURCC('m','e','a','n'); // Mean
 constexpr uint32_t BOX_NAME = FOURCC('n','a','m','e'); // Name
 
@@ -214,6 +224,19 @@ public:
     
     // Demuxer interface implementation
     bool parseContainer() override;
+
+private:
+    /// Applies the iTunSMPB gapless metadata, when the file carries it,
+    /// to every audio track. Overrides the edit list, which states only
+    /// the priming.
+    void ApplyITunSMPB();
+    /// Turns the edit list's segment_duration into a sample count. It is
+    /// stated in the movie timescale, so it cannot be converted until the
+    /// movie header has been read.
+    void ApplyEditListDuration();
+    /// mvhd timescale, needed to read the edit list's segment_duration.
+    uint32_t m_movieTimescale = 0;
+public:
     std::vector<StreamInfo> getStreams() const override;
     StreamInfo getStreamInfo(uint32_t stream_id) const override;
     MediaChunk readChunk() override;

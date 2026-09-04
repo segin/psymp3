@@ -194,6 +194,58 @@ void ISODemuxer::cleanup() {
     currentSampleIndex = 0;
 }
 
+void ISODemuxer::ApplyEditListDuration() {
+    if (m_movieTimescale == 0) {
+        return;
+    }
+
+    for (auto& track : audioTracks) {
+        if (track.editSegmentDuration == 0 || track.timescale == 0) {
+            continue;
+        }
+        // segment_duration counts movie timescale units; the sample count is
+        // in the track's own. They are usually equal for audio, but nothing
+        // requires it.
+        track.validSampleCount = (track.editSegmentDuration * track.timescale) / m_movieTimescale;
+        Debug::log("iso", "ISODemuxer: edit list bounds the audio at ",
+                   track.validSampleCount, " samples");
+    }
+}
+
+void ISODemuxer::ApplyITunSMPB() {
+    auto it = m_metadata.find("freeform:itunsmpb");
+    if (it == m_metadata.end()) {
+        return;
+    }
+
+    // A run of space-separated hex fields. Field 1 is the priming, field 2 the
+    // trailing padding and field 3 the real sample count; the rest describe
+    // gapless album ordering and are not needed here.
+    std::vector<uint64_t> fields;
+    std::istringstream stream(it->second);
+    std::string token;
+    while (stream >> token && fields.size() < 4) {
+        try {
+            fields.push_back(std::stoull(token, nullptr, 16));
+        } catch (const std::exception&) {
+            return; // Malformed: leave whatever the edit list established.
+        }
+    }
+
+    if (fields.size() < 4) {
+        return;
+    }
+
+    for (auto& track : audioTracks) {
+        track.encoderDelay = static_cast<uint32_t>(fields[1]);
+        track.encoderPadding = static_cast<uint32_t>(fields[2]);
+        track.validSampleCount = fields[3];
+    }
+
+    Debug::log("iso", "ISODemuxer: iTunSMPB gives delay=", fields[1],
+               " padding=", fields[2], " samples=", fields[3]);
+}
+
 bool ISODemuxer::parseContainer() {
     if (m_parsed) {
         return true;
@@ -336,6 +388,13 @@ bool ISODemuxer::parseContainer() {
             }
         }
         
+        // iTunSMPB, when present, is the more complete statement of the
+        // encoder delay: the edit list names only the priming, while this
+        // gives the trailing padding and the real sample count too. It is
+        // therefore applied second, overriding what edts said.
+        ApplyEditListDuration();
+        ApplyITunSMPB();
+
         // Validate telephony codec configurations before adding to stream manager
         for (const auto& track : audioTracks) {
             if (track.codecType == "ulaw" || track.codecType == "alaw") {
@@ -853,8 +912,25 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size, uint32_
             
             switch (header.type) {
                 case BOX_MVHD:
-                    // Movie header - contains global timescale and duration
-                    return true; // Skip for now, will implement in later tasks
+                    // Movie header. The timescale is needed to read the edit
+                    // list's segment_duration, which is stated in it.
+                    {
+                        const uint64_t d = header.dataOffset;
+                        uint8_t version = 0;
+                        if (m_handler->seek(static_cast<off_t>(d), SEEK_SET) == 0 &&
+                            m_handler->read(&version, 1, 1) == 1) {
+                            const uint64_t tsOffset = (version == 1) ? d + 20 : d + 12;
+                            uint8_t raw[4] = {};
+                            if (m_handler->seek(static_cast<off_t>(tsOffset), SEEK_SET) == 0 &&
+                                m_handler->read(raw, 1, 4) == 4) {
+                                m_movieTimescale = (static_cast<uint32_t>(raw[0]) << 24) |
+                                                   (static_cast<uint32_t>(raw[1]) << 16) |
+                                                   (static_cast<uint32_t>(raw[2]) << 8) |
+                                                   static_cast<uint32_t>(raw[3]);
+                            }
+                        }
+                    }
+                    return true;
                 case BOX_TRAK:
                     // Track box - parse for audio tracks
                     {

@@ -71,7 +71,15 @@ struct StreamInfo {
     std::vector<uint8_t> codec_data; ///< Extra data needed by codec (e.g., AAC AudioSpecificConfig, FLAC STREAMINFO)
     
     // Timing information
-    uint64_t duration_samples = 0; ///< Total duration in sample frames (0 if unknown)
+    uint64_t duration_samples = 0;
+
+    /// Encoder delay, for formats that pad the start and end of the stream.
+    /// AAC warms its transform up over the first frames and pads the last one;
+    /// both stretches are decodable but not part of the recording. Zero when
+    /// the container does not say.
+    uint32_t encoder_delay = 0;     ///< priming sample frames at the head
+    uint32_t encoder_padding = 0;   ///< padding sample frames at the tail
+    uint64_t valid_samples = 0;     ///< real sample frames, 0 when unstated ///< Total duration in sample frames (0 if unknown)
     uint64_t duration_ms = 0;      ///< Total duration in milliseconds (0 if unknown)
     
     // Metadata (extracted from container, if available)

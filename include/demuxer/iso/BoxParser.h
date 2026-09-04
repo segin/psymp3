@@ -55,6 +55,9 @@ public:
     
     bool ParseMovieBox(uint64_t offset, uint64_t size, uint32_t depth = 0);
     bool ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth = 0);
+    /// Reads edts/elst and takes the first edit's media_time as the encoder
+    /// delay, in media timescale units (the sample rate, for audio).
+    bool ParseEditListBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth = 0);
     bool ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, uint32_t depth = 0);
     bool ParseFragmentBox(uint64_t offset, uint64_t size);
     

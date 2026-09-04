@@ -25,6 +25,11 @@ public:
     ~MetadataExtractor() = default;
     
     std::map<std::string, std::string> ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size);
+
+    /// Reads a '----' freeform item, which names itself in 'mean'/'name'
+    /// sub-boxes. Stored under "freeform:<lower-cased name>".
+    bool ParseFreeformAtom(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size,
+                           std::map<std::string, std::string>& metadata);
     
 private:
     static constexpr int MAX_RECURSION_DEPTH = 32;

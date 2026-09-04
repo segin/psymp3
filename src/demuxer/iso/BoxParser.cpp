@@ -410,6 +410,61 @@ bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size, uint32_t depth) {
     }, depth);
 }
 
+bool BoxParser::ParseEditListBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
+    // edts is a container; the delay lives in the elst inside it.
+    return ParseBoxRecursively(offset, size, [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t) {
+        if (header.type != BOX_ELST) {
+            return SkipUnknownBox(header);
+        }
+
+        const uint64_t data = header.dataOffset;
+        const uint64_t end = boxOffset + header.size;
+        if (data + 8 > end) {
+            return true;
+        }
+
+        const uint32_t version_flags = ReadUInt32BE(data);
+        const uint8_t version = static_cast<uint8_t>(version_flags >> 24);
+        const uint32_t entry_count = ReadUInt32BE(data + 4);
+
+        // 20 bytes per version-1 entry, 12 per version-0 one.
+        const uint64_t entry_size = (version == 1) ? 20 : 12;
+        uint64_t cursor = data + 8;
+
+        for (uint32_t i = 0; i < entry_count; ++i) {
+            if (cursor + entry_size > end) {
+                break;
+            }
+
+            // media_time is signed: -1 marks an empty edit, which shifts the
+            // presentation rather than naming a delay, so it is skipped. The
+            // first edit that names a real start gives the priming, in media
+            // timescale units -- the sample rate, for an audio track.
+            int64_t media_time;
+            if (version == 1) {
+                media_time = static_cast<int64_t>(ReadUInt64BE(cursor + 8));
+            } else {
+                media_time = static_cast<int32_t>(ReadUInt32BE(cursor + 4));
+            }
+
+            if (media_time >= 0) {
+                track.encoderDelay = static_cast<uint32_t>(media_time);
+                // Bounds the real audio, but in the movie timescale, so the
+                // conversion waits until the movie header has been read.
+                track.editSegmentDuration = (version == 1)
+                    ? ReadUInt64BE(cursor)
+                    : ReadUInt32BE(cursor);
+                Debug::log("iso", "ISODemuxerBoxParser: edit list gives an encoder delay of ",
+                           track.encoderDelay, " samples");
+                break;
+            }
+            cursor += entry_size;
+        }
+
+        return true;
+    }, depth);
+}
+
 bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Parse track box recursively to extract audio track information
     bool foundAudio = false;
@@ -441,6 +496,12 @@ bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
                 return ParseMediaBoxWithSampleTables(boxOffset + (header.dataOffset - boxOffset), 
                                                    header.size - (header.dataOffset - boxOffset), 
                                                    track, foundAudio, sampleTables, boxDepth);
+
+            case BOX_EDTS:
+                // Edit list - carries the encoder delay.
+                return ParseEditListBox(boxOffset + (header.dataOffset - boxOffset),
+                                        header.size - (header.dataOffset - boxOffset),
+                                        track, boxDepth);
 
             default:
                 return SkipUnknownBox(header);

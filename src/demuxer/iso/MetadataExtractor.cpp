@@ -133,6 +133,60 @@ bool MetadataExtractor::ParseIlstBox(std::shared_ptr<IOHandler> io, uint64_t off
     return true;
 }
 
+bool MetadataExtractor::ParseFreeformAtom(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size,
+                                          std::map<std::string, std::string>& metadata) {
+    // ---- holds three sub-boxes: 'mean' (the namespace, e.g.
+    // com.apple.iTunes), 'name' (the key) and 'data' (the value). Only the
+    // name and the value are needed to identify the item.
+    std::string name;
+    std::string value;
+
+    uint64_t cursor = offset;
+    const uint64_t end = offset + size;
+
+    while (cursor + 8 <= end) {
+        const uint32_t boxSize = ReadUInt32BE(io, cursor);
+        const uint32_t boxType = ReadUInt32BE(io, cursor + 4);
+        if (boxSize < 8 || cursor + boxSize > end) {
+            break;
+        }
+
+        // 'mean' and 'name' carry a version/flags word; 'data' carries that
+        // plus a locale word.
+        const uint64_t skip = (boxType == BOX_DATA) ? 8 : 4;
+        if (boxSize >= 8 + skip) {
+            const uint64_t textOffset = cursor + 8 + skip;
+            const uint64_t textSize = boxSize - 8 - skip;
+            if (textSize > 0 && textSize < 4096) {
+                std::vector<char> buffer(static_cast<size_t>(textSize));
+                if (io->seek(static_cast<off_t>(textOffset), SEEK_SET) == 0 &&
+                    io->read(buffer.data(), 1, buffer.size()) == buffer.size()) {
+                    std::string text(buffer.begin(), buffer.end());
+                    if (boxType == BOX_NAME) {
+                        name = text;
+                    } else if (boxType == BOX_DATA) {
+                        value = text;
+                    }
+                }
+            }
+        }
+
+        cursor += boxSize;
+    }
+
+    if (!name.empty() && !value.empty()) {
+        // Lower-cased so the lookup does not depend on the exact spelling the
+        // tagger used.
+        std::string key = "freeform:";
+        for (char c : name) {
+            key += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        metadata[key] = value;
+    }
+
+    return true;
+}
+
 bool MetadataExtractor::ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, uint32_t atomType, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
     std::string key;
     
@@ -162,6 +216,10 @@ bool MetadataExtractor::ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, u
         case BOX_COVR:   // covr
             key = "artwork";
             break;
+        case BOX_FREEFORM: // ----
+            // A freeform item names itself in 'mean' and 'name' sub-boxes
+            // instead of in its type, so it needs its own reader.
+            return ParseFreeformAtom(io, offset, size, metadata);
         default:
             // Unknown metadata atom, skip
             return true;
