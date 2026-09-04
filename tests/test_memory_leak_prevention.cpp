@@ -93,7 +93,9 @@ bool test_enhanced_audio_buffer_pool() {
     pool.setMemoryPressure(0); // Low pressure
     
     // Acquire several audio buffers
-    std::vector<std::vector<int16_t>> buffers;
+    // The buffer pool is typed on AudioSample, which is int32 since the
+    // pipeline was widened to full-scale 32-bit.
+    std::vector<std::vector<AudioSample>> buffers;
     
     // Test different sample buffer sizes
     for (int i = 0; i < 5; i++) {

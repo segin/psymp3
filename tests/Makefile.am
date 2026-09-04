@@ -36,7 +36,12 @@ DEMUXER_LIBS =
 CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
 CODEC_LIBS += $(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a
 CODEC_LIBS += $(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a
+CODEC_LIBS += $(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a
+# A plain object, not an archive: src/Makefile.am builds the MLP decoder
+# straight into the binary because both the codec and the demuxer need it.
+CODEC_LIBS += $(top_builddir)/src/codecs/mlp/mlp_decoder_impl.o
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/mp3/libpsymp3-demuxer-mp3.a
+DEMUXER_LIBS += $(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a
 
 if HAVE_FLAC
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a
@@ -84,6 +89,9 @@ SYSTEM_LIBS = \
 # Note: Libraries that USE symbols must come BEFORE libraries that DEFINE them
 # We list libraries multiple times to handle circular dependencies (e.g., Codec <-> Demuxer)
 COMMON_TEST_LIBS = \
+	$(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a \
+	$(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a \
+	$(top_builddir)/src/codecs/mlp/mlp_decoder_impl.o \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
 	$(top_builddir)/src/dsp/Equalizer.o \
@@ -198,6 +206,7 @@ EXTENDED_TEST_OBJS = \
 
 FULL_CODEC_LIBS = \
 	libtest_utilities.a \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \

@@ -326,13 +326,13 @@ protected:
         // Test primed handoff functionality
         audio.resetBuffer();
         auto primed_stream = std::make_unique<MockStream>();
-        std::vector<int16_t> primed_samples(4096, 1234);
+        std::vector<AudioSample> primed_samples(4096, 1234);
         audio.setStream(std::move(primed_stream), primed_samples, false);
 
         ASSERT_TRUE(audio.getBufferLatencyMs() > 0,
                     "setStream should install primed PCM so the next track does not start with an empty buffer");
 
-        std::vector<int16_t> ctor_primed_samples(4096, 2345);
+        std::vector<AudioSample> ctor_primed_samples(4096, 2345);
         auto ctor_stream = std::make_unique<MockStream>();
         Audio ctor_primed_audio(std::move(ctor_stream), &fft, &player_mutex, ctor_primed_samples, false);
         ASSERT_TRUE(ctor_primed_audio.getBufferLatencyMs() > 0,
