@@ -593,6 +593,13 @@ bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
     for (auto &pair : m_streams) {
       pair.second->reset();
     }
+
+    // reset() clears the granule, and a zero would make the first frame after
+    // the seek look like the start of the file. A seek lands on a page
+    // boundary, so seed the primary stream with the granule that page begins
+    // at: the frames that follow then carry honest positions, and the caller
+    // can tell how much of the landing page precedes the sample it asked for.
+    sit->second->setGranulePos(engine.getLandingGranule());
   }
 
   return success;

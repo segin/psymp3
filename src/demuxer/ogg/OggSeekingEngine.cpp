@@ -228,6 +228,14 @@ bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int6
     const int MAX_ITERATIONS = 50;
     int iterations = 0;
     int serial = m_stream.getSerialNumber();
+
+    // Granule the page we finally land on starts at. The refinement below
+    // often breaks on the very first page it reads, having narrowed the range
+    // to a couple of kilobytes, so it cannot be relied on to observe a page
+    // before the target. The bisection is therefore the one that has to
+    // remember: every time it moves `begin` past a page, that page's granule
+    // is where the next one starts. Zero is right at the head of the stream.
+    m_landing_granule = 0;
     
     while (end - begin > 2048 && iterations < MAX_ITERATIONS) {
         int64_t mid = begin + (end - begin) / 2;
@@ -264,6 +272,7 @@ bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int6
         
         if (gp < target_granule) {
             begin = m_sync.getLogicalPosition();
+            m_landing_granule = gp;
         } else {
             end = mid;
         }
@@ -292,6 +301,8 @@ bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int6
                     // The next page *might* be the one.
                     // Update best_offset to the *end* of this page (current logical pos)
                     best_offset = m_sync.getLogicalPosition();
+                    // Whatever page follows starts where this one ended.
+                    m_landing_granule = gp;
                 } else {
                     // This page contains the target (or is the first one after).
                     // We want to start processing FROM this page.

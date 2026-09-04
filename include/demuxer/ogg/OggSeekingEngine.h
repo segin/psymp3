@@ -62,6 +62,16 @@ private:
     int64_t m_start_granule = 0;
     bool m_start_cached = false;
     
+public:
+    /// Granule the landing page begins at -- the granule of the last page
+    /// before it, or 0 at the start of the stream. A seek lands on a page
+    /// boundary, so without this the caller cannot tell how far the audio
+    /// actually is from the sample that was asked for.
+    int64_t getLandingGranule() const { return m_landing_granule; }
+
+private:
+    int64_t m_landing_granule = 0;
+
     // Internal bisection helper
     bool bisectForward(int64_t target_granule, int64_t begin, int64_t end);
 };

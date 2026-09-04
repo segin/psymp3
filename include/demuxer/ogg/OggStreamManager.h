@@ -57,6 +57,9 @@ public:
 
     int getSerialNumber() const { return m_serial_no; }
     int64_t getGranulePos() const { return m_last_granule; }
+    /// Seeds the granule after a seek. reset() clears it, and a zero here
+    /// makes every frame that follows look like the start of the stream.
+    void setGranulePos(int64_t granule) { m_last_granule = granule; }
 
 private:
     ogg_stream_state m_stream_state;
