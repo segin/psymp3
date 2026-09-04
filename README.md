@@ -51,10 +51,10 @@ Highlights:
 - libogg (`ogg`) — required for Vorbis, Opus, and Ogg FLAC (container parsing)
 - libopus (`opus`) — Opus
 - FDK-AAC (`fdk-aac`) — the whole AAC family: AAC-LC, HE-AACv1, HE-AACv2 and
-  xHE-AAC / MPEG-D USAC. Note that it is not packaged everywhere: Debian has
-  it in main, openSUSE keeps it in Packman, and Fedora ships only the
-  stripped `fdk-aac-free`, against which PsyMP3 builds without AAC rather
-  than decoding HE-AAC at half its bandwidth.
+  xHE-AAC / MPEG-D USAC. Note that it is not packaged everywhere: Debian
+  keeps it in `non-free`, openSUSE in Packman, and Ubuntu in `universe`.
+  Fedora ships only the stripped `fdk-aac-free`, against which PsyMP3 builds
+  without AAC rather than decoding HE-AAC at half its bandwidth.
 - speex 1.2 or later (`speex`) — Speex
 - spandsp (`spandsp`) — G.722
 

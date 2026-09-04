@@ -46,6 +46,18 @@ jobs:
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
           git ca-certificates build-essential devscripts equivs lintian
 
+    - name: Enable Debian non-free
+      run: |
+        set -eux
+        # libfdk-aac-dev is in Debian's non-free component, which the official
+        # image does not enable. Ubuntu carries it in universe, already on, so
+        # this is a no-op there.
+        if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+          sed -i 's/^Components: .*/Components: main contrib non-free non-free-firmware/' \
+            /etc/apt/sources.list.d/debian.sources
+          apt-get update
+        fi
+
     - uses: actions/checkout@v5
 
     - name: Install build dependencies
