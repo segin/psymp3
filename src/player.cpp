@@ -4944,7 +4944,7 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
         {"speex",   "Speex"},
         {"xhe-aac", "xHE-AAC"},
         {"usac",    "xHE-AAC"},
-        {"truehd",  "TrueHD"},
+        {"truehd",  "Dolby TrueHD"},
         {"mlp",     "MLP"},
     };
     if (auto it = kCodecDisplayNames.find(codec_lc); it != kCodecDisplayNames.end()) {
