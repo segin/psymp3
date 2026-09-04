@@ -45,9 +45,19 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             // TagLib is offered under either the LGPL or the MPL; PsyMP3 takes the MPL.
             "Copyright © 2002-2026 Scott Wheeler and the TagLib contributors (TagLib, Mozilla Public License 1.1)\n"
             "Copyright © 1994-2026 Xiph.Org Foundation and contributors (libogg and libopus, BSD 3-Clause License)\n"
+            "Copyright © 1995-2019 Fraunhofer-Gesellschaft zur Förderung der angewandten Forschung e.V. (FDK-AAC, Fraunhofer FDK AAC Codec Library for Android license)\n"
+            // FreeType is offered under either the FreeType License or the
+            // GPL; PsyMP3 takes the FTL, whose section 3 requires the credit
+            // sentence carried in the paragraph below.
+            "Copyright © 1996-2026 David Turner, Robert Wilhelm and Werner Lemberg (FreeType, FreeType License)\n"
+            "Copyright © 1995-2024 Jean-loup Gailly and Mark Adler (zlib, zlib License)\n"
+            // Upstream curl deliberately carries no year range.
+            "Copyright © Daniel Stenberg and contributors (libcurl, curl License)\n"
+            "Copyright © 1998-2026 The OpenSSL Project Authors (OpenSSL, Apache License 2.0)\n"
             "\n"
             "stb_vorbis is Public Domain, written by Sean Barrett.\n"
             "minimp3 is Public Domain (CC0), written by lieff.\n"
+            "Portions of this software are copyright © 2026 The FreeType Project (www.freetype.org). All rights reserved.\n"
             "\n"
             // License paragraphs are single logical lines so consumers that
             // flow text (the in-app About dialog word-wraps; the Windows
