@@ -453,7 +453,10 @@ private:
         PsyMP3::Codec::Vorbis::VorbisCodec codec(streams[0]);
         ASSERT_TRUE(codec.initialize(), "Codec should initialize");
 
-        std::vector<int16_t> pcm;
+        // AudioSample, not int16_t: inserting the decoder's int32 samples
+        // into a 16-bit vector narrows every one of them to its low bits,
+        // which for a full-scale sine is indistinguishable from noise.
+        std::vector<AudioSample> pcm;
         uint32_t rate = 0;
         uint16_t channels = 0;
         while (true) {
@@ -480,10 +483,12 @@ private:
 
         // RMS of a 0.2-amplitude sine is 0.2/sqrt(2) ~= 0.1414 -> ~4634 in s16.
         double sum_sq = 0.0;
-        for (int16_t s : pcm) {
+        for (AudioSample s : pcm) {
             sum_sq += static_cast<double>(s) * s;
         }
-        double rms = std::sqrt(sum_sq / pcm.size());
+        // Samples are full-scale S32; normalise to the s16 units the bounds
+        // below are written in.
+        double rms = std::sqrt(sum_sq / pcm.size()) / 65536.0;
         ASSERT_TRUE(rms > 3500.0 && rms < 5800.0,
                     "Decoded RMS should match a 0.2-amplitude sine");
 

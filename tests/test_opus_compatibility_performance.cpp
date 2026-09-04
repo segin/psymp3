@@ -435,14 +435,12 @@ bool test_opus_output_quality() {
                 return false;
             }
             
-            // Check sample value ranges (16-bit PCM)
-            for (AudioSample sample : frame.samples) {
-                if (sample < -32768 || sample > 32767) {
-                    printf("FAIL: Sample out of 16-bit range in packet %d: %d\n", i, sample);
-                    return false;
-                }
-            }
-            
+            // There is no sample-range check here any more. It asserted 16-bit
+            // PCM bounds, which the pipeline stopped producing when it was
+            // widened to full-scale S32; restating it as an int32 bound would
+            // be tautological, since that is the type's own range. Opus output
+            // is exercised for content by test_opus_codec_core_decoding.
+
             // Check for reasonable frame sizes
             if (!frame.samples.empty()) {
                 size_t samples_per_channel = frame.samples.size() / frame.channels;
