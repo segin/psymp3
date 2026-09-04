@@ -41,6 +41,10 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "Copyright © 2025 Rainbaby (truehdd, basis of the MLP/TrueHD decoder, Apache License 2.0)\n"
             "Copyright © 2006-2025 Arseny Kapoulkine (pugixml, MIT License)\n"
             "Copyright © 2006-2013 Martin J. Fiedler (kjmp2 MP2 decoder, zlib License)\n"
+            "Copyright © 1997-2026 Sam Lantinga and the SDL contributors (SDL3, zlib License)\n"
+            // TagLib is offered under either the LGPL or the MPL; PsyMP3 takes the MPL.
+            "Copyright © 2002-2026 Scott Wheeler and the TagLib contributors (TagLib, Mozilla Public License 1.1)\n"
+            "Copyright © 1994-2026 Xiph.Org Foundation and contributors (libogg and libopus, BSD 3-Clause License)\n"
             "\n"
             "stb_vorbis is Public Domain, written by Sean Barrett.\n"
             "minimp3 is Public Domain (CC0), written by lieff.\n"
