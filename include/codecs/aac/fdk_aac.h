@@ -92,12 +92,28 @@ int psymp3_fdk_set_target_loudness(void* handle, int target_dbfs);
  * signalled implicitly and are discovered in the bitstream rather than
  * declared in the AudioSpecificConfig. Any of these out-parameters may be
  * NULL.
+ *
+ * *output_delay is the decoder's own latency in sample frames, which is on top
+ * of any priming the container states. It is a property of this decoder rather
+ * than of the stream, so a caller comparing against another decoder has to
+ * drop it.
  */
 int psymp3_fdk_decode(void* handle,
                       const unsigned char* packet, unsigned packet_len,
                       short* out, int out_capacity,
                       int* frame_size, int* rate, int* channels,
-                      int* aot, int* ext_aot);
+                      int* aot, int* ext_aot, int* output_delay);
+
+/**
+ * Drains the samples the decoder is still holding at end of stream.
+ *
+ * FDK delays its output, so the last frames of a file are still inside it when
+ * the packets run out. Without this the tail goes missing -- exactly as many
+ * samples as psymp3_fdk_decode reported in output_delay. Same output contract
+ * as psymp3_fdk_decode; returns PSYMP3_FDK_NEED_MORE_DATA once drained.
+ */
+int psymp3_fdk_flush(void* handle, short* out, int out_capacity,
+                     int* frame_size, int* rate, int* channels);
 
 /** Drop decoder history without discarding the configuration (for seeks). */
 void psymp3_fdk_reset(void* handle);

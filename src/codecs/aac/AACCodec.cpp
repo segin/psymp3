@@ -89,8 +89,64 @@ AudioFrame AACCodec::decode(const MediaChunk& chunk) {
 }
 
 AudioFrame AACCodec::flush() {
-    // FDK hands back every frame as it is fed; nothing is held back.
-    return AudioFrame();
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // FDK delays its output, so when the packets run out it is still holding
+    // the end of the file -- as many samples as it reported in output_delay.
+    // Draining it here is what keeps the tail from going missing.
+    if (!m_initialized || !m_decoder_initialized || !m_decoder) {
+        return AudioFrame();
+    }
+
+    m_flushing = true;
+    if (m_flush_remaining == 0) {
+        return AudioFrame(); // Fully drained; asking again would never end.
+    }
+
+    int frame_size = 0, rate = 0, channels = 0;
+    if (psymp3_fdk_flush(m_decoder, m_pcm.data(), static_cast<int>(m_pcm.size()),
+                         &frame_size, &rate, &channels) != PSYMP3_FDK_OK) {
+        m_flush_remaining = 0;
+        return AudioFrame();
+    }
+    if (frame_size <= 0 || channels <= 0 || rate <= 0) {
+        return AudioFrame();
+    }
+
+    size_t leading_drop = 0;
+    if (m_decoder_delay_remaining > 0) {
+        leading_drop = std::min<size_t>(m_decoder_delay_remaining,
+                                        static_cast<size_t>(frame_size));
+        m_decoder_delay_remaining -= static_cast<uint32_t>(leading_drop);
+        if (static_cast<size_t>(frame_size) == leading_drop) {
+            return AudioFrame();
+        }
+    }
+
+    // Never hand back more than the decoder said it was holding.
+    size_t usable = static_cast<size_t>(frame_size) - leading_drop;
+    usable = std::min<size_t>(usable, m_flush_remaining);
+    m_flush_remaining -= static_cast<uint32_t>(usable);
+    if (usable == 0) {
+        return AudioFrame();
+    }
+
+    const size_t sample_count = usable * static_cast<size_t>(channels);
+    const size_t source_offset = leading_drop * static_cast<size_t>(channels);
+    if (source_offset + sample_count > m_pcm.size()) {
+        return AudioFrame();
+    }
+
+    AudioFrame frame;
+    frame.samples.resize(sample_count);
+    for (size_t i = 0; i < sample_count; ++i) {
+        frame.samples[i] = static_cast<AudioSample>(m_pcm[source_offset + i]) * 65536;
+    }
+    frame.sample_rate = static_cast<uint32_t>(rate);
+    frame.channels = static_cast<uint16_t>(channels);
+    // No chunk to take a timestamp from; DemuxedStream continues its own
+    // running count for this codec.
+    return frame;
 }
 
 void AACCodec::reset() {
@@ -109,6 +165,10 @@ void AACCodec::reset() {
     // on every seek. Decode it for its side effects and throw the audio away,
     // which is what the format expects.
     m_priming_frames = 1;
+    m_decoder_delay_known = false;
+    m_decoder_delay_remaining = 0;
+    m_flush_remaining = 0;
+    m_flushing = false;
 }
 
 bool AACCodec::initialize_unlocked() {
@@ -215,11 +275,12 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
         return AudioFrame();
     }
 
-    int frame_size = 0, rate = 0, channels = 0, aot = 0, ext_aot = 0;
+    int frame_size = 0, rate = 0, channels = 0, aot = 0, ext_aot = 0, output_delay = 0;
     const int rc = psymp3_fdk_decode(m_decoder, chunk.data.data(),
                                      static_cast<unsigned>(chunk.data.size()),
                                      m_pcm.data(), static_cast<int>(m_pcm.size()),
-                                     &frame_size, &rate, &channels, &aot, &ext_aot);
+                                     &frame_size, &rate, &channels, &aot, &ext_aot,
+                                     &output_delay);
     if (rc == PSYMP3_FDK_NEED_MORE_DATA) {
         return AudioFrame(); // needs another access unit first
     }
@@ -244,9 +305,34 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
     m_stream_info.channels = m_channels;
     m_stream_info.bits_per_sample = 16;
 
+    // FDK delays its output by a fixed number of frames beyond anything the
+    // container declares. It only says by how many once a frame has decoded,
+    // so the figure is taken from the first one and then worked off.
+    if (!m_decoder_delay_known) {
+        m_decoder_delay_known = true;
+        m_decoder_delay_remaining = (output_delay > 0) ? static_cast<uint32_t>(output_delay) : 0;
+        // The same figure bounds the end-of-stream drain.
+        m_flush_remaining = m_decoder_delay_remaining;
+        if (m_decoder_delay_remaining != 0) {
+            Debug::log("aac", "AACCodec: dropping FDK's own ", m_decoder_delay_remaining,
+                       "-sample output delay");
+        }
+    }
+
+    size_t leading_drop = 0;
+    if (m_decoder_delay_remaining > 0) {
+        leading_drop = std::min<size_t>(m_decoder_delay_remaining,
+                                        static_cast<size_t>(frame_size));
+        m_decoder_delay_remaining -= static_cast<uint32_t>(leading_drop);
+        if (static_cast<size_t>(frame_size) == leading_drop) {
+            return AudioFrame(); // Entirely the decoder's own warm-up.
+        }
+    }
+
     const size_t sample_count =
-        static_cast<size_t>(frame_size) * static_cast<size_t>(channels);
-    if (sample_count > m_pcm.size()) {
+        static_cast<size_t>(frame_size - leading_drop) * static_cast<size_t>(channels);
+    const size_t source_offset = leading_drop * static_cast<size_t>(channels);
+    if (source_offset + sample_count > m_pcm.size()) {
         Debug::log("aac", "AACCodec::decode: frame larger than the scratch buffer");
         return AudioFrame();
     }
@@ -255,7 +341,7 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
     // FDK hands back 16-bit PCM; scale to full-scale S32.
     frame.samples.resize(sample_count);
     for (size_t i = 0; i < sample_count; ++i) {
-        frame.samples[i] = static_cast<AudioSample>(m_pcm[i]) * 65536;
+        frame.samples[i] = static_cast<AudioSample>(m_pcm[source_offset + i]) * 65536;
     }
 
     frame.sample_rate = m_sample_rate;

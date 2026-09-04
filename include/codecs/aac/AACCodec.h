@@ -62,6 +62,17 @@ private:
     /// converted with this one.
     uint32_t m_container_sample_rate = 0;
     int m_priming_frames = 0;  ///< post-seek warm-up frames to decode and discard
+    /// FDK's own latency, which it reports per frame and which sits on top
+    /// of whatever priming the container states. Dropped here so callers see
+    /// the same first sample any other decoder would give them.
+    uint32_t m_decoder_delay_remaining = 0;
+    bool m_decoder_delay_known = false;
+    /// How much of the decoder's delay is still owed at end of stream.
+    /// FDK answers AACDEC_FLUSH for as long as it is asked, so draining it
+    /// has to stop after exactly the delay it declared or the file never
+    /// ends.
+    uint32_t m_flush_remaining = 0;
+    bool m_flushing = false;
     mutable std::mutex m_mutex;
 };
 

@@ -101,7 +101,7 @@ int psymp3_fdk_decode(void* handle,
                       const unsigned char* packet, unsigned packet_len,
                       short* out, int out_capacity,
                       int* frame_size, int* rate, int* channels,
-                      int* aot, int* ext_aot)
+                      int* aot, int* ext_aot, int* output_delay)
 {
     if (!handle || !packet || packet_len == 0 || !out || out_capacity <= 0) {
         return PSYMP3_FDK_ERROR;
@@ -134,6 +134,33 @@ int psymp3_fdk_decode(void* handle,
     if (channels) *channels = info->numChannels;
     if (aot) *aot = static_cast<int>(info->aot);
     if (ext_aot) *ext_aot = static_cast<int>(info->extAot);
+    if (output_delay) *output_delay = static_cast<int>(info->outputDelay);
+    return PSYMP3_FDK_OK;
+}
+
+int psymp3_fdk_flush(void* handle, short* out, int out_capacity,
+                     int* frame_size, int* rate, int* channels)
+{
+    if (!handle || !out || out_capacity <= 0) {
+        return PSYMP3_FDK_ERROR;
+    }
+    HANDLE_AACDECODER dec = static_cast<HANDLE_AACDECODER>(handle);
+
+    // AACDEC_FLUSH asks for the delayed output without feeding a new packet.
+    AAC_DECODER_ERROR err =
+        aacDecoder_DecodeFrame(dec, reinterpret_cast<INT_PCM*>(out),
+                               static_cast<INT>(out_capacity), AACDEC_FLUSH);
+    if (err != AAC_DEC_OK) {
+        return PSYMP3_FDK_NEED_MORE_DATA; // Drained, or nothing to give.
+    }
+
+    CStreamInfo* info = aacDecoder_GetStreamInfo(dec);
+    if (!info || info->frameSize <= 0 || info->numChannels <= 0) {
+        return PSYMP3_FDK_NEED_MORE_DATA;
+    }
+    if (frame_size) *frame_size = info->frameSize;
+    if (rate) *rate = info->sampleRate;
+    if (channels) *channels = info->numChannels;
     return PSYMP3_FDK_OK;
 }
 
