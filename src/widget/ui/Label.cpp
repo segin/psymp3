@@ -34,47 +34,86 @@ std::vector<std::string> Label::wrapText(Font* font, const std::string& text, in
         lines.push_back(text);
         return lines;
     }
-    // Measure each word once and accumulate, rather than re-measuring the whole
-    // candidate line per word -- that was quadratic in the characters of a line,
-    // and wrapping the About text (which carries the third-party licenses) spent
-    // over a second in here on every resize step.
+    // Whitespace is structural in preformatted text, so it is laid out rather
+    // than collapsed. Leading indentation is preserved and reused as the hanging
+    // indent for any continuation lines, and runs of spaces between words are
+    // kept verbatim. Without this the About text's third-party licenses lose
+    // their shape entirely: nested license clauses flatten against the left
+    // margin, and the contents listing collapses from a two-column table to
+    // "1. PsyMP3 ISC License".
     //
-    // The running total is exact, not an approximation: measureWidth sums glyph
-    // advances and applies no kerning, so width(a + " " + b) is always exactly
-    // width(a) + width(" ") + width(b).
-    const int space_width = font->measureWidth(std::string(" "));
-    std::istringstream words(text);
-    std::string word;
-    std::string current;
-    int current_width = 0;
-    while (words >> word) {
+    // Widths accumulate rather than re-measuring the whole candidate line per
+    // word, which was quadratic in a line's characters. The running total is
+    // exact, not an approximation: measureWidth sums glyph advances and applies
+    // no kerning, so the width of a concatenation is the sum of the widths.
+    static constexpr char kWhitespace[] = " \t\n\r\v\f";
+
+    // A run is reproduced verbatim only when it is all spaces; a tab has no
+    // defined width here, so a run containing one collapses to a single space
+    // (which is what the previous whitespace-collapsing implementation did).
+    const auto layoutRun = [](const std::string& run) {
+        return run.find_first_not_of(' ') == std::string::npos ? run : std::string(" ");
+    };
+
+    const std::size_t indent_end = text.find_first_not_of(kWhitespace);
+    if (indent_end == std::string::npos) {
+        lines.push_back(""); // empty or whitespace-only: nothing to lay out
+        return lines;
+    }
+    const std::string indent = layoutRun(text.substr(0, indent_end));
+    const int indent_width = font->measureWidth(indent);
+
+    std::string current = indent;
+    int current_width = indent_width;
+    bool have_word = false;
+    // Whitespace seen since the last word, held back so that a run landing on a
+    // wrap point becomes the line break instead of trailing space.
+    std::string pending_space;
+    int pending_space_width = 0;
+
+    std::size_t pos = indent_end;
+    while (pos < text.size()) {
+        const std::size_t run_end = text.find_first_not_of(kWhitespace, pos);
+        if (run_end != pos) {
+            if (run_end == std::string::npos) {
+                break; // trailing whitespace, dropped
+            }
+            pending_space = layoutRun(text.substr(pos, run_end - pos));
+            pending_space_width = font->measureWidth(pending_space);
+            pos = run_end;
+            continue;
+        }
+
+        std::size_t word_end = text.find_first_of(kWhitespace, pos);
+        if (word_end == std::string::npos) {
+            word_end = text.size();
+        }
         // Cheap advance-only measure (no rasterization). The UTF-8 overload is
         // deliberate: `text` is already UTF-8, and going via TagLib::String
         // would convert it to UTF-16 and straight back, per word.
+        const std::string word = text.substr(pos, word_end - pos);
         const int word_width = font->measureWidth(word);
-        if (current.empty()) {
+        pos = word_end;
+
+        if (!have_word) {
             // First word on the line is kept whether or not it fits on its own.
-            current = word;
-            current_width = word_width;
-            continue;
-        }
-        const int candidate_width = current_width + space_width + word_width;
-        if (candidate_width > max_width) {
-            lines.push_back(current); // flush the line before this word overflows
-            current = word;
-            current_width = word_width;
-        } else {
-            current += ' ';
             current += word;
-            current_width = candidate_width;
+            current_width += word_width;
+            have_word = true;
+        } else if (current_width + pending_space_width + word_width > max_width) {
+            lines.push_back(current); // flush the line before this word overflows
+            current = indent + word;
+            current_width = indent_width + word_width;
+        } else {
+            current += pending_space;
+            current += word;
+            current_width += pending_space_width + word_width;
         }
+        pending_space.clear();
+        pending_space_width = 0;
     }
-    if (!current.empty()) {
-        lines.push_back(current);
-    }
-    if (lines.empty()) {
-        lines.push_back("");
-    }
+
+    lines.push_back(have_word ? current : std::string());
     return lines;
 }
 
