@@ -34,19 +34,39 @@ std::vector<std::string> Label::wrapText(Font* font, const std::string& text, in
         lines.push_back(text);
         return lines;
     }
+    // Measure each word once and accumulate, rather than re-measuring the whole
+    // candidate line per word -- that was quadratic in the characters of a line,
+    // and wrapping the About text (which carries the third-party licenses) spent
+    // over a second in here on every resize step.
+    //
+    // The running total is exact, not an approximation: measureWidth sums glyph
+    // advances and applies no kerning, so width(a + " " + b) is always exactly
+    // width(a) + width(" ") + width(b).
+    const int space_width = font->measureWidth(std::string(" "));
     std::istringstream words(text);
     std::string word;
     std::string current;
+    int current_width = 0;
     while (words >> word) {
-        std::string candidate = current.empty() ? word : current + " " + word;
-        // Cheap advance-only measure (no rasterization); UTF-8 so multi-byte
-        // glyphs measure correctly (TagLib's std::string ctor is Latin-1).
-        int w = font->measureWidth(TagLib::String(candidate, TagLib::String::UTF8));
-        if (!current.empty() && w > max_width) {
+        // Cheap advance-only measure (no rasterization). The UTF-8 overload is
+        // deliberate: `text` is already UTF-8, and going via TagLib::String
+        // would convert it to UTF-16 and straight back, per word.
+        const int word_width = font->measureWidth(word);
+        if (current.empty()) {
+            // First word on the line is kept whether or not it fits on its own.
+            current = word;
+            current_width = word_width;
+            continue;
+        }
+        const int candidate_width = current_width + space_width + word_width;
+        if (candidate_width > max_width) {
             lines.push_back(current); // flush the line before this word overflows
             current = word;
+            current_width = word_width;
         } else {
-            current = std::move(candidate);
+            current += ' ';
+            current += word;
+            current_width = candidate_width;
         }
     }
     if (!current.empty()) {
