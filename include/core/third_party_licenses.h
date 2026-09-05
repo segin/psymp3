@@ -27,7 +27,9 @@ PsyMP3 itself is distributed under the ISC License, reproduced first below.
 
 The binary distributions of PsyMP3 statically link or embed the third-party
 components listed here, so their licenses travel with the executable. Every
-license text below is reproduced verbatim from the upstream project.
+license text below is reproduced from the upstream project word for word; the
+only change is typographic, "(c)" and "(C)" in copyright notices being set as
+the copyright sign. Section references such as Apache-2.0 4(c) are untouched.
 
 Where a component is offered under a choice of licenses, the license PsyMP3
 elects is stated and only that one is reproduced:
@@ -64,9 +66,9 @@ Contents
 1. PsyMP3 -- ISC License
 ==============================================================================
 
-Copyright (c) 2009-2026 Kirn Gill II <segin2005@gmail.com>
-Copyright (c) 2010-2026 Mattis Michel <sic_zer0@hotmail.com>
-Copyright (c) 2009-2026 Rajesh Rajan <seanawake@gmail.com>
+Copyright © 2009-2026 Kirn Gill II <segin2005@gmail.com>
+Copyright © 2010-2026 Mattis Michel <sic_zer0@hotmail.com>
+Copyright © 2009-2026 Rajesh Rajan <seanawake@gmail.com>
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -86,12 +88,12 @@ PERFORMANCE OF THIS SOFTWARE.
 
 Applies to:
   * Apple ALAC decoder (third_party/alac)
-      Copyright (c) 2011 Apple Inc. All rights reserved.
+      Copyright © 2011 Apple Inc. All rights reserved.
   * MLP/Dolby TrueHD decoder (third_party/mlp), derived from truehdd
-      Copyright (c) 2025 Rainbaby
-      Copyright (c) 2026 Kirn Gill II
+      Copyright © 2025 Rainbaby
+      Copyright © 2026 Kirn Gill II
   * OpenSSL
-      Copyright (c) 1998-2026 The OpenSSL Project Authors
+      Copyright © 1998-2026 The OpenSSL Project Authors
 
 
                                  Apache License
@@ -275,7 +277,7 @@ Applies to:
 3. SDL3 -- zlib License
 ==============================================================================
 
-Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
+Copyright © 1997-2026 Sam Lantinga <slouken@libsdl.org>
   
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -297,7 +299,7 @@ freely, subject to the following restrictions:
 4. zlib -- zlib License
 ==============================================================================
 
-Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
+Copyright © 1995-2024 Jean-loup Gailly and Mark Adler
 
 This software is provided 'as-is', without any express or implied
 warranty.  In no event will the authors be held liable for any damages
@@ -447,7 +449,7 @@ Legal Terms
   If you are  unsure whether or not a particular  file is covered by
   this license, you must contact us to verify this.
 
-  The FreeType  Project is copyright (C) 1996-2000  by David Turner,
+  The FreeType  Project is copyright © 1996-2000  by David Turner,
   Robert Wilhelm, and Werner Lemberg.  All rights reserved except as
   specified below.
 
@@ -538,7 +540,7 @@ Legal Terms
 7. TagLib -- Mozilla Public License 1.1
 ==============================================================================
 
-Copyright (c) 2002-2026 Scott Wheeler and the TagLib contributors
+Copyright © 2002-2026 Scott Wheeler and the TagLib contributors
 TagLib is dual-licensed LGPL-2.1 / MPL-1.1; PsyMP3 elects MPL-1.1.
 
                           MOZILLA PUBLIC LICENSE
@@ -990,7 +992,7 @@ EXHIBIT A -Mozilla Public License.
      The Original Code is ______________________________________.
 
      The Initial Developer of the Original Code is ________________________.
-     Portions created by ______________________ are Copyright (C) ______
+     Portions created by ______________________ are Copyright © ______
      _______________________. All Rights Reserved.
 
      Contributor(s): ______________________________________.
@@ -1113,7 +1115,7 @@ amm-info@iis.fraunhofer.de
 9. libogg -- BSD 3-Clause
 ==============================================================================
 
-Copyright (c) 2002, Xiph.org Foundation
+Copyright © 2002, Xiph.org Foundation
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -1197,7 +1199,7 @@ https://datatracker.ietf.org/ipr/1526/
 
 COPYRIGHT AND PERMISSION NOTICE
 
-Copyright (c) 1996 - 2026, Daniel Stenberg, <daniel@haxx.se>, and many
+Copyright © 1996 - 2026, Daniel Stenberg, <daniel@haxx.se>, and many
 contributors, see the THANKS file.
 
 All rights reserved.
@@ -1224,7 +1226,7 @@ in this Software without prior written authorization of the copyright holder.
 
 MIT License
 
-Copyright (c) 2006-2026 Arseny Kapoulkine
+Copyright © 2006-2026 Arseny Kapoulkine
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation
@@ -1288,14 +1290,14 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>.
 15. DejaVu Sans (embedded UI font) -- Bitstream Vera / Arev
 ==============================================================================
 
-Fonts are (c) Bitstream (see below). DejaVu changes are in public domain.
-Glyphs imported from Arev fonts are (c) Tavmjong Bah (see below)
+Fonts are © Bitstream (see below). DejaVu changes are in public domain.
+Glyphs imported from Arev fonts are © Tavmjong Bah (see below)
 
 
 Bitstream Vera Fonts Copyright
 ------------------------------
 
-Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera is
+Copyright © 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera is
 a trademark of Bitstream, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -1342,7 +1344,7 @@ org.
 Arev Fonts Copyright
 ------------------------------
 
-Copyright (c) 2006 by Tavmjong Bah. All Rights Reserved.
+Copyright © 2006 by Tavmjong Bah. All Rights Reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of the fonts accompanying this license ("Fonts") and
@@ -1389,15 +1391,15 @@ from Tavmjong Bah. For further information, contact: tavmjong @ free
 
 TeX Gyre DJV Math
 -----------------
-Fonts are (c) Bitstream (see below). DejaVu changes are in public domain.
+Fonts are © Bitstream (see below). DejaVu changes are in public domain.
 
 Math extensions done by B. Jackowski, P. Strzelczyk and P. Pianowski
 (on behalf of TeX users groups) are in public domain.
 
-Letters imported from Euler Fraktur from AMSfonts are (c) American
+Letters imported from Euler Fraktur from AMSfonts are © American
 Mathematical Society (see below).
 Bitstream Vera Fonts Copyright
-Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera
+Copyright © 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera
 is a trademark of Bitstream, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
