@@ -167,20 +167,37 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     return sfc;
 }
 
-int Font::measureWidth(const TagLib::String& text)
+int Font::glyphAdvance(uint32_t codepoint)
+{
+    auto it = m_advance_cache.find(codepoint);
+    if (it != m_advance_cache.end()) {
+        return it->second;
+    }
+    // A glyph that fails to load contributes nothing, matching the previous
+    // behaviour of skipping it. Cache that too, so it is not retried.
+    int advance = 0;
+    if (FT_Load_Char(m_face, codepoint, kMeasureLoadFlags) == 0) {
+        advance = m_face->glyph->advance.x >> 6;
+    }
+    m_advance_cache.emplace(codepoint, advance);
+    return advance;
+}
+
+int Font::measureWidth(const std::string& utf8_text)
 {
     if (!m_face) {
         return 0;
     }
     int width = 0;
-    const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
-    for (uint32_t codepoint : codepoints) {
-        if (FT_Load_Char(m_face, codepoint, kMeasureLoadFlags)) {
-            continue;
-        }
-        width += m_face->glyph->advance.x >> 6;
+    for (uint32_t codepoint : UTF8Util::toCodepoints(utf8_text)) {
+        width += glyphAdvance(codepoint);
     }
     return width;
+}
+
+int Font::measureWidth(const TagLib::String& text)
+{
+    return measureWidth(text.to8Bit(true));
 }
 
 std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,

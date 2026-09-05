@@ -46,9 +46,22 @@ class Font
         // Pixel width of `text` from glyph advances only — no rasterization or
         // surface allocation. Cheap enough to call per word while word-wrapping.
         int measureWidth(const TagLib::String& text);
+        // UTF-8 overload. The TagLib::String form has to convert to UTF-16 on
+        // construction and back to UTF-8 to decode, so measuring an existing
+        // std::string through it costs three conversions and three allocations
+        // per call; this one costs one. Prefer it in loops.
+        int measureWidth(const std::string& utf8_text);
         bool isValid();
     protected:
     private:
+        // Advance width of one codepoint, memoised. A face's advances are fixed
+        // once the pixel size is set, but FT_Load_Char runs the autohinter on
+        // every call (kMeasureLoadFlags forces it), so measuring text repeatedly
+        // re-hinted the same handful of ASCII glyphs hundreds of thousands of
+        // times. Word-wrapping the About text is the pathological case.
+        int glyphAdvance(uint32_t codepoint);
+        std::unordered_map<uint32_t, int> m_advance_cache;
+
         FT_Face m_face = nullptr;
         // Backing store for memory faces; FT_New_Memory_Face does not copy, so
         // this must outlive m_face.
