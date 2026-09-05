@@ -25,6 +25,12 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+// Outside the FINAL_BUILD guard: this is a self-contained generated header with
+// its own include guard, and the unity build needs the macro just the same. It
+// is deliberately not pulled in via psymp3.h -- ~74 KB of string literal has no
+// business in every translation unit.
+#include "core/third_party_licenses.h"
+
 namespace PsyMP3 {
 namespace Core {
 
@@ -69,7 +75,14 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
             "THE SOFTWARE IS PROVIDED \"AS IS\" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.\n"
             "\n"
-            "Written by " PSYMP3_MAINTAINER "\n";
+            "Written by " PSYMP3_MAINTAINER "\n"
+            // The literal below opens with its own newline, which supplies the
+            // blank line separating it from the line above.
+            // Several of the licences PsyMP3 links under require their full
+            // text to accompany a binary redistribution, not just a copyright
+            // line. Carrying it here is what lets a standalone .exe -- which
+            // ships with no files beside it -- satisfy that.
+            PSYMP3_THIRD_PARTY_LICENSES;
 
 /**
  * @brief Prints the application's about information to the standard console output.

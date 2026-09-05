@@ -80,6 +80,7 @@ EXTRA_DIST = \
 	include/core/persistentstorage.h \
 	include/core/rect.h \
 	include/core/song.h \
+	include/core/third_party_licenses.h \
 	include/core/utility/Base64.h \
 	include/core/utility/G711.h \
 	include/core/utility/UTF8Util.h \
@@ -198,6 +199,7 @@ EXTRA_DIST = \
 	CLAUDE.md \
 	ARCHITECTURE.md \
 	TESTING.md \
+	THIRD-PARTY-LICENSES.txt \
 	autogen.sh \
 	scripts/analyze_threading_safety.py \
 	scripts/check_threading_patterns.py \
