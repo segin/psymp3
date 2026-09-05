@@ -112,6 +112,7 @@ int main(int argc, char *argv[]) {
         {"decay", required_argument, 0, 0},
         {"test", no_argument, 0, 0},
         {"version", no_argument, 0, 'v'},
+        {"licenses", no_argument, 0, 0},
         {"help", no_argument, 0, 'h'},
         {"debug", required_argument, 0, 0},
         {"logfile", required_argument, 0, 0},
@@ -164,11 +165,14 @@ int main(int argc, char *argv[]) {
                 options.unattended_quit = true;
             } else if (option_name == "no-mpris-errors") {
                 options.show_mpris_errors = false;
+            } else if (option_name == "licenses") {
+                licenses_console();
+                should_run = false;
             }
         } else {
             switch (opt) {
                 case 'v':
-                    about_console();
+                    version_console();
                     should_run = false;
                     break;
                 case 'h':

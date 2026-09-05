@@ -7,8 +7,8 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  *
  * The licence texts below belong to their respective projects and are
- * reproduced verbatim. Regenerate from THIRD-PARTY-LICENSES.txt at the
- * repository root; that file is the source of truth.
+ * reproduced verbatim. Regenerate with scripts/gen-third-party-licenses.sh
+ * after editing THIRD-PARTY-LICENSES.txt, which is the source of truth.
  *
  * Several of the licences PsyMP3 links under -- zlib, BSD, MIT, curl,
  * Apache-2.0, the FreeType Licence and the Fraunhofer FDK AAC licence --

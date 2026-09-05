@@ -614,7 +614,8 @@ using PsyMP3::Core::FastFourier;
 using PsyMP3::DSP::Equalizer;
 #include "audio.h"
 #include "core/about.h"
-using PsyMP3::Core::about_console;
+using PsyMP3::Core::version_console;
+using PsyMP3::Core::licenses_console;
 using PsyMP3::Core::print_help;
 #include "core/persistentstorage.h"
 using PsyMP3::Core::PersistentStorage;

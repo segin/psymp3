@@ -84,13 +84,34 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             // ships with no files beside it -- satisfy that.
             PSYMP3_THIRD_PARTY_LICENSES;
 
+// --version output. Deliberately short: the full text below runs to some 1,500
+// lines now that it carries the third-party license set, which is no use to
+// anyone piping `psymp3 --version` into a script. --licenses prints the rest.
+static char _version_message[] =
+            "PsyMP3 " PSYMP3_VERSION "\n"
+            "Copyright © 2009-2026 Kirn Gill II <segin2005@gmail.com>\n"
+            "License ISC: <https://opensource.org/licenses/ISC>\n"
+            "\n"
+            "Run 'psymp3 --licenses' for copyright and license details, including\n"
+            "the third-party components this binary embeds.\n";
+
 /**
- * @brief Prints the application's about information to the standard console output.
- * 
- * This function is typically used for command-line invocations or on non-GUI platforms
- * to display version, copyright, and licensing details.
+ * @brief Prints the program version, copyright and license to standard output.
+ *
+ * This backs --version, so it stays to a handful of lines.
  */
-void about_console()
+void version_console()
+{
+    std::cout << _version_message;
+}
+
+/**
+ * @brief Prints the full about text -- copyrights and every third-party license.
+ *
+ * This backs --licenses. It is long by design: the licenses PsyMP3 embeds have
+ * to be reproducible from the binary alone.
+ */
+void licenses_console()
 {
     std::cout << _about_message << std::endl;
 }
@@ -120,6 +141,8 @@ void print_help()
     std::cout << "Options:\n";
     std::cout << "  -h, --help              display this help and exit\n";
     std::cout << "  -v, --version           output version information and exit\n";
+    std::cout << "      --licenses          output copyright and third-party license\n";
+    std::cout << "                          texts and exit\n";
     std::cout << "      --fft=MODE          set FFT mode (mat-og, vibe-1, neomat-in, neomat-out)\n";
     std::cout << "      --scale=FACTOR      set scale factor for visualization\n";
     std::cout << "      --decay=FACTOR      set decay factor for visualization\n";

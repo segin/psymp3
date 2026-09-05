@@ -28,7 +28,10 @@ namespace PsyMP3 {
 namespace Core {
 
 
-void about_console();
+/// --version: program, version, copyright and license, in a handful of lines.
+void version_console();
+/// --licenses: the full about text, including every embedded third-party license.
+void licenses_console();
 void print_help();
 void about_ui(); // maybe one day...
 
