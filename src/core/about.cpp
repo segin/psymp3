@@ -119,8 +119,8 @@ void licenses_console()
 /**
  * @brief Returns the multi-line about/version/copyright text.
  *
- * Shared by about_console(), the native Windows message box, and the in-app
- * About dialog (AboutWindow) so all three stay in sync.
+ * Shared by licenses_console() and the in-app About dialog (AboutWindow) so
+ * both stay in sync.
  */
 const char* about_message()
 {
@@ -171,31 +171,6 @@ void print_help()
     std::cout << "Report bugs to: segin2005@gmail.com\n";
     std::cout << "PsyMP3 home page: <https://github.com/segin/psymp3>\n";
 }
-
-#if defined(_WIN32)
-/**
- * @brief Displays the application's about information in a native Windows message box.
- * 
- * This function handles both Unicode and non-Unicode builds. For Unicode, it converts
- * the UTF-8 about message to a wide string before displaying it. For non-Unicode,
- * it displays the message directly.
- */
-void about_windows() {
-#ifdef UNICODE
-    // Use modern C++ vector for buffer management instead of malloc/free.
-    // First, determine the required buffer size for the wide string.
-    int required_size = MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, nullptr, 0);
-    if (required_size > 0) {
-        std::vector<wchar_t> wide_buffer(required_size);
-        // Now, perform the actual conversion.
-        MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, wide_buffer.data(), required_size);
-        MessageBoxW(System::getHwnd(), wide_buffer.data(), L"PsyMP3", MB_OK);
-    }
-#else
-    MessageBoxA(System::getHwnd(), _about_message, "PsyMP3", MB_OK);
-#endif
-}
-#endif // _WIN32
 
 } // namespace Core
 } // namespace PsyMP3

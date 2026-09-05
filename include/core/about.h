@@ -35,8 +35,8 @@ void licenses_console();
 void print_help();
 void about_ui(); // maybe one day...
 
-// The multi-line UTF-8 about/version/copyright text, shared by the console
-// output, the native Windows message box, and the in-app About dialog.
+// The multi-line UTF-8 about/version/copyright text, shared by --licenses and
+// the in-app About dialog.
 const char* about_message();
 
 
