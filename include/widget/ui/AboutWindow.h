@@ -41,17 +41,28 @@ protected:
     void draw(Surface& surface) override;
 
 private:
-    void reflow(int content_width);   // rebuild m_content for the given text width
+    void reflow(int content_width);   // re-wrap m_source_lines for the given text width
     void layoutButton();
     void layoutScrollbar();
     void syncScrollbar();             // push value/enabled/steps to the scrollbar
     int viewportHeight() const;       // visible text height (excludes padding + button strip)
     int maxScroll() const;
     void clampScroll();
+    int measureLineHeight();          // one probe render, covers ascender+descender
+    /// Rendered glyphs for wrapped line @p index, or nullptr for a blank spacer.
+    /// Renders on first use and memoises; the cache is dropped wholesale once it
+    /// outgrows kLineCacheMax.
+    Surface* lineSurface(std::size_t index);
 
     ::Font* m_font;
-    std::vector<std::string> m_source_lines; // paragraph-as-line source text
-    std::unique_ptr<Surface> m_content;      // full rendered (tall) text surface
+    std::vector<std::string> m_source_lines;  // paragraph-as-line source text
+    std::vector<std::string> m_wrapped_lines; // m_source_lines wrapped to m_content_width
+    // Rendered lines, built on demand. The About text carries the full
+    // third-party license set (~1,500 lines), so rendering every line up front
+    // -- and compositing one tall surface -- would cost ~50 MB and a visible
+    // stall, repeated on every width change during a resize drag. Only the
+    // lines actually on screen are ever rendered.
+    std::unordered_map<std::size_t, std::unique_ptr<Surface>> m_line_cache;
     int m_content_width = 0;
     int m_content_height = 0;
     int m_line_height = 0;
@@ -68,6 +79,14 @@ private:
     static constexpr int kScrollbarW = 17;   // matches ListViewWidget::SCROLLBAR_WIDTH
     static constexpr int kScrollbarGap = 2;  // gap between text and scrollbar
     static constexpr int kMinContentWidth = 596; // → ~620px window
+    // Rendered lines kept before the cache is dropped. Generous next to a
+    // viewport (a few dozen lines) but far below the full text, so scrolling
+    // end to end cannot accumulate unbounded surfaces.
+    static constexpr std::size_t kLineCacheMax = 512;
+    // Cap on the height the constructor asks for before showAboutWindow() sets
+    // the real one. Without it the full license text would size the widget to
+    // tens of thousands of pixels.
+    static constexpr int kInitialMaxHeight = 600;
 };
 
 } // namespace UI

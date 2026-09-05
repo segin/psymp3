@@ -49,61 +49,83 @@ AboutWindow::AboutWindow(::Font* font)
     m_ok = btn.get();
     addChild(std::move(btn));
 
-    // Initial size: min content width, natural (unclamped) content height. The
-    // frame/showAboutWindow clamps this to the desktop and drives re-flow via
-    // onClientResized().
+    // Initial size: min content width, and content height capped at
+    // kInitialMaxHeight. The cap matters because the text now carries the full
+    // third-party license set, whose natural height runs to tens of thousands of
+    // pixels -- a widget surface that size would be allocated for nothing.
+    // showAboutWindow() sets the real size and re-flows via onClientResized()
+    // regardless; this is only a sane starting point.
     reflow(kMinContentWidth);
     const int width = kMinContentWidth + kPad * 2 + kScrollbarW + kScrollbarGap;
-    const int height = m_content_height + kButtonStrip + kPad * 2;
+    const int height = std::min(m_content_height + kButtonStrip + kPad * 2,
+                                kInitialMaxHeight);
     onResize(width, height);
     layoutButton();
     layoutScrollbar();
     syncScrollbar();
 }
 
+int AboutWindow::measureLineHeight()
+{
+    // One probe render rather than the max over every rendered line: the text is
+    // far too long to render eagerly. The probe carries an ascender, a
+    // descender, a diacritic and a full-height bar, so it is at least as tall as
+    // any real line.
+    if (m_font) {
+        auto s = m_font->RenderLCD(TagLib::String("AÇgjÖ|", TagLib::String::UTF8),
+                                   20, 20, 20, 240, 240, 240);
+        if (s && s->isValid() && s->height() > 0) {
+            return static_cast<int>(s->height());
+        }
+    }
+    return 14;
+}
+
+Surface* AboutWindow::lineSurface(std::size_t index)
+{
+    auto it = m_line_cache.find(index);
+    if (it != m_line_cache.end()) {
+        return it->second.get();
+    }
+    if (m_line_cache.size() >= kLineCacheMax) {
+        m_line_cache.clear(); // cheap and bounded; the viewport re-renders next draw
+    }
+
+    std::unique_ptr<Surface> rendered;
+    const std::string& text = m_wrapped_lines[index];
+    if (m_font && !text.empty()) {
+        // Light mode: dark text, LCD-blended against the light background.
+        // UTF-8 so "©" renders correctly (TagLib's std::string ctor is Latin-1).
+        auto s = m_font->RenderLCD(TagLib::String(text, TagLib::String::UTF8),
+                                   20, 20, 20, 240, 240, 240);
+        if (s && s->isValid()) {
+            rendered = std::move(s);
+        }
+    }
+    // A null entry is cached too, so blank spacers and failed renders are not
+    // retried on every draw.
+    return m_line_cache.emplace(index, std::move(rendered)).first->second.get();
+}
+
 void AboutWindow::reflow(int content_width)
 {
     m_content_width = std::max(1, content_width);
-    m_line_height = 0;
+    m_line_height = measureLineHeight();
 
-    // Word-wrap each source line to the content width and render it.
-    std::vector<std::unique_ptr<Surface>> rendered;
+    // Word-wrap only; the glyphs are rendered lazily by lineSurface(). Empty
+    // source lines are kept as paragraph spacers.
+    m_line_cache.clear();
+    m_wrapped_lines.clear();
     for (const std::string& src : m_source_lines) {
         if (src.empty()) {
-            rendered.push_back(nullptr); // paragraph spacer
+            m_wrapped_lines.emplace_back();
             continue;
         }
-        for (const std::string& wrapped : Label::wrapText(m_font, src, m_content_width)) {
-            if (m_font && !wrapped.empty()) {
-                // Light mode: dark text, LCD-blended against the light background.
-                // UTF-8 so "©" renders correctly (TagLib's std::string ctor is Latin-1).
-                auto s = m_font->RenderLCD(TagLib::String(wrapped, TagLib::String::UTF8),
-                                           20, 20, 20, 240, 240, 240);
-                if (s && s->isValid()) {
-                    m_line_height = std::max(m_line_height, static_cast<int>(s->height()));
-                    rendered.push_back(std::move(s));
-                    continue;
-                }
-            }
-            rendered.push_back(nullptr);
+        for (std::string& wrapped : Label::wrapText(m_font, src, m_content_width)) {
+            m_wrapped_lines.push_back(std::move(wrapped));
         }
     }
-    if (m_line_height <= 0) {
-        m_line_height = 14;
-    }
-    m_content_height = static_cast<int>(rendered.size()) * m_line_height;
-
-    // Compose the full (tall) content surface once; draw() blits a scrolled
-    // slice of it each frame.
-    m_content = std::make_unique<Surface>(m_content_width, std::max(1, m_content_height), true);
-    m_content->FillRect(m_content->MapRGB(240, 240, 240));
-    int y = 0;
-    for (const auto& s : rendered) {
-        if (s && s->isValid()) {
-            m_content->Blit(*s, Rect(0, y, s->width(), s->height()));
-        }
-        y += m_line_height;
-    }
+    m_content_height = static_cast<int>(m_wrapped_lines.size()) * m_line_height;
 }
 
 int AboutWindow::viewportHeight() const
@@ -192,13 +214,28 @@ void AboutWindow::draw(Surface& surface)
     const int view_h = viewportHeight();
     const int view_w = m_content_width;
 
-    // Blit a vertically-scrolled slice of the content into a temp surface (which
-    // clips it to the text viewport, keeping it out of the button strip), then
-    // onto the widget surface.
-    if (m_content && view_h > 0 && view_w > 0) {
+    // Render and blit only the lines the viewport actually shows. They go into a
+    // temp surface first, which clips them to the text viewport and so keeps
+    // them out of the button strip; then that goes onto the widget surface.
+    if (view_h > 0 && view_w > 0 && m_line_height > 0 && !m_wrapped_lines.empty()) {
         auto slice = std::make_unique<Surface>(view_w, view_h, true);
         slice->FillRect(slice->MapRGB(240, 240, 240));
-        slice->Blit(*m_content, Rect(0, -m_scroll, m_content_width, m_content_height));
+
+        // Half-visible lines at both edges are included; the slice clips them.
+        const std::size_t first = static_cast<std::size_t>(
+            std::max(0, m_scroll) / m_line_height);
+        const std::size_t last = std::min(
+            m_wrapped_lines.size(),
+            static_cast<std::size_t>((std::max(0, m_scroll) + view_h) / m_line_height) + 1);
+
+        for (std::size_t i = first; i < last; ++i) {
+            Surface* s = lineSurface(i);
+            if (!s || !s->isValid()) {
+                continue; // blank spacer
+            }
+            const int y = static_cast<int>(i) * m_line_height - m_scroll;
+            slice->Blit(*s, Rect(0, y, s->width(), s->height()));
+        }
         surface.Blit(*slice, Rect(kPad, kPad, view_w, view_h));
     }
 
