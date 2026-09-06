@@ -283,11 +283,18 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
     size_t bytes_to_read = std::min(chunk_size, 
                                    static_cast<size_t>(stream_data.data_size - stream_data.current_offset));
     
-    // Align to block boundary for compressed formats
-    if (stream_data.block_align > 1 && stream_data.format_tag != WAVE_FORMAT_PCM) {
-        bytes_to_read = (bytes_to_read / stream_data.block_align) * stream_data.block_align;
-        if (bytes_to_read == 0) {
-            bytes_to_read = stream_data.block_align;
+    // Align to a whole number of frames. This used to skip PCM, on the
+    // assumption it did not need it, but PCM needs it most: the codec drops any
+    // partial trailing sample, so a chunk that ends mid-frame loses those bytes
+    // and every later chunk starts misaligned. It goes unnoticed at 16-bit
+    // stereo only because 4096 happens to divide evenly by that frame size --
+    // 24-bit stereo (six bytes a frame) does not, and decodes to noise from the
+    // second chunk on. The last chunk of a stream may still be short, which is
+    // fine: there is nothing after it to misalign.
+    if (stream_data.block_align > 1) {
+        const size_t aligned = (bytes_to_read / stream_data.block_align) * stream_data.block_align;
+        if (aligned > 0) {
+            bytes_to_read = aligned;
         }
     }
     
