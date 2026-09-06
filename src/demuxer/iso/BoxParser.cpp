@@ -858,6 +858,14 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
             case CODEC_MP3:
                 track.codecType = "mp3";
                 break;
+            case CODEC_MLPA:
+                // MLP / Dolby TrueHD. The sample entry is followed by a 'dmlp'
+                // configuration box, but nothing needs reading out of it: an
+                // MLP stream carries its own rate and channel layout in the
+                // major sync of its first access unit, which is where MLPCodec
+                // takes them from. See ARCHITECTURE.md, "MLP/TrueHD".
+                track.codecType = "truehd";
+                break;
             case CODEC_ALAC:
                 track.codecType = "alac";
                 // Look for alac box for ALAC magic cookie
