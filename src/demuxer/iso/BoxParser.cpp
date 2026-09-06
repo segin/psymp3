@@ -814,8 +814,24 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
             uint16_t channelCount = (ReadUInt32BE(audioEntryOffset + 8) >> 16) & 0xFFFF;
             uint16_t sampleSize = ReadUInt32BE(audioEntryOffset + 8) & 0xFFFF;
             // Skip compression ID (2 bytes) and packet size (2 bytes)
-            uint32_t sampleRate = ReadUInt32BE(audioEntryOffset + 16) >> 16; // Fixed-point 16.16
-            
+            // The field is nominally 16.16 fixed point, which cannot express a
+            // rate above 65535. Muxers that need one -- MLP and TrueHD reach
+            // 192 kHz -- write a plain integer here instead, and some write one
+            // even for rates that would have fit. Both readings are accepted:
+            // a zero integer part with a non-zero fraction can only be the
+            // plain-integer form, since a real 16.16 rate below 1 Hz is
+            // meaningless.
+            const uint32_t rateField = ReadUInt32BE(audioEntryOffset + 16);
+            uint32_t sampleRate = rateField >> 16;
+            if (sampleRate == 0) {
+                sampleRate = rateField;
+            }
+            // Last resort: an audio track's media timescale is conventionally
+            // its sample rate.
+            if (sampleRate == 0) {
+                sampleRate = track.timescale;
+            }
+
             track.channelCount = channelCount;
             track.bitsPerSample = sampleSize;
             track.sampleRate = sampleRate;
