@@ -50,7 +50,6 @@ BuildRequires:  pkgconfig(opus)
 %global psymp3_aac_args %{nil}
 BuildRequires:  pkgconfig(fdk-aac)
 %endif
-BuildRequires:  pkgconfig(spandsp)
 BuildRequires:  pkgconfig(speex)
 BuildRequires:  pkgconfig(dbus-1)
 BuildRequires:  pkgconfig(Qt6Widgets)

@@ -43,7 +43,6 @@ jobs:
           libopus-dev \
           libfdk-aac-dev \
           libspeex-dev \
-          libspandsp-dev \
           libdbus-1-dev \
           dbus-daemon \
           zlib1g-dev \

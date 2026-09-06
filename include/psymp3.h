@@ -507,10 +507,12 @@ using PsyMP3::Codec::PCM::MuLawCodec;
 #include "codecs/pcm/ALawCodec.h"
 using PsyMP3::Codec::PCM::ALawCodec;
 #endif
-#ifdef HAVE_G722
+// G.722 is decoded in-tree, so it is unconditional -- no external library to
+// probe for.
+#include "codecs/pcm/G722Decoder.h"
+using PsyMP3::Codec::PCM::G722Decoder;
 #include "codecs/pcm/G722Codec.h"
 using PsyMP3::Codec::PCM::G722Codec;
-#endif
 #include "demuxer/DemuxedStream.h"
 
 // Demuxer subsystem - Raw Audio

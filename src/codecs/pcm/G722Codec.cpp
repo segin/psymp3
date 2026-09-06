@@ -9,10 +9,6 @@
 
 #include "psymp3.h"
 
-#ifdef HAVE_G722
-#include <spandsp/telephony.h>
-#include <spandsp/g722.h>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace PCM {
@@ -22,13 +18,7 @@ G722Codec::G722Codec(const StreamInfo& stream_info)
 {
 }
 
-G722Codec::~G722Codec()
-{
-    if (m_decoder) {
-        g722_decode_free(static_cast<g722_decode_state_t*>(m_decoder));
-        m_decoder = nullptr;
-    }
-}
+G722Codec::~G722Codec() = default;
 
 bool G722Codec::canDecode(const StreamInfo& stream_info) const
 {
@@ -81,13 +71,12 @@ bool G722Codec::initialize()
         m_stream_info.bits_per_sample = 8;
     }
 
-    if (m_decoder) {
-        g722_decode_free(static_cast<g722_decode_state_t*>(m_decoder));
-        m_decoder = nullptr;
-    }
-
-    m_initialized = initializeDecoder_unlocked();
-    return m_initialized;
+    // The 8 kHz mode decodes only the lower sub-band, so it yields one sample
+    // per octet instead of two.
+    m_decoder = std::make_unique<G722Decoder>(selectBitrate_unlocked(),
+                                              m_stream_info.sample_rate != 8000);
+    m_initialized = true;
+    return true;
 }
 
 AudioFrame G722Codec::decode(const MediaChunk& chunk)
@@ -105,22 +94,19 @@ AudioFrame G722Codec::decode(const MediaChunk& chunk)
         frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / m_stream_info.sample_rate;
     }
 
-    // spandsp writes 16-bit PCM, so decode into a scratch buffer and scale up
-    // into the frame: the pipeline carries full-scale S32.
-    std::vector<int16_t> pcm(chunk.data.size() * 2);
-    int samples_decoded = g722_decode(
-        static_cast<g722_decode_state_t*>(m_decoder),
-        pcm.data(),
-        chunk.data.data(),
-        static_cast<int>(chunk.data.size()));
+    // The decoder writes 16-bit PCM, so decode into a scratch buffer and scale
+    // up into the frame: the pipeline carries full-scale S32.
+    std::vector<int16_t> pcm(m_decoder->maxSamples(chunk.data.size()));
+    const std::size_t decoded =
+        m_decoder->decode(chunk.data.data(), chunk.data.size(), pcm.data());
 
-    if (samples_decoded <= 0) {
+    if (decoded == 0) {
         frame.samples.clear();
         return frame;
     }
 
-    frame.samples.resize(static_cast<size_t>(samples_decoded));
-    for (size_t i = 0; i < frame.samples.size(); ++i) {
+    frame.samples.resize(decoded);
+    for (std::size_t i = 0; i < decoded; ++i) {
         frame.samples[i] = static_cast<AudioSample>(pcm[i]) * 65536;
     }
     return frame;
@@ -134,36 +120,17 @@ AudioFrame G722Codec::flush()
 void G722Codec::reset()
 {
     if (m_decoder) {
-        g722_decode_free(static_cast<g722_decode_state_t*>(m_decoder));
-        m_decoder = nullptr;
-    }
-
-    if (m_initialized) {
-        m_initialized = initializeDecoder_unlocked();
+        m_decoder->reset();
     }
 }
 
-bool G722Codec::initializeDecoder_unlocked()
-{
-    m_decoder = g722_decode_init(nullptr, selectBitrate_unlocked(), selectOptions_unlocked());
-    return m_decoder != nullptr;
-}
-
-int G722Codec::selectBitrate_unlocked() const
+G722Decoder::Bitrate G722Codec::selectBitrate_unlocked() const
 {
     switch (m_stream_info.bitrate) {
-        case 48000:
-        case 56000:
-        case 64000:
-            return static_cast<int>(m_stream_info.bitrate);
-        default:
-            return 64000;
+        case 48000: return G722Decoder::Bitrate::Rate48k;
+        case 56000: return G722Decoder::Bitrate::Rate56k;
+        default:    return G722Decoder::Bitrate::Rate64k;
     }
-}
-
-int G722Codec::selectOptions_unlocked() const
-{
-    return m_stream_info.sample_rate == 8000 ? G722_SAMPLE_RATE_8000 : 0;
 }
 
 void registerG722Codec()
@@ -184,5 +151,3 @@ void registerG722Codec()
 } // namespace PCM
 } // namespace Codec
 } // namespace PsyMP3
-
-#endif // HAVE_G722

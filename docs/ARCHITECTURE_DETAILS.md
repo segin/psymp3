@@ -5,7 +5,7 @@ This file holds the extended subsystem notes that would otherwise bloat [ARCHITE
 ## Codec Subsystem
 
 - Audio codecs live in `src/codecs/`.
-- External-library-backed paths currently include `faad2`, `libvorbis`, `libopus`, and `spandsp`.
+- External-library-backed paths currently include `libopus`, `FDK-AAC` and `libspeex`.
 - MP3 decode is provided by bundled `minimp3` through `MiniMP3Codec` plus `MP3NullDemuxer` in the modern demuxer/codec pipeline.
 - Native decoders cover RFC 9639 FLAC plus PCM-family and G.711 paths.
 - FLAC is native-only; the old `libFLAC` wrapper path and legacy `Flac` stream class are gone.

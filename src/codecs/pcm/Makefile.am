@@ -22,10 +22,6 @@ if HAVE_OGG
 AM_CPPFLAGS += $(OGG_CFLAGS)
 endif
 
-if HAVE_G722
-AM_CPPFLAGS += $(G722_CFLAGS)
-endif
-
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
@@ -38,7 +34,7 @@ libpsymp3_codec_pcm_a_SOURCES = \
 	MuLawCodec.cpp
 
 if HAVE_G722
-libpsymp3_codec_pcm_a_SOURCES += G722Codec.cpp
+libpsymp3_codec_pcm_a_SOURCES += G722Codec.cpp G722Decoder.cpp
 endif
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)

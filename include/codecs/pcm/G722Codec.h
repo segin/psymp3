@@ -27,11 +27,10 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
 
 private:
-    bool initializeDecoder_unlocked();
-    int selectBitrate_unlocked() const;
-    int selectOptions_unlocked() const;
+    /// Which lower-band width the stream's declared bitrate asks for.
+    G722Decoder::Bitrate selectBitrate_unlocked() const;
 
-    void* m_decoder = nullptr;
+    std::unique_ptr<G722Decoder> m_decoder;
 };
 
 void registerG722Codec();

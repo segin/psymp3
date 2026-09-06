@@ -156,7 +156,7 @@ AC_ARG_ENABLE([aac],
   [enable_aac=$enableval], [enable_aac=yes])
 
 AC_ARG_ENABLE([g722],
-  [AS_HELP_STRING([--enable-g722], [Enable G.722 support via spandsp @<:@default=yes@:>@])],
+  [AS_HELP_STRING([--enable-g722], [Enable G.722 support @<:@default=yes@:>@])],
   [enable_g722=$enableval], [enable_g722=yes])
 
 # Check for optional codec libraries
@@ -232,13 +232,11 @@ else
   have_aac=no
 fi
 
+# G.722 is decoded in-tree (src/codecs/pcm/G722Decoder.cpp), so there is no
+# library to probe for -- the toggle only says whether to build the codec.
 if test "x$enable_g722" = "xyes"; then
-  PKG_CHECK_MODULES([G722], [spandsp], [have_g722=yes], [have_g722=no])
-  if test "x$have_g722" = "xyes"; then
-    AC_DEFINE([HAVE_G722], [1], [Define to 1 if G.722 support is enabled])
-  else
-    AC_MSG_WARN([G.722 support disabled: spandsp not found])
-  fi
+  have_g722=yes
+  AC_DEFINE([HAVE_G722], [1], [Define to 1 if G.722 support is enabled])
 else
   have_g722=no
 fi
@@ -693,7 +691,7 @@ else
 fi
 echo "  Opus:              $have_opus"
 echo "  AAC (FDK-AAC):     $have_aac"
-echo "  G.722 (spandsp):   $have_g722"
+echo "  G.722 (built in):  $have_g722"
 echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"

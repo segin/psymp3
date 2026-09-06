@@ -34,7 +34,7 @@
  * - PCM codec (8-bit, 16-bit, 24-bit, 32-bit integer and float)
  * - A-law codec (ITU-T G.711)
  * - μ-law codec (ITU-T G.711)
- * - G.722 codec (wideband ADPCM, when spandsp is available)
+ * - G.722 codec (wideband ADPCM, decoded in-tree)
  * 
  * Conditionally registered (based on #ifdef):
  * - Vorbis codec and passthrough (HAVE_VORBIS)

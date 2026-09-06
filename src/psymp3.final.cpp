@@ -128,6 +128,7 @@
 
 #ifdef HAVE_G722
 #include "codecs/pcm/G722Codec.cpp"
+#include "codecs/pcm/G722Decoder.cpp"
 #endif
 
 // ============================================================================

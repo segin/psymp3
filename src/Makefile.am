@@ -45,10 +45,6 @@ if HAVE_AAC
 AM_CPPFLAGS += $(AAC_CFLAGS)
 endif
 
-if HAVE_G722
-AM_CPPFLAGS += $(G722_CFLAGS)
-endif
-
 if HAVE_SPEEX
 AM_CPPFLAGS += $(SPEEX_CFLAGS)
 endif
@@ -195,10 +191,6 @@ endif
 
 if HAVE_AAC
 psymp3_LDADD += $(AAC_LIBS)
-endif
-
-if HAVE_G722
-psymp3_LDADD += $(G722_LIBS)
 endif
 
 if HAVE_SPEEX

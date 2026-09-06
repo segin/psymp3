@@ -62,6 +62,7 @@ EXTRA_DIST = \
 	include/codecs/opus/OpusCodec.h \
 	include/codecs/pcm/ALawCodec.h \
 	include/codecs/pcm/G722Codec.h \
+	include/codecs/pcm/G722Decoder.h \
 	include/codecs/pcm/MuLawCodec.h \
 	include/codecs/pcm/PCMCodecs.h \
 	include/codecs/vorbis/VorbisCodec.h \

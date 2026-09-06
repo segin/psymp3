@@ -17,7 +17,6 @@ Build-Depends:
  libogg-dev,
  libopus-dev,
  libfdk-aac-dev,
- libspandsp-dev,
  libspeex-dev,
  libdbus-1-dev,
  qt6-base-dev,

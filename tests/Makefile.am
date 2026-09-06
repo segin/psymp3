@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS) $(G722_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -83,8 +83,7 @@ SYSTEM_LIBS = \
 	$(FLAC_LIBS) \
 	$(OGG_LIBS) \
 	$(AAC_LIBS) \
-	$(SPEEX_LIBS) \
-	$(G722_LIBS)
+	$(SPEEX_LIBS)
 
 # Common library set for tests (mirrors main binary linking)
 # Order: architecture layers top-down, objects first, then archives
@@ -247,7 +246,7 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(SYSTEM_LIBS) $(G722_LIBS)
+	$(SYSTEM_LIBS)
 
 # Legacy variable for backward compatibility (deprecated - use FULL_CODEC_LIBS)
 COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
@@ -257,7 +256,7 @@ MPRIS_TEST_LIBS = $(COMMON_TEST_LIBS)
 
 # Common library links for codec tests
 COMMON_CODEC_LIBS = -lopus -logg
-AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS) $(AAC_LIBS) $(G722_LIBS)
+AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) $(SPEEX_LIBS) $(AAC_LIBS)
 
 # Common test utilities library
 noinst_LIBRARIES = libtest_utilities.a

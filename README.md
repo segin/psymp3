@@ -56,7 +56,6 @@ Highlights:
   Fedora ships only the stripped `fdk-aac-free`, against which PsyMP3 builds
   without AAC rather than decoding HE-AAC at half its bandwidth.
 - speex 1.2 or later (`speex`) — Speex
-- spandsp (`spandsp`) — G.722
 
 **Bundled codecs** (vendored, no external dependency):
 - FLAC — native decoder (no libFLAC needed)
