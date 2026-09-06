@@ -10,8 +10,7 @@
 #include "psymp3.h"
 
 #ifdef HAVE_G722
-#include <spandsp/telephony.h>
-#include <spandsp/g722.h>
+#include "g722_fixture.h"
 
 namespace {
 
@@ -32,18 +31,11 @@ std::vector<int16_t> makeSinePcm(size_t sample_count)
     return pcm;
 }
 
-std::vector<uint8_t> encodeG722(const std::vector<int16_t>& pcm)
+// The bitstream is a captured fixture rather than something encoded here:
+// PsyMP3 decodes G.722 in-tree and ships no encoder. See g722_fixture.h.
+std::vector<uint8_t> encodedG722Sine()
 {
-    g722_encode_state_t* encoder = g722_encode_init(nullptr, 64000, 0);
-    require(encoder != nullptr, "Failed to initialize G.722 encoder");
-
-    std::vector<uint8_t> encoded(pcm.size());
-    int encoded_bytes = g722_encode(encoder, encoded.data(), pcm.data(), static_cast<int>(pcm.size()));
-    g722_encode_free(encoder);
-
-    require(encoded_bytes > 0, "Failed to encode G.722 test payload");
-    encoded.resize(static_cast<size_t>(encoded_bytes));
-    return encoded;
+    return std::vector<uint8_t>(std::begin(kG722Sine1600), std::end(kG722Sine1600));
 }
 
 std::string writeTempG722(const std::vector<uint8_t>& encoded)
@@ -62,7 +54,7 @@ int main()
 {
     try {
         const std::vector<int16_t> source_pcm = makeSinePcm(1600);
-        const std::vector<uint8_t> encoded = encodeG722(source_pcm);
+        const std::vector<uint8_t> encoded = encodedG722Sine();
         const std::string path = writeTempG722(encoded);
 
         auto handler = std::make_unique<FileIOHandler>(path);
