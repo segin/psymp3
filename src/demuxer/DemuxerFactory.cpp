@@ -67,6 +67,7 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["wave"] = "riff";
     s_extension_to_format["aif"] = "aiff";
     s_extension_to_format["aiff"] = "aiff";
+    s_extension_to_format["aifc"] = "aiff"; // AIFF-C, same demuxer
     s_extension_to_format["ogg"] = "ogg";
     s_extension_to_format["oga"] = "ogg";
     s_extension_to_format["opus"] = "ogg";

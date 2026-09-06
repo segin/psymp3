@@ -49,7 +49,7 @@ bool ChunkDemuxer::parseContainer() {
                    ", Form=0x", m_form_type, std::dec, ", BigEndian=", m_big_endian);
         
         // Support WAVE (RIFF), AIFF (FORM), and other IFF variants
-        if (m_form_type != WAVE_FOURCC && m_form_type != AIFF_FOURCC) {
+        if (m_form_type != WAVE_FOURCC && !isAiffFile()) {
             Debug::log("chunk", "ChunkDemuxer: Unsupported form type: 0x", std::hex, m_form_type);
             reportError("container", "Unsupported form type (expected WAVE or AIFF)");
             return false;
@@ -117,7 +117,7 @@ bool ChunkDemuxer::parseContainer() {
                         Debug::log("chunk", "ChunkDemuxer: Skipping unknown WAV chunk 0x", std::hex, chunk.fourcc);
                         skipChunk(chunk);
                     }
-                } else if (m_form_type == AIFF_FOURCC) {
+                } else if (isAiffFile()) {
                     // FORM/AIFF chunks
                     if (chunk.fourcc == COMM_FOURCC) {
                         if (!parseAiffCommon(chunk)) {
@@ -504,7 +504,7 @@ void ChunkDemuxer::skipChunk(const Chunk& chunk) {
 }
 
 std::string ChunkDemuxer::getCodecName(const AudioStreamData& stream) const {
-    if (m_form_type == AIFF_FOURCC) {
+    if (isAiffFile()) {
         return aiffCompressionToCodecName(stream.compression_type);
     } else {
         return formatTagToCodecName(stream.format_tag);
@@ -551,7 +551,7 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
 bool ChunkDemuxer::usesBigEndianSamples(const AudioStreamData& stream) const {
     // Only raw PCM is affected: the companded and compressed formats define
     // their own byte order, and everything in RIFF is little-endian.
-    if (m_form_type != AIFF_FOURCC) {
+    if (!isAiffFile()) {
         return false;
     }
     switch (stream.compression_type) {
@@ -630,9 +630,14 @@ bool ChunkDemuxer::parseAiffCommon(const Chunk& chunk) {
     switch (stream_data.compression_type) {
         case AIFF_NONE:
         case AIFF_SOWT:
+            stream_data.format_tag = WAVE_FORMAT_PCM;
+            break;
         case AIFF_FL32:
         case AIFF_FL64:
-            stream_data.format_tag = WAVE_FORMAT_PCM;
+            // Tagging these as plain PCM made the codec read the samples as
+            // integers, which is noise. 64-bit float is still not decodable,
+            // but it is now refused rather than played as garbage.
+            stream_data.format_tag = WAVE_FORMAT_IEEE_FLOAT;
             break;
         case AIFF_ALAW:
             stream_data.format_tag = WAVE_FORMAT_ALAW;

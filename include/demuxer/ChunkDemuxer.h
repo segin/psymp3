@@ -85,7 +85,12 @@ public:
     /**
      * @brief Check if this is an AIFF file
      */
-    bool isAiffFile() const { return m_form_type == AIFF_FOURCC; }
+    /// True for both AIFF and AIFF-C. The two differ only in that AIFF-C
+    /// names a compression type in its COMM chunk and adds an FVER chunk;
+    /// everything else about the layout is the same.
+    bool isAiffFile() const {
+        return m_form_type == AIFF_FOURCC || m_form_type == AIFC_FOURCC;
+    }
     
 private:
     // Container FourCC constants (Always read as Big-Endian)
@@ -96,6 +101,7 @@ private:
     // Format type constants (Read using container endianness)
     static constexpr uint32_t WAVE_FOURCC = 0x45564157; // "WAVE" (read as little-endian)
     static constexpr uint32_t AIFF_FOURCC = 0x41494646; // "AIFF" (read as big-endian)
+    static constexpr uint32_t AIFC_FOURCC = 0x41494643; // "AIFC" (AIFF-C)
     
     // RIFF/WAV chunk constants (FourCC always read as Big-Endian)
     static constexpr uint32_t FMT_FOURCC  = 0x666d7420; // "fmt "
