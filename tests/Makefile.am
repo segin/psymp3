@@ -3233,6 +3233,7 @@ EXTRA_DIST += \
 	FLACRFCComplianceValidator.h \
 	MockOggFile.h \
 	flac_test_data_utils.h \
+	g722_fixture.h \
 	mock_dbus_connection.h \
 	mock_include/psymp3.h \
 	mock_player.h \
