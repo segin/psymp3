@@ -248,6 +248,8 @@ private:
      * @brief Convert AIFF compression type to codec name
      */
     std::string aiffCompressionToCodecName(uint32_t compression) const;
+    /// True when the stream's raw PCM samples are stored big-endian.
+    bool usesBigEndianSamples(const AudioStreamData& stream) const;
     
     /**
      * @brief Convert IEEE 80-bit extended precision to double

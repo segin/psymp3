@@ -200,6 +200,7 @@ std::vector<StreamInfo> ChunkDemuxer::getStreams() const {
         info.channels = audio_data.channels;
         info.bits_per_sample = audio_data.bits_per_sample;
         info.bitrate = audio_data.avg_bytes_per_sec * 8;
+        info.big_endian_samples = usesBigEndianSamples(audio_data);
         info.codec_data = audio_data.extra_data;
         
         // Add metadata
@@ -537,6 +538,23 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
         default:
             Debug::log("chunk", "ChunkDemuxer: Unknown WAV format tag: 0x", std::hex, format_tag);
             return "unknown";
+    }
+}
+
+bool ChunkDemuxer::usesBigEndianSamples(const AudioStreamData& stream) const {
+    // Only raw PCM is affected: the companded and compressed formats define
+    // their own byte order, and everything in RIFF is little-endian.
+    if (m_form_type != AIFF_FOURCC) {
+        return false;
+    }
+    switch (stream.compression_type) {
+        case AIFF_NONE:   // plain AIFF: samples are big-endian
+        case AIFF_FL32:
+        case AIFF_FL64:
+            return true;
+        case AIFF_SOWT:   // "sowt" is "twos" backwards: little-endian samples
+        default:
+            return false;
     }
 }
 

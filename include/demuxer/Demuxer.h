@@ -66,6 +66,10 @@ struct StreamInfo {
     uint16_t channels = 0;         ///< Number of audio channels (1=mono, 2=stereo, etc.)
     uint16_t bits_per_sample = 0;  ///< Bits per sample (8, 16, 24, 32)
     uint32_t bitrate = 0;          ///< Average bitrate in bits per second (0 if unknown)
+    /// Byte order of raw PCM sample data. RIFF/WAV is little-endian, and so is
+    /// AIFF-C "sowt", but plain AIFF stores samples big-endian -- reading those
+    /// the wrong way round does not sound subtly wrong, it decodes to static.
+    bool big_endian_samples = false;
     
     // Additional codec-specific data
     std::vector<uint8_t> codec_data; ///< Extra data needed by codec (e.g., AAC AudioSpecificConfig, FLAC STREAMINFO)

@@ -93,7 +93,19 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
     size_t num_samples = input_size / bytes_per_sample;
     
     output_samples.resize(num_samples);
-    
+
+    // AIFF stores raw PCM big-endian; RIFF/WAV and AIFF-C "sowt" store it
+    // little-endian. Reading one as the other decodes to static, so the source's
+    // byte order is honoured explicitly rather than assumed to match the host.
+    const bool big_endian = m_stream_info.big_endian_samples;
+    const auto read32 = [big_endian](const uint8_t* p) -> uint32_t {
+        return big_endian
+            ? ((static_cast<uint32_t>(p[0]) << 24) | (static_cast<uint32_t>(p[1]) << 16) |
+               (static_cast<uint32_t>(p[2]) << 8)  |  static_cast<uint32_t>(p[3]))
+            : ((static_cast<uint32_t>(p[3]) << 24) | (static_cast<uint32_t>(p[2]) << 16) |
+               (static_cast<uint32_t>(p[1]) << 8)  |  static_cast<uint32_t>(p[0]));
+    };
+
     // Everything lands as full-scale S32, so each depth is scaled up rather
     // than down. 24- and 32-bit sources used to be shifted DOWN into int16,
     // which threw away the extra resolution they exist to carry.
@@ -109,19 +121,27 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
 
         case PCMFormat::PCM_16_SIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                int16_t sample16;
-                std::memcpy(&sample16, &input_ptr[i * 2], sizeof(int16_t));
-                output_samples[i] = static_cast<AudioSample>(sample16) * 65536;
+                const uint8_t* p = &input_ptr[i * 2];
+                const uint16_t raw = big_endian
+                    ? static_cast<uint16_t>((static_cast<uint16_t>(p[0]) << 8) | p[1])
+                    : static_cast<uint16_t>((static_cast<uint16_t>(p[1]) << 8) | p[0]);
+                output_samples[i] =
+                    static_cast<AudioSample>(static_cast<int16_t>(raw)) * 65536;
             }
             break;
 
         case PCMFormat::PCM_24_SIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                // Build the 24-bit value (little-endian) unsigned, then
-                // sign-extend from bit 23 and scale to full range.
-                uint32_t raw = (static_cast<uint32_t>(input_ptr[i*3 + 2]) << 16) |
-                               (static_cast<uint32_t>(input_ptr[i*3 + 1]) << 8) |
-                                static_cast<uint32_t>(input_ptr[i*3]);
+                // Build the 24-bit value unsigned in the source's byte order,
+                // then sign-extend from bit 23 and scale to full range.
+                const uint8_t* p = &input_ptr[i * 3];
+                uint32_t raw = big_endian
+                    ? ((static_cast<uint32_t>(p[0]) << 16) |
+                       (static_cast<uint32_t>(p[1]) << 8)  |
+                        static_cast<uint32_t>(p[2]))
+                    : ((static_cast<uint32_t>(p[2]) << 16) |
+                       (static_cast<uint32_t>(p[1]) << 8)  |
+                        static_cast<uint32_t>(p[0]));
                 int32_t sample24 = (raw & 0x800000u) ? static_cast<int32_t>(raw | 0xFF000000u)
                                                      : static_cast<int32_t>(raw);
                 output_samples[i] = static_cast<AudioSample>(sample24) * 256;
@@ -130,16 +150,18 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
 
         case PCMFormat::PCM_32_SIGNED:
             for (size_t i = 0; i < num_samples; ++i) {
-                int32_t sample32;
-                std::memcpy(&sample32, &input_ptr[i*4], sizeof(int32_t));
-                output_samples[i] = static_cast<AudioSample>(sample32); // already full scale
+                output_samples[i] =
+                    static_cast<AudioSample>(static_cast<int32_t>(read32(&input_ptr[i * 4])));
             }
             break;
 
         case PCMFormat::PCM_32_FLOAT:
             for (size_t i = 0; i < num_samples; ++i) {
+                // The bits are assembled in the source's order, then reinterpreted
+                // as a float; memcpy keeps that strict-aliasing-safe.
+                const uint32_t bits = read32(&input_ptr[i * 4]);
                 float sample_float;
-                std::memcpy(&sample_float, &input_ptr[i*4], sizeof(float));
+                std::memcpy(&sample_float, &bits, sizeof(float));
                 sample_float = std::clamp(sample_float, -1.0f, 1.0f);
                 output_samples[i] = static_cast<AudioSample>(sample_float * 2147483520.0f);
             }
