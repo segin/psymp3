@@ -324,44 +324,29 @@ Jean-loup Gailly        Mark Adler
 5. kjmp2 (MP2 decoder) -- zlib License
 ==============================================================================
 
-kjmp2 - a minimal MPEG-1/2 Audio Layer II decoder
-version 1.1
+kjmp2 (third_party/kjmp2), a minimal MPEG-1/2 Audio Layer II decoder by
+Martin J. Fiedler. Reproduced from the licence block at the head of
+kjmp2.c; the decoder library is under the zlib licence, and the player
+applications distributed with it upstream, which PsyMP3 does not use, are
+public domain.
 
-kjmp2 is a small library that decodes "MP2" audio data.
-Please read again: It decodes MPEG Audio Layer II (!) ONLY!
-***** It won't play Layer III ("MP3") audio! *****
+Copyright © 2006-2013 Martin J. Fiedler <martin.fiedler@gmx.net>
 
-For your listening pleasure, some tiny player applications for Win32/x86 and
-Linux/x86 are supplied as well. The Win32 version is only 3.63 KiB!
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
 
-kjmp2 is:
- - easy to use: the API consists of only 3 functions
- - small: only 432 lines of C code (excluding comments, but including tables)
- - lightweight: compiles to ~2 KiB of x86 code plus 2.4 KiB data and requires
-   20 KiB of memory at run time
- - portable: no hardware- or architecture-specific code is used (except for the
-   player applications)
- - open source: the decoder library is licensed under the zlib license, the
-   player applications are public domain
- - (somewhat) understandable: the code is nicely commented
- - a "clean room" implementation, using only the specifications (ISO 11172-3
-   and ISO 13818-3), no code was copied from other implementations
- - integer-only: no floating point math is used, only fixed point computations
-   on 32-bit integers are done
- - imprecise: due to the integer-only implementation, many rounding errors will
-   occur; expect a 45-55 dB noise margin!
- - slow: it implements the synthesis process from the spec, which is very slow
-   (82 multiplications, 1-2 divisions and countless shifts and additions per
-   sample!)
- - not robust: it may easily crash on broken input data. Also, it ignores CRC
-   values completely.
- - not thread-safe
- - a quick hack made in only 14 hours of work (plus 5 hours for the player
-   applications, plus 2 hours debugging and testing of corner cases, plus 2
-   hours for MPEG-2 low sample rate support)
-
-                                 -- Martin J. Fiedler <martin.fiedler@gmx.net>
-                                    a.k.a. KeyJ       [http://keyj.emphy.de/]
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would
+     be appreciated but is not required.
+  2. Altered source versions must be plainly marked as such, and must not
+     be misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source
+     distribution.
 
 ==============================================================================
 6. FreeType -- FreeType License (FTL)
