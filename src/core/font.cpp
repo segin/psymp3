@@ -241,9 +241,19 @@ int Font::measureWidth(const std::string& utf8_text)
     if (!m_face) {
         return 0;
     }
+    // Decoded in place rather than through UTF8Util::toCodepoints, which
+    // allocates a vector per call. Word-wrapping measures every word of every
+    // line, so that was thousands of allocations for a page of text; the
+    // decoding itself is the same function either way.
     int width = 0;
-    for (uint32_t codepoint : UTF8Util::toCodepoints(utf8_text)) {
+    const auto* data = reinterpret_cast<const uint8_t*>(utf8_text.data());
+    std::size_t i = 0;
+    while (i < utf8_text.size()) {
+        std::size_t consumed = 0;
+        const uint32_t codepoint =
+            UTF8Util::decodeCodepoint(data + i, utf8_text.size() - i, consumed);
         width += glyphAdvance(codepoint);
+        i += consumed;
     }
     return width;
 }
