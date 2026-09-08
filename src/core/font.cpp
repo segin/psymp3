@@ -36,6 +36,10 @@ constexpr int kGlyphLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
 constexpr int kMeasureLoadFlags = FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME |
                                   FT_LOAD_FORCE_AUTOHINT;
 
+// FT_LOAD_TARGET_LCD asks for horizontal RGB-subpixel rendering. The resulting
+// bitmap has FT_PIXEL_MODE_LCD with width tripled (one byte per subpixel).
+constexpr int kLCDRenderFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
+
 std::vector<uint32_t> toRenderableCodepoints(const TagLib::String& text)
 {
     return UTF8Util::toCodepoints(text.to8Bit(true));
@@ -183,6 +187,55 @@ int Font::glyphAdvance(uint32_t codepoint)
     return advance;
 }
 
+const Font::GlyphBitmap& Font::renderedGlyph(uint32_t codepoint)
+{
+    auto it = m_glyph_cache.find(codepoint);
+    if (it != m_glyph_cache.end()) {
+        return it->second;
+    }
+    if (m_glyph_cache.size() >= kGlyphCacheMax) {
+        m_glyph_cache.clear();
+    }
+
+    GlyphBitmap glyph;
+    if (m_face && FT_Load_Char(m_face, codepoint, kLCDRenderFlags) == 0) {
+        const FT_GlyphSlot slot = m_face->glyph;
+        glyph.left = slot->bitmap_left;
+        glyph.top = slot->bitmap_top;
+        glyph.advance = slot->advance.x >> 6;
+        glyph.rows = static_cast<int>(slot->bitmap.rows);
+        glyph.lcd = (slot->bitmap.pixel_mode == FT_PIXEL_MODE_LCD);
+        glyph.valid = true;
+
+        if (glyph.lcd) {
+            glyph.width = static_cast<int>(slot->bitmap.width) / 3;
+            glyph.coverage.resize(static_cast<std::size_t>(glyph.width) * glyph.rows * 3);
+            for (int row = 0; row < glyph.rows; ++row) {
+                // pitch is signed: a negative one means the rows run upward in
+                // memory, so it has to be applied rather than assumed positive.
+                const auto* src = slot->bitmap.buffer + row * slot->bitmap.pitch;
+                std::memcpy(&glyph.coverage[static_cast<std::size_t>(row) * glyph.width * 3],
+                            src, static_cast<std::size_t>(glyph.width) * 3);
+            }
+        } else {
+            // Some faces or builds do not honour the LCD target; normalise the
+            // mono/grey bitmap to one coverage byte per pixel while caching, so
+            // the drawing loop does not have to care which it got.
+            glyph.width = static_cast<int>(slot->bitmap.width);
+            glyph.coverage.resize(static_cast<std::size_t>(glyph.width) * glyph.rows);
+            for (int row = 0; row < glyph.rows; ++row) {
+                for (int col = 0; col < glyph.width; ++col) {
+                    glyph.coverage[static_cast<std::size_t>(row) * glyph.width + col] =
+                        getGlyphCoverage(slot->bitmap, static_cast<unsigned>(row),
+                                         static_cast<unsigned>(col));
+                }
+            }
+        }
+    }
+
+    return m_glyph_cache.emplace(codepoint, std::move(glyph)).first->second;
+}
+
 int Font::measureWidth(const std::string& utf8_text)
 {
     if (!m_face) {
@@ -208,13 +261,6 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
         return nullptr;
     }
 
-    // FT_LOAD_TARGET_LCD asks for horizontal RGB-subpixel rendering. The
-    // resulting bitmap has FT_PIXEL_MODE_LCD with width tripled (one byte per
-    // subpixel: R, G, B per logical pixel).
-    constexpr int kLCDLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
-    // Advance-only variant (no rasterization) for the width pre-pass.
-    constexpr int kLCDMeasureFlags = FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
-
     int width = 0;
     int font_height = (m_face->size->metrics.height) >> 6;
     int baseline = (m_face->size->metrics.ascender) >> 6;
@@ -223,12 +269,11 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
         font_height = baseline - descender;
     }
 
+    // Both passes read the glyph cache, so FreeType rasterises each glyph once
+    // per font rather than once per call.
     const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
     for (uint32_t codepoint : codepoints) {
-        if (FT_Load_Char(m_face, codepoint, kLCDMeasureFlags)) {
-            continue;
-        }
-        width += m_face->glyph->advance.x >> 6;
+        width += renderedGlyph(codepoint).advance;
     }
 
     // Clamp the surface width: text comes from untrusted tags and could
@@ -256,50 +301,35 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
 
     int pen_x = 0;
     for (uint32_t codepoint : codepoints) {
-        if (FT_Load_Char(m_face, codepoint, kLCDLoadFlags)) {
+        const GlyphBitmap& glyph = renderedGlyph(codepoint);
+        if (!glyph.valid) {
             continue;
         }
 
-        FT_GlyphSlot slot = m_face->glyph;
-        const int y_pos = baseline - slot->bitmap_top;
-        const int x_pos = pen_x + slot->bitmap_left;
+        const int y_pos = baseline - glyph.top;
+        const int x_pos = pen_x + glyph.left;
 
-        if (slot->bitmap.pixel_mode == FT_PIXEL_MODE_LCD) {
-            const unsigned int glyph_pixels_w = slot->bitmap.width / 3;
-            for (unsigned int row = 0; row < slot->bitmap.rows; ++row) {
-                const auto* row_ptr = slot->bitmap.buffer + row * slot->bitmap.pitch;
-                for (unsigned int col = 0; col < glyph_pixels_w; ++col) {
-                    const uint8_t cR = row_ptr[col * 3 + 0];
-                    const uint8_t cG = row_ptr[col * 3 + 1];
-                    const uint8_t cB = row_ptr[col * 3 + 2];
-                    if ((cR | cG | cB) == 0) {
-                        continue;
-                    }
-                    const uint8_t out_r = static_cast<uint8_t>((fg_r * cR + bg_r * (255 - cR)) / 255);
-                    const uint8_t out_g = static_cast<uint8_t>((fg_g * cG + bg_g * (255 - cG)) / 255);
-                    const uint8_t out_b = static_cast<uint8_t>((fg_b * cB + bg_b * (255 - cB)) / 255);
-                    sfc->pixel(x_pos + col, y_pos + row, out_r, out_g, out_b, 255);
+        // Coverage is cached rather than finished pixels, so the blend against
+        // the caller's colours happens here. Subpixel coverage carries one
+        // value per channel; the grey fallback carries one for all three.
+        for (int row = 0; row < glyph.rows; ++row) {
+            const uint8_t* src = glyph.coverage.data()
+                               + static_cast<std::size_t>(row) * glyph.width * (glyph.lcd ? 3 : 1);
+            for (int col = 0; col < glyph.width; ++col) {
+                const uint8_t cR = glyph.lcd ? src[col * 3 + 0] : src[col];
+                const uint8_t cG = glyph.lcd ? src[col * 3 + 1] : src[col];
+                const uint8_t cB = glyph.lcd ? src[col * 3 + 2] : src[col];
+                if ((cR | cG | cB) == 0) {
+                    continue;
                 }
-            }
-        } else {
-            // Fallback for fonts/configurations where the LCD target wasn't
-            // honored: treat the bitmap as grayscale or mono coverage and
-            // blend uniformly against the bg.
-            for (unsigned int row = 0; row < slot->bitmap.rows; ++row) {
-                for (unsigned int col = 0; col < slot->bitmap.width; ++col) {
-                    const uint8_t cov = getGlyphCoverage(slot->bitmap, row, col);
-                    if (cov == 0) {
-                        continue;
-                    }
-                    const uint8_t out_r = static_cast<uint8_t>((fg_r * cov + bg_r * (255 - cov)) / 255);
-                    const uint8_t out_g = static_cast<uint8_t>((fg_g * cov + bg_g * (255 - cov)) / 255);
-                    const uint8_t out_b = static_cast<uint8_t>((fg_b * cov + bg_b * (255 - cov)) / 255);
-                    sfc->pixel(x_pos + col, y_pos + row, out_r, out_g, out_b, 255);
-                }
+                const uint8_t out_r = static_cast<uint8_t>((fg_r * cR + bg_r * (255 - cR)) / 255);
+                const uint8_t out_g = static_cast<uint8_t>((fg_g * cG + bg_g * (255 - cG)) / 255);
+                const uint8_t out_b = static_cast<uint8_t>((fg_b * cB + bg_b * (255 - cB)) / 255);
+                sfc->pixel(x_pos + col, y_pos + row, out_r, out_g, out_b, 255);
             }
         }
 
-        pen_x += slot->advance.x >> 6;
+        pen_x += glyph.advance;
     }
     return sfc;
 }

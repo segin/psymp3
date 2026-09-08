@@ -62,6 +62,28 @@ class Font
         int glyphAdvance(uint32_t codepoint);
         std::unordered_map<uint32_t, int> m_advance_cache;
 
+        /// One rasterised glyph, kept as *coverage* rather than finished
+        /// pixels. Coverage is independent of the colours a caller asks for,
+        /// so one cached entry serves every foreground/background combination.
+        struct GlyphBitmap {
+            std::vector<uint8_t> coverage; ///< lcd ? 3 bytes per pixel : 1
+            int width = 0;                 ///< in pixels, not subpixels
+            int rows = 0;
+            int left = 0;                  ///< bitmap_left
+            int top = 0;                   ///< bitmap_top
+            int advance = 0;               ///< pen movement, whole pixels
+            bool lcd = false;              ///< true when coverage is subpixel
+            bool valid = false;            ///< false for a glyph that failed to load
+        };
+        /// Rasterises @p codepoint once and memoises it. FreeType is the whole
+        /// cost of drawing text, and a page of prose reuses the same few dozen
+        /// glyphs constantly.
+        const GlyphBitmap& renderedGlyph(uint32_t codepoint);
+        std::unordered_map<uint32_t, GlyphBitmap> m_glyph_cache;
+        /// Cleared wholesale past this many glyphs, so a tag full of CJK cannot
+        /// grow it without bound. Far above what Latin text touches.
+        static constexpr std::size_t kGlyphCacheMax = 512;
+
         FT_Face m_face = nullptr;
         // Backing store for memory faces; FT_New_Memory_Face does not copy, so
         // this must outlive m_face.
