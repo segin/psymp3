@@ -79,10 +79,19 @@ class Font
         /// cost of drawing text, and a page of prose reuses the same few dozen
         /// glyphs constantly.
         const GlyphBitmap& renderedGlyph(uint32_t codepoint);
+        /// Two generations rather than one map cleared wholesale. Dropping
+        /// everything at the limit throws away the glyphs currently on screen,
+        /// which is exactly the wrong set: a library of Chinese titles passes
+        /// any sane per-generation limit and would then re-rasterise
+        /// constantly. When the live generation fills it becomes the previous
+        /// one, and a hit there is promoted rather than redrawn, so the working
+        /// set survives and only what has genuinely fallen out of use is lost.
         std::unordered_map<uint32_t, GlyphBitmap> m_glyph_cache;
-        /// Cleared wholesale past this many glyphs, so a tag full of CJK cannot
-        /// grow it without bound. Far above what Latin text touches.
-        static constexpr std::size_t kGlyphCacheMax = 512;
+        std::unordered_map<uint32_t, GlyphBitmap> m_glyph_prev;
+        /// Per generation, so at most twice this is held. Sized for a CJK
+        /// working set: a few thousand distinct characters at well under a
+        /// kilobyte each is a couple of megabytes at worst.
+        static constexpr std::size_t kGlyphCacheMax = 2048;
 
         FT_Face m_face = nullptr;
         // Backing store for memory faces; FT_New_Memory_Face does not copy, so

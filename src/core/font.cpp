@@ -193,7 +193,15 @@ const Font::GlyphBitmap& Font::renderedGlyph(uint32_t codepoint)
     if (it != m_glyph_cache.end()) {
         return it->second;
     }
+    // Still in the previous generation: promote it rather than rasterise again.
+    auto prev = m_glyph_prev.find(codepoint);
+    if (prev != m_glyph_prev.end()) {
+        auto moved = m_glyph_cache.emplace(codepoint, std::move(prev->second)).first;
+        m_glyph_prev.erase(prev);
+        return moved->second;
+    }
     if (m_glyph_cache.size() >= kGlyphCacheMax) {
+        m_glyph_prev = std::move(m_glyph_cache);
         m_glyph_cache.clear();
     }
 
