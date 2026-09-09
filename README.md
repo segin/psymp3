@@ -222,4 +222,6 @@ For detailed testing information, see [TESTING.md](TESTING.md).
 
 ## Notes
 
-**Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text through the built-in FreeType path; replace the bundled `vera.ttf` with a font file containing the glyph coverage you want. On Windows, dropping a `vera.ttf` next to `psymp3.exe` (or in the working directory) overrides the font embedded in the exe — no rebuild needed.
+**Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text through the built-in FreeType path. The bundled `vera.ttf` (DejaVu Sans) covers Latin, Greek and Cyrillic but **not CJK, Kana or Hangul** — those draw as empty boxes without a second font.
+
+To add them, drop an `extra.ttf` next to `psymp3.exe` (or in the working directory; on Unix, in the data directory). It is consulted only for characters `vera.ttf` lacks, so Latin text is untouched, and it supplements the font embedded in the Windows executable — no rebuild and no replacing the bundled font. Any TrueType or OpenType file works; Noto Sans CJK is the usual choice. Replacing `vera.ttf` outright still works too, and still overrides the embedded copy.
