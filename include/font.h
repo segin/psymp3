@@ -52,6 +52,15 @@ class Font
         // per call; this one costs one. Prefer it in loops.
         int measureWidth(const std::string& utf8_text);
         bool isValid();
+
+        /// Adds a face consulted whenever the primary one lacks a codepoint.
+        /// DejaVu Sans carries no CJK, Kana or Hangul, so those titles would
+        /// otherwise draw as rows of .notdef boxes; an extra.ttf alongside it
+        /// fills them in. Faces are consulted in the order added, and the
+        /// primary still decides line height and baseline so that mixed text
+        /// stays on one grid. Returns false if the file could not be loaded.
+        bool addFallback(const TagLib::String& file);
+        bool addFallback(const uint8_t* data, size_t size);
     protected:
     private:
         // Advance width of one codepoint, memoised. A face's advances are fixed
@@ -93,10 +102,23 @@ class Font
         /// kilobyte each is a couple of megabytes at worst.
         static constexpr std::size_t kGlyphCacheMax = 2048;
 
+        /// The face that actually carries @p codepoint: the first one that has
+        /// a glyph for it, or the primary (so its .notdef is drawn) when none
+        /// does. Resolution is deterministic, which is what lets both caches
+        /// stay keyed by codepoint alone.
+        FT_Face faceFor(uint32_t codepoint) const;
+
         FT_Face m_face = nullptr;
         // Backing store for memory faces; FT_New_Memory_Face does not copy, so
         // this must outlive m_face.
         std::vector<uint8_t> m_data;
+
+        struct FallbackFace {
+            FT_Face face = nullptr;
+            std::vector<uint8_t> data; ///< backing store, as above
+        };
+        std::vector<FallbackFace> m_fallbacks;
+        int m_ptsize = 12; ///< kept so a fallback is sized like the primary
 };
 
 } // namespace PsyMP3::Core

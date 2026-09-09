@@ -71,6 +71,7 @@ Font::Font(const TagLib::String& file, int ptsize)
     }
     Debug::log("font", "FT_New_Face successful.");
     FT_Set_Pixel_Sizes(m_face, 0, ptsize);
+    m_ptsize = ptsize;
     Debug::log("font", "FT_Set_Pixel_Sizes successful.");
 }
 
@@ -90,12 +91,18 @@ Font::Font(const uint8_t* data, size_t size, int ptsize)
         return;
     }
     FT_Set_Pixel_Sizes(m_face, 0, ptsize);
+    m_ptsize = ptsize;
     Debug::log("font", "Font(memory): loaded ", size, " bytes at ptsize ", ptsize);
 }
 
 Font::~Font()
 {
     Debug::log("font", "Font destructor called.");
+    for (FallbackFace& fallback : m_fallbacks) {
+        if (fallback.face) {
+            FT_Done_Face(fallback.face);
+        }
+    }
     FT_Done_Face(m_face);
 }
 
@@ -171,6 +178,54 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     return sfc;
 }
 
+bool Font::addFallback(const TagLib::String& file)
+{
+    FallbackFace fallback;
+    if (FT_New_Face(TrueType::getLibrary(), file.toCString(), 0, &fallback.face)) {
+        Debug::log("font", "Font::addFallback: could not load ", file.to8Bit(true));
+        return false;
+    }
+    FT_Set_Pixel_Sizes(fallback.face, 0, m_ptsize);
+    m_fallbacks.push_back(std::move(fallback));
+    Debug::log("font", "Font::addFallback: added ", file.to8Bit(true),
+               " (", (long)m_fallbacks.back().face->num_glyphs, " glyphs)");
+    return true;
+}
+
+bool Font::addFallback(const uint8_t* data, size_t size)
+{
+    if (!data || size == 0) {
+        return false;
+    }
+    FallbackFace fallback;
+    // FT_New_Memory_Face does not copy, so the buffer has to outlive the face.
+    fallback.data.assign(data, data + size);
+    if (FT_New_Memory_Face(TrueType::getLibrary(), fallback.data.data(),
+                           static_cast<FT_Long>(fallback.data.size()), 0, &fallback.face)) {
+        return false;
+    }
+    FT_Set_Pixel_Sizes(fallback.face, 0, m_ptsize);
+    m_fallbacks.push_back(std::move(fallback));
+    return true;
+}
+
+FT_Face Font::faceFor(uint32_t codepoint) const
+{
+    if (!m_face) {
+        return nullptr;
+    }
+    if (FT_Get_Char_Index(m_face, codepoint) != 0) {
+        return m_face;
+    }
+    for (const FallbackFace& fallback : m_fallbacks) {
+        if (fallback.face && FT_Get_Char_Index(fallback.face, codepoint) != 0) {
+            return fallback.face;
+        }
+    }
+    // Nobody has it: the primary draws its .notdef box, as before.
+    return m_face;
+}
+
 int Font::glyphAdvance(uint32_t codepoint)
 {
     auto it = m_advance_cache.find(codepoint);
@@ -180,8 +235,9 @@ int Font::glyphAdvance(uint32_t codepoint)
     // A glyph that fails to load contributes nothing, matching the previous
     // behaviour of skipping it. Cache that too, so it is not retried.
     int advance = 0;
-    if (FT_Load_Char(m_face, codepoint, kMeasureLoadFlags) == 0) {
-        advance = m_face->glyph->advance.x >> 6;
+    FT_Face face = faceFor(codepoint);
+    if (face && FT_Load_Char(face, codepoint, kMeasureLoadFlags) == 0) {
+        advance = face->glyph->advance.x >> 6;
     }
     m_advance_cache.emplace(codepoint, advance);
     return advance;
@@ -206,8 +262,9 @@ const Font::GlyphBitmap& Font::renderedGlyph(uint32_t codepoint)
     }
 
     GlyphBitmap glyph;
-    if (m_face && FT_Load_Char(m_face, codepoint, kLCDRenderFlags) == 0) {
-        const FT_GlyphSlot slot = m_face->glyph;
+    FT_Face face = faceFor(codepoint);
+    if (face && FT_Load_Char(face, codepoint, kLCDRenderFlags) == 0) {
+        const FT_GlyphSlot slot = face->glyph;
         glyph.left = slot->bitmap_left;
         glyph.top = slot->bitmap_top;
         glyph.advance = slot->advance.x >> 6;
