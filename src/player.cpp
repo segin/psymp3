@@ -85,6 +85,32 @@ static bool readFileW(const std::wstring& path, std::vector<uint8_t>& out)
 // default. Always returns a non-null Font (an invalid one as last resort) so
 // callers keep the "font is never null" invariant. The file Font ctor throws,
 // so those attempts are guarded. (Windows only — Linux loads from the data dir.)
+// Adds extra.ttf as a fallback face if one is on disk. It supplements whichever
+// vera.ttf was chosen -- including the copy embedded in the executable, so a
+// user can add scripts DejaVu lacks (CJK, Kana, Hangul) by dropping one file
+// beside the exe, without replacing the bundled font.
+void addExtraFont(Font& font)
+{
+    HMODULE mod = GetModuleHandleW(nullptr);
+    wchar_t exePath[MAX_PATH];
+    DWORD n = GetModuleFileNameW(mod, exePath, MAX_PATH);
+    if (n > 0 && n < MAX_PATH) {
+        if (wchar_t* slash = wcsrchr(exePath, L'\\')) {
+            std::wstring fontPath(exePath, slash + 1);
+            fontPath += L"extra.ttf";
+            std::vector<uint8_t> buf;
+            if (readFileW(fontPath, buf) && font.addFallback(buf.data(), buf.size())) {
+                return;
+            }
+        }
+    }
+    for (const char* path : {"./extra.ttf", "./res/extra.ttf"}) {
+        if (font.addFallback(TagLib::String(path))) {
+            return;
+        }
+    }
+}
+
 std::unique_ptr<Font> loadUiFont(int ptsize)
 {
     HMODULE mod = GetModuleHandleW(nullptr);
@@ -99,7 +125,7 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
             std::vector<uint8_t> buf;
             if (readFileW(fontPath, buf)) {
                 auto f = std::make_unique<Font>(buf.data(), buf.size(), ptsize);
-                if (f->isValid()) return f;
+                if (f->isValid()) { addExtraFont(*f); return f; }
             }
         }
     }
@@ -108,7 +134,7 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
     for (const char* path : {"./vera.ttf", "./res/vera.ttf"}) {
         try {
             auto f = std::make_unique<Font>(TagLib::String(path), ptsize);
-            if (f->isValid()) return f;
+            if (f->isValid()) { addExtraFont(*f); return f; }
         } catch (const std::exception&) { /* try next source */ }
     }
 
@@ -121,7 +147,7 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
             if (data && size) {
                 auto f = std::make_unique<Font>(static_cast<const uint8_t*>(data),
                                                 static_cast<size_t>(size), ptsize);
-                if (f->isValid()) return f;
+                if (f->isValid()) { addExtraFont(*f); return f; }
             }
         }
     }
@@ -3257,6 +3283,14 @@ bool Player::Initialize(const PlayerOptions& options) {
     font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 12);
     // Create a larger font for status indicators like the pause message.
     m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
+    // An optional extra.ttf supplies scripts DejaVu lacks -- CJK, Kana, Hangul
+    // -- which would otherwise draw as rows of .notdef boxes. Absent, nothing
+    // changes. The source-tree path keeps this working when running uninstalled.
+    for (Font* f : {font.get(), m_large_font.get()}) {
+        if (!f->addFallback(TagLib::String(PSYMP3_DATADIR "/extra.ttf"))) {
+            f->addFallback(TagLib::String("res/extra.ttf"));
+        }
+    }
 #endif // _WIN32
     Debug::log("font", "font->isValid(): ", font->isValid());
     

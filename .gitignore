@@ -159,3 +159,8 @@ tests/repro_ogg_duration_perf
 /debian/
 package/dpkg/out/
 package/rpm/out/
+
+# Optional user-supplied fallback font (see README, Unicode Support).
+# Dropped in beside vera.ttf at runtime; never part of the source tree.
+res/extra.ttf
+extra.ttf
