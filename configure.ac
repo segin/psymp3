@@ -135,6 +135,11 @@ PKG_CHECK_MODULES([SDL], [sdl3 >= 3.0], [], [
 SDL_CFLAGS="$SDL_CFLAGS -I`$PKG_CONFIG --variable=includedir sdl3`/SDL3"
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])
+# Text shaping. Arabic and the Indic scripts substitute contextual forms that a
+# codepoint-to-glyph mapping cannot produce, so without this they draw as
+# disconnected isolated letters. HarfBuzz is usually already present as a
+# FreeType dependency; this makes the link deliberate rather than incidental.
+PKG_CHECK_MODULES([HARFBUZZ], [harfbuzz])
 PKG_CHECK_MODULES([OPENSSL], [openssl])
 PKG_CHECK_MODULES([CURL], [libcurl])
 

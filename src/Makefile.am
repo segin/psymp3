@@ -34,7 +34,7 @@ SUBDIRS = codecs lastfm discord mpris io demuxer widget core tag
 endif
 
 # Include path for psymp3.h and other headers
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
+AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/third_party/sheenbidi/Headers -I$(top_srcdir)/third_party/sheenbidi/Source $(HARFBUZZ_CFLAGS) $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
 
 # Optional codec flags
 if HAVE_OPUS
@@ -90,6 +90,18 @@ if HAVE_OGGDEMUXER
 DEMUXER_LIBS += demuxer/ogg/libpsymp3-demuxer-ogg.a
 endif
 
+
+# SheenBidi, vendored verbatim. Built as its own archive purely so it can opt
+# out of the project's -Wall -Werror: it is upstream's code, kept byte-identical
+# to the release tarball, and holding it to our warning policy would mean
+# editing it. Per-target _CPPFLAGS replaces AM_CPPFLAGS, which is where those
+# flags live.
+noinst_LIBRARIES = libpsymp3-sheenbidi.a
+libpsymp3_sheenbidi_a_SOURCES = core/sheenbidi_impl.c
+libpsymp3_sheenbidi_a_CPPFLAGS = \
+	-I$(top_srcdir)/third_party/sheenbidi/Headers \
+	-I$(top_srcdir)/third_party/sheenbidi/Source
+
 bin_PROGRAMS = psymp3
 
 if FINAL_BUILD
@@ -105,9 +117,11 @@ psymp3_SOURCES = psymp3.final.cpp codecs/vorbis/stb_vorbis_impl.c \
 	codecs/aac/fdk_aac.cpp codecs/mlp/mlp_decoder_impl.cpp
 # Final build still needs system libraries
 psymp3_LDADD = \
+	libpsymp3-sheenbidi.a \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
 	$(FREETYPE_LIBS) \
+	$(HARFBUZZ_LIBS) \
 	$(OPENSSL_LIBS) \
 	$(CURL_LIBS) \
 	$(WINSOCK_LIBS)
@@ -149,6 +163,7 @@ psymp3_SOURCES = \
 # Order matters: our convenience libraries must come BEFORE system libraries
 # that they depend on (GNU ld resolves symbols left-to-right)
 psymp3_LDADD = \
+	libpsymp3-sheenbidi.a \
 	widget/ui/libpsymp3-widget-ui.a \
 	widget/windowing/libpsymp3-widget-windowing.a \
 	widget/foundation/libpsymp3-widget-foundation.a \
@@ -179,6 +194,7 @@ psymp3_LDADD += \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
 	$(FREETYPE_LIBS) \
+	$(HARFBUZZ_LIBS) \
 	$(OPENSSL_LIBS) \
 	$(CURL_LIBS) \
 	$(WINSOCK_LIBS)
