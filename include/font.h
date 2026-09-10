@@ -86,8 +86,29 @@ class Font
         };
         /// Rasterises @p codepoint once and memoises it. FreeType is the whole
         /// cost of drawing text, and a page of prose reuses the same few dozen
-        /// glyphs constantly.
+        /// glyphs constantly. Used by the simple-layout path, where one
+        /// codepoint means one glyph.
         const GlyphBitmap& renderedGlyph(uint32_t codepoint);
+        /// The same, for text that went through shaping: there the result is a
+        /// glyph id in a particular face, and one codepoint may have produced
+        /// several glyphs (or several codepoints one). Keyed on both, since a
+        /// glyph id only means anything relative to its face.
+        const GlyphBitmap& shapedGlyph(std::size_t face_index, uint32_t glyph_id);
+
+        /// True when a string needs the shaping and reordering path: Arabic and
+        /// Hebrew must be reordered right to left, Arabic and the Indic scripts
+        /// substitute contextual forms, and combining marks must be positioned.
+        /// Latin, Greek, Cyrillic and CJK need none of that and take the fast
+        /// path, which also keeps their rendering byte-for-byte as it was.
+        static bool needsComplexLayout(const std::string& utf8_text);
+        /// Lays out @p utf8_text with SheenBidi and HarfBuzz. Emits each glyph
+        /// through @p emit as (face index, glyph id, x, y) and returns the total
+        /// advance, so measuring and drawing share one implementation and can
+        /// never disagree about where a line ends.
+        int shapeRuns(const std::string& utf8_text,
+                      const std::function<void(std::size_t, uint32_t, int, int)>& emit);
+        /// HarfBuzz font for face @p index, created on first use.
+        void* harfbuzzFont(std::size_t face_index);
         /// Two generations rather than one map cleared wholesale. Dropping
         /// everything at the limit throws away the glyphs currently on screen,
         /// which is exactly the wrong set: a library of Chinese titles passes
@@ -117,6 +138,12 @@ class Font
             FT_Face face = nullptr;
             std::vector<uint8_t> data; ///< backing store, as above
         };
+        /// hb_font_t per face, as void* so HarfBuzz's headers stay out of a
+        /// header that every translation unit pulls in through psymp3.h.
+        /// Index 0 is the primary face, 1.. are the fallbacks.
+        std::vector<void*> m_hb_fonts;
+        /// Shaped glyphs, keyed by face index and glyph id packed together.
+        std::unordered_map<uint64_t, GlyphBitmap> m_shaped_cache;
         std::vector<FallbackFace> m_fallbacks;
         int m_ptsize = 12; ///< kept so a fallback is sized like the primary
 };

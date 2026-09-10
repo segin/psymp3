@@ -23,6 +23,12 @@
 
 #include "psymp3.h"
 
+// Confined to this file: font.h keeps these behind void* and std::size_t so
+// every translation unit that pulls in psymp3.h does not need their headers.
+#include <hb.h>
+#include <hb-ft.h>
+#include <SheenBidi/SheenBidi.h>
+
 namespace PsyMP3::Core {
 
 namespace {
@@ -98,6 +104,11 @@ Font::Font(const uint8_t* data, size_t size, int ptsize)
 Font::~Font()
 {
     Debug::log("font", "Font destructor called.");
+    for (void* hb : m_hb_fonts) {
+        if (hb) {
+            hb_font_destroy(static_cast<hb_font_t*>(hb));
+        }
+    }
     for (FallbackFace& fallback : m_fallbacks) {
         if (fallback.face) {
             FT_Done_Face(fallback.face);
@@ -176,6 +187,197 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
         pen_x += slot->advance.x >> 6;
     }
     return sfc;
+}
+
+bool Font::needsComplexLayout(const std::string& utf8_text)
+{
+    const auto* data = reinterpret_cast<const uint8_t*>(utf8_text.data());
+    std::size_t i = 0;
+    while (i < utf8_text.size()) {
+        std::size_t consumed = 0;
+        const uint32_t cp =
+            UTF8Util::decodeCodepoint(data + i, utf8_text.size() - i, consumed);
+        i += consumed;
+        const bool complex_cp =
+               (cp >= 0x0300 && cp <= 0x036F)    // combining marks
+            || (cp >= 0x0590 && cp <= 0x1FFF)    // Hebrew, Arabic, Indic, Thai...
+            || (cp >= 0x200E && cp <= 0x200F)    // LRM / RLM
+            || (cp >= 0x202A && cp <= 0x202E)    // bidi embedding controls
+            || (cp >= 0x2066 && cp <= 0x2069)    // bidi isolates
+            || (cp >= 0xFB1D && cp <= 0xFEFC)    // Hebrew/Arabic presentation forms
+            || (cp >= 0x10800 && cp <= 0x10FFF); // RTL historic scripts
+        if (complex_cp) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void* Font::harfbuzzFont(std::size_t face_index)
+{
+    if (m_hb_fonts.size() <= face_index) {
+        m_hb_fonts.resize(face_index + 1, nullptr);
+    }
+    if (!m_hb_fonts[face_index]) {
+        FT_Face face = (face_index == 0)
+            ? m_face
+            : (face_index - 1 < m_fallbacks.size() ? m_fallbacks[face_index - 1].face : nullptr);
+        if (!face) {
+            return nullptr;
+        }
+        // Referencing rather than taking ownership: the FT_Face outlives this
+        // and is freed by the destructor.
+        m_hb_fonts[face_index] = hb_ft_font_create_referenced(face);
+    }
+    return m_hb_fonts[face_index];
+}
+
+const Font::GlyphBitmap& Font::shapedGlyph(std::size_t face_index, uint32_t glyph_id)
+{
+    const uint64_t key = (static_cast<uint64_t>(face_index) << 32) | glyph_id;
+    auto it = m_shaped_cache.find(key);
+    if (it != m_shaped_cache.end()) {
+        return it->second;
+    }
+    if (m_shaped_cache.size() >= kGlyphCacheMax * 2) {
+        m_shaped_cache.clear();
+    }
+
+    FT_Face face = (face_index == 0)
+        ? m_face
+        : (face_index - 1 < m_fallbacks.size() ? m_fallbacks[face_index - 1].face : nullptr);
+
+    GlyphBitmap glyph;
+    // Shaping yields glyph ids, so this loads by index rather than character.
+    if (face && FT_Load_Glyph(face, glyph_id, kLCDRenderFlags) == 0) {
+        const FT_GlyphSlot slot = face->glyph;
+        glyph.left = slot->bitmap_left;
+        glyph.top = slot->bitmap_top;
+        glyph.advance = slot->advance.x >> 6;
+        glyph.rows = static_cast<int>(slot->bitmap.rows);
+        glyph.lcd = (slot->bitmap.pixel_mode == FT_PIXEL_MODE_LCD);
+        glyph.valid = true;
+        if (glyph.lcd) {
+            glyph.width = static_cast<int>(slot->bitmap.width) / 3;
+            glyph.coverage.resize(static_cast<std::size_t>(glyph.width) * glyph.rows * 3);
+            for (int row = 0; row < glyph.rows; ++row) {
+                const auto* src = slot->bitmap.buffer + row * slot->bitmap.pitch;
+                std::memcpy(&glyph.coverage[static_cast<std::size_t>(row) * glyph.width * 3],
+                            src, static_cast<std::size_t>(glyph.width) * 3);
+            }
+        } else {
+            glyph.width = static_cast<int>(slot->bitmap.width);
+            glyph.coverage.resize(static_cast<std::size_t>(glyph.width) * glyph.rows);
+            for (int row = 0; row < glyph.rows; ++row) {
+                for (int col = 0; col < glyph.width; ++col) {
+                    glyph.coverage[static_cast<std::size_t>(row) * glyph.width + col] =
+                        getGlyphCoverage(slot->bitmap, static_cast<unsigned>(row),
+                                         static_cast<unsigned>(col));
+                }
+            }
+        }
+    }
+    return m_shaped_cache.emplace(key, std::move(glyph)).first->second;
+}
+
+int Font::shapeRuns(const std::string& utf8_text,
+                    const std::function<void(std::size_t, uint32_t, int, int)>& emit)
+{
+    if (!m_face || utf8_text.empty()) {
+        return 0;
+    }
+
+    // SheenBidi resolves the reading order: which spans of the string are
+    // right-to-left, and what order they appear in on screen. Without this a
+    // Hebrew or Arabic title draws backwards, however well its glyphs are
+    // shaped.
+    SBCodepointSequence sequence = { SBStringEncodingUTF8,
+                                     const_cast<char*>(utf8_text.data()),
+                                     utf8_text.size() };
+    SBAlgorithmRef algorithm = SBAlgorithmCreate(&sequence);
+    if (!algorithm) {
+        return 0;
+    }
+    SBParagraphRef paragraph = SBAlgorithmCreateParagraph(algorithm, 0, INT32_MAX,
+                                                          SBLevelDefaultLTR);
+    if (!paragraph) {
+        SBAlgorithmRelease(algorithm);
+        return 0;
+    }
+    SBLineRef line = SBParagraphCreateLine(paragraph, 0, SBParagraphGetLength(paragraph));
+    if (!line) {
+        SBParagraphRelease(paragraph);
+        SBAlgorithmRelease(algorithm);
+        return 0;
+    }
+
+    int pen_x = 0;
+    const SBRun* runs = SBLineGetRunsPtr(line);
+    const SBUInteger run_count = SBLineGetRunCount(line);
+
+    for (SBUInteger r = 0; r < run_count; ++r) {
+        const SBRun& run = runs[r];
+        const bool rtl = (run.level & 1) != 0;
+
+        // A run is one direction but may still cross faces -- Latin and CJK in
+        // one phrase -- so it is split again wherever the resolved face changes.
+        std::size_t pos = run.offset;
+        const std::size_t run_end = run.offset + run.length;
+        while (pos < run_end) {
+            std::size_t consumed = 0;
+            const uint32_t first_cp = UTF8Util::decodeCodepoint(
+                reinterpret_cast<const uint8_t*>(utf8_text.data()) + pos,
+                run_end - pos, consumed);
+            const FT_Face want = faceFor(first_cp);
+            std::size_t face_index = 0;
+            for (std::size_t i = 0; i < m_fallbacks.size(); ++i) {
+                if (m_fallbacks[i].face == want) {
+                    face_index = i + 1;
+                    break;
+                }
+            }
+
+            std::size_t seg_end = pos + consumed;
+            while (seg_end < run_end) {
+                std::size_t next = 0;
+                const uint32_t cp = UTF8Util::decodeCodepoint(
+                    reinterpret_cast<const uint8_t*>(utf8_text.data()) + seg_end,
+                    run_end - seg_end, next);
+                if (faceFor(cp) != want) {
+                    break;
+                }
+                seg_end += next;
+            }
+
+            auto* hb_font = static_cast<hb_font_t*>(harfbuzzFont(face_index));
+            if (hb_font) {
+                hb_buffer_t* buffer = hb_buffer_create();
+                hb_buffer_add_utf8(buffer, utf8_text.data(), static_cast<int>(utf8_text.size()),
+                                   static_cast<unsigned>(pos),
+                                   static_cast<int>(seg_end - pos));
+                hb_buffer_set_direction(buffer, rtl ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
+                hb_buffer_guess_segment_properties(buffer);
+                hb_shape(hb_font, buffer, nullptr, 0);
+
+                unsigned count = 0;
+                const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);
+                const hb_glyph_position_t* gpos = hb_buffer_get_glyph_positions(buffer, &count);
+                for (unsigned g = 0; g < count; ++g) {
+                    // HarfBuzz works in 26.6 fixed point.
+                    emit(face_index, info[g].codepoint,
+                         pen_x + (gpos[g].x_offset >> 6), -(gpos[g].y_offset >> 6));
+                    pen_x += gpos[g].x_advance >> 6;
+                }
+                hb_buffer_destroy(buffer);
+            }
+            pos = seg_end;
+        }
+    }
+
+    SBLineRelease(line);
+    SBParagraphRelease(paragraph);
+    SBAlgorithmRelease(algorithm);
+    return pen_x;
 }
 
 bool Font::addFallback(const TagLib::String& file)
@@ -306,6 +508,13 @@ int Font::measureWidth(const std::string& utf8_text)
     if (!m_face) {
         return 0;
     }
+    // Complex scripts are measured by laying them out, so wrapping can never
+    // disagree with what is drawn -- shaped Arabic is narrower than the sum of
+    // its isolated forms, and a wrap computed the other way would be wrong.
+    if (needsComplexLayout(utf8_text)) {
+        return shapeRuns(utf8_text, [](std::size_t, uint32_t, int, int) {});
+    }
+
     // Decoded in place rather than through UTF8Util::toCodepoints, which
     // allocates a vector per call. Word-wrapping measures every word of every
     // line, so that was thousands of allocations for a page of text; the
@@ -344,11 +553,22 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
         font_height = baseline - descender;
     }
 
+    // Complex scripts go through SheenBidi and HarfBuzz; everything else keeps
+    // the direct codepoint-to-glyph path, which is both faster and renders
+    // exactly as it always has.
+    const std::string utf8 = text.to8Bit(true);
+    const bool complex_layout = needsComplexLayout(utf8);
+
     // Both passes read the glyph cache, so FreeType rasterises each glyph once
     // per font rather than once per call.
-    const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
-    for (uint32_t codepoint : codepoints) {
-        width += renderedGlyph(codepoint).advance;
+    const std::vector<uint32_t> codepoints =
+        complex_layout ? std::vector<uint32_t>() : toRenderableCodepoints(text);
+    if (complex_layout) {
+        width = shapeRuns(utf8, [](std::size_t, uint32_t, int, int) {});
+    } else {
+        for (uint32_t codepoint : codepoints) {
+            width += renderedGlyph(codepoint).advance;
+        }
     }
 
     // Clamp the surface width: text comes from untrusted tags and could
@@ -374,19 +594,8 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
     SDL_SetSurfaceBlendMode(sfc->getHandle(), SDL_BLENDMODE_BLEND);
     sfc->FillRect(sfc->MapRGBA(bg_r, bg_g, bg_b, 255));
 
-    int pen_x = 0;
-    for (uint32_t codepoint : codepoints) {
-        const GlyphBitmap& glyph = renderedGlyph(codepoint);
-        if (!glyph.valid) {
-            continue;
-        }
-
-        const int y_pos = baseline - glyph.top;
-        const int x_pos = pen_x + glyph.left;
-
-        // Coverage is cached rather than finished pixels, so the blend against
-        // the caller's colours happens here. Subpixel coverage carries one
-        // value per channel; the grey fallback carries one for all three.
+    // Shared by both paths so they cannot drift apart.
+    auto blitGlyph = [&](const GlyphBitmap& glyph, int x_pos, int y_pos) {
         for (int row = 0; row < glyph.rows; ++row) {
             const uint8_t* src = glyph.coverage.data()
                                + static_cast<std::size_t>(row) * glyph.width * (glyph.lcd ? 3 : 1);
@@ -403,6 +612,31 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
                 sfc->pixel(x_pos + col, y_pos + row, out_r, out_g, out_b, 255);
             }
         }
+    };
+
+    if (complex_layout) {
+        shapeRuns(utf8, [&](std::size_t face_index, uint32_t glyph_id, int x, int y) {
+            const GlyphBitmap& glyph = shapedGlyph(face_index, glyph_id);
+            if (glyph.valid) {
+                blitGlyph(glyph, x + glyph.left, baseline - glyph.top + y);
+            }
+        });
+        return sfc;
+    }
+
+    int pen_x = 0;
+    for (uint32_t codepoint : codepoints) {
+        const GlyphBitmap& glyph = renderedGlyph(codepoint);
+        if (!glyph.valid) {
+            continue;
+        }
+
+        const int y_pos = baseline - glyph.top;
+        const int x_pos = pen_x + glyph.left;
+
+        // Coverage is cached rather than finished pixels, so the blend against
+        // the caller's colours happens here.
+        blitGlyph(glyph, x_pos, y_pos);
 
         pen_x += glyph.advance;
     }
