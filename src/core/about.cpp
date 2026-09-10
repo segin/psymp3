@@ -59,6 +59,10 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             // GPL; PsyMP3 takes the FTL, whose section 3 requires the credit
             // sentence carried in the paragraph below.
             "Copyright © 1996-2026 David Turner, Robert Wilhelm and Werner Lemberg (FreeType, FreeType License)\n"
+            // Shaping and reordering: without these, Arabic draws as
+            // disconnected letters and Hebrew reads backwards.
+            "Copyright © 2005-2026 Behdad Esfahbod, Google, Red Hat and contributors (HarfBuzz, \"Old MIT\" License)\n"
+            "Copyright © 2014-2026 Muhammad Tayyab Akram (SheenBidi, Apache License 2.0)\n"
             "Copyright © 1995-2024 Jean-loup Gailly and Mark Adler (zlib, zlib License)\n"
             // Upstream curl deliberately carries no year range.
             "Copyright © Daniel Stenberg and contributors (libcurl, curl License)\n"

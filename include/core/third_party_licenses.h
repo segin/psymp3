@@ -47,21 +47,22 @@ that license.
 Contents
 --------
   1. PsyMP3                                  ISC License
-  2. Apache License 2.0                      (ALAC, MLP/TrueHD decoder, OpenSSL)
+  2. Apache License 2.0                      (ALAC, MLP/TrueHD, SheenBidi, OpenSSL)
   3. SDL3                                    zlib License
   4. zlib                                    zlib License
   5. kjmp2                                   zlib License
   6. FreeType                                FreeType License (FTL)
-  7. TagLib                                  Mozilla Public License 1.1
-  8. FDK-AAC                                 Fraunhofer FDK AAC license
-  9. libogg                                  BSD 3-Clause
- 10. Opus                                    BSD 3-Clause
- 11. Speex                                   BSD 3-Clause
- 12. libcurl                                 curl License
- 13. pugixml                                 MIT License
- 14. stb_vorbis                              Public Domain (Unlicense)
- 15. minimp3                                 CC0 / Public Domain
- 16. DejaVu Sans (embedded UI font)          Bitstream Vera / Arev
+  7. HarfBuzz                                "Old MIT" License
+  8. TagLib                                  Mozilla Public License 1.1
+  9. FDK-AAC                                 Fraunhofer FDK AAC license
+ 10. libogg                                  BSD 3-Clause
+ 11. Opus                                    BSD 3-Clause
+ 12. Speex                                   BSD 3-Clause
+ 13. libcurl                                 curl License
+ 14. pugixml                                 MIT License
+ 15. stb_vorbis                              Public Domain (Unlicense)
+ 16. minimp3                                 CC0 / Public Domain
+ 17. DejaVu Sans (embedded UI font)          Bitstream Vera / Arev
 
 ==============================================================================
 1. PsyMP3 -- ISC License
@@ -84,7 +85,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 ==============================================================================
-2. Apache License 2.0 -- ALAC, MLP/TrueHD decoder, OpenSSL
+2. Apache License 2.0 -- ALAC, MLP/TrueHD decoder, SheenBidi, OpenSSL
 ==============================================================================
 
 Applies to:
@@ -94,6 +95,7 @@ Applies to:
       Copyright © 2025 Rainbaby
       Copyright © 2026 Kirn Gill II
   * OpenSSL
+      Copyright © 2014-2026 Muhammad Tayyab Akram (SheenBidi)
       Copyright © 1998-2026 The OpenSSL Project Authors
 
 
@@ -523,7 +525,58 @@ Legal Terms
 --- end of FTL.TXT ---
 
 ==============================================================================
-7. TagLib -- Mozilla Public License 1.1
+7. HarfBuzz -- "Old MIT" License
+==============================================================================
+
+HarfBuzz shapes complex scripts: it chooses the contextual letter
+forms Arabic and the Indic scripts require, which a plain
+character-to-glyph mapping cannot produce.
+
+HarfBuzz is licensed under the so-called "Old MIT" license.  Details follow.
+For parts of HarfBuzz that are licensed under different licenses see individual
+files names COPYING in subdirectories where applicable.
+
+Copyright © 2010-2022  Google, Inc.
+Copyright © 2015-2020  Ebrahim Byagowi
+Copyright © 2019,2020  Facebook, Inc.
+Copyright © 2012,2015  Mozilla Foundation
+Copyright © 2011  Codethink Limited
+Copyright © 2008,2010  Nokia Corporation and/or its subsidiary(-ies)
+Copyright © 2009  Keith Stribley
+Copyright © 2011  Martin Hosken and SIL International
+Copyright © 2007  Chris Wilson
+Copyright © 2005,2006,2020,2021,2022,2023  Behdad Esfahbod
+Copyright © 2004,2007,2008,2009,2010,2013,2021,2022,2023  Red Hat, Inc.
+Copyright © 1998-2005  David Turner and Werner Lemberg
+Copyright © 2016  Igalia S.L.
+Copyright © 2022  Matthias Clasen
+Copyright © 2018,2021  Khaled Hosny
+Copyright © 2018,2019,2020  Adobe, Inc
+Copyright © 2013-2015  Alexei Podtelezhnikov
+
+For full copyright notices consult the individual files in the package.
+
+
+Permission is hereby granted, without written agreement and without
+license or royalty fees, to use, copy, modify, and distribute this
+software and its documentation for any purpose, provided that the
+above copyright notice and the following two paragraphs appear in
+all copies of this software.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE TO ANY PARTY FOR
+DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES
+ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN
+IF THE COPYRIGHT HOLDER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGE.
+
+THE COPYRIGHT HOLDER SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING,
+BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
+PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+
+==============================================================================
+8. TagLib -- Mozilla Public License 1.1
 ==============================================================================
 
 Copyright © 2002-2026 Scott Wheeler and the TagLib contributors
@@ -1000,7 +1053,7 @@ EXHIBIT A -Mozilla Public License.
      Original Code Source Code for Your Modifications.]
 
 ==============================================================================
-8. FDK-AAC -- Fraunhofer FDK AAC Codec Library for Android license
+9. FDK-AAC -- Fraunhofer FDK AAC Codec Library for Android license
 ==============================================================================
 
 -----------------------------------------------------------------------------
@@ -1098,7 +1151,7 @@ amm-info@iis.fraunhofer.de
 -----------------------------------------------------------------------------
 
 ==============================================================================
-9. libogg -- BSD 3-Clause
+10. libogg -- BSD 3-Clause
 ==============================================================================
 
 Copyright © 2002, Xiph.org Foundation
@@ -1131,7 +1184,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ==============================================================================
-10. Opus -- BSD 3-Clause
+11. Opus -- BSD 3-Clause
 ==============================================================================
 
 Copyright 2001-2023 Xiph.Org, Skype Limited, Octasic,
@@ -1180,7 +1233,7 @@ Broadcom Corporation:
 https://datatracker.ietf.org/ipr/1526/
 
 ==============================================================================
-11. Speex -- BSD 3-Clause
+12. Speex -- BSD 3-Clause
 ==============================================================================
 
 Copyright 2002-2008 	Xiph.org Foundation
@@ -1220,7 +1273,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ==============================================================================
-12. libcurl -- curl License
+13. libcurl -- curl License
 ==============================================================================
 
 COPYRIGHT AND PERMISSION NOTICE
@@ -1247,7 +1300,7 @@ be used in advertising or otherwise to promote the sale, use or other dealings
 in this Software without prior written authorization of the copyright holder.
 
 ==============================================================================
-13. pugixml -- MIT License
+14. pugixml -- MIT License
 ==============================================================================
 
 MIT License
@@ -1276,7 +1329,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 ==============================================================================
-14. stb_vorbis -- Public Domain (Unlicense)
+15. stb_vorbis -- Public Domain (Unlicense)
 ==============================================================================
 
 stb_vorbis (third_party/stb/stb_vorbis.c), written by Sean Barrett, is
@@ -1302,7 +1355,7 @@ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ==============================================================================
-15. minimp3 -- CC0 / Public Domain
+16. minimp3 -- CC0 / Public Domain
 ==============================================================================
 
 minimp3 (third_party/minimp3), written by lieff.
@@ -1313,7 +1366,7 @@ worldwide. This software is distributed without any warranty.
 See <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 ==============================================================================
-16. DejaVu Sans (embedded UI font) -- Bitstream Vera / Arev
+17. DejaVu Sans (embedded UI font) -- Bitstream Vera / Arev
 ==============================================================================
 
 Fonts are © Bitstream (see below). DejaVu changes are in public domain.
