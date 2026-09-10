@@ -36,6 +36,7 @@ jobs:
           autoconf-archive \
           libsdl3-dev \
           libfreetype-dev \
+          libharfbuzz-dev \
           libssl-dev \
           libcurl4-openssl-dev \
           libogg-dev \

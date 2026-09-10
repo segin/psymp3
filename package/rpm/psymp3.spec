@@ -35,6 +35,7 @@ BuildRequires:  pkgconfig
 BuildRequires:  pkgconfig(sdl3)
 BuildRequires:  pkgconfig(taglib)
 BuildRequires:  pkgconfig(freetype2)
+BuildRequires:  pkgconfig(harfbuzz)
 BuildRequires:  pkgconfig(libcurl)
 BuildRequires:  pkgconfig(ogg)
 BuildRequires:  pkgconfig(opus)

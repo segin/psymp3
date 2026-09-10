@@ -43,6 +43,7 @@ Highlights:
 **Core dependencies** (always required):
 - SDL3 3.0 or later (`sdl3`)
 - FreeType2 (`freetype2`)
+- HarfBuzz (`harfbuzz`) — shapes Arabic and the Indic scripts
 - taglib 1.6 or later (`taglib`; taglib 2.x works too)
 - OpenSSL 1.0 or later (`openssl`)
 - libcurl 7.20.0 or later (`libcurl`)

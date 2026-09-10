@@ -139,8 +139,16 @@ jobs:
 
         # ---- zlib (win32 makefile; write the .pc by hand — its configure
         #      refuses mingw and the CMake path renames the archive) ----
-        curl -fsSLO "https://zlib.net/zlib-${ZLIB_VER}.tar.gz" ||
-          curl -fsSLO "https://github.com/madler/zlib/releases/download/v${ZLIB_VER}/zlib-${ZLIB_VER}.tar.gz"
+        # The archive is verified, not just fetched. zlib.net has answered 200
+        # with something that is not a tarball, and -f cannot catch that, so the
+        # fallback below never fired and tar failed on an HTML page instead.
+        for url in "https://zlib.net/zlib-${ZLIB_VER}.tar.gz" \
+                   "https://github.com/madler/zlib/releases/download/v${ZLIB_VER}/zlib-${ZLIB_VER}.tar.gz"; do
+          curl -fsSL -o "zlib-${ZLIB_VER}.tar.gz" "$url" && gzip -t "zlib-${ZLIB_VER}.tar.gz" && break
+          echo "zlib download from $url was not a valid gzip; trying the next source"
+          rm -f "zlib-${ZLIB_VER}.tar.gz"
+        done
+        gzip -t "zlib-${ZLIB_VER}.tar.gz"
         tar xf "zlib-${ZLIB_VER}.tar.gz"
         make -C "zlib-${ZLIB_VER}" -f win32/Makefile.gcc -j"$(nproc)" \
           PREFIX="$TUPLE-" libz.a
