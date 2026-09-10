@@ -30,6 +30,7 @@ env:
   CURL_VER: "8.21.0"
   TAGLIB_VER: "2.3.1"
   FREETYPE_VER: "2.14.3"
+  HARFBUZZ_VER: "14.4.0"
   OGG_VER: "1.3.6"
   OPUS_VER: "1.5.2"
   SPEEX_VER: "1.2.1"
@@ -86,15 +87,23 @@ jobs:
         - arch: x86_64
           tuple: x86_64-w64-mingw32
           openssl_target: mingw64
+          meson_cpu_family: x86_64
+          meson_cpu: x86_64
         - arch: i686
           tuple: i686-w64-mingw32
           openssl_target: mingw
+          meson_cpu_family: x86
+          meson_cpu: i686
         - arch: aarch64
           tuple: aarch64-w64-mingw32
           openssl_target: mingwarm64
+          meson_cpu_family: aarch64
+          meson_cpu: aarch64
     env:
       TUPLE: ${{ matrix.tuple }}
       PREFIX: /home/runner/xwin/${{ matrix.tuple }}
+      MESON_CPU_FAMILY: ${{ matrix.meson_cpu_family }}
+      MESON_CPU: ${{ matrix.meson_cpu }}
     steps:
     - uses: actions/checkout@v5
 
@@ -110,14 +119,14 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           autoconf automake libtool autoconf-archive pkgconf \
-          cmake ninja-build make curl ca-certificates xz-utils perl
+          cmake ninja-build make curl ca-certificates xz-utils perl meson
 
     - name: Check dependency cache
       id: deps
       uses: actions/cache@v5
       with:
         path: ${{ env.PREFIX }}
-        key: xwin-deps-${{ matrix.tuple }}-r${{ env.DEPS_REV }}-zlib${{ env.ZLIB_VER }}-ssl${{ env.OPENSSL_VER }}-curl${{ env.CURL_VER }}-tag${{ env.TAGLIB_VER }}-ft${{ env.FREETYPE_VER }}-ogg${{ env.OGG_VER }}-opus${{ env.OPUS_VER }}-speex${{ env.SPEEX_VER }}-fdk${{ env.FDKAAC_VER }}-sdl${{ env.SDL3_VER }}
+        key: xwin-deps-${{ matrix.tuple }}-r${{ env.DEPS_REV }}-zlib${{ env.ZLIB_VER }}-ssl${{ env.OPENSSL_VER }}-curl${{ env.CURL_VER }}-tag${{ env.TAGLIB_VER }}-ft${{ env.FREETYPE_VER }}-hb${{ env.HARFBUZZ_VER }}-ogg${{ env.OGG_VER }}-opus${{ env.OPUS_VER }}-speex${{ env.SPEEX_VER }}-fdk${{ env.FDKAAC_VER }}-sdl${{ env.SDL3_VER }}
 
     - name: Build dependency stack
       if: steps.deps.outputs.cache-hit != 'true'
@@ -206,6 +215,32 @@ jobs:
           PKG_CONFIG="pkg-config --static"
         make -j"$(nproc)"
         make install
+        cd ..
+
+        # ---- HarfBuzz (shaping; no glib, no icu -- FreeType only) ----
+        curl -fsSLO "https://github.com/harfbuzz/harfbuzz/releases/download/${HARFBUZZ_VER}/harfbuzz-${HARFBUZZ_VER}.tar.xz"
+        tar xf "harfbuzz-${HARFBUZZ_VER}.tar.xz"
+        # Written with printf rather than a heredoc: a heredoc body has to sit
+        # at column 0, which would terminate this YAML block scalar.
+        printf '%s\n' \
+          "[binaries]" \
+          "c = '${TUPLE}-clang'" \
+          "cpp = '${TUPLE}-clang++'" \
+          "ar = '${TUPLE}-ar'" \
+          "strip = '${TUPLE}-strip'" \
+          "pkg-config = 'pkg-config'" \
+          "[host_machine]" \
+          "system = 'windows'" \
+          "cpu_family = '${MESON_CPU_FAMILY}'" \
+          "cpu = '${MESON_CPU}'" \
+          "endian = 'little'" > hb-cross.txt
+        meson setup hb-build "harfbuzz-${HARFBUZZ_VER}" \
+          --cross-file hb-cross.txt --prefix="$PREFIX" \
+          --default-library=static --buildtype=release \
+          -Dglib=disabled -Dgobject=disabled -Dicu=disabled -Dcairo=disabled \
+          -Dtests=disabled -Ddocs=disabled -Dutilities=disabled \
+          -Dfreetype=enabled
+        meson install -C hb-build
         cd ..
 
         # ---- libogg ----
