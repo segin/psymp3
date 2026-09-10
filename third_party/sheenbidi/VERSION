@@ -1,0 +1,8 @@
+SheenBidi 3.0.0
+https://github.com/Tehreer/SheenBidi
+Copyright (C) 2014-2026 Muhammad Tayyab Akram
+Apache License 2.0 -- see LICENSE.
+
+Vendored unmodified. Built as a single translation unit: compile
+Source/SheenBidi.c with -DSB_CONFIG_UNITY and Headers/ plus Source/ on the
+include path, which is upstream's own supported unity build.
