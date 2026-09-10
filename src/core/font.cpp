@@ -45,6 +45,11 @@ constexpr int kMeasureLoadFlags = FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME |
 // FT_LOAD_TARGET_LCD asks for horizontal RGB-subpixel rendering. The resulting
 // bitmap has FT_PIXEL_MODE_LCD with width tripled (one byte per subpixel).
 constexpr int kLCDRenderFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
+// The same hinting without rasterising. HarfBuzz is given these so the advances
+// it reports come from the same hinted outlines FreeType draws; by default
+// hb-ft measures unhinted, and Arabic then renders with correct letter forms
+// whose joins do not meet, because the pen lands a fraction off each time.
+constexpr int kLCDMetricFlags = FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
 
 std::vector<uint32_t> toRenderableCodepoints(const TagLib::String& text)
 {
@@ -227,7 +232,9 @@ void* Font::harfbuzzFont(std::size_t face_index)
         }
         // Referencing rather than taking ownership: the FT_Face outlives this
         // and is freed by the destructor.
-        m_hb_fonts[face_index] = hb_ft_font_create_referenced(face);
+        hb_font_t* hb = hb_ft_font_create_referenced(face);
+        hb_ft_font_set_load_flags(hb, kLCDMetricFlags);
+        m_hb_fonts[face_index] = hb;
     }
     return m_hb_fonts[face_index];
 }
@@ -311,7 +318,10 @@ int Font::shapeRuns(const std::string& utf8_text,
         return 0;
     }
 
-    int pen_x = 0;
+    // Kept in 26.6 fixed point, the units HarfBuzz works in. Truncating every
+    // advance to a whole pixel loses up to a pixel per glyph, and across a word
+    // that is the difference between letters joining and not.
+    int pen_x26 = 0;
     const SBRun* runs = SBLineGetRunsPtr(line);
     const SBUInteger run_count = SBLineGetRunCount(line);
 
@@ -363,10 +373,11 @@ int Font::shapeRuns(const std::string& utf8_text,
                 const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);
                 const hb_glyph_position_t* gpos = hb_buffer_get_glyph_positions(buffer, &count);
                 for (unsigned g = 0; g < count; ++g) {
-                    // HarfBuzz works in 26.6 fixed point.
-                    emit(face_index, info[g].codepoint,
-                         pen_x + (gpos[g].x_offset >> 6), -(gpos[g].y_offset >> 6));
-                    pen_x += gpos[g].x_advance >> 6;
+                    // Rounded to the nearest pixel at placement time only.
+                    const int x = (pen_x26 + gpos[g].x_offset + 32) >> 6;
+                    const int y = -((gpos[g].y_offset + 32) >> 6);
+                    emit(face_index, info[g].codepoint, x, y);
+                    pen_x26 += gpos[g].x_advance;
                 }
                 hb_buffer_destroy(buffer);
             }
@@ -377,7 +388,7 @@ int Font::shapeRuns(const std::string& utf8_text,
     SBLineRelease(line);
     SBParagraphRelease(paragraph);
     SBAlgorithmRelease(algorithm);
-    return pen_x;
+    return (pen_x26 + 32) >> 6;
 }
 
 bool Font::addFallback(const TagLib::String& file)
