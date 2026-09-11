@@ -194,6 +194,17 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     return sfc;
 }
 
+bool Font::needsComplexLayout(uint32_t cp)
+{
+    return (cp >= 0x0300 && cp <= 0x036F)    // combining marks
+        || (cp >= 0x0590 && cp <= 0x1FFF)    // Hebrew, Arabic, Indic, Thai...
+        || (cp >= 0x200E && cp <= 0x200F)    // LRM / RLM
+        || (cp >= 0x202A && cp <= 0x202E)    // bidi embedding controls
+        || (cp >= 0x2066 && cp <= 0x2069)    // bidi isolates
+        || (cp >= 0xFB1D && cp <= 0xFEFC)    // Hebrew/Arabic presentation forms
+        || (cp >= 0x10800 && cp <= 0x10FFF); // RTL historic scripts
+}
+
 bool Font::needsComplexLayout(const std::string& utf8_text)
 {
     const auto* data = reinterpret_cast<const uint8_t*>(utf8_text.data());
@@ -203,15 +214,7 @@ bool Font::needsComplexLayout(const std::string& utf8_text)
         const uint32_t cp =
             UTF8Util::decodeCodepoint(data + i, utf8_text.size() - i, consumed);
         i += consumed;
-        const bool complex_cp =
-               (cp >= 0x0300 && cp <= 0x036F)    // combining marks
-            || (cp >= 0x0590 && cp <= 0x1FFF)    // Hebrew, Arabic, Indic, Thai...
-            || (cp >= 0x200E && cp <= 0x200F)    // LRM / RLM
-            || (cp >= 0x202A && cp <= 0x202E)    // bidi embedding controls
-            || (cp >= 0x2066 && cp <= 0x2069)    // bidi isolates
-            || (cp >= 0xFB1D && cp <= 0xFEFC)    // Hebrew/Arabic presentation forms
-            || (cp >= 0x10800 && cp <= 0x10FFF); // RTL historic scripts
-        if (complex_cp) {
+        if (needsComplexLayout(cp)) {
             return true;
         }
     }
@@ -427,6 +430,23 @@ FT_Face Font::faceFor(uint32_t codepoint) const
     if (!m_face) {
         return nullptr;
     }
+
+    // For scripts that join or reorder, a fallback face wins even when the
+    // primary has the codepoint. DejaVu Sans is the case in point: it carries
+    // Arabic letters and the GSUB rules to substitute them, so it looks
+    // supported and the fallback would never be consulted -- but its glyphs are
+    // not drawn to connect, so the result is correctly shaped letters that
+    // still do not touch. No shaper can fix that; only a font can. Latin,
+    // Greek, Cyrillic and CJK keep the primary, so adding a fallback for one
+    // script cannot silently restyle the rest of the interface.
+    if (needsComplexLayout(codepoint)) {
+        for (const FallbackFace& fallback : m_fallbacks) {
+            if (fallback.face && FT_Get_Char_Index(fallback.face, codepoint) != 0) {
+                return fallback.face;
+            }
+        }
+    }
+
     if (FT_Get_Char_Index(m_face, codepoint) != 0) {
         return m_face;
     }

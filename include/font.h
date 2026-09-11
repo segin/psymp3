@@ -101,6 +101,7 @@ class Font
         /// Latin, Greek, Cyrillic and CJK need none of that and take the fast
         /// path, which also keeps their rendering byte-for-byte as it was.
         static bool needsComplexLayout(const std::string& utf8_text);
+        static bool needsComplexLayout(uint32_t codepoint);
         /// Lays out @p utf8_text with SheenBidi and HarfBuzz. Emits each glyph
         /// through @p emit as (face index, glyph id, x, y) and returns the total
         /// advance, so measuring and drawing share one implementation and can
