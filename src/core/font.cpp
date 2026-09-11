@@ -50,6 +50,14 @@ constexpr int kLCDRenderFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_FO
 // hb-ft measures unhinted, and Arabic then renders with correct letter forms
 // whose joins do not meet, because the pen lands a fraction off each time.
 constexpr int kLCDMetricFlags = FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
+// Shaped text is loaded unhinted. The autohinter snaps stems and side bearings
+// to the pixel grid, which for a script whose letters must physically touch
+// moves the joins apart -- badly at small sizes, where a rounding of half a
+// pixel is a large part of a connecting stroke, and invisibly at large ones.
+// Unhinted also matches what HarfBuzz measures by default, so the advances and
+// the outlines agree without having to force either to the other.
+constexpr int kShapedLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_NO_HINTING;
+constexpr int kShapedMetricFlags = FT_LOAD_TARGET_LCD | FT_LOAD_NO_HINTING;
 
 std::vector<uint32_t> toRenderableCodepoints(const TagLib::String& text)
 {
@@ -236,7 +244,7 @@ void* Font::harfbuzzFont(std::size_t face_index)
         // Referencing rather than taking ownership: the FT_Face outlives this
         // and is freed by the destructor.
         hb_font_t* hb = hb_ft_font_create_referenced(face);
-        hb_ft_font_set_load_flags(hb, kLCDMetricFlags);
+        hb_ft_font_set_load_flags(hb, kShapedMetricFlags);
         m_hb_fonts[face_index] = hb;
     }
     return m_hb_fonts[face_index];
@@ -259,7 +267,7 @@ const Font::GlyphBitmap& Font::shapedGlyph(std::size_t face_index, uint32_t glyp
 
     GlyphBitmap glyph;
     // Shaping yields glyph ids, so this loads by index rather than character.
-    if (face && FT_Load_Glyph(face, glyph_id, kLCDRenderFlags) == 0) {
+    if (face && FT_Load_Glyph(face, glyph_id, kShapedLoadFlags) == 0) {
         const FT_GlyphSlot slot = face->glyph;
         glyph.left = slot->bitmap_left;
         glyph.top = slot->bitmap_top;
