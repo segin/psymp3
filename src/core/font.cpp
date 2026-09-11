@@ -653,22 +653,52 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
     SDL_SetSurfaceBlendMode(sfc->getHandle(), SDL_BLENDMODE_BLEND);
     sfc->FillRect(sfc->MapRGBA(bg_r, bg_g, bg_b, 255));
 
+    // Glyphs accumulate as coverage across the whole line and are blended
+    // against the background once, at the end, rather than each glyph being
+    // blended and written on its own.
+    //
+    // Glyph boxes are allowed to overlap, and in Arabic they always do: the
+    // stroke that joins a letter to its neighbour reaches into the
+    // neighbour's box. (Kerned and italic Latin overhang the same way, just
+    // less.) Writing finished pixels per glyph meant the later glyph's nearly
+    // empty edge pixels overwrote ink the earlier glyph had already laid
+    // down, erasing precisely the strokes that hold a word together and
+    // leaving Arabic drawn as separate letters.
+    //
+    // Coverage is combined with max() instead. Every glyph on the line is
+    // drawn in the same colour, so where two boxes overlap the denser of the
+    // two is what should show, and a stroke shared across a seam stays solid.
+    // Three channels always, so the LCD and grayscale cases share one buffer;
+    // a grayscale glyph puts the same value in all three.
+    std::vector<uint8_t> coverage(static_cast<std::size_t>(width) * font_height * 3, 0);
+
     // Shared by both paths so they cannot drift apart.
     auto blitGlyph = [&](const GlyphBitmap& glyph, int x_pos, int y_pos) {
         for (int row = 0; row < glyph.rows; ++row) {
+            const int dst_y = y_pos + row;
+            if (dst_y < 0 || dst_y >= font_height) {
+                continue;
+            }
             const uint8_t* src = glyph.coverage.data()
                                + static_cast<std::size_t>(row) * glyph.width * (glyph.lcd ? 3 : 1);
             for (int col = 0; col < glyph.width; ++col) {
+                const int dst_x = x_pos + col;
+                // Surface::pixel used to absorb out-of-range writes; the
+                // coverage buffer is a plain vector, so the clip is explicit.
+                if (dst_x < 0 || dst_x >= width) {
+                    continue;
+                }
                 const uint8_t cR = glyph.lcd ? src[col * 3 + 0] : src[col];
                 const uint8_t cG = glyph.lcd ? src[col * 3 + 1] : src[col];
                 const uint8_t cB = glyph.lcd ? src[col * 3 + 2] : src[col];
                 if ((cR | cG | cB) == 0) {
                     continue;
                 }
-                const uint8_t out_r = static_cast<uint8_t>((fg_r * cR + bg_r * (255 - cR)) / 255);
-                const uint8_t out_g = static_cast<uint8_t>((fg_g * cG + bg_g * (255 - cG)) / 255);
-                const uint8_t out_b = static_cast<uint8_t>((fg_b * cB + bg_b * (255 - cB)) / 255);
-                sfc->pixel(x_pos + col, y_pos + row, out_r, out_g, out_b, 255);
+                uint8_t* dst = coverage.data()
+                             + (static_cast<std::size_t>(dst_y) * width + dst_x) * 3;
+                if (cR > dst[0]) { dst[0] = cR; }
+                if (cG > dst[1]) { dst[1] = cG; }
+                if (cB > dst[2]) { dst[2] = cB; }
             }
         }
     };
@@ -680,24 +710,31 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
                 blitGlyph(glyph, x + glyph.left, baseline - glyph.top + y);
             }
         });
-        return sfc;
+    } else {
+        int pen_x = 0;
+        for (uint32_t codepoint : codepoints) {
+            const GlyphBitmap& glyph = renderedGlyph(codepoint);
+            if (!glyph.valid) {
+                continue;
+            }
+            blitGlyph(glyph, pen_x + glyph.left, baseline - glyph.top);
+            pen_x += glyph.advance;
+        }
     }
 
-    int pen_x = 0;
-    for (uint32_t codepoint : codepoints) {
-        const GlyphBitmap& glyph = renderedGlyph(codepoint);
-        if (!glyph.valid) {
-            continue;
+    // Coverage is cached rather than finished pixels, so the blend against the
+    // caller's colours happens here, once per pixel.
+    const uint8_t* cov = coverage.data();
+    for (int row = 0; row < font_height; ++row) {
+        for (int col = 0; col < width; ++col, cov += 3) {
+            if ((cov[0] | cov[1] | cov[2]) == 0) {
+                continue; // untouched: already the background fill
+            }
+            const uint8_t out_r = static_cast<uint8_t>((fg_r * cov[0] + bg_r * (255 - cov[0])) / 255);
+            const uint8_t out_g = static_cast<uint8_t>((fg_g * cov[1] + bg_g * (255 - cov[1])) / 255);
+            const uint8_t out_b = static_cast<uint8_t>((fg_b * cov[2] + bg_b * (255 - cov[2])) / 255);
+            sfc->pixel(col, row, out_r, out_g, out_b, 255);
         }
-
-        const int y_pos = baseline - glyph.top;
-        const int x_pos = pen_x + glyph.left;
-
-        // Coverage is cached rather than finished pixels, so the blend against
-        // the caller's colours happens here.
-        blitGlyph(glyph, x_pos, y_pos);
-
-        pen_x += glyph.advance;
     }
     return sfc;
 }
