@@ -334,6 +334,17 @@ int Font::shapeRuns(const std::string& utf8_text,
 
         // A run is one direction but may still cross faces -- Latin and CJK in
         // one phrase -- so it is split again wherever the resolved face changes.
+        //
+        // Two things matter here. A segment is extended for as long as the face
+        // it started with still has the character, rather than re-resolving each
+        // one: a space would otherwise resolve to the primary face and cut an
+        // Arabic phrase in two at every word, shaping the words apart. And the
+        // segments of a right-to-left run are emitted right to left, because
+        // within such a run later text belongs further left; laying them out in
+        // logical order puts the words in the wrong places.
+        struct Segment { std::size_t begin, end, face_index; };
+        std::vector<Segment> segments;
+
         std::size_t pos = run.offset;
         const std::size_t run_end = run.offset + run.length;
         while (pos < run_end) {
@@ -356,35 +367,44 @@ int Font::shapeRuns(const std::string& utf8_text,
                 const uint32_t cp = UTF8Util::decodeCodepoint(
                     reinterpret_cast<const uint8_t*>(utf8_text.data()) + seg_end,
                     run_end - seg_end, next);
-                if (faceFor(cp) != want) {
+                // Stay on this face while it can draw the character at all.
+                if (!want || FT_Get_Char_Index(want, cp) == 0) {
                     break;
                 }
                 seg_end += next;
             }
-
-            auto* hb_font = static_cast<hb_font_t*>(harfbuzzFont(face_index));
-            if (hb_font) {
-                hb_buffer_t* buffer = hb_buffer_create();
-                hb_buffer_add_utf8(buffer, utf8_text.data(), static_cast<int>(utf8_text.size()),
-                                   static_cast<unsigned>(pos),
-                                   static_cast<int>(seg_end - pos));
-                hb_buffer_set_direction(buffer, rtl ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
-                hb_buffer_guess_segment_properties(buffer);
-                hb_shape(hb_font, buffer, nullptr, 0);
-
-                unsigned count = 0;
-                const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);
-                const hb_glyph_position_t* gpos = hb_buffer_get_glyph_positions(buffer, &count);
-                for (unsigned g = 0; g < count; ++g) {
-                    // Rounded to the nearest pixel at placement time only.
-                    const int x = (pen_x26 + gpos[g].x_offset + 32) >> 6;
-                    const int y = -((gpos[g].y_offset + 32) >> 6);
-                    emit(face_index, info[g].codepoint, x, y);
-                    pen_x26 += gpos[g].x_advance;
-                }
-                hb_buffer_destroy(buffer);
-            }
+            segments.push_back({pos, seg_end, face_index});
             pos = seg_end;
+        }
+
+        if (rtl) {
+            std::reverse(segments.begin(), segments.end());
+        }
+
+        for (const Segment& segment : segments) {
+            auto* hb_font = static_cast<hb_font_t*>(harfbuzzFont(segment.face_index));
+            if (!hb_font) {
+                continue;
+            }
+            hb_buffer_t* buffer = hb_buffer_create();
+            hb_buffer_add_utf8(buffer, utf8_text.data(), static_cast<int>(utf8_text.size()),
+                               static_cast<unsigned>(segment.begin),
+                               static_cast<int>(segment.end - segment.begin));
+            hb_buffer_set_direction(buffer, rtl ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
+            hb_buffer_guess_segment_properties(buffer);
+            hb_shape(hb_font, buffer, nullptr, 0);
+
+            unsigned count = 0;
+            const hb_glyph_info_t* info = hb_buffer_get_glyph_infos(buffer, &count);
+            const hb_glyph_position_t* gpos = hb_buffer_get_glyph_positions(buffer, &count);
+            for (unsigned g = 0; g < count; ++g) {
+                // Rounded to the nearest pixel at placement time only.
+                const int x = (pen_x26 + gpos[g].x_offset + 32) >> 6;
+                const int y = -((gpos[g].y_offset + 32) >> 6);
+                emit(segment.face_index, info[g].codepoint, x, y);
+                pen_x26 += gpos[g].x_advance;
+            }
+            hb_buffer_destroy(buffer);
         }
     }
 
