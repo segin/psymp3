@@ -175,6 +175,11 @@ void registerAllDemuxers() {
     }, "MP4/ISO", {"mp4", "m4a", "mov"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MP4/ISO demuxer");
     
+    DemuxerRegistry::getInstance().registerDemuxer("matroska", [](std::unique_ptr<IOHandler> handler) {
+        return std::make_unique<PsyMP3::Demuxer::Matroska::MatroskaDemuxer>(std::move(handler));
+    }, "Matroska/WebM", {"mka", "mkv", "webm"});
+    Debug::log("demuxer", "registerAllDemuxers: Registered Matroska/WebM demuxer");
+
     DemuxerRegistry::getInstance().registerDemuxer("raw", [](std::unique_ptr<IOHandler> handler) {
         // Note: RawAudioDemuxer needs file path for format detection
         // This factory will need to be enhanced when MediaFactory is updated

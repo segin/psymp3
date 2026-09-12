@@ -685,6 +685,27 @@ void MediaFactory::initializeDefaultFormats() {
         });
     }
     
+    if (DemuxerRegistry::getInstance().isFormatSupported("matroska")) {
+        MediaFormat matroska_format;
+        matroska_format.format_id = "matroska";
+        matroska_format.display_name = "Matroska";
+        matroska_format.extensions = {"MKA", "MKV", "WEBM"};
+        matroska_format.mime_types = {"audio/x-matroska", "video/x-matroska",
+                                      "audio/webm", "video/webm"};
+        // Non-printable, so it is spelled with an explicit length rather than
+        // as a bare literal, which would stop at the first byte.
+        matroska_format.magic_signatures = {std::string("\x1A\x45\xDF\xA3", 4)};
+        matroska_format.priority = 10;
+        matroska_format.supports_streaming = true;
+        matroska_format.supports_seeking = true;
+        matroska_format.is_container = true;
+        matroska_format.description = "Matroska / WebM";
+
+        registerFormatInternal(matroska_format, [](const std::string& uri, const ContentInfo& info) {
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
+        });
+    }
+
     if (DemuxerRegistry::getInstance().isFormatSupported("raw")) {
         // Raw audio formats
         MediaFormat raw_format;

@@ -43,6 +43,11 @@ void DemuxerFactory::initializeBuiltInFormats() {
     
     // MP4/ISO signature (ftyp box)
     registerSignature_unlocked(FormatSignature("mp4", {0x66, 0x74, 0x79, 0x70}, 4, 90)); // "ftyp" at offset 4
+
+    // EBML magic, which opens every Matroska and WebM file. Registered here as
+    // well as in DemuxerRegistry: probeFormat matches against this table, and
+    // the two are kept in step for every other format too.
+    registerSignature_unlocked(FormatSignature("matroska", {0x1A, 0x45, 0xDF, 0xA3}, 0, 95));
     
     // MP3 signature (ID3v2)
     registerSignature_unlocked(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"

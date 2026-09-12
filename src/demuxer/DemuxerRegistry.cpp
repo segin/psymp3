@@ -303,6 +303,8 @@ void DemuxerRegistry::initializeBuiltInFormats() {
     
     // MP4/ISO signature (ftyp box)
     registerSignatureInternal(FormatSignature("mp4", {0x66, 0x74, 0x79, 0x70}, 4, 90)); // "ftyp" at offset 4
+    // EBML magic, which every Matroska and WebM file opens with.
+    registerSignatureInternal(FormatSignature("matroska", {0x1A, 0x45, 0xDF, 0xA3}, 0, 95));
     
     // MP3 signature (ID3v2)
     registerSignatureInternal(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"
