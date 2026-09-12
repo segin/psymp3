@@ -69,6 +69,9 @@ CODEC_LIBS += codecs/alac/libpsymp3-codec-alac.a
 CODEC_LIBS += codecs/mlp/libpsymp3-codec-mlp.a
 DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
 DEMUXER_LIBS += demuxer/mlp/libpsymp3-demuxer-mlp.a
+# Matroska/WebM: the EBML reader and container parser are in tree, so this
+# needs nothing external and is always available.
+DEMUXER_LIBS += demuxer/matroska/libpsymp3-demuxer-matroska.a
 
 if HAVE_FLAC
 DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a

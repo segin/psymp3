@@ -517,6 +517,7 @@ using PsyMP3::Codec::PCM::G722Codec;
 
 // Demuxer subsystem - Raw Audio
 #include "demuxer/raw/RawAudioDemuxer.h"
+#include "demuxer/matroska/EBMLReader.h"
 
 // Codec includes needed by OggCodecs.h (must come before OggCodecs.h)
 #ifdef HAVE_VORBIS
