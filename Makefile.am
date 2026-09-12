@@ -106,6 +106,11 @@ EXTRA_DIST = \
 	include/demuxer/iso/SampleTableManager.h \
 	include/demuxer/iso/SeekingEngine.h \
 	include/demuxer/iso/StreamManager.h \
+	include/demuxer/matroska/BlockParser.h \
+	include/demuxer/matroska/CueIndex.h \
+	include/demuxer/matroska/EBMLReader.h \
+	include/demuxer/matroska/MatroskaElements.h \
+	include/demuxer/matroska/SegmentParser.h \
 	include/demuxer/mlp/MLPNullDemuxer.h \
 	include/demuxer/mp3/MP3NullDemuxer.h \
 	include/demuxer/ogg/CodecHeaderParser.h \
