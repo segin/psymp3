@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(HARFBUZZ_CFLAGS) $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -131,6 +131,8 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/libpsymp3-sheenbidi.a \
+	$(HARFBUZZ_LIBS) \
 	$(SYSTEM_LIBS)
 
 # Minimal library set for simple tests (I/O, demuxer core, codecs)
