@@ -5008,7 +5008,17 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     // lossy coders have no PCM sample format, so the codec stands alone.
     std::string format;
     if (codec_lc.find("pcm") != std::string::npos || codec_lc == "wav") {
-        format = "PCM S" + std::to_string(bits > 0 ? bits : 16) + " LE";
+        // Byte order belongs to the container, not the codec, so it has to be
+        // asked for rather than assumed: AIFF stores samples most significant
+        // byte first, as does Matroska's A_PCM/INT/BIG, while RIFF/WAV and
+        // AIFF-C "sowt" store them least significant first. Saying LE for all
+        // of them told an AIFF listener the opposite of the truth.
+        bool big_endian = false;
+        if (auto* pcm_stream = dynamic_cast<DemuxedStream*>(stream)) {
+            big_endian = pcm_stream->getCurrentStreamInfo().big_endian_samples;
+        }
+        format = "PCM S" + std::to_string(bits > 0 ? bits : 16)
+               + (big_endian ? " BE" : " LE");
     } else if (codec_lc.find("alaw") != std::string::npos || codec_lc.find("a-law") != std::string::npos) {
         format = "G.711 A-law";
     } else if (codec_lc.find("ulaw") != std::string::npos || codec_lc.find("mulaw") != std::string::npos ||
