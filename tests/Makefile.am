@@ -456,6 +456,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_widget_rendering \
 	test_complex_script_rendering \
 	test_ebml_reader \
+	test_matroska_segment \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_http_iohandler_validation \
@@ -493,6 +494,9 @@ test_complex_script_rendering_CPPFLAGS = $(AM_CPPFLAGS) \
 
 test_ebml_reader_SOURCES = test_ebml_reader.cpp
 test_ebml_reader_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_matroska_segment_SOURCES = test_matroska_segment.cpp
+test_matroska_segment_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
