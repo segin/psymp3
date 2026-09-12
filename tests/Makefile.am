@@ -453,6 +453,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_widget_event_routing \
 	test_widget_hierarchy_properties \
 	test_widget_rendering \
+	test_complex_script_rendering \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_http_iohandler_validation \
@@ -477,6 +478,13 @@ test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_widget_rendering_SOURCES = test_widget_rendering.cpp
 test_widget_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_complex_script_rendering_SOURCES = test_complex_script_rendering.cpp
+test_complex_script_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# The corpus is rendered with the bundled font, which lives in the source tree
+# rather than beside the test binary.
+test_complex_script_rendering_CPPFLAGS = $(AM_CPPFLAGS) \
+	-DPSYMP3_TOP_SRCDIR='"$(top_srcdir)"'
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
