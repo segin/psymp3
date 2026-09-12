@@ -94,6 +94,7 @@
 #include "demuxer/raw/RawAudioDemuxer.cpp"
 #include "demuxer/matroska/EBMLReader.cpp"
 #include "demuxer/matroska/SegmentParser.cpp"
+#include "demuxer/matroska/BlockParser.cpp"
 
 // Demuxer - ISO/MP4
 #include "demuxer/iso/BoxParser.cpp"

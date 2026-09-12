@@ -520,6 +520,7 @@ using PsyMP3::Codec::PCM::G722Codec;
 #include "demuxer/matroska/EBMLReader.h"
 #include "demuxer/matroska/MatroskaElements.h"
 #include "demuxer/matroska/SegmentParser.h"
+#include "demuxer/matroska/BlockParser.h"
 
 // Codec includes needed by OggCodecs.h (must come before OggCodecs.h)
 #ifdef HAVE_VORBIS
