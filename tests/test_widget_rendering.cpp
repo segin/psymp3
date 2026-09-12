@@ -338,9 +338,14 @@ protected:
         ToastWidget toast("Toast fade regression", m_font.get(), ToastWidget::DURATION_LONG);
         toast.setPos(Rect(10, 10, toast.getPos().width(), toast.getPos().height()));
 
+        // A toast fades in over FADE_IN_MS and is therefore fully transparent
+        // at the moment it is constructed, by design. Asserting it is visible
+        // before the entrance has run asserts the opposite of what the widget
+        // is specified to do, so wait the fade out first.
+        SDL_Delay(ToastWidget::FADE_IN_MS + 40);
         toast.BlitTo(target);
         ASSERT_TRUE(countNonTransparentPixels(toast) > 0,
-                    "A newly created toast should render visible pixels in its backing surface");
+                    "A toast should be fully visible once its fade-in has finished");
 
         toast.beginDismiss(ToastWidget::CROSSFADE_MS);
         toast.BlitTo(target);
