@@ -22,6 +22,29 @@ namespace {
 constexpr int kWidgetGlyphLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
                                       FT_LOAD_MONOCHROME | FT_LOAD_FORCE_AUTOHINT;
 
+/// The bundled font, wherever this happens to be run from. Tests execute in
+/// the build's tests/ directory, so a path relative to the top of the tree
+/// does not resolve; out-of-tree builds move it again.
+std::string bundledFontPath()
+{
+    if (const char* from_env = getenv("PSYMP3_TEST_FONT")) {
+        return from_env;
+    }
+    static const char* const candidates[] = {
+        PSYMP3_TOP_SRCDIR "/res/vera.ttf",
+        "../res/vera.ttf",
+        "./res/vera.ttf",
+    };
+    for (const char* candidate : candidates) {
+        FILE* probe = fopen(candidate, "rb");
+        if (probe) {
+            fclose(probe);
+            return candidate;
+        }
+    }
+    return std::string();
+}
+
 void ensureSDLVideo()
 {
     static bool initialized = false;
@@ -173,7 +196,7 @@ protected:
     {
         ensureSDLVideo();
         if (!m_font) {
-            m_font = std::make_unique<Font>(TagLib::String("./res/vera.ttf"), 12);
+            m_font = std::make_unique<Font>(TagLib::String(bundledFontPath()), 12);
         }
     }
 
@@ -274,7 +297,7 @@ protected:
         ensureVideoAndFont();
 
         FT_Face face = nullptr;
-        if (FT_New_Face(TrueType::getLibrary(), "./res/vera.ttf", 0, &face) != 0) {
+        if (FT_New_Face(TrueType::getLibrary(), bundledFontPath().c_str(), 0, &face) != 0) {
             throw std::runtime_error("FT_New_Face failed for widget Unicode width test");
         }
 

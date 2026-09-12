@@ -478,6 +478,9 @@ test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_widget_rendering_SOURCES = test_widget_rendering.cpp
 test_widget_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# The bundled font lives in the source tree, not beside the test binary.
+test_widget_rendering_CPPFLAGS = $(AM_CPPFLAGS) \
+	-DPSYMP3_TOP_SRCDIR='"$(top_srcdir)"'
 
 test_complex_script_rendering_SOURCES = test_complex_script_rendering.cpp
 test_complex_script_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
