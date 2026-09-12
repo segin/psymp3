@@ -223,6 +223,44 @@ For detailed testing information, see [TESTING.md](TESTING.md).
 
 ## Notes
 
-**Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text through the built-in FreeType path. The bundled `vera.ttf` (DejaVu Sans) covers Latin, Greek and Cyrillic but **not CJK, Kana or Hangul** — those draw as empty boxes without a second font.
+**Unicode Support**: Unicode ID3 tags are supported. PsyMP3 renders UI text
+through the built-in FreeType path, with **HarfBuzz** shaping each run and a
+vendored **SheenBidi** resolving direction, so complex scripts are laid out
+properly rather than drawn one codepoint at a time, left to right.
 
-To add them, drop an `extra.ttf` next to `psymp3.exe` (or in the working directory; on Unix, in the data directory). It is consulted for characters `vera.ttf` lacks, and takes precedence outright for scripts that join or reorder — Arabic, Hebrew, Indic, Thai. That exception matters: DejaVu *has* Arabic letters and the rules to substitute them, so it looks supported, but its glyphs are not drawn to connect, and no shaper can fix a font. Latin, Greek, Cyrillic and CJK always keep `vera.ttf`, so adding a fallback for one script cannot restyle the rest of the interface. It supplements the font embedded in the Windows executable — no rebuild and no replacing the bundled font. Any TrueType or OpenType file works; Noto Sans CJK is the usual choice. Replacing `vera.ttf` outright still works too, and still overrides the embedded copy.
+The bundled `vera.ttf` (DejaVu Sans) covers rather more than Latin, Greek and
+Cyrillic. It also carries Armenian, Georgian, Lao, Hebrew, N'Ko and the Arabic
+script — Arabic itself along with Persian, Sindhi, Sorani Kurdish and Uyghur,
+and most of Urdu and Pashto. **Arabic letters join properly with the bundled
+font**: shaping selects the contextual forms, and the renderer composites
+overlapping glyph boxes so the stroke that joins one letter to the next
+survives instead of being overwritten by its neighbour. Hebrew and N'Ko read
+right to left.
+
+What DejaVu Sans does **not** have is CJK, Kana and Hangul, the Indic scripts
+(Devanagari, Bengali, Tamil and the rest), Thai, Khmer, Syriac, Thaana and
+Mongolian. Those draw as empty boxes until you give PsyMP3 a second font.
+
+### Adding characters with `extra.ttf`
+
+Drop an `extra.ttf` next to `psymp3.exe` (or in the working directory; on Unix,
+in the data directory) and PsyMP3 chains it behind `vera.ttf`. Any TrueType or
+OpenType file works — Noto Sans CJK is the usual choice for Chinese, Japanese
+and Korean, and the Noto family covers essentially everything else.
+
+- It supplies **any character `vera.ttf` lacks**, so one file is enough to add a
+  script. Absent, nothing changes at all.
+- On Windows it **supplements** the font embedded in the executable rather than
+  replacing it, so adding one script does not cost you the coverage of
+  everything else. No rebuild needed.
+- Latin, Greek, Cyrillic and CJK always keep `vera.ttf`, so adding a fallback
+  cannot restyle the bulk of the interface.
+- One exception to that: for scripts that join or reorder — Arabic, Hebrew,
+  Indic, Thai — a fallback that covers the script is preferred over `vera.ttf`
+  even where DejaVu has the characters. So a font added for, say, Chinese will
+  also take over Arabic and Hebrew if it happens to cover them. DejaVu renders
+  those correctly on its own, so this is a matter of which typeface you get, not
+  whether the text is legible.
+
+Replacing `vera.ttf` outright still works too, and still overrides the embedded
+copy.
