@@ -109,6 +109,7 @@ EXTRA_DIST = \
 	include/demuxer/matroska/BlockParser.h \
 	include/demuxer/matroska/CueIndex.h \
 	include/demuxer/matroska/EBMLReader.h \
+	include/demuxer/matroska/MatroskaDemuxer.h \
 	include/demuxer/matroska/MatroskaElements.h \
 	include/demuxer/matroska/SegmentParser.h \
 	include/demuxer/mlp/MLPNullDemuxer.h \

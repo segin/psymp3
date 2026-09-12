@@ -17,7 +17,8 @@ libpsymp3_demuxer_matroska_a_SOURCES = \
 	EBMLReader.cpp \
 	SegmentParser.cpp \
 	BlockParser.cpp \
-	CueIndex.cpp
+	CueIndex.cpp \
+	MatroskaDemuxer.cpp
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
