@@ -458,6 +458,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_ebml_reader \
 	test_matroska_segment \
 	test_matroska_block \
+	test_matroska_cues \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_http_iohandler_validation \
@@ -501,6 +502,9 @@ test_matroska_segment_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_matroska_block_SOURCES = test_matroska_block.cpp
 test_matroska_block_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_matroska_cues_SOURCES = test_matroska_cues.cpp
+test_matroska_cues_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -3227,7 +3231,7 @@ test_mpris_memory_validation_SOURCES = test_mpris_memory_validation.cpp player_s
 test_mpris_memory_validation_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 
 # Test scripts for running comprehensive test suites
-EXTRA_DIST = \
+EXTRA_DIST = matroska_ebml_builder.h \
 	run_mpris_mock_tests.sh \
 	run_mpris_stress_tests.sh \
 	run_mpris_logging_tests.sh \
