@@ -95,6 +95,7 @@
 #include "demuxer/matroska/EBMLReader.cpp"
 #include "demuxer/matroska/SegmentParser.cpp"
 #include "demuxer/matroska/BlockParser.cpp"
+#include "demuxer/matroska/CueIndex.cpp"
 
 // Demuxer - ISO/MP4
 #include "demuxer/iso/BoxParser.cpp"
