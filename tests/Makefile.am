@@ -506,6 +506,9 @@ test_matroska_block_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_matroska_cues_SOURCES = test_matroska_cues.cpp
 test_matroska_cues_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
+generate_matroska_corpus_SOURCES = generate_matroska_corpus.cpp
+generate_matroska_corpus_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
@@ -3979,7 +3982,7 @@ test_tag_picture_unit_LDADD = \
 
 # Tag fuzzing tests and corpus generators
 check_PROGRAMS += fuzz_tag_vorbis fuzz_tag_id3v1 fuzz_tag_id3v2 fuzz_tag_picture
-check_PROGRAMS += generate_vorbis_corpus generate_id3v1_corpus generate_id3v2_corpus generate_picture_corpus
+check_PROGRAMS += generate_vorbis_corpus generate_id3v1_corpus generate_id3v2_corpus generate_picture_corpus generate_matroska_corpus
 
 # VorbisComment fuzzer
 fuzz_tag_vorbis_SOURCES = fuzz_tag_vorbis.cpp
