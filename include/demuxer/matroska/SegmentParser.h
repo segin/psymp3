@@ -108,6 +108,16 @@ public:
     /// Offset of the first Cluster, where parsing stopped.
     uint64_t firstClusterOffset() const { return m_first_cluster_offset; }
 
+    /// Absolute file offset of the element @p id, from SeekHead, or 0 when the
+    /// file's SeekHead does not mention it.
+    ///
+    /// SeekHead is the index of the Segment's own top-level elements. It
+    /// matters because Cues are written after the clusters -- often at the very
+    /// end of a large file -- and because a muxer is allowed to put Tracks
+    /// there too, in which case a parse that stops at the first Cluster finds
+    /// no tracks at all without consulting it.
+    uint64_t seekPosition(uint32_t id) const;
+
     /// The first audio track PsyMP3 can decode, or nullptr.
     ///
     /// A .mkv is usually mostly video, and may carry several audio tracks; this
@@ -121,6 +131,7 @@ public:
 
 private:
     void parseEBMLHeader(EBMLReader& reader);
+    void parseSeekHead(EBMLReader& reader, const EBMLElement& seek_head);
     void parseSegment(EBMLReader& reader, const EBMLElement& segment);
     void parseInfo(EBMLReader& reader, const EBMLElement& info);
     void parseTracks(EBMLReader& reader, const EBMLElement& tracks);
@@ -130,6 +141,8 @@ private:
     SegmentInfo m_info;
     std::vector<TrackEntry> m_tracks;
     std::string m_doc_type;
+    /// Element ID to absolute file offset, from SeekHead.
+    std::map<uint32_t, uint64_t> m_seek_positions;
     uint64_t m_segment_data_offset = 0;
     uint64_t m_first_cluster_offset = 0;
 };

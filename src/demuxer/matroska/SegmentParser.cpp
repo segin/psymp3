@@ -165,10 +165,9 @@ void SegmentParser::parseSegment(EBMLReader& reader, const EBMLElement& segment)
 
         if (element.id == Id::Cluster) {
             // The header elements are all that is wanted here, and the clusters
-            // are where the file's bulk is. Stop at the first one; a file that
-            // puts Tracks after its clusters is reached through SeekHead.
+            // are where the file's bulk is. Stop at the first one.
             m_first_cluster_offset = element.header_offset;
-            return;
+            break;
         }
 
         if (element.unknown_size) {
@@ -176,12 +175,87 @@ void SegmentParser::parseSegment(EBMLReader& reader, const EBMLElement& segment)
         }
 
         switch (element.id) {
-        case Id::Info:   parseInfo(reader, element);   break;
-        case Id::Tracks: parseTracks(reader, element); break;
+        case Id::Info:     parseInfo(reader, element);            break;
+        case Id::Tracks:   parseTracks(reader, element);          break;
+        case Id::SeekHead: parseSeekHead(reader, element);        break;
         default: break;
         }
         reader.seek(element.end());
     }
+
+    // A muxer may write Tracks after the clusters, which a walk that stops at
+    // the first one never reaches. SeekHead is the index that says where they
+    // went, and following it is the difference between playing such a file and
+    // reporting that it has no tracks.
+    if (m_tracks.empty()) {
+        const uint64_t tracks_at = seekPosition(Id::Tracks);
+        if (tracks_at != 0 && tracks_at > m_segment_data_offset) {
+            reader.seek(tracks_at);
+            EBMLElement tracks;
+            if (reader.readElementHeader(tracks) && tracks.id == Id::Tracks
+                && !tracks.unknown_size) {
+                parseTracks(reader, tracks);
+            }
+        }
+    }
+}
+
+void SegmentParser::parseSeekHead(EBMLReader& reader, const EBMLElement& seek_head)
+{
+    const uint64_t end = seek_head.end();
+    while (reader.tell() < end) {
+        EBMLElement entry;
+        if (!reader.readElementHeader(entry)) {
+            break;
+        }
+        if (entry.id != Id::Seek) {
+            reader.seek(entry.end());
+            continue;
+        }
+
+        uint32_t target_id = 0;
+        uint64_t position = 0;
+        bool have_position = false;
+        const uint64_t entry_end = entry.end();
+        while (reader.tell() < entry_end) {
+            EBMLElement field;
+            if (!reader.readElementHeader(field)) {
+                break;
+            }
+            if (field.id == Id::SeekID) {
+                // The ID is stored as its raw encoded bytes, marker included,
+                // which is the same form EBMLReader reports -- so they compare
+                // directly against the Id:: constants.
+                const std::vector<uint8_t> bytes = reader.readBinary(field);
+                if (bytes.empty() || bytes.size() > 4) {
+                    target_id = 0;
+                } else {
+                    uint32_t value = 0;
+                    for (uint8_t byte : bytes) {
+                        value = (value << 8) | byte;
+                    }
+                    target_id = value;
+                }
+            } else if (field.id == Id::SeekPosition) {
+                position = reader.readUInt(field);
+                have_position = true;
+            }
+            reader.seek(field.end());
+        }
+
+        // Positions are relative to the start of the Segment's payload, not to
+        // the file, so they are absolute only after that is added.
+        if (target_id != 0 && have_position) {
+            m_seek_positions[target_id] = m_segment_data_offset + position;
+        }
+        reader.seek(entry_end);
+    }
+}
+
+uint64_t SegmentParser::seekPosition(uint32_t id) const
+{
+    const auto it = m_seek_positions.find(id);
+    return it == m_seek_positions.end() ? 0 : it->second;
 }
 
 void SegmentParser::parseInfo(EBMLReader& reader, const EBMLElement& info)
