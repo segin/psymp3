@@ -262,6 +262,14 @@ private:
      * @return true while fade-in or fade-out is active
      */
     bool isAnimationActive() const;
+
+    /// Marks the surface dirty when the animation opacity has moved since it
+    /// was last drawn.
+    void refreshIfOpacityChanged();
+
+    /// The animation opacity baked into the surface as it currently stands.
+    /// Negative until the first draw, so the first blit always refreshes.
+    float m_last_drawn_opacity = -1.0f;
 };
 
 } // namespace UI

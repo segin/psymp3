@@ -107,19 +107,41 @@ bool ToastWidget::isFinished() const
     return elapsed.count() >= m_exit_duration_ms;
 }
 
-void ToastWidget::BlitTo(Surface& target)
+void ToastWidget::refreshIfOpacityChanged()
 {
-    if (isAnimationActive()) {
+    // draw() bakes the animation opacity into the surface, so the surface has
+    // to be redrawn whenever that value moves -- which is not the same thing
+    // as the animation being "active".
+    //
+    // Keying off isAnimationActive() alone meant the last redraw happened on
+    // the final frame *inside* the entrance window, and the opacity of that
+    // frame -- whatever it happened to be -- was then frozen in for the rest
+    // of the toast's life, because nothing invalidated it again. On a steady
+    // frame rate that last frame lands near the end of the fade and the toast
+    // looks right, which is why this went unnoticed; the further apart the
+    // blits, the dimmer it sticks. With no blit at all inside the window the
+    // toast keeps the surface drawn by updateSize() during construction, at an
+    // opacity of essentially zero, and stays invisible until it expires.
+    //
+    // Comparing against the opacity actually drawn covers every case and adds
+    // no work once the value settles: a toast that is neither entering nor
+    // leaving computes the same opacity every time and is never invalidated.
+    const float opacity = std::clamp(currentAnimationOpacity(), 0.0f, 1.0f);
+    if (m_last_drawn_opacity < 0.0f
+        || std::fabs(opacity - m_last_drawn_opacity) > 0.001f) {
         invalidate();
     }
+}
+
+void ToastWidget::BlitTo(Surface& target)
+{
+    refreshIfOpacityChanged();
     TransparentWindowWidget::BlitTo(target);
 }
 
 void ToastWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
 {
-    if (isAnimationActive()) {
-        invalidate();
-    }
+    refreshIfOpacityChanged();
     TransparentWindowWidget::recursiveBlitTo(target, parent_absolute_pos);
 }
 
@@ -174,6 +196,7 @@ void ToastWidget::draw(Surface& surface)
     // shell and text fade together.
     const float animation_opacity = std::clamp(currentAnimationOpacity(), 0.0f, 1.0f);
     surface.applyRelativeOpacity(0.85f * animation_opacity);
+    m_last_drawn_opacity = animation_opacity;
 }
 
 ::Rect ToastWidget::calculateSize(const std::string& message, ::Font* font, int padding)
