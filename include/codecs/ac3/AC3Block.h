@@ -199,6 +199,13 @@ struct AC3Block {
     EAC3EcplBands ecpl_bands;
     EAC3EcplChannel ecpl[kMaxFullBandwidthChannels];
     bool chincpl[kMaxFullBandwidthChannels] = {};
+    /// §7.3.4 puts dither after a channel is extracted from the coupling
+    /// channel, and for enhanced coupling that extraction happens in the
+    /// frame decoder. So the dither for a coupled bin that got no bits is
+    /// drawn here, in stream order, and written over the regenerated
+    /// coefficient there.
+    float ecpl_dither[kMaxFullBandwidthChannels][kSamplesPerBlock] = {};
+    bool ecpl_dithered[kMaxFullBandwidthChannels][kSamplesPerBlock] = {};
 
     /// Spectral extension copies a channel's finished low band, which for an
     /// enhanced-coupled channel is not finished until the frame decoder has

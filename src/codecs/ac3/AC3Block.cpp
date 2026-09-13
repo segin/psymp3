@@ -888,17 +888,25 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
         if (!dithflag[ch]) {
             continue;
         }
-        const unsigned end = (state.cplinu && state.chincpl[ch])
-                           ? state.endmant[kCouplingSlot] : state.endmant[ch];
+        const bool coupled = state.cplinu && state.chincpl[ch];
+        // Enhanced coupling regenerates every coupled bin later, which would
+        // overwrite dither applied now; see AC3Block::ecpl_dither.
+        const bool deferred = coupled && block.ecplinu;
+        const unsigned end = coupled ? state.endmant[kCouplingSlot] : state.endmant[ch];
         for (unsigned bin = 0; bin < end; ++bin) {
-            const unsigned slot = (state.cplinu && state.chincpl[ch]
-                                   && bin >= state.strtmant[kCouplingSlot])
+            const unsigned slot = (coupled && bin >= state.strtmant[kCouplingSlot])
                                 ? kCouplingSlot : ch;
             if (bap[slot][bin] != 0 || state.aht[slot] != 0) {
                 continue;
             }
-            block.coefficients[ch][bin] =
+            const float value =
                 state.dither.next() / static_cast<float>(1u << state.exponents[slot][bin]);
+            if (deferred && slot == kCouplingSlot) {
+                block.ecpl_dither[ch][bin] = value;
+                block.ecpl_dithered[ch][bin] = true;
+            } else {
+                block.coefficients[ch][bin] = value;
+            }
         }
     }
 
