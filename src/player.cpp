@@ -4981,6 +4981,9 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
         {"usac",    "xHE-AAC"},
         {"truehd",  "Dolby TrueHD"},
         {"mlp",     "MLP"},
+        // Hyphenated, as ATSC and Dolby write them.
+        {"ac3",     "AC-3"},
+        {"eac3",    "E-AC-3"},
     };
     if (auto it = kCodecDisplayNames.find(codec_lc); it != kCodecDisplayNames.end()) {
         codec_uc = it->second;
