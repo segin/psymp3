@@ -116,6 +116,16 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
 
         float samples[kBlockSamples];
         for (unsigned ch = 0; ch < fbw; ++ch) {
+            // §7.7.1: the gain scales the block before it is transformed,
+            // which is the same as scaling its output, and keeps the overlap
+            // with neighbouring blocks consistent. In 1+1 mode channel 2 has
+            // its own.
+            const float gain = (ch == 1) ? block.dynamic_range2 : block.dynamic_range;
+            if (gain != 1.0f) {
+                for (unsigned bin = 0; bin < kBlockSamples; ++bin) {
+                    block.coefficients[ch][bin] *= gain;
+                }
+            }
             ac3InverseTransform(block.coefficients[ch], block.block_switch[ch],
                                 m_transforms[ch], samples);
             const int slot = kWaveOrder[acmod][ch];
@@ -137,6 +147,11 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
         if (header.lfeon) {
             // The LFE is never block-switched: A/52 §5.4.2.1 gives blksw only
             // to the full-bandwidth channels.
+            if (block.dynamic_range != 1.0f) {
+                for (unsigned bin = 0; bin < kBlockSamples; ++bin) {
+                    block.coefficients[kLfeSlot][bin] *= block.dynamic_range;
+                }
+            }
             ac3InverseTransform(block.coefficients[kLfeSlot], false,
                                 m_transforms[kLfeSlot], samples);
             const unsigned out = std::min(3u, channels - 1);

@@ -55,6 +55,15 @@ float couplingCoordinate(unsigned mantissa, unsigned exponent, unsigned master)
 
 } // namespace
 
+float ac3DynamicRangeGain(uint8_t dynrng)
+{
+    // X is the top three bits as a signed integer; Y the low five, with an
+    // implied leading 1 making it a fraction between 1/2 and 63/64.
+    const int x = static_cast<int8_t>(dynrng) >> 5;
+    const unsigned y = dynrng & 0x1Fu;
+    return std::ldexp(static_cast<float>(32 + y) / 64.0f, x + 1);
+}
+
 bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
                         AC3FrameState& state, AC3Block& block,
                         const char** reason, const EAC3AudioFrame* eac3)
@@ -94,13 +103,24 @@ bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
         dithflag[ch] = (!eac3 || eac3->dithflage) ? (reader.readBit() != 0) : true;
     }
 
-    // --- dynamic range control ---
+    // --- dynamic range control, §7.7.1 ---
+    // Applied by default, as the standard requires: broadcasters rely on it.
+    // A block without a word keeps the last one, except block 0, which
+    // starts from unity.
     if (reader.readBit()) {
-        reader.skip(8); // dynrng, applied at output rather than here
+        state.dynrng_gain = ac3DynamicRangeGain(static_cast<uint8_t>(reader.read(8)));
+    } else if (state.block_index == 0) {
+        state.dynrng_gain = 1.0f;
     }
-    if (dual_mono && reader.readBit()) {
-        reader.skip(8); // dynrng2
+    if (dual_mono) {
+        if (reader.readBit()) {
+            state.dynrng2_gain = ac3DynamicRangeGain(static_cast<uint8_t>(reader.read(8)));
+        } else if (state.block_index == 0) {
+            state.dynrng2_gain = 1.0f;
+        }
     }
+    block.dynamic_range = state.dynrng_gain;
+    block.dynamic_range2 = dual_mono ? state.dynrng2_gain : state.dynrng_gain;
 
 Debug::log("ac3", "  after dynrng: bit ", reader.tell());
 

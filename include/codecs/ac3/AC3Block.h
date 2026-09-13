@@ -119,6 +119,12 @@ struct AC3FrameState {
     /// parameters. A frame whose first block omits them is malformed.
     bool have_allocation = false;
 
+    /// The dynamic range gains in force, §7.7.1.2: a block that sends no
+    /// dynrng keeps the previous block's, except block 0, which resets to
+    /// unity. dynrng2 is channel 2's in 1+1 mode.
+    float dynrng_gain = 1.0f;
+    float dynrng2_gain = 1.0f;
+
     /// Which of the frame's six blocks comes next. Block 0 is special in
     /// several places: it may not say "reuse", and an absent delta bit
     /// allocation there means "apply none" rather than "keep the last".
@@ -177,6 +183,9 @@ struct AC3Block {
     float coefficients[kChannelSlots][kSamplesPerBlock] = {};
     /// Whether each channel used the short transform this block, A/52 §7.9.
     bool block_switch[kMaxFullBandwidthChannels] = {};
+    /// Channel 2's gain in 1+1 mode, where the two channels are separate
+    /// programmes with separate dynamic range control.
+    float dynamic_range2 = 1.0f;
     /// Dynamic range control word, or 1.0 when the block sends none.
     float dynamic_range = 1.0f;
 
@@ -212,6 +221,12 @@ struct AC3Block {
 /// @param reason  set to a short description when parsing fails, for logging
 ///                and for telling one fault from another while bringing the
 ///                decoder up. Points at a literal; never freed.
+/// A/52 §7.7.1.2: an 8-bit dynrng word as a linear gain. The top three bits
+/// are a signed shift X (-4..3) and the low five a mantissa Y read as
+/// 0.1Y in binary, so the gain is 2^(X+1) * (32 + Y) / 64: 0x00 is exactly
+/// unity, and the range runs from -24.08 dB to +23.95 dB.
+float ac3DynamicRangeGain(uint8_t dynrng);
+
 bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
                         AC3FrameState& state, AC3Block& block,
                         const char** reason = nullptr,
