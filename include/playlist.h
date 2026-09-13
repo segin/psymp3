@@ -66,6 +66,16 @@ class Playlist
         // and keeping the position cursor on the same logical track. Returns false
         // for out-of-range indices or a no-op move.
         bool moveTrack(long from, long to);
+        // Remove tracks first..last inclusive as one edit, following
+        // removeTrack()'s cursor rule. Returns false for an empty or
+        // out-of-range span.
+        bool removeTracks(long first, long last);
+        // Move tracks first..last inclusive, keeping their order, so the first
+        // of them lands at index `to` (counted in the list as it is after the
+        // move). The cursor follows its track as with moveTrack(). Returns
+        // false for an invalid span or destination, or a move that changes
+        // nothing.
+        bool moveTracks(long first, long last, long to);
         // Overwrite the metadata of the track at `index` with live values read
         // from the file when it actually loaded, replacing stale playlist (EXTINF)
         // data. Only applies when the stored path matches `path` (so a

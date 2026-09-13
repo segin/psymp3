@@ -283,6 +283,48 @@ bool Playlist::moveTrack(long from, long to)
     return true;
 }
 
+bool Playlist::removeTracks(long first, long last)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    const long size = static_cast<long>(tracks.size());
+    if (first < 0 || last < first || last >= size) {
+        return false;
+    }
+    // One track at a time under the one lock: nothing else sees the list half
+    // edited, and each step keeps removeTrack()'s cursor and shuffle upkeep.
+    for (long i = first; i <= last; ++i) {
+        removeTrack(first);
+    }
+    return true;
+}
+
+bool Playlist::moveTracks(long first, long last, long to)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    const long size = static_cast<long>(tracks.size());
+    if (first < 0 || last < first || last >= size) {
+        return false;
+    }
+    const long count = last - first + 1;
+    if (to < 0 || to > size - count || to == first) {
+        return false;
+    }
+    // As single-track moves under the one lock, which keep moveTrack()'s
+    // cursor and shuffle upkeep. Moving down, the block's first track goes to
+    // the far end of the destination each time; moving up, each track goes to
+    // its own destination slot in order.
+    if (to > first) {
+        for (long i = 0; i < count; ++i) {
+            moveTrack(first, to + count - 1);
+        }
+    } else {
+        for (long i = 0; i < count; ++i) {
+            moveTrack(first + i, to + i);
+        }
+    }
+    return true;
+}
+
 bool Playlist::updateTrackMetadataAt(long index, const TagLib::String& path,
                                      const TagLib::String& artist, const TagLib::String& title,
                                      const TagLib::String& album, unsigned int length_seconds)

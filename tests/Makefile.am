@@ -4195,6 +4195,26 @@ test_playlist_shuffle_LDADD = \
 	$(SDL_LIBS) \
 	$(AM_LDFLAGS)
 
+check_PROGRAMS += test_playlist_block_edits
+test_playlist_block_edits_SOURCES = test_playlist_block_edits.cpp
+test_playlist_block_edits_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/playlist.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/debug.o \
+	$(TAGLIB_LIBS) \
+	$(SDL_LIBS) \
+	$(AM_LDFLAGS)
+
 # ============================================================================
 # UTF8Util Tests
 # ============================================================================
