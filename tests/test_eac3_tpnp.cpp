@@ -18,7 +18,8 @@ using namespace PsyMP3::Codec::AC3;
 
 namespace {
 
-constexpr size_t kFrame = 1536;
+constexpr int64_t kTC1 = EAC3TransientCorrection::kTC1;
+constexpr int64_t kTC2 = EAC3TransientCorrection::kTC2;
 
 /// A recognisable signal: every sample distinct, so a copy from the wrong
 /// offset cannot pass for the right one.
@@ -31,28 +32,40 @@ std::vector<float> ramp(size_t n, float scale = 1e-4f)
     return v;
 }
 
-class PassThroughTest : public TestCase {
+/// The Hanning fade-in the implementation is expected to use.
+double hann(int64_t n, int64_t length)
+{
+    return 0.5 - 0.5 * std::cos(3.14159265358979323846 * (n + 0.5) / static_cast<double>(length));
+}
+
+class PlacementTest : public TestCase {
 public:
-    PassThroughTest() : TestCase("A frame without the flag passes through untouched") {}
+    PlacementTest() : TestCase("A frame's parameters place the correction in absolute samples") {}
 
 protected:
     void runTest() override
     {
-        EAC3TransientPreNoise tpnp;
-        const auto input = ramp(kFrame);
-        for (int frame = 0; frame < 3; ++frame) {
-            auto pcm = input;
-            tpnp.process(pcm.data(), pcm.size(), false, 0, 0);
-            ASSERT_TRUE(pcm == input, "inactive frames are not modified");
-        }
+        // Transient at sample 1024, in block 4: the pre-noise runs from block
+        // 3's start at 768, so PN = 256. The corrected span is PN + len + TC1
+        // = 576 samples back from the transient; the synthesis buffer starts
+        // 2*TC1 + 2*PN = 1024 before it.
+        const auto a = eac3TransientCorrection(0, 256, 64);
+        ASSERT_TRUE(a.transloc == 1024 && a.pnlen == 256 && a.translen == 64, "the worked case");
+        ASSERT_TRUE(a.start() == 448 && a.synthesisStart() == 0, "its span and buffer");
+
+        // A transient in block 0 of a frame starting at 1536: the block before
+        // it, and so the pre-noise, the overwrite and the buffer, all begin in
+        // the previous frame.
+        const auto b = eac3TransientCorrection(1536, 16, 10);
+        ASSERT_TRUE(b.transloc == 1600 && b.pnlen == 320, "PN reaches into the previous frame");
+        ASSERT_TRUE(b.start() == 1014 && b.synthesisStart() == 448, "and so does everything else");
+
+        // §E3.7.1: a frame may describe a transient in the frame after it.
+        const auto c = eac3TransientCorrection(0, 500, 0);
+        ASSERT_TRUE(c.transloc == 2000 && c.pnlen == 2000 - 1536, "a transient past the frame's end");
     }
 };
 
-/// The worked case: transient at sample 1024 (block 4), so the pre-noise runs
-/// from block 3's start at 768, PN = 256. With transproclen 64 the corrected
-/// span is PN + len + TC1 = 576 samples, from 448 to the transient; the
-/// synthesis buffer is 2*TC1 + PN = 768 samples from 2*TC1 + 2*PN = 1024
-/// before the transient, i.e. from sample 0.
 class CorrectionSpanTest : public TestCase {
 public:
     CorrectionSpanTest() : TestCase("The pre-noise is overwritten over exactly the spec's span") {}
@@ -60,74 +73,76 @@ public:
 protected:
     void runTest() override
     {
-        EAC3TransientPreNoise tpnp;
-        const auto input = ramp(kFrame);
+        const auto input = ramp(1536);
         auto pcm = input;
-        tpnp.process(pcm.data(), pcm.size(), true, /*transprocloc=*/256, /*transproclen=*/64);
+        const auto c = eac3TransientCorrection(0, 256, 64);
+        eac3ApplyTransientCorrection(pcm.data(), 0, c);
 
-        constexpr size_t kStart = 448, kTrans = 1024, kTC1 = 256, kTC2 = 128;
+        constexpr size_t kStart = 448, kTrans = 1024;
+        const int64_t total = kTrans - kStart;
         for (size_t n = 0; n < kStart; ++n) {
             ASSERT_TRUE(pcm[n] == input[n], "before the corrected span, unchanged");
         }
-        for (size_t n = kTrans; n < kFrame; ++n) {
+        for (size_t n = kTrans; n < pcm.size(); ++n) {
             ASSERT_TRUE(pcm[n] == input[n], "the transient and after, unchanged");
         }
-        // The middle is a straight copy of the synthesis buffer: output sample
-        // kStart + i is input sample i.
-        for (size_t i = kTC1; i < (kTrans - kStart) - kTC2; ++i) {
+        // Output sample kStart + i draws on synthesis sample i, input sample i.
+        for (int64_t i = 0; i < kTC1; ++i) {
+            const double expected = input[kStart + i] * (1.0 - hann(i, kTC1)) + input[i] * hann(i, kTC1);
+            ASSERT_TRUE(std::abs(pcm[kStart + i] - expected) < 1e-6, "the opening cross-fade");
+        }
+        for (int64_t i = kTC1; i < total - kTC2; ++i) {
             ASSERT_TRUE(pcm[kStart + i] == input[i], "overwritten from the synthesis buffer");
         }
-        // Both ends are cross-fades, so each output lies between its two
-        // sources and differs from the original somewhere.
-        bool faded = false;
-        for (size_t i = 0; i < kTC1; ++i) {
-            const float a = input[kStart + i], b = input[i];
-            const float lo = std::min(a, b) * 0.999f, hi = std::max(a, b) * 1.415f;
-            ASSERT_TRUE(pcm[kStart + i] >= lo && pcm[kStart + i] <= hi, "fade-in stays between its sources");
-            faded = faded || pcm[kStart + i] != a;
+        for (int64_t i = total - kTC2; i < total; ++i) {
+            const int64_t w = i - (total - kTC2);
+            const double expected = input[kStart + i] * hann(w, kTC2) + input[i] * (1.0 - hann(w, kTC2));
+            ASSERT_TRUE(std::abs(pcm[kStart + i] - expected) < 1e-6, "the closing cross-fade");
         }
-        ASSERT_TRUE(faded, "the first cross-fade changes the output");
     }
 };
 
-/// A reference that would need samples from before the stream began is not
-/// applied: with no history there is nothing to copy from. Once there is, a
-/// correction whose opening fade starts just before the frame still applies.
-class OutOfRangeTest : public TestCase {
+/// §E3.7.2's windows are constant amplitude: cross-fading a signal into an
+/// identical one must leave it exactly as it was.
+class ConstantAmplitudeTest : public TestCase {
 public:
-    OutOfRangeTest() : TestCase("A correction needing samples before the stream is skipped") {}
+    ConstantAmplitudeTest() : TestCase("Cross-fading between equal signals leaves them unchanged") {}
 
 protected:
     void runTest() override
     {
-        EAC3TransientPreNoise tpnp;
-        const auto input = ramp(kFrame);
-        auto pcm = input;
-        // Transient at 512: the buffer would start 2*TC1 + 2*PN = 1024 earlier.
-        tpnp.process(pcm.data(), pcm.size(), true, 128, 32);
-        ASSERT_TRUE(pcm == input, "no history, so nothing is changed");
-
-        // The same frame again, with the first as history. The correction
-        // now starts 32 samples before this frame -- inside the 256-sample
-        // opening fade -- so it applies from the frame start on.
-        auto second = input;
-        tpnp.process(second.data(), second.size(), true, 128, 32);
-        ASSERT_TRUE(second != input, "with the previous frame to draw on, it is");
-        constexpr size_t kTrans = 512, kTC2 = 128;
-        for (size_t n = kTrans; n < kFrame; ++n) {
-            ASSERT_TRUE(second[n] == input[n], "nothing from the transient on changes");
+        std::vector<float> pcm(2048, 0.5f);
+        eac3ApplyTransientCorrection(pcm.data(), 0, eac3TransientCorrection(0, 400, 200));
+        for (float v : pcm) {
+            ASSERT_TRUE(std::abs(v - 0.5f) < 1e-6f, "no swell or dip anywhere in the span");
         }
-        // Sample 0 is 32 samples into the opening fade, so it must be exactly
-        // that point of the cross-fade: the original weighted by the fade-out,
-        // plus the synthesis buffer -- which starts 2*TC1 + 2*PN = 1024 before
-        // the transient, i.e. at history sample 1024 -- weighted by the fade-in.
-        // Sample 0 therefore draws on synthesis offset 32, history sample 1056.
-        const double phase = 0.5 * 3.14159265358979323846 * (32.0 + 0.5) / 256.0;
-        const double expected = input[0] * std::cos(phase) + input[1056] * std::sin(phase);
-        ASSERT_TRUE(std::abs(second[0] - expected) < 1e-6,
-                    "the partial fade resumes at its 33rd sample");
-        ASSERT_TRUE(second[kTrans - kTC2 - 1] != input[kTrans - kTC2 - 1],
-                    "the middle of the span is overwritten");
+    }
+};
+
+/// A line that holds only recent samples is addressed by absolute position:
+/// the same correction on it and on the whole timeline agrees sample for
+/// sample.
+class OriginTest : public TestCase {
+public:
+    OriginTest() : TestCase("A correction lands at the same samples on a line with a later origin") {}
+
+protected:
+    void runTest() override
+    {
+        const auto c = eac3TransientCorrection(2560, 16, 10);   // transient at 2624
+        auto full = ramp(4096);
+        constexpr int64_t kOrigin = 1000;
+        std::vector<float> part(full.begin() + kOrigin, full.begin() + kOrigin + 2048);
+        ASSERT_TRUE(c.synthesisStart() >= kOrigin, "the partial line covers the buffer");
+
+        eac3ApplyTransientCorrection(full.data(), 0, c);
+        eac3ApplyTransientCorrection(part.data(), kOrigin, c);
+        bool changed = false;
+        for (size_t n = 0; n < part.size(); ++n) {
+            ASSERT_TRUE(part[n] == full[kOrigin + n], "sample " + std::to_string(kOrigin + n));
+            changed = changed || part[n] != 1e-4f * static_cast<float>(kOrigin + n + 1);
+        }
+        ASSERT_TRUE(changed, "and the correction did something");
     }
 };
 
@@ -136,9 +151,10 @@ protected:
 int main()
 {
     TestSuite suite("E-AC-3 Transient Pre-Noise Processing Tests");
-    suite.addTest(std::make_unique<PassThroughTest>());
+    suite.addTest(std::make_unique<PlacementTest>());
     suite.addTest(std::make_unique<CorrectionSpanTest>());
-    suite.addTest(std::make_unique<OutOfRangeTest>());
+    suite.addTest(std::make_unique<ConstantAmplitudeTest>());
+    suite.addTest(std::make_unique<OriginTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

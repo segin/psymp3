@@ -19,95 +19,75 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 
-/// A constant-amplitude pair: fade-in(n)^2 + fade-out(n)^2 == 1. §E3.7.2 asks
-/// only for "nearly any pair of constant amplitude cross-fade windows" and
-/// suggests Hanning; this is the power-complementary sine/cosine form of it.
-float fadeIn(unsigned n, unsigned length)
+/// §E3.7.2 asks for "nearly any pair of constant amplitude cross-fade
+/// windows" and suggests Hanning. Constant amplitude means the pair sums to
+/// one at every sample: the original and the synthesis buffer are the same
+/// signal a few hundred samples apart, and mixing them must not swell. A
+/// sine/cosine pair is constant in power instead, and bulges by up to 3 dB.
+float fadeIn(int64_t n, int64_t length)
 {
-    const double x = (static_cast<double>(n) + 0.5) / length;
-    return static_cast<float>(std::sin(0.5 * kPi * x));
+    const double x = (static_cast<double>(n) + 0.5) / static_cast<double>(length);
+    return static_cast<float>(0.5 - 0.5 * std::cos(kPi * x));
 }
 
-float fadeOut(unsigned n, unsigned length)
+float fadeOut(int64_t n, int64_t length)
 {
-    const double x = (static_cast<double>(n) + 0.5) / length;
-    return static_cast<float>(std::cos(0.5 * kPi * x));
+    return 1.0f - fadeIn(n, length);
 }
 
 } // namespace
 
-void EAC3TransientPreNoise::process(float* pcm, size_t samples, bool active,
-                                    unsigned transprocloc, unsigned transproclen)
+EAC3TransientCorrection eac3TransientCorrection(int64_t frame_start, unsigned transprocloc,
+                                                unsigned transproclen)
 {
-    // Work on history + this frame as one timeline, so offsets that reach
-    // before the frame start land in samples already output. Those earlier
-    // samples can be read but not rewritten: they have already gone.
-    const size_t history = m_history.size();
-    std::vector<float> line(history + samples);
-    std::copy(m_history.begin(), m_history.end(), line.begin());
-    std::copy(pcm, pcm + samples, line.begin() + static_cast<std::ptrdiff_t>(history));
+    // The location is sent at four-sample resolution. The pre-noise runs from
+    // the start of the audio block before the one containing the transient
+    // up to the transient itself. Blocks fall every 256 samples from the
+    // frame start, and that earlier block may be in the previous frame.
+    const int64_t offset = 4 * static_cast<int64_t>(transprocloc);
+    const int64_t block = offset / static_cast<int64_t>(kSamplesPerBlock);
+    EAC3TransientCorrection c;
+    c.transloc = frame_start + offset;
+    c.pnlen = offset - (block - 1) * static_cast<int64_t>(kSamplesPerBlock);
+    c.translen = static_cast<int64_t>(transproclen);
+    return c;
+}
 
-    if (active) {
-        // §E3.7.2. The location is sent at four-sample resolution. The
-        // pre-noise runs from the start of the audio block before the one
-        // containing the transient up to the transient itself.
-        const long transloc = static_cast<long>(history) + 4L * transprocloc;
-        const long block = static_cast<long>(transprocloc) * 4 / kBlockSamples;
-        const long prior_block_start = static_cast<long>(history) + (block - 1) * kBlockSamples;
-        const long pnlen = transloc - prior_block_start;
-        const long translen = static_cast<long>(transproclen);
-        const long total = pnlen + translen + kTC1;
-
-        // The synthesis buffer: 2*TC1 + PN samples taken from 2*TC1 + 2*PN
-        // before the transient. (The printed pseudocode writes this as
-        // 2*tc; TC1 is the only parameter it can mean.)
-        const long synth_start = transloc - (2L * kTC1 + 2L * pnlen);
-        const long synth_len = 2L * kTC1 + pnlen;
-        const long start = transloc - total;
-
-        // The corrected span may begin shortly before this frame. Those
-        // samples are already gone, but if they all fall inside the opening
-        // cross-fade -- where the synthesis buffer is only fading in -- the
-        // rest of the correction can still be applied without a seam: the
-        // fade simply starts part way through. Further back than that and the
-        // overwrite itself would begin at the frame boundary, with a jump.
-        const long written = static_cast<long>(history);
-        const bool in_range = pnlen > 0 && translen >= 0 && synth_start >= 0 &&
-                              start + static_cast<long>(kTC1) > written &&
-                              start >= 0 &&
-                              transloc <= static_cast<long>(line.size()) &&
-                              total >= static_cast<long>(kTC1 + kTC2) &&
-                              total <= synth_len;
-        if (in_range) {
-            std::vector<float> synth(line.begin() + synth_start,
-                                     line.begin() + synth_start + synth_len);
-            const long first = std::max(0L, written - start);
-            // Fade from the original into the synthesis buffer ...
-            for (long i = first; i < kTC1; ++i) {
-                line[start + i] = line[start + i] * fadeOut(static_cast<unsigned>(i), kTC1)
-                                + synth[i] * fadeIn(static_cast<unsigned>(i), kTC1);
-            }
-            // ... overwrite the pre-noise with it ...
-            for (long i = kTC1; i < total - kTC2; ++i) {
-                line[start + i] = synth[i];
-            }
-            // ... and fade back to the original just before the transient.
-            // The printed loop indexes the TC2 windows with the running
-            // sample count; they are TC2 long, so they are indexed from the
-            // start of this last segment.
-            for (long i = total - kTC2; i < total; ++i) {
-                const unsigned w = static_cast<unsigned>(i - (total - kTC2));
-                line[start + i] = line[start + i] * fadeIn(w, kTC2)
-                                + synth[i] * fadeOut(w, kTC2);
-            }
-        }
+void eac3ApplyTransientCorrection(float* line, int64_t origin, const EAC3TransientCorrection& c)
+{
+    using C = EAC3TransientCorrection;
+    const int64_t total = c.pnlen + c.translen + C::kTC1;
+    const int64_t synth_len = 2 * C::kTC1 + c.pnlen;
+    // PN is 256..511 by construction and transproclen at most 255, so the
+    // overwrite never outruns the synthesis buffer. Checked anyway, since the
+    // loops below would read past it.
+    if (c.pnlen <= 0 || c.translen < 0 || total > synth_len || total < C::kTC1 + C::kTC2 ||
+        synth_len > 2 * C::kTC1 + 2 * static_cast<int64_t>(kSamplesPerBlock)) {
+        return;
     }
 
-    std::copy(line.begin() + static_cast<std::ptrdiff_t>(history), line.end(), pcm);
+    // Copied out first: the buffer ends PN before the transient, and the
+    // overwrite starts earlier than that.
+    float synth[2 * C::kTC1 + 2 * kSamplesPerBlock];
+    const float* from = line + (c.synthesisStart() - origin);
+    std::copy(from, from + synth_len, synth);
 
-    // Keep the most recent output for the next frame to reach back into.
-    const size_t keep = std::min(kHistory, line.size());
-    m_history.assign(line.end() - static_cast<std::ptrdiff_t>(keep), line.end());
+    float* out = line + (c.start() - origin);
+    // Fade from the original into the synthesis buffer ...
+    for (int64_t i = 0; i < C::kTC1; ++i) {
+        out[i] = out[i] * fadeOut(i, C::kTC1) + synth[i] * fadeIn(i, C::kTC1);
+    }
+    // ... overwrite the pre-noise with it ...
+    for (int64_t i = C::kTC1; i < total - C::kTC2; ++i) {
+        out[i] = synth[i];
+    }
+    // ... and fade back to the original just before the transient. The
+    // printed loop indexes the TC2 windows with the running sample count;
+    // they are TC2 long, so they are indexed from the start of this segment.
+    for (int64_t i = total - C::kTC2; i < total; ++i) {
+        const int64_t w = i - (total - C::kTC2);
+        out[i] = out[i] * fadeIn(w, C::kTC2) + synth[i] * fadeOut(w, C::kTC2);
+    }
 }
 
 } // namespace AC3

@@ -15,6 +15,20 @@ namespace AC3 {
 
 namespace {
 
+/// The LFE's line, after the full-bandwidth channels.
+constexpr unsigned kLfeLine = kMaxFullBandwidthChannels;
+
+/// How far E-AC-3 output is held behind the last decoded sample. A
+/// correction not yet applied has its transient at or past the next sample to
+/// decode, and writes no further back than this from it, so anything older
+/// is final.
+constexpr uint64_t kHoldBack = static_cast<uint64_t>(EAC3TransientCorrection::kMaxWriteReach);
+
+/// Released samples kept on each line. A pending correction's synthesis
+/// buffer starts at most 2*TC1 + 2*511 = 1534 samples before its transient,
+/// which is at most 512 samples before the oldest sample still held.
+constexpr uint64_t kHistory = 1024;
+
 /// Where each bitstream channel belongs in WAVE order (L R C LFE Ls Rs).
 ///
 /// A/52 Table 5.8 orders the coded channels the way the arrangement is
@@ -52,12 +66,18 @@ void AC3FrameDecoder::reset()
     for (auto& transform : m_transforms) {
         transform = AC3TransformState();
     }
-    for (auto& tpnp : m_tpnp) {
-        tpnp.reset();
-    }
     m_pending = Frame();
     m_previous_ecpl = false;
     std::fill(std::begin(m_previous_coupling), std::end(m_previous_coupling), 0.0f);
+    for (auto& line : m_line) {
+        line.clear();
+    }
+    m_line_start = 0;
+    m_decoded = 0;
+    m_released = 0;
+    m_next_frame = 0;
+    m_corrections.clear();
+    m_have_layout = false;
 }
 
 void AC3FrameDecoder::finishBlock(Frame& frame, unsigned index, const AC3Block* next)
@@ -109,10 +129,16 @@ void AC3FrameDecoder::finishBlock(Frame& frame, unsigned index, const AC3Block* 
     // --- dynamic range control and the inverse transform ---
     // §7.7.1: the gain scales the block before it is transformed, which is
     // the same as scaling its output and keeps the overlap with neighbouring
-    // blocks consistent. In 1+1 mode channel 2 has its own.
+    // blocks consistent. In 1+1 mode channel 2 has its own. Every line grows
+    // by a block, silent where the frame has no such channel, so they stay
+    // aligned with each other.
     float samples[kBlockSamples];
-    float* dst = frame.pcm.data() + static_cast<size_t>(index) * kBlockSamples * frame.channels;
-    for (unsigned ch = 0; ch < frame.fbw; ++ch) {
+    for (unsigned ch = 0; ch < kMaxFullBandwidthChannels; ++ch) {
+        std::vector<float>& line = m_line[ch];
+        if (ch >= frame.fbw) {
+            line.resize(line.size() + kBlockSamples, 0.0f);
+            continue;
+        }
         const float gain = (ch == 1) ? block.dynamic_range2 : block.dynamic_range;
         if (gain != 1.0f) {
             for (unsigned bin = 0; bin < kBlockSamples; ++bin) {
@@ -121,14 +147,9 @@ void AC3FrameDecoder::finishBlock(Frame& frame, unsigned index, const AC3Block* 
         }
         ac3InverseTransform(block.coefficients[ch], block.block_switch[ch],
                             m_transforms[ch], samples);
-        const int out = outputSlot(frame.acmod, frame.lfeon, ch);
-        if (out < 0) {
-            continue;
-        }
-        for (unsigned n = 0; n < kBlockSamples; ++n) {
-            dst[n * frame.channels + static_cast<unsigned>(out)] = samples[n];
-        }
+        line.insert(line.end(), samples, samples + kBlockSamples);
     }
+    std::vector<float>& lfe = m_line[kLfeLine];
     if (frame.lfeon) {
         // The LFE is never block-switched: A/52 §5.4.2.1 gives blksw only to
         // the full-bandwidth channels.
@@ -138,40 +159,120 @@ void AC3FrameDecoder::finishBlock(Frame& frame, unsigned index, const AC3Block* 
             }
         }
         ac3InverseTransform(block.coefficients[kLfeSlot], false, m_transforms[kLfeSlot], samples);
-        const unsigned out = std::min(3u, frame.channels - 1);
-        for (unsigned n = 0; n < kBlockSamples; ++n) {
-            dst[n * frame.channels + out] = samples[n];
+        lfe.insert(lfe.end(), samples, samples + kBlockSamples);
+    } else {
+        lfe.resize(lfe.size() + kBlockSamples, 0.0f);
+    }
+    m_decoded += kBlockSamples;
+}
+
+void AC3FrameDecoder::queueCorrections(const Frame& frame, uint64_t frame_start)
+{
+    if (!frame.params.transproce) {
+        return;
+    }
+    for (unsigned ch = 0; ch < frame.fbw; ++ch) {
+        if (frame.params.chintransproc[ch]) {
+            Correction correction;
+            correction.channel = ch;
+            correction.span = eac3TransientCorrection(static_cast<int64_t>(frame_start),
+                                                      frame.params.transprocloc[ch],
+                                                      frame.params.transproclen[ch]);
+            m_corrections.push_back(correction);
         }
     }
 }
 
-void AC3FrameDecoder::releaseFrame(Frame& frame, std::vector<float>& pcm)
+void AC3FrameDecoder::applyCorrections()
 {
-    // --- transient pre-noise processing, §E3.7 ---
-    // On the finished frame, channel by channel. Every E-AC-3 frame goes
-    // through it so each channel's history stays continuous, because a
-    // correction in one frame may copy from the one before.
-    if (frame.eac3) {
-        const size_t samples = static_cast<size_t>(frame.blocks) * kBlockSamples;
-        std::vector<float> channel(samples);
-        for (unsigned ch = 0; ch < frame.fbw; ++ch) {
-            const int out = outputSlot(frame.acmod, frame.lfeon, ch);
-            if (out < 0) {
+    // In the order they were sent, each once its transient has decoded. A
+    // correction whose span has already been handed on, or whose buffer
+    // reaches back before the history kept -- the first frames after a seek
+    // -- is dropped: there is nothing left to correct, or nothing to copy.
+    auto it = m_corrections.begin();
+    while (it != m_corrections.end()) {
+        const EAC3TransientCorrection& span = it->span;
+        if (span.transloc > static_cast<int64_t>(m_decoded)) {
+            ++it;
+            continue;
+        }
+        if (span.start() >= static_cast<int64_t>(m_released) &&
+            span.synthesisStart() >= static_cast<int64_t>(m_line_start)) {
+            eac3ApplyTransientCorrection(m_line[it->channel].data(),
+                                         static_cast<int64_t>(m_line_start), span);
+        }
+        it = m_corrections.erase(it);
+    }
+}
+
+void AC3FrameDecoder::release(uint64_t end, std::vector<float>& pcm)
+{
+    if (end <= m_released || m_output_channels == 0) {
+        return;
+    }
+    const size_t count = static_cast<size_t>(end - m_released);
+    const size_t first = static_cast<size_t>(m_released - m_line_start);
+    const size_t base = pcm.size();
+    const unsigned outputs = m_output_channels;
+    pcm.resize(base + count * outputs, 0.0f);
+    for (unsigned out = 0; out < outputs; ++out) {
+        for (unsigned in = 0; in < kLines; ++in) {
+            const float gain = m_gain[out][in];
+            if (gain == 0.0f) {
                 continue;
             }
-            for (size_t n = 0; n < samples; ++n) {
-                channel[n] = frame.pcm[n * frame.channels + static_cast<unsigned>(out)];
-            }
-            m_tpnp[ch].process(channel.data(), samples, frame.params.chintransproc[ch],
-                               frame.params.transprocloc[ch], frame.params.transproclen[ch]);
-            for (size_t n = 0; n < samples; ++n) {
-                frame.pcm[n * frame.channels + static_cast<unsigned>(out)] = channel[n];
+            const float* src = m_line[in].data() + first;
+            float* dst = pcm.data() + base + out;
+            for (size_t n = 0; n < count; ++n, dst += outputs) {
+                *dst += gain * src[n];
             }
         }
     }
-    m_channels = frame.channels;
+    m_released = end;
+
+    // Trim in bulk rather than shifting the lines every block.
+    const uint64_t keep_from = m_released > kHistory ? m_released - kHistory : 0;
+    if (keep_from >= m_line_start + 4 * kHistory) {
+        const auto drop = static_cast<std::ptrdiff_t>(keep_from - m_line_start);
+        for (auto& line : m_line) {
+            line.erase(line.begin(), line.begin() + drop);
+        }
+        m_line_start = keep_from;
+    }
+}
+
+void AC3FrameDecoder::drain(std::vector<float>& pcm)
+{
+    if (m_pending.valid) {
+        // Nothing follows, so the held frame's last block has no successor.
+        finishBlock(m_pending, m_pending.blocks - 1, nullptr);
+        m_pending = Frame();
+    }
+    applyCorrections();
+    m_corrections.clear();
+    release(m_decoded, pcm);
+}
+
+void AC3FrameDecoder::setLayout(const Frame& frame)
+{
+    m_have_layout = true;
+    m_layout_eac3 = frame.eac3;
+    m_layout_acmod = frame.acmod;
+    m_layout_lfeon = frame.lfeon;
     m_sample_rate = frame.sample_rate;
-    pcm.insert(pcm.end(), frame.pcm.begin(), frame.pcm.end());
+    m_output_channels = frame.fbw + (frame.lfeon ? 1u : 0u);
+    for (auto& row : m_gain) {
+        std::fill(std::begin(row), std::end(row), 0.0f);
+    }
+    for (unsigned ch = 0; ch < frame.fbw; ++ch) {
+        const int out = outputSlot(frame.acmod, frame.lfeon, ch);
+        if (out >= 0) {
+            m_gain[out][ch] = 1.0f;
+        }
+    }
+    if (frame.lfeon) {
+        m_gain[std::min(3u, m_output_channels - 1)][kLfeLine] = 1.0f;
+    }
 }
 
 bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float>& pcm)
@@ -221,13 +322,11 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
     m_state.spx_noise = spx_noise;
 
     frame.blocks = header.blocks;
-    frame.channels = header.outputChannels();
     frame.fbw = header.channels;
     frame.acmod = static_cast<unsigned>(header.acmod);
     frame.lfeon = header.lfeon;
     frame.sample_rate = header.sample_rate;
     frame.block.reset(new AC3Block[frame.blocks]);
-    frame.pcm.assign(static_cast<size_t>(frame.channels) * frame.blocks * kBlockSamples, 0.0f);
 
     for (unsigned b = 0; b < frame.blocks; ++b) {
         const char* reason = nullptr;
@@ -239,23 +338,47 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
     }
     frame.valid = true;
 
+    // A new channel arrangement -- mode, LFE, rate, or AC-3 against E-AC-3 --
+    // ends what came before. Everything held is released as it was, and the
+    // transforms' overlap and the enhanced coupling history are dropped: they
+    // belong to channels that now mean something else.
+    if (!m_have_layout || frame.acmod != m_layout_acmod || frame.lfeon != m_layout_lfeon ||
+        frame.eac3 != m_layout_eac3 || frame.sample_rate != m_sample_rate) {
+        if (m_have_layout) {
+            drain(pcm);
+            for (auto& transform : m_transforms) {
+                transform = AC3TransformState();
+            }
+            m_previous_ecpl = false;
+        }
+        setLayout(frame);
+    }
+
+    const uint64_t frame_start = m_next_frame;
+    m_next_frame += static_cast<uint64_t>(frame.blocks) * kBlockSamples;
+
     if (!frame.eac3) {
         for (unsigned b = 0; b < frame.blocks; ++b) {
             finishBlock(frame, b, nullptr);
         }
-        releaseFrame(frame, pcm);
+        release(m_decoded, pcm);
         return true;
     }
 
     // E-AC-3: the frame held back last time can now finish its last block,
-    // with this frame's first as its next neighbour, and be released.
+    // with this frame's first as its next neighbour. This frame's blocks all
+    // finish but its last, then its corrections join the queue, and whatever
+    // no correction can still reach is released.
     if (m_pending.valid) {
-        const AC3Block* next = m_pending.acmod == frame.acmod ? &frame.block[0] : nullptr;
-        finishBlock(m_pending, m_pending.blocks - 1, next);
-        releaseFrame(m_pending, pcm);
+        finishBlock(m_pending, m_pending.blocks - 1, &frame.block[0]);
     }
     for (unsigned b = 0; b + 1 < frame.blocks; ++b) {
         finishBlock(frame, b, &frame.block[b + 1]);
+    }
+    queueCorrections(frame, frame_start);
+    applyCorrections();
+    if (m_decoded > kHoldBack) {
+        release(m_decoded - kHoldBack, pcm);
     }
     m_pending = std::move(frame);
     return true;
@@ -264,13 +387,7 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
 void AC3FrameDecoder::flush(std::vector<float>& pcm)
 {
     pcm.clear();
-    if (!m_pending.valid) {
-        return;
-    }
-    // The last block of the stream has no next neighbour.
-    finishBlock(m_pending, m_pending.blocks - 1, nullptr);
-    releaseFrame(m_pending, pcm);
-    m_pending = Frame();
+    drain(pcm);
 }
 
 } // namespace AC3
