@@ -280,7 +280,7 @@ Debug::log("ac3", "  after snroffst: bit ", reader.tell());
 
     // --- delta bit allocation ---
     if (reader.readBit()) { // deltbaie
-        uint8_t cpldeltbae = 0;
+        uint8_t cpldeltbae = kDeltaReuse;
         uint8_t deltbae[kMaxFullBandwidthChannels] = {};
         if (state.cplinu) {
             cpldeltbae = static_cast<uint8_t>(reader.read(2));
@@ -299,15 +299,31 @@ Debug::log("ac3", "  after snroffst: bit ", reader.tell());
                 state.deltas[slot].push_back(delta);
             }
         };
-        // A value of 1 is "new information follows"; 0 reuses the previous
-        // block's and 2 clears it.
-        if (state.cplinu && cpldeltbae == 1) {
-            readSegments(kCouplingSlot);
+        // Table 5.16: 0 reuses the previous block's segments, 1 means new
+        // information follows, 2 means apply none -- which is not the same as
+        // reusing, so the stored segments have to go -- and 3 is reserved.
+        auto applyStrategy = [&](unsigned slot, uint8_t strategy) {
+            switch (strategy) {
+            case kDeltaReuse:  break;
+            case kDeltaNew:    readSegments(slot); break;
+            case kDeltaNone:   state.deltas[slot].clear(); break;
+            default:           return false; // reserved: 5.4.3.48 says mute
+            }
+            return true;
+        };
+        if (state.cplinu && !applyStrategy(kCouplingSlot, cpldeltbae)) {
+            return fail("reserved delta bit allocation strategy");
         }
         for (unsigned ch = 0; ch < nfchans; ++ch) {
-            if (deltbae[ch] == 1) {
-                readSegments(ch);
+            if (!applyStrategy(ch, deltbae[ch])) {
+                return fail("reserved delta bit allocation strategy");
             }
+        }
+    } else if (state.block_index == 0) {
+        // 5.4.3.47: deltbaie of 0 in block 0 is defined to mean the same as a
+        // deltbae of '10' everywhere -- no delta allocation at all.
+        for (auto& slot : state.deltas) {
+            slot.clear();
         }
     }
 
@@ -478,6 +494,7 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
     if (reader.overrun()) {
         return fail("ran past the end of the frame");
     }
+    ++state.block_index;
     return true;
 }
 

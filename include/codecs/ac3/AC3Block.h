@@ -41,6 +41,12 @@ constexpr unsigned kChannelSlots = kMaxFullBandwidthChannels + 2;
 /// and ncplsubnd = 3 + cplendf - cplbegf, so eighteen is the ceiling.
 constexpr unsigned kMaxCouplingBands = 18;
 
+/// A/52 Table 5.16, the delta bit allocation strategies. "Apply none" is
+/// distinct from "reuse": it discards whatever the previous block sent.
+constexpr uint8_t kDeltaReuse = 0;
+constexpr uint8_t kDeltaNew = 1;
+constexpr uint8_t kDeltaNone = 2;
+
 /// What survives from one audio block to the next.
 ///
 /// A block may say "reuse" for its exponents, leave the coupling strategy
@@ -87,6 +93,11 @@ struct AC3FrameState {
     /// True once a block has set the coupling strategy and bit allocation
     /// parameters. A frame whose first block omits them is malformed.
     bool have_allocation = false;
+
+    /// Which of the frame's six blocks comes next. Block 0 is special in
+    /// several places: it may not say "reuse", and an absent delta bit
+    /// allocation there means "apply none" rather than "keep the last".
+    unsigned block_index = 0;
 };
 
 /// One decoded audio block: 256 transform coefficients per coded channel,
