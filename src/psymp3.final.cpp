@@ -93,6 +93,7 @@
 // Demuxer - Raw Audio
 #include "demuxer/raw/RawAudioDemuxer.cpp"
 #include "codecs/ac3/AC3FrameHeader.cpp"
+#include "codecs/ac3/AC3Exponents.cpp"
 #include "demuxer/matroska/EBMLReader.cpp"
 #include "demuxer/matroska/SegmentParser.cpp"
 #include "demuxer/matroska/BlockParser.cpp"

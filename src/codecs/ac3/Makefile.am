@@ -14,7 +14,8 @@ noinst_LIBRARIES = libpsymp3-codec-ac3.a
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) -Wall -Werror
 
 libpsymp3_codec_ac3_a_SOURCES = \
-	AC3FrameHeader.cpp
+	AC3FrameHeader.cpp \
+	AC3Exponents.cpp
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
