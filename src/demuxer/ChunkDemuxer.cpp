@@ -542,6 +542,11 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
             return "g728";
         case WAVE_FORMAT_G722:
             return "g722";
+        case 0x2000: // WAVE_FORMAT_DOLBY_AC3_SPDIF, in practice plain AC-3
+            // The registered name says S/PDIF, but encoders use this tag for
+            // ordinary AC-3 syncframes in a data chunk, and those are all it
+            // is seen carrying. E-AC-3 has no tag of its own and is not mapped.
+            return "ac3";
         default:
             Debug::log("chunk", "ChunkDemuxer: Unknown WAV format tag: 0x", std::hex, format_tag);
             return "unknown";
