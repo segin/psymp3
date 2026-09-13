@@ -150,6 +150,14 @@ struct AC3FrameState {
     /// frame decoder carries them across its per-frame reset.
     AC3Dither dither;
     EAC3SpxNoise spx_noise;
+
+    // --- E-AC-3 Adaptive Hybrid Transform, §E3.4 ---
+    /// Per slot: 0 when the slot does not use AHT, 1 while its mantissas are
+    /// still to be read this frame, -1 once they have been. Table E1.4 keeps
+    /// the same tri-state in chahtinu[] itself.
+    int8_t aht[kChannelSlots] = {};
+    /// All six blocks of an AHT slot's coefficients, read at once.
+    EAC3AhtSpectrum aht_spectrum[kChannelSlots];
 };
 
 /// One decoded audio block: 256 transform coefficients per coded channel,

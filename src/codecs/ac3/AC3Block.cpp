@@ -70,17 +70,15 @@ bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
     block = AC3Block();
     const unsigned blk = state.block_index;
 
-    // Annex E tools this decoder does not implement yet. Refusing the frame
-    // is better than reading its mantissas the conventional way, which would
-    // desynchronise every block after it.
-    if (eac3) {
-        bool aht = eac3->cplahtinu || eac3->lfeahtinu;
+    // Which slots code their mantissas with the Adaptive Hybrid Transform
+    // is a frame-level decision; the flags record whether each slot's six
+    // blocks of mantissas have been read yet.
+    if (eac3 && blk == 0) {
         for (unsigned ch = 0; ch < nfchans; ++ch) {
-            aht = aht || eac3->chahtinu[ch];
+            state.aht[ch] = eac3->chahtinu[ch] ? 1 : 0;
         }
-        if (aht) {
-            return fail("E-AC-3 adaptive hybrid transform is not implemented");
-        }
+        state.aht[kCouplingSlot] = eac3->cplahtinu ? 1 : 0;
+        state.aht[kLfeSlot] = eac3->lfeahtinu ? 1 : 0;
     }
 
     // --- block switch and dither flags ---
@@ -624,7 +622,8 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
         parameters.cplsleak = state.cplsleak;
         return ac3ComputeBitAllocation(state.exponents[slot], state.strtmant[slot],
                                        state.endmant[slot], kind, parameters,
-                                       state.deltas[slot], bap[slot]);
+                                       state.deltas[slot], bap[slot],
+                                       state.aht[slot] != 0 ? kHebapTable : nullptr);
     };
 
     // §7.2.2.1.1: when every SNR offset in the block is zero the encoder is
@@ -692,24 +691,46 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
     bool coupling_read = false;
     float coupling[kSamplesPerBlock] = {};
 
+    // One slot's mantissas for this block. A conventional slot reads them
+    // here. An AHT slot reads all six blocks' worth the first time it is
+    // reached in a frame -- the transform spans the frame -- and every block,
+    // that one included, then takes its own row.
+    auto readSlot = [&](unsigned slot, unsigned first, unsigned last, float* out) {
+        if (state.aht[slot] == 0) {
+            for (unsigned bin = first; bin < last; ++bin) {
+                out[bin] = mantissas.next(reader, bap[slot][bin], state.exponents[slot][bin]);
+            }
+            return true;
+        }
+        if (state.aht[slot] == 1) {
+            const char* why = nullptr;
+            if (!eac3AhtReadChannel(reader, bap[slot], first, last, state.exponents[slot],
+                                    state.aht_spectrum[slot], &why)) {
+                return fail(why ? why : "AHT mantissas");
+            }
+            state.aht[slot] = -1;
+        }
+        for (unsigned bin = first; bin < last; ++bin) {
+            out[bin] = state.aht_spectrum[slot].value[blk][bin];
+        }
+        return true;
+    };
+
     for (unsigned ch = 0; ch < nfchans; ++ch) {
-        for (unsigned bin = 0; bin < state.endmant[ch]; ++bin) {
-            block.coefficients[ch][bin] =
-                mantissas.next(reader, bap[ch][bin], state.exponents[ch][bin]);
+        if (!readSlot(ch, 0, state.endmant[ch], block.coefficients[ch])) {
+            return false;
         }
         if (state.cplinu && state.chincpl[ch] && !coupling_read) {
-            for (unsigned bin = state.strtmant[kCouplingSlot];
-                 bin < state.endmant[kCouplingSlot]; ++bin) {
-                coupling[bin] = mantissas.next(reader, bap[kCouplingSlot][bin],
-                                               state.exponents[kCouplingSlot][bin]);
+            if (!readSlot(kCouplingSlot, state.strtmant[kCouplingSlot],
+                          state.endmant[kCouplingSlot], coupling)) {
+                return false;
             }
             coupling_read = true;
         }
     }
     if (header.lfeon) {
-        for (unsigned bin = 0; bin < kLfeEndMantissa; ++bin) {
-            block.coefficients[kLfeSlot][bin] =
-                mantissas.next(reader, bap[kLfeSlot][bin], state.exponents[kLfeSlot][bin]);
+        if (!readSlot(kLfeSlot, 0, kLfeEndMantissa, block.coefficients[kLfeSlot])) {
+            return false;
         }
     }
 
@@ -768,7 +789,7 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
             const unsigned slot = (state.cplinu && state.chincpl[ch]
                                    && bin >= state.strtmant[kCouplingSlot])
                                 ? kCouplingSlot : ch;
-            if (bap[slot][bin] != 0) {
+            if (bap[slot][bin] != 0 || state.aht[slot] != 0) {
                 continue;
             }
             block.coefficients[ch][bin] =
