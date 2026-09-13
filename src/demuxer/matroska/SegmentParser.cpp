@@ -33,8 +33,8 @@ namespace {
 
 /// Matroska CodecID to the codec_name CodecRegistry dispatches on.
 ///
-/// Absent from this table means absent from PsyMP3: AC-3, E-AC-3 and DTS are
-/// the notable ones, and they are common in .mkv. They map to nothing on
+/// Absent from this table means absent from PsyMP3: E-AC-3 and DTS are the
+/// notable ones, and they are common in .mkv. They map to nothing on
 /// purpose, so the demuxer can say which codec a file needs rather than open it
 /// and fail at the first packet.
 struct CodecMapping {
@@ -58,6 +58,7 @@ constexpr CodecMapping kCodecMap[] = {
     {"A_AAC",           "aac",     true},
     {"A_TRUEHD",        "truehd",  false},
     {"A_MLP",           "mlp",     false},
+    {"A_AC3",           "ac3",     false},
     {"A_PCM/INT/LIT",   "pcm",     false},
     {"A_PCM/INT/BIG",   "pcm",     false},
     {"A_PCM/FLOAT/IEEE","pcm",     false},

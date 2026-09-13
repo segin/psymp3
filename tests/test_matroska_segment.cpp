@@ -95,10 +95,12 @@ protected:
         ASSERT_TRUE(codecNameForId("A_AACPLUS").empty(),
                     "A prefix match requires the separator, so A_AACPLUS is not AAC");
 
+        // AC-3 is decoded in tree, and is the commonest audio in .mkv.
+        ASSERT_TRUE(codecNameForId("A_AC3") == "ac3", "A_AC3");
+
         // Unsupported codecs map to nothing on purpose: a file can then be
-        // refused by name instead of failing at its first packet. These three
+        // refused by name instead of failing at its first packet. These two
         // are the common ones in .mkv.
-        ASSERT_TRUE(codecNameForId("A_AC3").empty(), "AC-3 has no decoder in tree");
         ASSERT_TRUE(codecNameForId("A_EAC3").empty(), "E-AC-3 has no decoder in tree");
         ASSERT_TRUE(codecNameForId("A_DTS").empty(), "DTS has no decoder in tree");
         ASSERT_TRUE(codecNameForId("V_VP9").empty(), "A video codec is not an audio codec");
@@ -207,16 +209,16 @@ public:
 protected:
     void runTest() override
     {
-        // A .mkv shaped like a real one: a video track first, then an AC-3
+        // A .mkv shaped like a real one: a video track first, then a DTS
         // track PsyMP3 cannot decode, then a FLAC track it can.
         const std::vector<uint8_t> video =
             element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
                                   + uintEl(Id::TrackType, TrackType::Video)
                                   + strEl(Id::CodecID, "V_MPEG4/ISO/AVC"));
-        const std::vector<uint8_t> ac3 =
+        const std::vector<uint8_t> dts =
             element(Id::TrackEntry, uintEl(Id::TrackNumber, 2)
                                   + uintEl(Id::TrackType, TrackType::Audio)
-                                  + strEl(Id::CodecID, "A_AC3")
+                                  + strEl(Id::CodecID, "A_DTS")
                                   + element(Id::Audio, uintEl(Id::Channels, 6)));
         const std::vector<uint8_t> flac =
             element(Id::TrackEntry, uintEl(Id::TrackNumber, 3)
@@ -228,14 +230,14 @@ protected:
         Parsed parsed(ebmlHeader("matroska")
                       + element(Id::Segment,
                                 element(Id::Info, uintEl(Id::TimestampScale, 1000000))
-                              + element(Id::Tracks, video + ac3 + flac)));
+                              + element(Id::Tracks, video + dts + flac)));
 
         ASSERT_EQUALS(size_t{3}, parsed.parser().tracks().size(), "All three tracks parse");
         const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
         ASSERT_NOT_NULL(chosen, "An audio track was chosen");
         ASSERT_TRUE(chosen->number == 3,
-                    "The video track is passed over and so is the AC-3 one, because "
-                    "nothing in the tree decodes AC-3 -- picking it would open the "
+                    "The video track is passed over and so is the DTS one, because "
+                    "nothing in the tree decodes DTS -- picking it would open the "
                     "file and then fail at its first packet");
 
         // A file whose only audio is undecodable must report nothing rather
@@ -243,7 +245,7 @@ protected:
         Parsed no_playable(ebmlHeader("matroska")
                            + element(Id::Segment,
                                      element(Id::Info, uintEl(Id::TimestampScale, 1000000))
-                                   + element(Id::Tracks, video + ac3)));
+                                   + element(Id::Tracks, video + dts)));
         ASSERT_NULL(no_playable.parser().preferredAudioTrack(),
                     "No decodable audio means no track, not a hopeful guess");
     }

@@ -377,8 +377,8 @@ int main(int argc, char** argv)
     // opened silent, which is how every container behaves.
     {
         const std::vector<uint8_t> info = segmentInfo("Unsupported codec only");
-        const std::vector<uint8_t> tracks = element(Id::Tracks, trackEntry(1, "A_AC3"));
-        write(directory, "mka_unsupported_ac3.mka",
+        const std::vector<uint8_t> tracks = element(Id::Tracks, trackEntry(1, "A_DTS"));
+        write(directory, "mka_unsupported_dts.mka",
               header + element(Id::Segment,
                                info + tracks + flatten(clusters(pcm, 1))));
     }
@@ -389,7 +389,7 @@ int main(int argc, char** argv)
         const std::vector<uint8_t> info = segmentInfo("Mixed tracks");
         const std::vector<uint8_t> tracks =
             element(Id::Tracks, trackEntry(1, "V_MPEG4/ISO/AVC", /*is_audio=*/false)
-                              + trackEntry(2, "A_AC3")
+                              + trackEntry(2, "A_DTS")
                               + trackEntry(3, "A_PCM/INT/LIT"));
         write(directory, "mka_multi_track.mka",
               header + element(Id::Segment, info + tracks + flatten(clusters(pcm, 3))));
