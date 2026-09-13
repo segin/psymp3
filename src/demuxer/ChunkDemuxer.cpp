@@ -506,9 +506,23 @@ void ChunkDemuxer::skipChunk(const Chunk& chunk) {
 std::string ChunkDemuxer::getCodecName(const AudioStreamData& stream) const {
     if (isAiffFile()) {
         return aiffCompressionToCodecName(stream.compression_type);
-    } else {
-        return formatTagToCodecName(stream.format_tag);
     }
+    // WAVE_FORMAT_EXTENSIBLE only says "look further": the format proper is
+    // the SubFormat GUID in the fmt extension, whose first two bytes are the
+    // ordinary format tag (the KSDATAFORMAT_SUBTYPE_* GUIDs are that tag
+    // spliced into a fixed suffix). Anything with more than two channels
+    // arrives this way -- a 5.1 AC-3 WAV is tag 0xFFFE carrying 0x2000 --
+    // so calling it PCM, as the plain tag suggests, reads compressed frames
+    // as samples. The extension is wValidBitsPerSample (2), dwChannelMask
+    // (4), then the GUID (16).
+    if (stream.format_tag == WAVE_FORMAT_EXTENSIBLE && stream.extra_data.size() >= 22) {
+        const uint16_t sub_format = static_cast<uint16_t>(
+            stream.extra_data[6] | (stream.extra_data[7] << 8));
+        if (sub_format != WAVE_FORMAT_EXTENSIBLE) {
+            return formatTagToCodecName(sub_format);
+        }
+    }
+    return formatTagToCodecName(stream.format_tag);
 }
 
 std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
