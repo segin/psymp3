@@ -755,7 +755,7 @@ void Audio::toFloat(int channels, const AudioSample *in, float *out,
     // in_frames < out_frames would run off the end of the SDL-owned buffer, so
     // fill min(in_frames, out_frames) and zero the rest below.
     size_t n = 0;
-    if (channels == 1 || channels == 2) {
+    if (channels > 0) {
         n = (in_frames < out_frames) ? in_frames : out_frames;
     }
 
@@ -801,6 +801,19 @@ void Audio::toFloat(int channels, const AudioSample *in, float *out,
             out[x] = (static_cast<float>(in[x * 2]) + static_cast<float>(in[x * 2 + 1])) * scale_stereo;
         }
         #endif
+    } else if (channels > 2) {
+        // Surround and other multichannel streams: the spectrum is of every
+        // channel averaged. This branch used to be missing, so for anything
+        // past stereo nothing was converted and the display showed silence.
+        const float scale = scale_mono / static_cast<float>(channels);
+        const size_t stride = static_cast<size_t>(channels);
+        for (size_t x = 0; x < n; x++) {
+            float sum = 0.0f;
+            for (size_t c = 0; c < stride; c++) {
+                sum += static_cast<float>(in[x * stride + c]);
+            }
+            out[x] = sum * scale;
+        }
     }
 
     // Zero any remainder of the FFT window the callback did not fill.
