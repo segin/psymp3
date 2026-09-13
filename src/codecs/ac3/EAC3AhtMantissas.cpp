@@ -88,12 +88,16 @@ float eac3GaqDequantize(AC3BitReader& reader, unsigned hebap, unsigned gain)
 
 void eac3AhtInverseDct(const float x[6], float c[6])
 {
+    // The printed equation's two radicals -- the leading sqrt(2) and
+    // R_0 = 1/sqrt(2) -- are what make it an orthogonal transform; the
+    // plain-text rendering of the standard drops both.
+    constexpr double kSqrt2 = 1.41421356237309504880;
     for (unsigned m = 0; m < 6; ++m) {
-        double sum = 0.5 * x[0];
+        double sum = x[0] / kSqrt2;
         for (unsigned j = 1; j < 6; ++j) {
             sum += x[j] * std::cos(j * (2.0 * m + 1.0) * kPi / 12.0);
         }
-        c[m] = static_cast<float>(2.0 * sum);
+        c[m] = static_cast<float>(kSqrt2 * sum);
     }
 }
 

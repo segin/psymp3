@@ -49,7 +49,8 @@ unsigned eac3GaqSections(unsigned gaqmod, unsigned active_bins);
 float eac3GaqDequantize(AC3BitReader& reader, unsigned hebap, unsigned gain);
 
 /// §E3.4.5, the inverse DCT across the six blocks of one bin:
-/// C(m) = 2 * sum_j R_j X(j) cos(j (2m + 1) pi / 12), R_0 = 1/2, R_j = 1.
+/// C(m) = sqrt(2) * sum_j R_j X(j) cos(j (2m + 1) pi / 12),
+/// R_0 = 1/sqrt(2), R_j = 1.
 void eac3AhtInverseDct(const float x[6], float c[6]);
 
 } // namespace AC3

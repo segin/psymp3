@@ -67,15 +67,19 @@ protected:
     }
 };
 
-/// The inverse DCT must undo a DCT-II normalised by 1/6. That relation is
-/// what fixes R_0 at 1/2: with 1/sqrt(2) it would not round-trip.
+/// §E3.4.5: C(m) = sqrt(2) * sum_j R_j X(j) cos(j(2m+1)pi/12), R_0 = 1/sqrt(2).
+/// Its transpose times itself is 6I, so the matching forward transform is
+/// X(j) = (sqrt(2) R_j / 6) * sum_m C(m) cos(j(2m+1)pi/12). The ratio of the
+/// first basis function to the rest is what distinguishes the printed
+/// normalisation from plausible misreadings of it.
 class InverseDctTest : public TestCase {
 public:
-    InverseDctTest() : TestCase("The AHT inverse DCT undoes a 1/6-normalised DCT-II") {}
+    InverseDctTest() : TestCase("The AHT inverse DCT matches §E3.4.5's orthogonal form") {}
 
 protected:
     void runTest() override
     {
+        const double kSqrt2 = std::sqrt(2.0);
         const float original[6] = { 0.31f, -0.72f, 0.05f, 0.44f, -0.18f, 0.9f };
         float x[6];
         for (unsigned j = 0; j < 6; ++j) {
@@ -83,12 +87,27 @@ protected:
             for (unsigned m = 0; m < 6; ++m) {
                 sum += original[m] * std::cos(j * (2.0 * m + 1.0) * kPi / 12.0);
             }
-            x[j] = static_cast<float>(sum / 6.0);
+            const double r = j == 0 ? 1.0 / kSqrt2 : 1.0;
+            x[j] = static_cast<float>(kSqrt2 * r * sum / 6.0);
         }
         float c[6];
         eac3AhtInverseDct(x, c);
         for (unsigned m = 0; m < 6; ++m) {
             ASSERT_TRUE(near(c[m], original[m], 1e-5), "block " + std::to_string(m) + " recovered");
+        }
+
+        // One basis function at a time: X(0) alone is flat at its own value,
+        // X(1) alone is sqrt(2) times a half-cycle cosine.
+        float dc[6] = { 1.0f, 0, 0, 0, 0, 0 };
+        float first[6] = { 0, 1.0f, 0, 0, 0, 0 };
+        eac3AhtInverseDct(dc, c);
+        for (unsigned m = 0; m < 6; ++m) {
+            ASSERT_TRUE(near(c[m], 1.0, 1e-6), "X(0) = 1 gives C(m) = 1");
+        }
+        eac3AhtInverseDct(first, c);
+        for (unsigned m = 0; m < 6; ++m) {
+            ASSERT_TRUE(near(c[m], kSqrt2 * std::cos((2.0 * m + 1.0) * kPi / 12.0), 1e-6),
+                        "X(1) = 1 gives C(m) = sqrt(2) cos((2m+1) pi / 12)");
         }
     }
 };
@@ -173,11 +192,12 @@ protected:
         ASSERT_TRUE(r.tell() == 4, "gaqmod and one 2-bit index");
 
         for (unsigned m = 0; m < 6; ++m) {
-            double c = 0.5 * kAhtVq1[3][0] / 32768.0;
+            // §E3.4.5: sqrt(2) * (X(0) / sqrt(2) + sum_j X(j) cos(...)).
+            double c = kAhtVq1[3][0] / 32768.0 / std::sqrt(2.0);
             for (unsigned j = 1; j < 6; ++j) {
                 c += kAhtVq1[3][j] / 32768.0 * std::cos(j * (2.0 * m + 1.0) * kPi / 12.0);
             }
-            c = 2.0 * c / 4.0;                // exponent 2
+            c = std::sqrt(2.0) * c / 4.0;     // exponent 2
             ASSERT_TRUE(near(spectrum.value[m][0], c, 1e-5), "bin 0, block " + std::to_string(m));
             ASSERT_TRUE(spectrum.value[m][1] == 0.0f, "an unallocated bin is silent");
         }
@@ -215,11 +235,11 @@ protected:
         ASSERT_TRUE(r.tell() == 2 + 1 + 6 * 3 + 6 * 7, "gaqmod, one gain, and both bins' mantissas");
 
         for (unsigned m = 0; m < 6; ++m) {
-            double c = 0.5 * 0.125;
+            double c = 0.125 / std::sqrt(2.0);
             for (unsigned j = 1; j < 6; ++j) {
                 c += 0.125 * std::cos(j * (2.0 * m + 1.0) * kPi / 12.0);
             }
-            ASSERT_TRUE(near(spectrum.value[m][0], 2.0 * c, 1e-5), "bin 0, block " + std::to_string(m));
+            ASSERT_TRUE(near(spectrum.value[m][0], std::sqrt(2.0) * c, 1e-5), "bin 0, block " + std::to_string(m));
             ASSERT_TRUE(near(spectrum.value[m][1], 0.0, 1e-6), "bin 1 zero");
         }
     }
