@@ -866,6 +866,19 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 // takes them from. See ARCHITECTURE.md, "MLP/TrueHD".
                 track.codecType = "truehd";
                 break;
+            case CODEC_AC3:
+                // One syncframe per sample. The sample entry is followed by a
+                // 'dac3' box restating fscod, bsid, acmod and lfeon, but every
+                // syncframe carries those in its own header, which is where
+                // the decoder takes them from -- so there is nothing to read.
+                track.codecType = "ac3";
+                break;
+            case CODEC_EC3:
+                // Named so Media Information can say E-AC-3; no codec claims
+                // it yet, so the track is refused by name like any other
+                // unsupported codec.
+                track.codecType = "eac3";
+                break;
             case CODEC_ALAC:
                 track.codecType = "alac";
                 // Look for alac box for ALAC magic cookie
