@@ -16,7 +16,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 libpsymp3_codec_ac3_a_SOURCES = \
 	AC3FrameHeader.cpp \
 	AC3Exponents.cpp \
-	AC3BitAllocation.cpp
+	AC3BitAllocation.cpp \
+	AC3Mantissas.cpp
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
