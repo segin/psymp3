@@ -97,6 +97,18 @@ struct AC3FrameHeader {
     /// the independent frame before it), 2 independent converted from AC-3.
     /// Always 0 for AC-3.
     uint8_t strmtyp = 0;
+    /// E-AC-3 substream identification, §E2.3.1.2: which program an
+    /// independent substream carries, or which program a dependent one
+    /// extends. Always 0 for AC-3.
+    uint8_t substreamid = 0;
+
+    /// True for every frame except program 1's independent frames: a
+    /// dependent substream, or an independent substream of another program.
+    /// Such frames add no time to the program being played (§E3.8.1).
+    bool isAuxiliarySubstream() const
+    {
+        return flavour == Flavour::EAC3 && (strmtyp == 1 || substreamid != 0);
+    }
 
     /// Channels a decoder would output, LFE included.
     uint8_t outputChannels() const { return static_cast<uint8_t>(channels + (lfeon ? 1 : 0)); }

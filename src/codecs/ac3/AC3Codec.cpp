@@ -97,9 +97,10 @@ AudioFrame AC3Codec::decode_unlocked(const MediaChunk& chunk)
                        " bytes) - skipping");
         }
         offset += header.frame_size;
-        // A dependent E-AC-3 substream extends the frame before it rather than
-        // following it, so it does not move the clock.
-        if (!(header.isEAC3() && header.strmtyp == 0x1)) {
+        // Only program 1's independent frames move the clock: a dependent
+        // substream extends the frame before it, and another program's frames
+        // are not part of this one at all.
+        if (!header.isAuxiliarySubstream()) {
             m_pending_timestamp += static_cast<uint64_t>(header.blocks) * kSamplesPerBlock;
         }
     }

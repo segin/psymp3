@@ -199,7 +199,7 @@ bool parseAC3(AC3BitReader& reader, AC3FrameHeader& header)
 bool parseEAC3(AC3BitReader& reader, AC3FrameHeader& header)
 {
     header.strmtyp = static_cast<uint8_t>(reader.read(2));
-    reader.skip(3);                                           // substreamid
+    header.substreamid = static_cast<uint8_t>(reader.read(3));
     // frmsiz is one less than the frame length in 16-bit words, so a frame is
     // never zero-length and 2047 means 2048 words.
     const uint32_t frmsiz = reader.read(11);

@@ -69,11 +69,14 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
             Debug::log("ac3", "E-AC-3 frame header failed: ", why ? why : "unknown");
             return false;
         }
-        if (header.strmtyp == 0x1) {
-            // A dependent substream carries channels beyond the independent
-            // program's 5.1 (§E3.8). Mixing them in is not supported, so the
-            // independent program plays on its own; its state is left alone
-            // so the next independent frame is unaffected.
+        if (header.isAuxiliarySubstream()) {
+            // §E3.8.1: a reference decoder plays independent substream 0 and
+            // skips everything else. A dependent substream carries channels
+            // beyond that program's 5.1 -- rendering them is optional and not
+            // done here -- and an independent substream with another id is a
+            // different program altogether, whose frames must not be decoded
+            // as though they continued this one. Either way this program's
+            // state is left alone.
             pcm.clear();
             return true;
         }

@@ -33,12 +33,12 @@ constexpr uint64_t kSyncSearchLimit = 1024 * 1024;
 /// most, so this covers many of them per read.
 constexpr size_t kScanBufferSize = 256 * 1024;
 
-/// A/52 §E2.3.1.1: strmtyp 1 is a dependent substream. It extends the
-/// independent frame before it -- extra channels for 7.1 -- and adds no time
-/// of its own, so it must not advance the clock.
+/// Frames outside program 1's independent substream add no time: a dependent
+/// substream extends the frame before it, and an independent substream with
+/// another id is a different program (A/52 §E3.8.1).
 bool isDependent(const AC3FrameHeader& header)
 {
-    return header.isEAC3() && header.strmtyp == 1;
+    return header.isAuxiliarySubstream();
 }
 
 } // namespace
