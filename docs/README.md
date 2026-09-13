@@ -42,6 +42,11 @@ This directory contains comprehensive documentation for PsyMP3 development, arch
 - [RFC 9639 FLAC Summary](RFC9639_FLAC_SUMMARY.md) - FLAC specification summary
 - [rfc9639.txt](rfc9639.txt) - Complete FLAC specification
 
+### Matroska / WebM (RFC 8794/9559)
+- [rfc8794.txt](rfc8794.txt) - EBML, the element grammar Matroska is built on
+- [rfc9559.txt](rfc9559.txt) - Complete Matroska container specification
+- [webm-container-guidelines.txt](webm-container-guidelines.txt) - WebM, which is Matroska restricted to a smaller set of codecs and elements
+
 ### Ogg Container (RFC 3533/3534)
 - [RFC 3533 Ogg Summary](RFC3533_OGG_SUMMARY.md) - Ogg container specification summary
 - [rfc3533.txt](rfc3533.txt) - Complete Ogg encapsulation specification

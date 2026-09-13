@@ -1,0 +1,3377 @@
+The WebM Project | WebM Container Guidelines
+
+-->
+
+ Home
+
+ >
+
+ Docs
+
+ >
+
+ Container
+
+ WebM Container Guidelines
+
+ Last modified: 2026-05-07
+
+ Show Contents
+
+ Overview
+
+ Goals
+
+ Short Term
+
+ Long Term
+
+ Naming
+
+ HTML5 Video Type Parameters
+
+ Video Codec
+
+ Audio Codecs
+
+ canPlayType function
+
+ Smart Client
+
+ WebM Guidelines
+
+ Demuxer and Muxer Guidelines
+
+ Muxer Guidelines
+
+ VP8/VP9 Alternate Reference Frames
+
+ Encode Example
+
+ Decode Example
+
+ Demuxer Guidelines
+
+ WebVTT Guidelines
+
+ Storing WebVTT data in a WebM Track
+
+ Storing WebVTT cue in a WebM Block
+
+ General WebVTT Notes
+
+ WebVTT Chapter cues
+
+ Implementation Details
+
+ EBML Basics
+
+ Global Elements (Used throughout the format)
+
+ Segment
+
+ Meta Seek Information
+
+ Segment Information
+
+ Cluster
+
+ Track
+
+ Colour
+
+ Location of the Colour Element in an MKV File
+
+ Location of the Colour Element in a Stream
+
+ Cueing Data
+
+ Attachment
+
+ Chapters
+
+ Tagging
+
+ Target Types
+
+ VP9 Codec Feature Metadata (CodecPrivate)
+
+ Codec Feature Format
+
+ ID Byte Format
+
+ Length Format
+
+ VP9 Feature: Profile
+
+ VP9 Feature: Level
+
+ VP9 Feature: Bit Depth
+
+ VP9 Feature: Chroma Subsampling
+
+ Official Tags
+
+ Overview
+
+ WebM is a digital multimedia container file format promoted by the
+open-source WebM Project. It comprises a subset of the Matroska
+multimedia container format.
+
+ Goals
+
+ Short Term
+
+ Select a container format that's suitable for VP8/VP9 and ideal for the
+ open web.
+
+ Make it easy for web content providers to create and distribute VP8/VP9
+ videos.
+
+ Long Term
+
+ Foster the popularity of our open format so video can be enjoyed
+ everywhere, with no effort by users.
+
+ Naming
+
+ Container Format Name
+
+ WebM
+
+ Filename Extension
+
+ .webm
+
+ MIME-type
+
+ video/webm
+
+ Audio-only MIME-type
+
+ audio/webm
+
+ Uniform Type Identifier
+
+ org.webmproject.webm
+
+ Video Codec Name
+
+ VP8
+ 
+ or
+ 
+ VP9
+
+ Audio Codec Name
+
+ Vorbis
+ 
+ or
+ 
+ Opus
+
+ HTML5 Video Type Parameters
+
+ Video Codec
+
+ VP8: vp8.X codec is vp8, bitstream is version X.
+
+ VP8 currently only has bitstream version 0.
+
+ This will also match to a FourCC of VP8X for applications that need a
+ FourCC.
+
+ VP9: vp9.X codec is vp9, bitstream is version X.
+
+ VP9 currently only has bitstream version 0.
+
+ This will also match to a FourCC of VP9X for applications that need a
+ FourCC.
+
+ The above codec strings will eventually be deprecated in favor of the format
+ 
+ designed for use with MP4 containers
+ 
+ .
+
+ Audio Codecs
+
+ Vorbis
+
+ Opus
+
+ Audio-only files SHOULD have a mime of "audio/webm"
+
+ canPlayType function
+
+ canPlayType('video/webm') SHOULD return
+ 
+ maybe
+
+ canPlayType('audio/webm') SHOULD return
+ 
+ maybe
+
+ canPlayType('video/webm; codecs="vp8, vorbis"') SHOULD return
+ 
+ probably
+
+ canPlayType('video/webm; codecs="vp8, opus"') SHOULD return
+ 
+ probably
+
+ canPlayType('video/webm; codecs="vp9, vorbis"') SHOULD return
+ 
+ probably
+
+ canPlayType('video/webm; codecs="vp9, opus"') SHOULD return
+ 
+ probably
+
+ canPlayType('audio/webm; codecs="vorbis"') SHOULD return
+ 
+ probably
+
+ canPlayType('audio/webm; codecs="opus"') SHOULD return
+ 
+ probably
+
+ Note that, currently, the attribute string value "vp8" may also be expressed
+as "vp8.0", and "vp9" may be expressed as "vp9.0".
+
+ Smart Client
+
+ One of the major goals is to allow content creators to have advanced playback
+capabilities, such as fast seeking and fast start using only an HTTP server.
+To achieve this, the WebM file format guidelines below should be followed when
+creating content.
+
+ WebM Guidelines
+
+ These guidelines are currently for file streaming over an HTTP connection, and
+indicate the areas where WebM is strict, relative to the more permissive
+ 
+ Matroska specification
+ 
+ .
+
+ Demuxer and Muxer Guidelines
+
+ DocType
+ 
+ element SHOULD be "webm".
+
+ Video codec SHOULD be VP8
+ 
+ or
+ 
+ VP9.
+
+ The Codec ID SHOULD be "V_VP8"
+ 
+ or
+ 
+ "V_VP9".
+
+ There is no
+ 
+ CodecPrivate
+ 
+ data for VP8. For VP9,
+ 
+ CodecPrivate
+ 
+ SHOULD
+ contain a list of specific VP9 codec features (Level, Profile, Bit
+ Depth and Chroma Subsampling values) as described in
+ 
+ VP9 Codec Feature Format
+ 
+ .
+
+ Audio codec SHOULD be Vorbis
+ 
+ or
+ 
+ Opus.
+
+ Matroska CodecID specification
+
+ The Codec ID SHOULD be "A_VORBIS"
+ 
+ or
+ 
+ "A_OPUS".
+
+ Initial WebM release does not support subtitles.
+
+ WHATWG / W3C RFC will release guidance on subtitles and other overlays
+ in HTML5
+ 
+ <video>
+ 
+ in the near future. WebM intends to follow that
+ guidance. Ref:
+ 
+ WebVTT
+ 
+ .
+
+ DocReadTypeVersion
+ 
+ SHOULD follow the Matroska specification.
+
+ Example: Files with v2 elements should have a
+ 
+ DocReadTypeVersion
+ 
+ of
+ 2.
+
+ Muxer Guidelines
+
+ Muxers should treat all guidelines marked SHOULD in this section as MUST. This
+will foster consistency across WebM files in the real world.
+
+ WebM SHOULD contain the
+ 
+ SeekHead
+ 
+ element.
+
+ Reason: Allows the client to know if the file contains a
+ 
+ Cues
+ 
+ element.
+
+ WebM files SHOULD include a keyframe-only
+ 
+ Cues
+ 
+ element.
+
+ The
+ 
+ Cues
+ 
+ element SHOULD contain only video key frames, to decrease
+ the size of the file header.
+
+ It is recommended that the
+ 
+ Cues
+ 
+ element be before any clusters, so
+ that the client can seek to a point in the data that has not yet been
+ downloaded in a single seek operation.
+ Ref:
+ 
+ a tool
+ 
+ that will put the
+ 
+ Cues
+ 
+ at the front.
+
+ All absolute (block + cluster) timecodes MUST be monotonically
+ increasing.
+
+ All timecodes are associated with the start time of the block.
+
+ The
+ 
+ TimecodeScale
+ 
+ element SHOULD be set to a default of 1.000.000
+ nanoseconds.
+
+ Reason: Allows every cluster to have blocks with positive values up to
+ 32.767 seconds.
+
+ Key frames SHOULD be placed at the beginning of clusters.
+
+ Having key frames at the beginning of clusters should make seeking
+ faster and easier for the client.
+
+ Audio blocks that contain the video key frame's timecode SHOULD be in the
+ same cluster as the video key frame block.
+
+ Audio blocks that have same absolute timecode as video blocks SHOULD be
+ written before the video blocks.
+
+ WebM files MUST only support pixels for the
+ 
+ DisplayUnit
+ 
+ element.
+
+ VP8/VP9 Alternate Reference Frames
+
+ When enabled, the VP8 and VP9 encoders will at their discretion inject a new
+frame -- an alternate reference (AR) frame -- into the output, prior to the
+frame that depends on it. There will be at MOST 1 frame added between
+I/P-frames. The dependent frame (D) will
+ 
+ always
+ 
+ be a P-frame. The AR will
+be marked with the invisible flag by the codec SDK. This frame MUST be decoded
+before D, but will produce no output on its own.
+
+ The encoder will currently set the AR's timestamp as close as possible to the
+previous frame while attempting to provide a timestamp that is strictly
+increasing. In cases where the time base given to the encoder at configure
+time is not granular enough to allow for this, the AR will share the same
+timestamp as D, but SHOULD be treated as having no duration.
+
+ Ideally the AR's timestamp should be as close as possible to frame D-1 to
+allow the decoder as much time as possible to decode AR before needing to
+display D.
+
+ Encode Example
+
+ Input
+
+ F
+ 
+ 0
+
+ F
+ 
+ 1
+
+ Output
+
+ I/P
+
+ AR
+
+ D
+
+ PTS
+
+ 0
+
+ 1
+
+ 2
+
+ Decode Example
+
+ Input
+
+ I/P
+
+ AR
+
+ D
+
+ Output
+
+ F
+ 
+ 0
+
+ F
+ 
+ 1
+
+ PTS
+
+ 0
+
+ 2
+
+ Demuxer Guidelines
+
+ The demuxer MUST only open webm DocType files.
+
+ Once the demuxer deems the header and metadata of the file to be valid for
+ a WebM file and the player starts playing the file, the demuxer MUST do
+ all it can to parse the file, so playback can occur as correctly as
+ possible.
+
+ Seeking will be disabled if the webm file does not have a key frame
+ 
+ Cues
+ 
+ element.
+
+ The project is considering support for seeking without a
+ 
+ Cues
+ 
+ element.
+
+ If the
+ 
+ Cues
+ 
+ element is not at the beginning of the file its retrieval
+ should be deferred to allow playback to start as soon as possible.
+
+ WebVTT Guidelines
+
+ Storing WebVTT data in a WebM Track
+
+ The contents of the WebVTT file is stored as its own WebM track. The
+information that would appear as attributes of the HTML5 track tag can be
+embedded in WebM Track element as follows:
+
+ The TrackType sub-element value is 0x11 for WebVTT SUBTITLES and CAPTIONS,
+ and 0x21 for WebVTT DESCRIPTIONS, and METADATA.
+
+ The label attribute is stored as the Name sub-element.
+
+ The srclang attribute is stored as the Language sub-element.
+
+ Per the convention (see the
+ 
+ Matroska Codec Specifications
+ 
+ )
+used for flavors of a particular video or audio codec, the CodecID for a
+WebVTT track is "D_WEBVTT/
+ 
+ kind
+ 
+ ", where
+ 
+ kind
+ 
+ is one of SUBTITLES, CAPTIONS,
+DESCRIPTIONS, or METADATA.
+
+ Storing WebVTT cue in a WebM Block
+
+ The WebVTT cues are stored as the data portion of Block elements in the track,
+per the formatting described below. All WebVTT data stored within a WebM Block
+MUST be encoded as UTF-8. The timestamp of the WebM block and its duration are
+synthesized from the start and end times specified on the timestamp of the
+WebVTT cue. A BlockGroup element (not a SimpleBlock) MUST be used to contain
+the Block element, in order to also use a BlockDuration element, which is
+necessary to losslessly encode the original timestamp of the WebVTT cue.
+
+ If the
+ 
+ WebVTT cue
+ 
+ includes a
+ 
+ WebVTT cue identifier
+ 
+ then the WebVTT cue identifier is written to the WebM Block followed by a
+ 
+ WebVTT line terminator
+ 
+ .
+If the WebVTT cue does not have a WebVTT cue identifier then a WebVTT line
+terminator is written to the WebM Block. The empty line is used to distinguish
+that there was no WebVTT cue identifier in the original WebVTT cue.
+
+ The
+ 
+ WebVTT cue timings
+ 
+ is not written to the WebM Block. The start and end time of the WebVTT cue is
+synthesized from the start time and duration of the WebM Block.
+
+ If the WebVTT cue includes a
+ 
+ WebVTT cue settings
+ 
+ then the WebVTT cue settings is written to the WebM Block followed by a WebVTT
+line terminator. If the WebVTT cue does not have a WebVTT cue settings then a
+WebVTT line terminator is written to the WebM Block.
+
+ The
+ 
+ cue payload
+ 
+ is then written
+to the WebM Block.
+
+ General WebVTT Notes
+
+ Note that no WebVTT data is stored in the CodecPrivate element of the WebM
+Track header. All WebVTT cues are stored as Block elements for the track.
+
+ The timestamps for WebVTT cues can overlap in time. This is how roll-up
+captions work: multiple cues are rendered simultaneously, and when the top cue
+expires, the other cues move up and a new cue appears at the bottom. The WebM
+block timestamps must therefore be allowed to be monotonically increasing (a
+requirement already needed for the WebM container to support VP8/VP9 alt-ref
+frames), and the duration for a block MUST be allowed to overlap the start
+time of the next block.
+
+ WebVTT Chapter cues
+
+ WebVTT chapter cues are used for navigation and so they are handled
+differently, because they must all be together and immediately available. For
+this reason, WebVTT chapter cues should not be embedded the same as for timed
+cues (a representation that would vitiate their use for navigation); instead
+they should be converted to Matroska chapters (see the
+ 
+ Matroska Chapter
+Specifications
+ 
+ ) and
+embedded that way. Matroska chapters are a superset of WebVTT chapter cues and
+therefore the conversion is lossless.
+
+ Implementation Details
+
+ At initial release, WebM supports a subset of the Matroska specification.
+Support for additional Matroska functionality will be under consideration as
+the project matures.
+
+ Following is a more detailed description of the currently supported elements,
+and the features still being evaluated.
+
+ EBML Basics
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ EBML
+ 
+ ¶
+
+ Set the EBML characteristics of the data to follow. Each EBML document has to start with this.
+
+ Supported
+
+ EBMLVersion
+ 
+ ¶
+
+ The version of EBML parser used to create the file.
+
+ Supported
+
+ EBMLReadVersion
+ 
+ ¶
+
+ The minimum EBML version a parser has to support to read this file.
+
+ Supported
+
+ EBMLMaxIDLength
+ 
+ ¶
+
+ The maximum length of the IDs you'll find in this file (4 or less in Matroska).
+
+ Supported
+
+ EBMLMaxSizeLength
+ 
+ ¶
+
+ The maximum length of the sizes you'll find in this file (8 or less in Matroska). This does not override the element size indicated at the beginning of an element. Elements that have an indicated size which is larger than what is allowed by EBMLMaxSizeLength shall be considered invalid.
+
+ Supported
+
+ DocType
+ 
+ ¶
+
+ A string that describes the type of document that follows this EBML header ('webm' in our case).
+
+ Supported
+
+ DocTypeVersion
+ 
+ ¶
+
+ The version of DocType interpreter used to create the file.
+
+ Supported
+
+ DocTypeReadVersion
+ 
+ ¶
+
+ The minimum DocType version an interpreter has to support to read this file.
+
+ Global Elements (Used throughout the format)
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Void
+ 
+ ¶
+
+ Used to void damaged data, to avoid unexpected behaviors when using damaged data. The content is discarded. Also used to reserve space in a sub-element for later use.
+
+ Unsupported
+
+ CRC-32
+ 
+ ¶
+
+ The CRC is computed on all the data of the Master element it's in, regardless of its position. It's recommended to put the CRC value at the beggining of the Master element for easier reading. All level 1 elements should include a CRC-32.
+
+ Signature Start
+
+ Unsupported
+
+ SignatureSlot
+ 
+ ¶
+
+ Contain signature of some (coming) elements in the stream.
+
+ Unsupported
+
+ SignatureAlgo
+ 
+ ¶
+
+ Signature algorithm used (1=RSA, 2=elliptic).
+
+ Unsupported
+
+ SignatureHash
+ 
+ ¶
+
+ Hash algorithm used (1=SHA1-160, 2=MD5).
+
+ Unsupported
+
+ SignaturePublicKey
+ 
+ ¶
+
+ The public key to use with the algorithm (in the case of a PKI-based signature).
+
+ Unsupported
+
+ Signature
+ 
+ ¶
+
+ The signature of the data (until a new.
+
+ Unsupported
+
+ SignatureElements
+ 
+ ¶
+
+ Contains elements that will be used to compute the signature.
+
+ Unsupported
+
+ SignatureElementList
+ 
+ ¶
+
+ A list consists of a number of consecutive elements that represent one case where data is used in signature. Ex: Cluster
+
+ Unsupported
+
+ SignedElement
+ 
+ ¶
+
+ An element ID whose data will be used to compute the signature.
+
+ Signature End
+
+ Segment
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Segment
+ 
+ ¶
+
+ This element contains all other top-level (level 1) elements. Typically a Matroska file is composed of 1 segment.
+
+ Meta Seek Information
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ SeekHead
+ 
+ ¶
+
+ Contains the position of other level 1 elements.
+
+ Supported
+
+ Seek
+ 
+ ¶
+
+ Contains a single seek entry to an EBML element.
+
+ Supported
+
+ SeekID
+ 
+ ¶
+
+ The binary ID corresponding to the element name.
+
+ Supported
+
+ SeekPosition
+ 
+ ¶
+
+ The position of the element in the segment in octets (0 = first level 1 element).
+
+ Segment Information
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Info
+ 
+ ¶
+
+ Contains miscellaneous general information and statistics on the file.
+
+ Unsupported
+
+ SegmentUID
+ 
+ ¶
+
+ A randomly generated unique ID to identify the current segment between many others (128 bits).
+
+ Unsupported
+
+ SegmentFilename
+ 
+ ¶
+
+ A filename corresponding to this segment.
+
+ Unsupported
+
+ PrevUID
+ 
+ ¶
+
+ A unique ID to identify the previous chained segment (128 bits).
+
+ Unsupported
+
+ PrevFilename
+ 
+ ¶
+
+ An escaped filename corresponding to the previous segment.
+
+ Unsupported
+
+ NextUID
+ 
+ ¶
+
+ A unique ID to identify the next chained segment (128 bits).
+
+ Unsupported
+
+ NextFilename
+ 
+ ¶
+
+ An escaped filename corresponding to the next segment.
+
+ Unsupported
+
+ SegmentFamily
+ 
+ ¶
+
+ A randomly generated unique ID that all segments related to each other MUST use (128 bits).
+
+ Unsupported
+
+ ChapterTranslate
+ 
+ ¶
+
+ A tuple of corresponding ID used by chapter codecs to represent this segment.
+
+ Unsupported
+
+ ChapterTranslateEditionUID
+ 
+ ¶
+
+ Specify an edition UID on which this correspondance applies. When not specified, it means for all editions found in the segment.
+
+ Unsupported
+
+ ChapterTranslateCodec
+ 
+ ¶
+
+ The chapter codec using this ID (0: Matroska Script, 1: DVD-menu).
+
+ Unsupported
+
+ ChapterTranslateID
+ 
+ ¶
+
+ The binary value used to represent this segment in the chapter codec data. The format depends on the ChapProcessCodecID used.
+
+ Supported
+
+ TimecodeScale
+ 
+ ¶
+
+ Timecode scale in nanoseconds (1.000.000 means all timecodes in the segment are expressed in milliseconds).
+
+ Supported
+
+ Duration
+ 
+ ¶
+
+ Duration of the segment (based on TimecodeScale).
+
+ Supported
+
+ DateUTC
+ 
+ ¶
+
+ Date of the origin of timecode (value 0), i.e. production date.
+
+ Supported
+
+ Title
+ 
+ ¶
+
+ General name of the segment.
+
+ Supported
+
+ MuxingApp
+ 
+ ¶
+
+ Muxing application or library ("libmatroska-0.4.3").
+
+ Supported
+
+ WritingApp
+ 
+ ¶
+
+ Writing application ("mkvmerge-0.3.3").
+
+ Cluster
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Cluster
+ 
+ ¶
+
+ The lower level element containing the (monolithic) Block structure.
+
+ Supported
+
+ Timecode
+ 
+ ¶
+
+ Absolute timecode of the cluster (based on TimecodeScale).
+
+ Unsupported
+
+ SilentTracks
+ 
+ ¶
+
+ The list of tracks that are not used in that part of the stream. It is useful when using overlay tracks on seeking. Then you should decide what track to use.
+
+ Unsupported
+
+ SilentTrackNumber
+ 
+ ¶
+
+ One of the track number that are not used from now on in the stream. It could change later if not specified as silent in a further Cluster.
+
+ Unsupported
+
+ Position
+ 
+ ¶
+
+ Position of the Cluster in the segment (0 in live broadcast streams). It might help to resynchronise offset on damaged streams.
+
+ Supported
+
+ PrevSize
+ 
+ ¶
+
+ Size of the previous Cluster, in octets. Can be useful for backward playing.
+
+ Supported
+
+ SimpleBlock
+ 
+ ¶
+
+ Similar to Block but without all the extra information, mostly used to reduced overhead when no extra feature is needed.
+
+ Supported
+
+ BlockGroup
+ 
+ ¶
+
+ Basic container of information containing a single Block or BlockVirtual, and information specific to that Block/VirtualBlock.
+
+ Supported
+
+ Block
+ 
+ ¶
+
+ Block containing the actual data to be rendered and a timecode relative to the Cluster Timecode.
+
+ Deprecated
+
+ BlockVirtual
+ 
+ ¶
+
+ A Block with no data. It MUST be stored in the stream at the place the real Block should be in display order.
+
+ Supported
+
+ BlockAdditions
+ 
+ ¶
+
+ Contain additional blocks to complete the main one. An EBML parser that has no knowledge of the Block structure could still see and use/skip these data.
+
+ Supported
+
+ BlockMore
+ 
+ ¶
+
+ Contain the BlockAdditional and some parameters.
+
+ Supported
+
+ BlockAddID
+ 
+ ¶
+
+ An ID to identify the BlockAdditional level. For
+ 
+ VP9
+ 
+ , 0x01 is reserved and 0x04 indicates ITU T.35 metadata as defined by ITU-T T.35 terminal codes.
+
+ Supported
+
+ BlockAdditional
+ 
+ ¶
+
+ Interpreted by the codec as it wishes (using the BlockAddID).
+
+ Supported
+
+ BlockDuration
+ 
+ ¶
+
+ The duration of the Block (based on TimecodeScale). This element is mandatory when DefaultDuration is set for the track. When not written and with no DefaultDuration, the value is assumed to be the difference between the timecode of this Block and the timecode of the next Block in "display" order (not coding order). This element can be useful at the end of a Track (as there is not other Block available), or when there is a break in a track like for subtitle tracks.
+
+ Unsupported
+
+ ReferencePriority
+ 
+ ¶
+
+ This frame is referenced and has the specified cache priority. In cache only a frame of the same or higher priority can replace this frame. A value of 0 means the frame is not referenced.
+
+ Supported
+
+ ReferenceBlock
+ 
+ ¶
+
+ Timecode of another frame used as a reference (ie: B or P frame). The timecode is relative to the block it's attached to.
+
+ Unsupported
+
+ ReferenceVirtual
+ 
+ ¶
+
+ Relative position of the data that should be in position of the virtual block.
+
+ Unsupported
+
+ CodecState
+ 
+ ¶
+
+ The new codec state to use. Data interpretation is private to the codec. This information should always be referenced by a seek entry.
+
+ Supported
+
+ DiscardPadding
+ 
+ ¶
+
+ Duration in nanoseconds of the silent data added to the Block (padding at the end of the Block for positive value, at the beginning of the Block for negative value). The duration of DiscardPadding is not calculated in the duration of the TrackEntry and should be discarded during playback.
+
+ Unsupported
+
+ Slices
+ 
+ ¶
+
+ Contains slices description.
+
+ Deprecated
+
+ TimeSlice
+ 
+ ¶
+
+ Contains extra time information about the data contained in the Block. While there are a few files in the wild with this element, it is no longer in use and has been deprecated. Being able to interpret this element is not required for playback.
+
+ Deprecated
+
+ LaceNumber
+ 
+ ¶
+
+ The reverse number of the frame in the lace (0 is the last frame, 1 is the next to last, etc). While there are a few files in the wild with this element, it is no longer in use and has been deprecated. Being able to interpret this element is not required for playback.
+
+ Unsupported
+
+ FrameNumber
+ 
+ ¶
+
+ The number of the frame to generate from this lace with this delay (allow you to generate many frames from the same Block/Frame).
+
+ Unsupported
+
+ BlockAdditionID
+ 
+ ¶
+
+ The ID of the BlockAdditional element (0 is the main Block).
+
+ Unsupported
+
+ Delay
+ 
+ ¶
+
+ The (scaled) delay to apply to the element.
+
+ Unsupported
+
+ SliceDuration
+ 
+ ¶
+
+ The (scaled) duration to apply to the element.
+
+ Unsupported
+
+ ReferenceFrame
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Unsupported
+
+ ReferenceOffset
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Unsupported
+
+ ReferenceTimeCode
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Unsupported
+
+ EncryptedBlock
+ 
+ ¶
+
+ Similar to SimpleBlock but the data inside the Block are Transformed (encrypt and/or signed).
+
+ Track
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Tracks
+ 
+ ¶
+
+ A top-level block of information with many tracks described.
+
+ Supported
+
+ TrackEntry
+ 
+ ¶
+
+ Describes a track with all elements.
+
+ Supported
+
+ TrackNumber
+ 
+ ¶
+
+ The track number as used in the Block Header (using more than 127 tracks is not encouraged, though the design allows an unlimited number).
+
+ Supported
+
+ TrackUID
+ 
+ ¶
+
+ A unique ID to identify the Track. This should be kept the same when making a direct stream copy of the Track to another file.
+
+ Supported
+
+ TrackType
+ 
+ ¶
+
+ A set of track types coded on 8 bits (1: video, 2: audio, 3: complex, 0x10: logo, 0x11: subtitle, 0x12: buttons, 0x20: control).
+
+ Supported
+
+ FlagEnabled
+ 
+ ¶
+
+ Set if the track is used.
+
+ Supported
+
+ FlagDefault
+ 
+ ¶
+
+ Set if that track (audio, video or subs) SHOULD be used if no language found matches the user preference.
+
+ Supported
+
+ FlagForced
+ 
+ ¶
+
+ Set if that track MUST be used during playback. There can be many forced track for a kind (audio, video or subs), the player should select the one which language matches the user preference or the default + forced track. Overlay MAY happen between a forced and non-forced track of the same kind.
+
+ Supported
+
+ FlagLacing
+ 
+ ¶
+
+ Set if the track may contain blocks using lacing.
+
+ Unsupported
+
+ MinCache
+ 
+ ¶
+
+ The minimum number of frames a player should be able to cache during playback. If set to 0, the reference pseudo-cache system is not used.
+
+ Unsupported
+
+ MaxCache
+ 
+ ¶
+
+ The maximum cache size required to store referenced frames in and the current frame. 0 means no cache is needed.
+
+ Supported
+
+ DefaultDuration
+ 
+ ¶
+
+ Number of nanoseconds (i.e. not scaled) per frame.
+
+ Unsupported
+
+ DefaultDecodedFieldDuration
+ 
+ ¶
+
+ The period in nanoseconds (not scaled by TimcodeScale) between two successive fields at the output of the decoding process.
+
+ Unsupported
+
+ TrackTimecodeScale
+ 
+ ¶
+
+ The scale to apply on this track to work at normal speed in relation with other tracks (mostly used to adjust video speed when the audio length differs).
+
+ Unsupported
+
+ TrackOffset
+ 
+ ¶
+
+ A value to add to the Block's Timecode. This can be used to adjust the playback offset of a track.
+
+ Supported
+
+ MaxBlockAdditionID
+ 
+ ¶
+
+ The maximum value of BlockAddID. A value 0 means there is no BlockAdditions for this track.
+
+ Supported
+
+ BlockAdditionMapping
+ 
+ ¶
+
+ Contains elements that extend the track format, by adding content either to each frame, with BlockAddID, or to the track as a whole with BlockAddIDExtraData.
+
+ Supported
+
+ BlockAddIDValue
+ 
+ ¶
+
+ If the track format extension needs content beside frames, the value refers to the BlockAddID, value being described. To keep MaxBlockAdditionID as low as possible, small values SHOULD be used.
+
+ Supported
+
+ BlockAddIDName
+ 
+ ¶
+
+ A human-friendly name describing the type of BlockAdditional data, as defined by the associated Block Additional Mapping.
+
+ Supported
+
+ BlockAddIDType
+ 
+ ¶
+
+ Stores the registered identifier of the Block Additional Mapping to define how the BlockAdditional data should be handled. If BlockAddIDType is 0, the BlockAddIDValue and corresponding BlockAddID values MUST be 1.
+
+ Supported
+
+ BlockAddIDExtraData
+ 
+ ¶
+
+ Extra binary data that the BlockAddIDType can use to interpret the BlockAdditional data. The interpretation of the binary data depends on the BlockAddIDType value and the corresponding Block Additional Mapping.
+
+ Supported
+
+ Name
+ 
+ ¶
+
+ A human-readable track name.
+
+ Supported
+
+ Language
+ 
+ ¶
+
+ Specifies the language of the track in the Matroska languages form.
+
+ Supported
+
+ CodecID
+ 
+ ¶
+
+ An ID corresponding to the codec, see the codec page for more info.
+
+ Supported
+
+ CodecPrivate
+ 
+ ¶
+
+ Private data only known to the codec.
+
+ Supported
+
+ CodecName
+ 
+ ¶
+
+ A human-readable string specifying the codec.
+
+ Unsupported
+
+ AttachmentLink
+ 
+ ¶
+
+ The UID of an attachment that is used by this codec.
+
+ Unsupported
+
+ CodecSettings
+ 
+ ¶
+
+ A string describing the encoding setting used.
+
+ Unsupported
+
+ CodecInfoURL
+ 
+ ¶
+
+ A URL to find information about the codec used.
+
+ Unsupported
+
+ CodecDownloadURL
+ 
+ ¶
+
+ A URL to download about the codec used.
+
+ Unsupported
+
+ CodecDecodeAll
+ 
+ ¶
+
+ The codec can decode potentially damaged data.
+
+ Unsupported
+
+ TrackOverlay
+ 
+ ¶
+
+ Specify that this track is an overlay track for the Track specified (in the u-integer). That means when this track has a gap (see SilentTracks) the overlay track should be used instead. The order of multiple TrackOverlay matters, the first one is the one that should be used. If not found it should be the second, etc.
+
+ Supported
+
+ CodecDelay
+ 
+ ¶
+
+ CodecDelay is the codec-built-in delay in nanoseconds. This value must be subtracted from each block timestamp in order to get the actual timestamp. The value should be small so the muxing of tracks with the same actual timestamp are in the same Cluster.
+
+ Supported
+
+ SeekPreRoll
+ 
+ ¶
+
+ After a discontinuity, SeekPreRoll is the duration in nanoseconds of the data the decoder must decode before the decoded data is valid.
+
+ Unsupported
+
+ TrackTranslate
+ 
+ ¶
+
+ The track identification for the given Chapter Codec.
+
+ Unsupported
+
+ TrackTranslateEditionUID
+ 
+ ¶
+
+ Specify an edition UID on which this translation applies. When not specified, it means for all editions found in the segment.
+
+ Unsupported
+
+ TrackTranslateCodec
+ 
+ ¶
+
+ The chapter codec using this ID (0: Matroska Script, 1: DVD-menu).
+
+ Unsupported
+
+ TrackTranslateTrackID
+ 
+ ¶
+
+ The binary value used to represent this track in the chapter codec data. The format depends on the ChapProcessCodecID used.
+
+ Video Start
+
+ Supported
+
+ Video
+ 
+ ¶
+
+ Video settings.
+
+ Supported
+
+ FlagInterlaced
+ 
+ ¶
+
+ Set if the video is interlaced.
+
+ Supported
+
+ StereoMode
+ 
+ ¶
+
+ Stereo-3D video mode.
+
+ Supported Modes:
+ 
+ 0: mono, 1: side by side (left eye is first), 2: top-bottom (right eye is first), 3: top-bottom (left eye is first), 11: side by side (right eye is first)
+
+ Unsupported Modes:
+ 
+ 4: checkboard (right is first), 5: checkboard (left is first), 6: row interleaved (right is first), 7: row interleaved (left is first), 8: column interleaved (right is first), 9: column interleaved (left is first), 10: anaglyph (cyan/red)
+
+ Supported
+
+ AlphaMode
+ 
+ ¶
+
+ Alpha Video Mode. Presence of this element indicates that the BlockAdditional element could contain Alpha data.
+
+ Supported
+
+ PixelWidth
+ 
+ ¶
+
+ Width of the encoded video frames in pixels.
+
+ Supported
+
+ PixelHeight
+ 
+ ¶
+
+ Height of the encoded video frames in pixels.
+
+ Supported
+
+ PixelCropBottom
+ 
+ ¶
+
+ The number of video pixels to remove at the bottom of the image (for HDTV content).
+
+ Supported
+
+ PixelCropTop
+ 
+ ¶
+
+ The number of video pixels to remove at the top of the image.
+
+ Supported
+
+ PixelCropLeft
+ 
+ ¶
+
+ The number of video pixels to remove on the left of the image.
+
+ Supported
+
+ PixelCropRight
+ 
+ ¶
+
+ The number of video pixels to remove on the right of the image.
+
+ Supported
+
+ DisplayWidth
+ 
+ ¶
+
+ Width of the video frames to display.
+
+ Supported
+
+ DisplayHeight
+ 
+ ¶
+
+ Height of the video frames to display.
+
+ Supported
+
+ DisplayUnit
+ 
+ ¶
+
+ Type of the unit for DisplayWidth/Height (0: pixels, 1: centimeters, 2: inches). Pixels only supported.
+
+ Supported
+
+ AspectRatioType
+ 
+ ¶
+
+ Specify the possible modifications to the aspect ratio (0: free resizing, 1: keep aspect ratio, 2: fixed).
+
+ Unsupported
+
+ ColourSpace
+ 
+ ¶
+
+ Same value as in AVI (32 bits).
+
+ Unsupported
+
+ GammaValue
+ 
+ ¶
+
+ Gamma Value.
+
+ Deprecated
+
+ FrameRate
+ 
+ ¶
+
+ Number of frames per second. Informational only.
+
+ Video End
+
+ Audio Start
+
+ Supported
+
+ Audio
+ 
+ ¶
+
+ Audio settings.
+
+ Supported
+
+ SamplingFrequency
+ 
+ ¶
+
+ Sampling frequency in Hz.
+
+ Supported
+
+ OutputSamplingFrequency
+ 
+ ¶
+
+ Real output sampling frequency in Hz (used for SBR techniques).
+
+ Supported
+
+ Channels
+ 
+ ¶
+
+ Numbers of channels in the track.
+
+ Unsupported
+
+ ChannelPositions
+ 
+ ¶
+
+ Table of horizontal angles for each successive channel, see appendix.
+
+ Supported
+
+ BitDepth
+ 
+ ¶
+
+ Bits per sample, mostly used for PCM.
+
+ Unsupported
+
+ TrackOperation
+ 
+ ¶
+
+ Operation that needs to be applied on tracks to create this virtual track.
+
+ Unsupported
+
+ TrackCombinePlanes
+ 
+ ¶
+
+ Contains the list of all video plane tracks that need to be combined to create this 3D track.
+
+ Unsupported
+
+ TrackPlane
+ 
+ ¶
+
+ Contains a video plane track that need to be combined to create this 3D track.
+
+ Unsupported
+
+ TrackPlaneUID
+ 
+ ¶
+
+ The trackUID number of the track representing the plane.
+
+ Unsupported
+
+ TrackPlaneType
+ 
+ ¶
+
+ The kind of plane this track corresponds to (0: left eye, 1: right eye, 2: background).
+
+ Unsupported
+
+ TrackJoinBlocks
+ 
+ ¶
+
+ Contains the list of all tracks whose Blocks need to be combined to create this virtual track.
+
+ Unsupported
+
+ TrackJoinUID
+ 
+ ¶
+
+ The trackUID number of a track whose blocks are used to create this virtual track.
+
+ Unsupported
+
+ TrickTrackUID
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Unsupported
+
+ TrickTrackSegmentUID
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Unsupported
+
+ TrickTrackFlag
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Unsupported
+
+ TrickMasterTrackUID
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Unsupported
+
+ TrickMasterTrackSegmentUID
+ 
+ ¶
+
+ DivX trick track extenstions
+
+ Audio End
+
+ Content Encoding Start
+
+ Supported
+
+ ContentEncodings
+ 
+ ¶
+
+ Settings for several content encoding mechanisms like compression or encryption.
+
+ Supported
+
+ ContentEncoding
+ 
+ ¶
+
+ Settings for one content encoding like compression or encryption.
+
+ Supported
+
+ ContentEncodingOrder
+ 
+ ¶
+
+ Tells when this modification was used during encoding/muxing starting with 0 and counting upwards. The decoder/demuxer has to start with the highest order number it finds and work its way down. This value has to be unique over all ContentEncodingOrder elements in the segment.
+
+ Supported
+
+ ContentEncodingScope
+ 
+ ¶
+
+ A bit field that describes which elements have been modified in this way. Values (big endian) can be OR'ed. Possible values: 1 - all frame contents; 2 - the track's private data; 4 - the next ContentEncoding (next ContentEncodingOrder. Either the data inside ContentCompression and/or ContentEncryption)
+
+ Supported
+
+ ContentEncodingType
+ 
+ ¶
+
+ A value describing what kind of transformation has been done. Possible values: 0 - compression; 1 - encryption.
+
+ Unsupported
+
+ ContentCompression
+ 
+ ¶
+
+ Settings describing the compression used. Must be present if the value of ContentEncodingType is 0 and absent otherwise. Each block MUST be decompressable even if no previous block is available in order not to prevent seeking.
+
+ Unsupported
+
+ ContentCompAlgo
+ 
+ ¶
+
+ The compression algorithm used. Algorithms that have been specified so far are: 0 - zlib; 1 - bzlib; 2 - lzo1x; 3 - Header Stripping.
+
+ Unsupported
+
+ ContentCompSettings
+ 
+ ¶
+
+ Settings that might be needed by the decompressor. For Header Stripping (ContentCompAlgo=3), the bytes that were removed from the beggining of each frame of the track.
+
+ Supported
+
+ ContentEncryption
+ 
+ ¶
+
+ Settings describing the encryption used. Must be present if the value of ContentEncodingType is 1 and absent otherwise.
+
+ Supported
+
+ ContentEncAlgo
+ 
+ ¶
+
+ The encryption algorithm used. The value '0' means that the contents have not been encrypted but only signed. Predefined values: 1 - DES; 2 - 3DES; 3 - Twofish; 4 - Blowfish; 5 - AES. WebM only supports a value of 5 (AES).
+
+ Supported
+
+ ContentEncKeyID
+ 
+ ¶
+
+ For public key algorithms this is the ID of the public key the data was encrypted with.
+
+ Supported
+
+ ContentEncAESSettings
+ 
+ ¶
+
+ Settings describing the encryption algorithm used. If ContentEncAlgo !=5 this must be absent.
+
+ Supported
+
+ AESSettingsCipherMode
+ 
+ ¶
+
+ The cipher mode used in the encryption. Predefined values: 1 - CTR
+
+ Unsupported
+
+ ContentSignature
+ 
+ ¶
+
+ A cryptographic signature of the contents.
+
+ Unsupported
+
+ ContentSigKeyID
+ 
+ ¶
+
+ This is the ID of the private key the data was signed with.
+
+ Unsupported
+
+ ContentSigAlgo
+ 
+ ¶
+
+ The algorithm used for the signature. A value of '0' means that the contents have not been signed but only encrypted. Predefined values: 1 - RSA
+
+ Unsupported
+
+ ContentSigHashAlgo
+ 
+ ¶
+
+ The hash algorithm used for the signature. A value of '0' means that the contents have not been signed but only encrypted. Predefined values: 1 - SHA1-160; 2 - MD5.
+
+ Content Encoding End
+
+ Colour
+
+ See illustration and
+ 
+ further description
+ 
+ below.
+
+ WebM Support
+
+ Element Name
+
+ Level
+
+ ID
+
+ Ma
+
+ Mu
+
+ Range
+
+ D
+
+ T
+
+ Description
+
+ Supported
+
+ Colour
+ 
+ ¶
+
+ 4
+
+ [55][B0]
+
+ m
+
+ Settings describing the colour format.
+
+ Supported
+
+ MatrixCoefficients
+ 
+ ¶
+
+ 5
+
+ [55][B1]
+
+ 2
+
+ u
+
+ The Matrix Coefficients of the video used to derive luma and chroma values from reg, green, and blue color primaries. For clarity, the value and meanings for MatrixCoefficients are adopted from Table 4 of ISO/IEC 23001-8:2013/DCOR1. (0:GBR, 1: BT709, 2: Unspecified, 3: Reserved, 4: FCC, 5: BT470BG, 6: SMPTE 170M, 7: SMPTE 240M, 8: YCOCG, 9: BT2020 Non-constant Luminance, 10: BT2020 Constant Luminance)
+
+ Supported
+
+ BitsPerChannel
+ 
+ ¶
+
+ 5
+
+ [55][B2]
+
+ 0
+
+ u
+
+ Number of decoded bits per channel. A value of 0 indicates that the BitsPerChannel is unspecified.
+
+ Supported
+
+ ChromaSubsamplingHorz
+ 
+ ¶
+
+ 5
+
+ [55][B3]
+
+ u
+
+ The amount of pixels to remove in the Cr and Cb channels for every pixel not removed horizontally. Example: For video with 4:2:0 chroma subsampling, the ChromaSubsamplingHorz should be set to 1.
+
+ Supported
+
+ ChromaSubsamplingVert
+ 
+ ¶
+
+ 5
+
+ [55][B4]
+
+ u
+
+ The amount of pixels to remove in the Cr and Cb channels for every pixel not removed vertically. Example: For video with 4:2:0 chroma subsampling, the ChromaSubsamplingVert should be set to 1.
+
+ Supported
+
+ CbSubsamplingHorz
+ 
+ ¶
+
+ 5
+
+ [55][B5]
+
+ u
+
+ The amount of pixels to remove in the Cb channel for every pixel not removed horizontally. This is additive with ChromaSubsamplingHorz. Example: For video with 4:2:1 chroma subsampling, the ChromaSubsamplingHorz should be set to 1 and CbSubsamplingHorz should be set to 1.
+
+ Supported
+
+ CbSubsamplingVert
+ 
+ ¶
+
+ 5
+
+ [55][B6]
+
+ u
+
+ The amount of pixels to remove in the Cb channel for every pixel not removed vertically. This is additive with ChromaSubsamplingVert.
+
+ Supported
+
+ ChromaSitingHorz
+ 
+ ¶
+
+ 5
+
+ [55][B7]
+
+ 0
+
+ u
+
+ How chroma is subsampled horizontally. (0: Unspecified, 1: Left Collocated, 2: Half)
+
+ Supported
+
+ ChromaSitingVert
+ 
+ ¶
+
+ 5
+
+ [55][B8]
+
+ 0
+
+ u
+
+ How chroma is subsampled vertically. (0: Unspecified, 1: Top Collocated, 2: Half)
+
+ Supported
+
+ Range
+ 
+ ¶
+
+ 5
+
+ [55][B9]
+
+ 0
+
+ u
+
+ Clipping of the color ranges. (0: Unspecified, 1: Broadcast Range, 2: Full range (no clipping), 3: Defined by MatrixCoefficients/TransferCharacteristics)
+
+ Supported
+
+ TransferCharacteristics
+ 
+ ¶
+
+ 5
+
+ [55][BA]
+
+ 2
+
+ u
+
+ The transfer characteristics of the video. For clarity, the value and meanings for TransferCharacteristics 1-15 are adopted from Table 3 of ISO/IEC 23001-8:2013/DCOR1. TransferCharacteristics 16-18 are proposed values. (0: Reserved, 1: ITU-R BT.709, 2: Unspecified, 3: Reserved, 4: Gamma 2.2 curve, 5: Gamma 2.8 curve, 6: SMPTE 170M, 7: SMPTE 240M, 8: Linear, 9: Log, 10: Log Sqrt, 11: IEC 61966-2-4, 12: ITU-R BT.1361 Extended Colour Gamut, 13: IEC 61966-2-1, 14: ITU-R BT.2020 10 bit, 15: ITU-R BT.2020 12 bit, 16: SMPTE ST 2084, 17: SMPTE ST 428-1 18: ARIB STD-B67 (HLG))
+
+ Supported
+
+ Primaries
+ 
+ ¶
+
+ 5
+
+ [55][BB]
+
+ 2
+
+ u
+
+ The colour primaries of the video. For clarity, the value and meanings for Primaries are adopted from Table 2 of ISO/IEC 23001-8:2013/DCOR1. (0: Reserved, 1: ITU-R BT.709, 2: Unspecified, 3: Reserved, 4: ITU-R BT.470M, 5: ITU-R BT.470BG, 6: SMPTE 170M, 7: SMPTE 240M, 8: FILM, 9: ITU-R BT.2020, 10: SMPTE ST 428-1, 22: JEDEC P22 phosphors)
+
+ Supported
+
+ MaxCLL
+ 
+ ¶
+
+ 5
+
+ [55][BC]
+
+ u
+
+ Maximum brightness of a single pixel (Maximum Content Light Level) in candelas per square meter (cd/m²).
+
+ Supported
+
+ MaxFALL
+ 
+ ¶
+
+ 5
+
+ [55][BD]
+
+ u
+
+ Maximum brightness of a single full frame (Maximum Frame-Average Light Level) in candelas per square meter (cd/m²).
+
+ Supported
+
+ MasteringMetadata
+ 
+ ¶
+
+ 5
+
+ [55][D0]
+
+ m
+
+ SMPTE 2086 mastering data.
+
+ Supported
+
+ PrimaryRChromaticityX
+ 
+ ¶
+
+ 6
+
+ [55][D1]
+
+ 0-1
+
+ f
+
+ Red X chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ PrimaryRChromaticityY
+ 
+ ¶
+
+ 6
+
+ [55][D2]
+
+ 0-1
+
+ f
+
+ Red Y chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ PrimaryGChromaticityX
+ 
+ ¶
+
+ 6
+
+ [55][D3]
+
+ 0-1
+
+ f
+
+ Green X chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ PrimaryGChromaticityY
+ 
+ ¶
+
+ 6
+
+ [55][D4]
+
+ 0-1
+
+ f
+
+ Green Y chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ PrimaryBChromaticityX
+ 
+ ¶
+
+ 6
+
+ [55][D5]
+
+ 0-1
+
+ f
+
+ Blue X chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ PrimaryBChromaticityY
+ 
+ ¶
+
+ 6
+
+ [55][D6]
+
+ 0-1
+
+ f
+
+ Blue Y chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ WhitePointChromaticityX
+ 
+ ¶
+
+ 6
+
+ [55][D7]
+
+ 0-1
+
+ f
+
+ White X chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ WhitePointChromaticityY
+ 
+ ¶
+
+ 6
+
+ [55][D8]
+
+ 0-1
+
+ f
+
+ White Y chromaticity coordinate as defined by CIE 1931.
+
+ Supported
+
+ LuminanceMax
+ 
+ ¶
+
+ 6
+
+ [55][D9]
+
+ 0-999.9999
+
+ f
+
+ Maximum luminance. Shall be represented in candelas per square meter (cd/m²).
+
+ Supported
+
+ LuminanceMin
+ 
+ ¶
+
+ 6
+
+ [55][DA]
+
+ 0-999.9999
+
+ f
+
+ Minimum luminance. Shall be represented in candelas per square meter (cd/m²).
+
+ Location of the Colour Element in an MKV File
+
+ The figure below illustrates the position of the
+ 
+ Colour
+ 
+ element (and its
+children) in the structure of an MKV file. This element shall always appear
+within a
+ 
+ Video
+ 
+ element that is a child of a
+ 
+ TrackEntry
+ 
+ element. A
+ 
+ TrackEntry
+ 
+ element is always encapsulated in a
+ 
+ Tracks
+ 
+ element, which
+is a first-level element. The
+ 
+ Tracks
+ 
+ element is typically located after
+the
+ 
+ SeekHead
+ 
+ and
+ 
+ Info
+ 
+ structures, and before any
+ 
+ Cluster
+ 
+ data, as
+shown below.
+
+ Note that
+ 
+ SeekHead
+ 
+ and
+ 
+ Info
+ 
+ elements are first-level elements, thus
+may be ordered arbitrarily in an MKV file. Such elements shall appear only
+once per video stream in any MKV file.
+
+ EBML
+Segment
+├── SeekHead
+│ ├── Seek
+│ ├── Seek
+│ ├── Seek
+│ └── Seek
+├── Void
+├── Info
+├── Tracks
+│ └── TrackEntry
+│ └── Video
+│ └── Colour <===
+│ ├── MasteringMetadata <===
+│ ├── MatrixCoefficients <===
+│ ├── ... <===
+├── Cues
+│ ├── CuePoint
+│ │ └── CueTrackPositions
+│ ├── CuePoint
+│ │ └── CueTrackPositions
+│ ├── CuePoint
+│ │ └── CueTrackPositions
+...
+├── Cluster
+│ ├── SimpleBlock
+│ ├── SimpleBlock
+│ ├── SimpleBlock
+│ ├── SimpleBlock
+│ └── SimpleBlock
+├── Cluster
+│ ├── SimpleBlock
+│ ├── SimpleBlock
+│ ├── SimpleBlock
+│ ├── SimpleBlock
+│ └── SimpleBlock 
+ 
+ Location of the Colour Element in a Stream
+
+ In a DASH-based streaming application, the video decoder will receive the
+ 
+ Colour
+ 
+ MKV metadata elements
+
+ in the first chunk of the video bitstream served to the playback device,
+ at the beginning of a playback.
+
+ in the first chunk of the video bitstream served to the playback device,
+ at the beginning of a change in resolution.
+
+ Cueing Data
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Cues
+ 
+ ¶
+
+ A top-level element to speed seeking access. All entries are local to the segment.
+
+ Supported
+
+ CuePoint
+ 
+ ¶
+
+ Contains all information relative to a seek point in the segment.
+
+ Supported
+
+ CueTime
+ 
+ ¶
+
+ Absolute timecode according to the segment time base.
+
+ Supported
+
+ CueTrackPositions
+ 
+ ¶
+
+ Contain positions for different tracks corresponding to the timecode.
+
+ Supported
+
+ CueTrack
+ 
+ ¶
+
+ The track for which a position is given.
+
+ Supported
+
+ CueClusterPosition
+ 
+ ¶
+
+ The position of the Cluster containing the required Block.
+
+ Supported
+
+ CueRelativePosition
+ 
+ ¶
+
+ The relative position of the referenced block inside the cluster with 0 being the first possible position for an element inside that cluster.
+
+ Supported
+
+ CueDuration
+ 
+ ¶
+
+ The duration of the block according to the segment time base. If missing the track's DefaultDuration does not apply and no duration information is available in terms of the cues.
+
+ Supported
+
+ CueBlockNumber
+ 
+ ¶
+
+ Number of the Block in the specified Cluster.
+
+ Unsupported
+
+ CueCodecState
+ 
+ ¶
+
+ The position of the Codec State corresponding to this Cue element. 0 means that the data is taken from the initial Track Entry.
+
+ Unsupported
+
+ CueReference
+ 
+ ¶
+
+ The Clusters containing the required referenced Blocks.
+
+ Unsupported
+
+ CueRefTime
+ 
+ ¶
+
+ Timecode of the referenced Block.
+
+ Unsupported
+
+ CueRefCluster
+ 
+ ¶
+
+ Position of the Cluster containing the referenced Block.
+
+ Unsupported
+
+ CueRefNumber
+ 
+ ¶
+
+ Number of the referenced Block of Track X in the specified Cluster.
+
+ Unsupported
+
+ CueRefCodecState
+ 
+ ¶
+
+ The position of the Codec State corresponding to this referenced element. 0 means that the data is taken from the initial Track Entry.
+
+ Attachment
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Unsupported
+
+ Attachments
+ 
+ ¶
+
+ Contain attached files.
+
+ Unsupported
+
+ AttachedFile
+ 
+ ¶
+
+ An attached file.
+
+ Unsupported
+
+ FileDescription
+ 
+ ¶
+
+ A human-friendly name for the attached file.
+
+ Unsupported
+
+ FileName
+ 
+ ¶
+
+ Filename of the attached file.
+
+ Unsupported
+
+ FileMimeType
+ 
+ ¶
+
+ MIME type of the file.
+
+ Unsupported
+
+ FileData
+ 
+ ¶
+
+ The data of the file.
+
+ Unsupported
+
+ FileUID
+ 
+ ¶
+
+ Unique ID representing the file, as random as possible.
+
+ Unsupported
+
+ FileReferral
+ 
+ ¶
+
+ A binary value that a track/codec can refer to when the attachment is needed.
+
+ Unsupported
+
+ FileUsedStartTime
+ 
+ ¶
+
+ DivX font extension
+
+ Unsupported
+
+ FileUsedEndTime
+ 
+ ¶
+
+ DivX font extension
+
+ Chapters
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Chapters
+ 
+ ¶
+
+ A system to define basic menus and partition data. For more detailed information, look at the Chapters Explanation.
+
+ Supported
+
+ EditionEntry
+ 
+ ¶
+
+ Contains all information about a segment edition.
+
+ Unsupported
+
+ EditionUID
+ 
+ ¶
+
+ A unique ID to identify the edition. It's useful for tagging an edition.
+
+ Unsupported
+
+ EditionFlagHidden
+ 
+ ¶
+
+ If an edition is hidden (1), it should not be available to the user interface (but still to Control Tracks).
+
+ Unsupported
+
+ EditionFlagDefault
+ 
+ ¶
+
+ If a flag is set (1) the edition should be used as the default one.
+
+ Unsupported
+
+ EditionFlagOrdered
+ 
+ ¶
+
+ Specify if the chapters can be defined multiple times and the order to play them is enforced.
+
+ Supported
+
+ ChapterAtom
+ 
+ ¶
+
+ Contains the atom information to use as the chapter atom (apply to all tracks).
+
+ Supported
+
+ ChapterUID
+ 
+ ¶
+
+ A unique ID to identify the Chapter.
+
+ Supported
+
+ ChapterStringUID
+ 
+ ¶
+
+ A unique string ID to identify the Chapter. Use for WebVTT cue identifier storage.
+
+ Supported
+
+ ChapterTimeStart
+ 
+ ¶
+
+ Timecode of the start of Chapter (not scaled).
+
+ Supported
+
+ ChapterTimeEnd
+ 
+ ¶
+
+ Timecode of the end of Chapter (timecode excluded, not scaled).
+
+ Unsupported
+
+ ChapterFlagHidden
+ 
+ ¶
+
+ If a chapter is hidden (1), it should not be available to the user interface (but still to Control Tracks).
+
+ Unsupported
+
+ ChapterFlagEnabled
+ 
+ ¶
+
+ Specify wether the chapter is enabled. It can be enabled/disabled by a Control Track. When disabled, the movie should skip all the content between the TimeStart and TimeEnd of this chapter.
+
+ Unsupported
+
+ ChapterSegmentUID
+ 
+ ¶
+
+ A segment to play in place of this chapter. Edition ChapterSegmentEditionUID should be used for this segment, otherwise no edition is used.
+
+ Unsupported
+
+ ChapterSegmentEditionUID
+ 
+ ¶
+
+ The edition to play from the segment linked in ChapterSegmentUID.
+
+ Unsupported
+
+ ChapterPhysicalEquiv
+ 
+ ¶
+
+ Specify the physical equivalent of this ChapterAtom like "DVD" (60) or "SIDE" (50), see complete list of values.
+
+ Unsupported
+
+ ChapterTrack
+ 
+ ¶
+
+ List of tracks on which the chapter applies. If this element is not present, all tracks apply
+
+ Unsupported
+
+ ChapterTrackNumber
+ 
+ ¶
+
+ UID of the Track to apply this chapter too. In the absense of a control track, choosing this chapter will select the listed Tracks and deselect unlisted tracks. Absense of this element indicates that the Chapter should be applied to any currently used Tracks.
+
+ Supported
+
+ ChapterDisplay
+ 
+ ¶
+
+ Contains all possible strings to use for the chapter display.
+
+ Supported
+
+ ChapString
+ 
+ ¶
+
+ Contains the string to use as the chapter atom.
+
+ Supported
+
+ ChapLanguage
+ 
+ ¶
+
+ The languages corresponding to the string, in the bibliographic ISO-639-2 form.
+
+ Supported
+
+ ChapCountry
+ 
+ ¶
+
+ The countries corresponding to the string, same 2 octets as in Internet domains.
+
+ Unsupported
+
+ ChapProcess
+ 
+ ¶
+
+ Contains all the commands associated to the Atom.
+
+ Unsupported
+
+ ChapProcessCodecID
+ 
+ ¶
+
+ Contains the type of the codec used for the processing. A value of 0 means native Matroska processing (to be defined), a value of 1 means the DVD command set is used. More codec IDs can be added later.
+
+ Unsupported
+
+ ChapProcessPrivate
+ 
+ ¶
+
+ Some optional data attached to the ChapProcessCodecID information. For ChapProcessCodecID = 1, it is the "DVD level" equivalent.
+
+ Unsupported
+
+ ChapProcessCommand
+ 
+ ¶
+
+ Contains all the commands associated to the Atom.
+
+ Unsupported
+
+ ChapProcessTime
+ 
+ ¶
+
+ Defines when the process command should be handled (0: during the whole chapter, 1: before starting playback, 2: after playback of the chapter).
+
+ Unsupported
+
+ ChapProcessData
+ 
+ ¶
+
+ Contains the command information. The data should be interpreted depending on the ChapProcessCodecID value. For ChapProcessCodecID = 1, the data correspond to the binary DVD cell pre/post commands.
+
+ Tagging
+
+ The
+ 
+ Tags
+ 
+ element SHOULD be placed at the end of the file to
+ allow for trivial updates.
+
+ TagName
+ 
+ SHOULD appear before the tag data, i.e.,
+ 
+ TagString
+ 
+ ,
+ 
+ TagBinary
+ 
+ .
+
+ A
+ 
+ SimpleTag
+ 
+ SHOULD NOT contain other
+ 
+ SimpleTag
+ 
+ s.
+
+ When concatenating multiple files, new
+ 
+ Segments
+ 
+ should be used to
+ avoid merging tags common to each file.
+
+ WebM Support
+
+ Element Name
+
+ Description
+
+ Supported
+
+ Tags
+ 
+ ¶
+
+ Element containing elements specific to Tracks/Chapters. A list of valid tags can be found
+ 
+ here
+ 
+ .
+
+ Supported
+
+ Tag
+ 
+ ¶
+
+ Element containing elements specific to Tracks/Chapters.
+
+ Supported
+
+ Targets
+ 
+ ¶
+
+ Contain all UIDs where the specified meta data apply. It is void to describe everything in the segment.
+
+ Supported
+
+ TargetTypeValue
+ 
+ ¶
+
+ A number to indicate the logical level of the target (see
+ 
+ TargetType
+ 
+ ).
+
+ Supported
+
+ TargetType
+ 
+ ¶
+
+ An
+ 
+ informational
+ 
+ string that can be used to display the logical level of the target like "ALBUM", "TRACK", "MOVIE", "CHAPTER", etc (see
+ 
+ TargetType
+ 
+ ).
+
+ Supported
+
+ TagTrackUID
+ 
+ ¶
+
+ A unique ID to identify the Track(s) the tags belong to. If the value is 0 at this level, the tags apply to all tracks in the Segment.
+
+ Unsupported
+
+ TagEditionUID
+ 
+ ¶
+
+ A unique ID to identify the EditionEntry(s) the tags belong to. If the value is 0 at this level, the tags apply to all editions in the Segment.
+
+ Unsupported
+
+ TagChapterUID
+ 
+ ¶
+
+ A unique ID to identify the Chapter(s) the tags belong to. If the value is 0 at this level, the tags apply to all chapters in the Segment.
+
+ Unsupported
+
+ TagAttachmentUID
+ 
+ ¶
+
+ A unique ID to identify the Attachment(s) the tags belong to. If the value is 0 at this level, the tags apply to all the attachments in the Segment.
+
+ Supported
+
+ SimpleTag
+ 
+ ¶
+
+ Contains general information about the target.
+
+ Supported
+
+ TagName
+ 
+ ¶
+
+ The name of the Tag that is going to be stored.
+
+ Supported
+
+ TagLanguage
+ 
+ ¶
+
+ Specifies the language of the tag specified, in the
+ 
+ Matroska languages form
+ 
+ .
+
+ Supported
+
+ TagDefault
+ 
+ ¶
+
+ Indication to know if this is the default/original language to use for the given tag.
+
+ Supported
+
+ TagString
+ 
+ ¶
+
+ The value of the Tag.
+
+ Supported
+
+ TagBinary
+ 
+ ¶
+
+ The values of the Tag if it is binary. Note that this cannot be used in the same SimpleTag as TagString.
+
+ Target Types
+
+ See the
+ 
+ Matroska Tag Specifications
+ 
+ .
+
+ VP9 Codec Feature Metadata (CodecPrivate)
+
+ VP9 Levels, Profiles, Bit Depth and Chroma Subsampling values are specific to
+VP9, so the data is stored in the
+ 
+ CodecPrivate
+ 
+ element as a list of codec
+features.
+
+ Codec Feature Format
+
+ 0 1 2 3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| ID Byte | Length | |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ |
+| |
+: Bytes 1..Length of Codec Feature :
+| |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ 
+ 
+ Each codec feature is defined by the binary format of ID byte, length, and data.
+
+ ID Byte Format
+
+ ID byte will be an unsigned byte.
+
+ 0 1 2 3 4 5 6 7
++-+-+-+-+-+-+-+-+
+|X| ID |
++-+-+-+-+-+-+-+-+ 
+
+ X bit
+
+ Reserved for future expansion (currently MUST be set to
+ 
+ 0
+ 
+ ).
+
+ ID bits
+
+ These bits signify the identification bits of the VP9 codec feature.
+
+ Length Format
+
+ Length will be stored as an unsigned 8-bit integer.
+
+ VP9 Feature: Profile
+
+ ID =
+ 
+ 1
+ 
+ , Length =
+ 
+ 1
+
+ The data is an unsigned 8-bit integer that specifies the number of decoded bits
+per channel. The VP9 profile in the bitstream is canonical and should match the
+VP9 profile set in the container. Possible values are from
+ 
+ 0-3
+ 
+ . All other
+values are undefined. See the
+ 
+ draft VP9 spec
+ 
+ for value definitions.
+
+ VP9 Feature: Level
+
+ ID =
+ 
+ 2
+ 
+ , Length =
+ 
+ 1
+
+ The data is an unsigned 8-bit integer that specifies the VP9 level. Possible
+values are:
+
+ 10
+
+ Level 1
+
+ 11
+
+ Level 1.1
+
+ 20
+
+ Level 2
+
+ 21
+
+ Level 2.1
+
+ 30
+
+ Level 3
+
+ 31
+
+ Level 3.1
+
+ 40
+
+ Level 4
+
+ 41
+
+ Level 4.1
+
+ 50
+
+ Level 5
+
+ 51
+
+ Level 5.1
+
+ 52
+
+ Level 5.2
+
+ 60
+
+ Level 6
+
+ 61
+
+ Level 6.1
+
+ 62
+
+ Level 6.2
+
+ All other values are currently undefined. See
+ 
+ VP9 Levels
+ 
+ for definitions.
+
+ VP9 Feature: Bit Depth
+
+ ID = 3, Length = 1
+
+ The data is an unsigned 8-bit integer that specifies the number of decoded bits
+per channel. Possible values are
+ 
+ 8
+ 
+ ,
+ 
+ 10
+ 
+ , and
+ 
+ 12
+ 
+ .
+
+ VP9 Feature: Chroma Subsampling
+
+ ID =
+ 
+ 4
+ 
+ , Length =
+ 
+ 1
+
+ The data is an unsigned 8-bit integer that specifies the chroma subsampling.
+Possible values are:
+
+ 0
+
+ 4:2:0 vertical
+
+ 1
+
+ 4:2:0 colocated with luma (0,0)
+
+ 2
+
+ 4:2:2
+
+ 3
+
+ 4:4:4
+
+ All other values are currently undefined.
+
+ Official Tags
+
+ Work in-progress.
+ 
+ See the wiki
+ 
+ .
