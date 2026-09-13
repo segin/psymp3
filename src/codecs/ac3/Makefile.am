@@ -22,6 +22,7 @@ libpsymp3_codec_ac3_a_SOURCES = \
 	EAC3Frame.cpp \
 	EAC3SpectralExtension.cpp \
 	EAC3TransientPreNoise.cpp \
+	EAC3AhtMantissas.cpp \
 	AC3Transform.cpp \
 	AC3FrameDecoder.cpp \
 	AC3Codec.cpp

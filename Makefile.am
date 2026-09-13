@@ -50,6 +50,8 @@ EXTRA_DIST = \
 	include/codecs/ac3/AC3Window.h \
 	include/codecs/ac3/EAC3Frame.h \
 	include/codecs/ac3/EAC3Tables.h \
+	include/codecs/ac3/EAC3AhtMantissas.h \
+	include/codecs/ac3/EAC3AhtTables.h \
 	include/codecs/ac3/EAC3SpectralExtension.h \
 	include/codecs/ac3/EAC3TransientPreNoise.h \
 	include/codecs/aac/AACCodec.h \
