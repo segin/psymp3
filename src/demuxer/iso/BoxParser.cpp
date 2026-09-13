@@ -867,16 +867,47 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 track.codecType = "truehd";
                 break;
             case CODEC_AC3:
-                // One syncframe per sample. The sample entry is followed by a
-                // 'dac3' box restating fscod, bsid, acmod and lfeon, but every
-                // syncframe carries those in its own header, which is where
-                // the decoder takes them from -- so there is nothing to read.
-                track.codecType = "ac3";
-                break;
             case CODEC_EC3:
-                // E-AC-3, decoded by the same codec as AC-3; as with 'ac-3',
-                // the 'dec3' box restates what each syncframe says itself.
-                track.codecType = "eac3";
+                // One syncframe per sample, and one codec for both. The box
+                // after the sample entry -- 'dac3', or 'dec3' for E-AC-3 --
+                // restates the stream's acmod and lfeon (ETSI TS 102 366
+                // Annex F), and that is the channel count to give the audio
+                // device. The decoder renders into whatever layout the device
+                // is opened with, and the sample entry's ChannelCount is not
+                // reliably the stream's own; believing a 2 there plays 5.1 as
+                // a stereo downmix. For E-AC-3 the first independent substream
+                // is the programme that plays, so its fields are the ones read.
+                track.codecType = (codecType == CODEC_AC3) ? "ac3" : "eac3";
+                if (extensionSize > 0) {
+                    ParseBoxRecursively(extensionOffset, extensionSize,
+                        [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
+                            (void)boxDepth;
+                            const bool dac3 = header.type == FOURCC('d','a','c','3');
+                            const bool dec3 = header.type == FOURCC('d','e','c','3');
+                            if (!dac3 && !dec3) {
+                                return true;
+                            }
+                            // dac3: fscod 2, bsid 5, bsmod 3, acmod 3, lfeon 1, ...
+                            // dec3: data_rate 13, num_ind_sub 3, then per
+                            // substream fscod 2, bsid 5, reserved 1, asvc 1,
+                            // bsmod 3, acmod 3, lfeon 1, ...
+                            const size_t need = dac3 ? 2 : 4;
+                            const uint64_t payload = header.size - (header.dataOffset - boxOffset);
+                            uint8_t bytes[4] = {};
+                            if (payload < need || header.dataOffset + need > fileSize) {
+                                return true;
+                            }
+                            io->seek(static_cast<off_t>(header.dataOffset), SEEK_SET);
+                            if (io->read(bytes, 1, need) != need) {
+                                return true;
+                            }
+                            const unsigned acmod = dac3 ? (bytes[1] >> 3) & 0x7u : (bytes[3] >> 1) & 0x7u;
+                            const bool lfeon = dac3 ? ((bytes[1] >> 2) & 0x1u) != 0 : (bytes[3] & 0x1u) != 0;
+                            track.channelCount = static_cast<uint16_t>(PsyMP3::Codec::AC3::ac3OutputChannels(
+                                static_cast<PsyMP3::Codec::AC3::AudioCodingMode>(acmod), lfeon));
+                            return true;
+                        }, depth);
+                }
                 break;
             case CODEC_ALAC:
                 track.codecType = "alac";
