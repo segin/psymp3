@@ -307,6 +307,17 @@ Debug::log("ac3", "  after snroffst: bit ", reader.tell());
 
 Debug::log("ac3", "  after deltba: bit ", reader.tell());
 
+    // --- Table 5.3: unused dummy data ---
+    // An encoder may pad a block with whole null bytes here. Nothing reads
+    // them, but they sit between the allocation and the mantissas, so a
+    // decoder that does not step over them starts the mantissa stream inside
+    // the padding and loses the rest of the frame.
+    if (reader.readBit()) { // skiple
+        const unsigned skipl = reader.read(9);
+        reader.skip(skipl * 8); // skipfld
+        Debug::log("ac3", "  skipped ", skipl, " dummy bytes");
+    }
+
     // --- bit allocation and mantissas ---
     // Every channel's allocation is computed before any mantissa is read,
     // because the mantissas of all channels are interleaved in one stream and
