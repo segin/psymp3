@@ -103,6 +103,7 @@
 #include "codecs/ac3/EAC3AhtMantissas.cpp"
 #include "codecs/ac3/EAC3EnhancedCoupling.cpp"
 #include "codecs/ac3/AC3Transform.cpp"
+#include "codecs/ac3/AC3Downmix.cpp"
 #include "codecs/ac3/AC3FrameDecoder.cpp"
 #include "codecs/ac3/AC3Codec.cpp"
 #include "demuxer/matroska/EBMLReader.cpp"

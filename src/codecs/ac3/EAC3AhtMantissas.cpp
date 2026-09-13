@@ -17,8 +17,6 @@ namespace AC3 {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-
 /// Read @p bits and sign-extend them as a two's complement value.
 int readSigned(AC3BitReader& reader, unsigned bits)
 {
@@ -95,7 +93,7 @@ void eac3AhtInverseDct(const float x[6], float c[6])
     for (unsigned m = 0; m < 6; ++m) {
         double sum = x[0] / kSqrt2;
         for (unsigned j = 1; j < 6; ++j) {
-            sum += x[j] * std::cos(j * (2.0 * m + 1.0) * kPi / 12.0);
+            sum += x[j] * std::cos(j * (2.0 * m + 1.0) * kA52Pi / 12.0);
         }
         c[m] = static_cast<float>(kSqrt2 * sum);
     }

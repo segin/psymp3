@@ -20,6 +20,11 @@ namespace AC3 {
 constexpr unsigned kTransformSize = 512;
 constexpr unsigned kBlockSamples = kTransformSize / 2;   // 256
 
+/// Pi, for the transforms of §7.9, §E3.4.5 and §E3.5 and the cross-fades of
+/// §E3.7. One definition, because the unity build compiles every AC-3 source
+/// into a single translation unit, where file-local copies collide.
+constexpr double kA52Pi = 3.14159265358979323846;
+
 /// The half-block each channel carries from one block into the next.
 ///
 /// The MDCT is critically sampled: 256 coefficients stand for 512 time

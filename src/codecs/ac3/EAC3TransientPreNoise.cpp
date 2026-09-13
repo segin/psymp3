@@ -17,8 +17,6 @@ namespace AC3 {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-
 /// §E3.7.2 asks for "nearly any pair of constant amplitude cross-fade
 /// windows" and suggests Hanning. Constant amplitude means the pair sums to
 /// one at every sample: the original and the synthesis buffer are the same
@@ -27,7 +25,7 @@ constexpr double kPi = 3.14159265358979323846;
 float fadeIn(int64_t n, int64_t length)
 {
     const double x = (static_cast<double>(n) + 0.5) / static_cast<double>(length);
-    return static_cast<float>(0.5 - 0.5 * std::cos(kPi * x));
+    return static_cast<float>(0.5 - 0.5 * std::cos(kA52Pi * x));
 }
 
 float fadeOut(int64_t n, int64_t length)

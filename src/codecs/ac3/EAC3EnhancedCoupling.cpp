@@ -17,9 +17,6 @@ namespace AC3 {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr unsigned kN = 512;
-
 /// Wrap an angle, in units of pi, into [-1, 1].
 float wrapAngle(float y)
 {
@@ -92,46 +89,46 @@ void eac3EcplAnalyse(const float previous[512], const float current[512],
     // exactly one half: regenerating the reference channel of a consistent
     // signal at amplitude code 0 -- defined as 0 dB -- measured 0.500000, in
     // every bin, with a residual under 1e-7 once that was removed.
-    float pcm[kN];
-    for (unsigned n = 0; n < kN / 2; ++n) {
-        pcm[n] = 2.0f * (previous[n + kN / 2] + current[n]);
-        pcm[n + kN / 2] = 2.0f * (current[n + kN / 2] + next[n]);
+    float pcm[kTransformSize];
+    for (unsigned n = 0; n < kTransformSize / 2; ++n) {
+        pcm[n] = 2.0f * (previous[n + kTransformSize / 2] + current[n]);
+        pcm[n + kTransformSize / 2] = 2.0f * (current[n + kTransformSize / 2] + next[n]);
     }
 
     // Step 4: window again and shift so the DFT that follows stacks oddly,
     // as the MDCT does.
-    double real[kN], imag[kN];
-    for (unsigned n = 0; n < kN / 2; ++n) {
-        const double a = kPi * n / kN;
-        const double b = kPi * (n + kN / 2) / kN;
+    double real[kTransformSize], imag[kTransformSize];
+    for (unsigned n = 0; n < kTransformSize / 2; ++n) {
+        const double a = kA52Pi * n / kTransformSize;
+        const double b = kA52Pi * (n + kTransformSize / 2) / kTransformSize;
         real[n] = pcm[n] * kWindow[n] * std::cos(a);
         imag[n] = pcm[n] * kWindow[n] * -std::sin(a);
-        real[n + kN / 2] = pcm[n + kN / 2] * kWindow[kN / 2 - n - 1] * std::cos(b);
-        imag[n + kN / 2] = pcm[n + kN / 2] * kWindow[kN / 2 - n - 1] * -std::sin(b);
+        real[n + kTransformSize / 2] = pcm[n + kTransformSize / 2] * kWindow[kTransformSize / 2 - n - 1] * std::cos(b);
+        imag[n + kTransformSize / 2] = pcm[n + kTransformSize / 2] * kWindow[kTransformSize / 2 - n - 1] * -std::sin(b);
     }
 
     // Step 5: the DFT, Z[k] = 1/N sum (re + j im)(cos - j sin). Only the
     // first half of the spectrum is used. Enhanced coupling is rare enough
     // that the direct sum, over a precomputed table, is the clearer choice.
-    static double cos_table[kN], sin_table[kN];
+    static double cos_table[kTransformSize], sin_table[kTransformSize];
     static bool ready = false;
     if (!ready) {
-        for (unsigned i = 0; i < kN; ++i) {
-            cos_table[i] = std::cos(2.0 * kPi * i / kN);
-            sin_table[i] = std::sin(2.0 * kPi * i / kN);
+        for (unsigned i = 0; i < kTransformSize; ++i) {
+            cos_table[i] = std::cos(2.0 * kA52Pi * i / kTransformSize);
+            sin_table[i] = std::sin(2.0 * kA52Pi * i / kTransformSize);
         }
         ready = true;
     }
-    for (unsigned k = 0; k < kN / 2; ++k) {
+    for (unsigned k = 0; k < kTransformSize / 2; ++k) {
         double sr = 0.0, si = 0.0;
-        for (unsigned n = 0; n < kN; ++n) {
-            const double c = cos_table[(k * n) % kN];
-            const double s = sin_table[(k * n) % kN];
+        for (unsigned n = 0; n < kTransformSize; ++n) {
+            const double c = cos_table[(k * n) % kTransformSize];
+            const double s = sin_table[(k * n) % kTransformSize];
             sr += real[n] * c + imag[n] * s;
             si += imag[n] * c - real[n] * s;
         }
-        zr[k] = static_cast<float>(sr / kN);
-        zi[k] = static_cast<float>(si / kN);
+        zr[k] = static_cast<float>(sr / kTransformSize);
+        zi[k] = static_cast<float>(si / kTransformSize);
     }
 }
 
@@ -264,13 +261,13 @@ void eac3EcplRegenerate(const float zr[256], const float zi[256], const EAC3Ecpl
     // MDCT coefficients.
     for (unsigned rel = 0; rel < span; ++rel) {
         const unsigned k = first_bin + rel;
-        const double phase = kPi * angle[rel];
+        const double phase = kA52Pi * angle[rel];
         const double c = amp[rel] * std::cos(phase), s = amp[rel] * std::sin(phase);
         const double chr = zr[k] * c - zi[k] * s;
         const double chi = zi[k] * c + zr[k] * s;
-        const double yk = std::cos(2.0 * kPi * (kN / 4.0 + 0.5) / kN * (k + 0.5));
-        const unsigned mirror = kN / 2 - 1 - k;
-        const double ym = std::cos(2.0 * kPi * (kN / 4.0 + 0.5) / kN * (mirror + 0.5));
+        const double yk = std::cos(2.0 * kA52Pi * (kTransformSize / 4.0 + 0.5) / kTransformSize * (k + 0.5));
+        const unsigned mirror = kTransformSize / 2 - 1 - k;
+        const double ym = std::cos(2.0 * kA52Pi * (kTransformSize / 4.0 + 0.5) / kTransformSize * (mirror + 0.5));
         coefficients[k] = static_cast<float>(-2.0 * (yk * chr + ym * chi));
     }
 }
