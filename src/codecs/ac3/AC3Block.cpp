@@ -272,7 +272,8 @@ Debug::log("ac3", "  after exponents: bit ", reader.tell());
         state.have_allocation = true;
     }
     if (state.cplinu && reader.readBit()) { // cplleake
-        reader.skip(6); // cplfleak, cplsleak
+        state.cplfleak = static_cast<uint8_t>(reader.read(3));
+        state.cplsleak = static_cast<uint8_t>(reader.read(3));
     }
 
 Debug::log("ac3", "  after snroffst: bit ", reader.tell());
@@ -342,6 +343,8 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
         parameters.floorcod = state.floorcod;
         parameters.fgaincod = state.fgaincod[slot];
         parameters.snroffset = (((state.csnroffst - 15) << 4) + state.fsnroffst[slot]) << 2;
+        parameters.cplfleak = state.cplfleak;
+        parameters.cplsleak = state.cplsleak;
         return ac3ComputeBitAllocation(state.exponents[slot], state.strtmant[slot],
                                        state.endmant[slot], kind, parameters,
                                        state.deltas[slot], bap[slot]);

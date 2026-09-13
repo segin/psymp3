@@ -75,6 +75,14 @@ struct AC3FrameState {
     int fsnroffst[kChannelSlots] = {};
     uint8_t fgaincod[kChannelSlots] = {};
     std::vector<DeltaBitAllocation> deltas[kChannelSlots];
+    /// Where the coupling channel's leaky integrators start, §5.4.3.45-46.
+    uint8_t cplfleak = 0;
+    uint8_t cplsleak = 0;
+
+    /// §7.3.4 noise for unallocated bins. It lives in the frame state so the
+    /// sequence runs on across blocks rather than restarting six times a
+    /// frame, which would be audible as a periodic artefact.
+    AC3Dither dither;
 
     /// True once a block has set the coupling strategy and bit allocation
     /// parameters. A frame whose first block omits them is malformed.

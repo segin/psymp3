@@ -54,6 +54,12 @@ struct AllocationParameters {
     /// snroffset as computed in §7.2.2.1:
     /// (((csnroffst - 15) << 4) + fsnroffst) << 2.
     int snroffset = 0;
+    /// cplfleak and cplsleak, §5.4.3.45-46. The coupling channel begins part
+    /// way up the spectrum, so its leaky integrators cannot start from the
+    /// signal the way a full-bandwidth channel's do -- the encoder transmits
+    /// where they had got to. Ignored for the other channel kinds.
+    uint8_t cplfleak = 0;
+    uint8_t cplsleak = 0;
 };
 
 /// One delta bit allocation segment, A/52 §7.2.2.6. The encoder uses these to

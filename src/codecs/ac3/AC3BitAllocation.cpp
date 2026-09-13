@@ -140,6 +140,13 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
     int slowleak = 0;
     unsigned begin = band_start;
 
+    if (channel == AllocationChannel::Coupling) {
+        // §7.2.2.1: the coupling channel's integrators are seeded from the
+        // stream rather than from its own first band.
+        fastleak = (static_cast<int>(parameters.cplfleak) << 8) + 768;
+        slowleak = (static_cast<int>(parameters.cplsleak) << 8) + 768;
+    }
+
     if (channel != AllocationChannel::Coupling && band_start == 0) {
         int lowcomp = 0;
         lowcomp = ac3CalcLowComp(lowcomp, band_psd[0], band_psd[1], 0);
