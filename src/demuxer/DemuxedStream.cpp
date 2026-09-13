@@ -369,6 +369,46 @@ bool DemuxedStream::discardToSeekTarget(AudioFrame& frame) {
 }
 
 AudioFrame DemuxedStream::getNextFrame() {
+    // Stamp a decoded frame with its position and move the stream's position
+    // past it, for frames decoded from a chunk and frames drained from the
+    // codec alike. Returns false when the whole frame lies before a seek
+    // target and is to be dropped.
+    auto stampFrame = [this](AudioFrame& frame, const MediaChunk* source) -> bool {
+        const uint64_t granule = source ? source->granule_position : 0;
+        const bool has_granule = granule != 0 && granule != static_cast<uint64_t>(-1);
+        if (m_codec->getCodecName() == "opus") {
+            if (has_granule) {
+                m_samples_consumed = frame.timestamp_samples + frame.getSampleFrameCount();
+            } else {
+                frame.timestamp_samples = m_samples_consumed;
+                m_samples_consumed += frame.getSampleFrameCount();
+            }
+        } else if (has_granule) {
+            // Correct timestamp calculation for non-Opus Ogg codecs. For Ogg
+            // Vorbis, granule position is only valid on the last packet of
+            // each page.
+            frame.timestamp_samples = granule - frame.getSampleFrameCount();
+            m_samples_consumed = granule;
+        } else {
+            frame.timestamp_samples = m_samples_consumed;
+            m_samples_consumed += frame.getSampleFrameCount();
+        }
+        frame.timestamp_ms = (m_rate > 0) ? (frame.timestamp_samples * 1000) / m_rate : 0;
+
+        // Advance the reported stream position from the decoded frame's
+        // timestamp. Previously m_position/m_sposition were written only by
+        // updateStreamProperties() (0) and seekTo() (target), so
+        // getPosition()/getSPosition() were frozen during playback — which
+        // also made the seek-error monitor compare a seek target against
+        // itself and broke keyboard-seek origin and Winamp IPC position.
+        if (m_discard_until_samples != 0 && !discardToSeekTarget(frame)) {
+            return false;
+        }
+        m_position = static_cast<int>(frame.timestamp_ms);
+        m_sposition = frame.timestamp_samples;
+        return true;
+    };
+
     // Ensure we have buffered chunks to decode from
     fillChunkBuffer();
     
@@ -428,39 +468,9 @@ AudioFrame DemuxedStream::getNextFrame() {
             return AudioFrame{};
         }
         if (!frame.samples.empty()) {
-            if (m_codec->getCodecName() == "opus") {
-                if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
-                    m_samples_consumed = frame.timestamp_samples + frame.getSampleFrameCount();
-                } else {
-                    frame.timestamp_samples = m_samples_consumed;
-                    m_samples_consumed += frame.getSampleFrameCount();
-                }
-            } else {
-                // Correct timestamp calculation for non-Opus Ogg codecs.
-                // For Ogg Vorbis, granule position is only valid on the last packet of each page.
-                if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
-                    frame.timestamp_samples = chunk.granule_position - frame.getSampleFrameCount();
-                    m_samples_consumed = chunk.granule_position;
-                } else {
-                    frame.timestamp_samples = m_samples_consumed;
-                    m_samples_consumed += frame.getSampleFrameCount();
-                }
-            }
-            frame.timestamp_ms = (m_rate > 0) ? (frame.timestamp_samples * 1000) / m_rate : 0;
-
-            // Advance the reported stream position from the decoded frame's
-            // timestamp. Previously m_position/m_sposition were written only by
-            // updateStreamProperties() (0) and seekTo() (target), so
-            // getPosition()/getSPosition() were frozen during playback — which
-            // also made the seek-error monitor compare a seek target against
-            // itself and broke keyboard-seek origin and Winamp IPC position.
-            if (m_discard_until_samples != 0 && !discardToSeekTarget(frame)) {
+            if (!stampFrame(frame, &chunk)) {
                 return AudioFrame{}; // Entirely before the requested sample.
             }
-
-            m_position = static_cast<int>(frame.timestamp_ms);
-            m_sposition = frame.timestamp_samples;
-
             Debug::log("demux", "DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples. Timestamp: ", frame.timestamp_ms, "ms");
             return frame;
         } else {
@@ -469,15 +479,28 @@ AudioFrame DemuxedStream::getNextFrame() {
     } else {
         Debug::log("demux", "DemuxedStream: No chunks available in buffer");
     }
-    
-    // If we reach here and demuxer is at EOF, flush codec
-    if (m_demuxer && m_demuxer->isEOF() && m_codec) {
+
+    // Drain the codec once the demuxer is done and every buffered chunk has
+    // been through it. A codec may return nothing for a chunk while it still
+    // holds input -- E-AC-3 output trails what it has decoded, and a dependent
+    // substream decodes to nothing -- and flushing it while chunks were still
+    // queued finished its held frame without the frame that follows.
+    bool drained = false;
+    {
+        std::lock_guard<std::mutex> lock(m_buffer_mutex);
+        drained = m_chunk_buffer.empty();
+    }
+    if (drained && m_demuxer && m_demuxer->isEOF() && m_codec) {
         Debug::log("demux", "DemuxedStream: Attempting to flush codec");
         AudioFrame frame = m_codec->flush();
         // The drained tail is as much a part of the stream as any decoded
-        // frame, so the encoder's padding has to come off it too -- otherwise
-        // everything the trim removed at the end comes straight back.
+        // frame: the encoder's padding has to come off it too -- otherwise
+        // everything the trim removed at the end comes straight back -- and
+        // it advances the position like any other frame.
         if (!frame.samples.empty() && !trimEncoderDelay(frame)) {
+            frame.samples.clear();
+        }
+        if (!frame.samples.empty() && !stampFrame(frame, nullptr)) {
             frame.samples.clear();
         }
         if (!frame.samples.empty()) {
@@ -485,7 +508,7 @@ AudioFrame DemuxedStream::getNextFrame() {
             return frame;
         }
     }
-    
+
     Debug::log("demux", "DemuxedStream: Returning empty frame");
     return AudioFrame{}; // Empty frame
 }
