@@ -366,19 +366,36 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
                                        state.deltas[slot], bap[slot]);
     };
 
+    // §7.2.2.1.1: when every SNR offset in the block is zero the encoder is
+    // saying it spent no bits at all. Every bap is zero and the parametric
+    // routine is skipped entirely -- which is not the same as running it and
+    // getting zeros, because csnroffst == 0 makes snroffset negative.
+    bool any_snr_offset = state.csnroffst != 0;
+    for (unsigned ch = 0; ch < nfchans && !any_snr_offset; ++ch) {
+        any_snr_offset = state.fsnroffst[ch] != 0;
+    }
+    if (state.cplinu && state.fsnroffst[kCouplingSlot] != 0) {
+        any_snr_offset = true;
+    }
+    if (header.lfeon && state.fsnroffst[kLfeSlot] != 0) {
+        any_snr_offset = true;
+    }
+
     for (unsigned ch = 0; ch < nfchans; ++ch) {
         if (state.endmant[ch] == 0) {
             return fail("channel has no bandwidth");
         }
-        if (!allocate(ch, AllocationChannel::FullBandwidth)) {
+        if (any_snr_offset && !allocate(ch, AllocationChannel::FullBandwidth)) {
             return fail("channel allocation");
         }
     }
-    if (state.cplinu && !allocate(kCouplingSlot, AllocationChannel::Coupling)) {
-        return fail("coupling allocation");
-    }
-    if (header.lfeon && !allocate(kLfeSlot, AllocationChannel::LFE)) {
-        return fail("LFE allocation");
+    if (any_snr_offset) {
+        if (state.cplinu && !allocate(kCouplingSlot, AllocationChannel::Coupling)) {
+            return fail("coupling allocation");
+        }
+        if (header.lfeon && !allocate(kLfeSlot, AllocationChannel::LFE)) {
+            return fail("LFE allocation");
+        }
     }
 
     // Mantissas are interleaved channel by channel across the spectrum: for
