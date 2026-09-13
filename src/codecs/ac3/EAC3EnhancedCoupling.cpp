@@ -85,10 +85,17 @@ void eac3EcplAnalyse(const float previous[512], const float current[512],
 {
     // Step 3: overlap the current block with its neighbours' halves, so the
     // time-domain aliasing of each cancels and the signal is continuous.
+    //
+    // The factor of two is not printed in this step, but it is the same one
+    // §7.9.4.1 step 6 applies to every overlap-add "to undo headroom scaling
+    // performed in the encoder", and without it the whole chain has a gain of
+    // exactly one half: regenerating the reference channel of a consistent
+    // signal at amplitude code 0 -- defined as 0 dB -- measured 0.500000, in
+    // every bin, with a residual under 1e-7 once that was removed.
     float pcm[kN];
     for (unsigned n = 0; n < kN / 2; ++n) {
-        pcm[n] = previous[n + kN / 2] + current[n];
-        pcm[n + kN / 2] = current[n + kN / 2] + next[n];
+        pcm[n] = 2.0f * (previous[n + kN / 2] + current[n]);
+        pcm[n + kN / 2] = 2.0f * (current[n + kN / 2] + next[n]);
     }
 
     // Step 4: window again and shift so the DFT that follows stacks oddly,
