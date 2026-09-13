@@ -67,6 +67,11 @@ void DemuxerFactory::initializeBuiltInFormats() {
     registerSignature_unlocked(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBA}, 4, 100));
     registerSignature_unlocked(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBB}, 4, 100));
 
+    // AC-3 / E-AC-3 sync word. Only sixteen bits, which turn up by chance in
+    // other binary data, so it ranks below every longer signature; the
+    // demuxer then insists on two consecutive valid syncframes.
+    registerSignature_unlocked(FormatSignature("ac3", {0x0B, 0x77}, 0, 60));
+
     // Register file extensions
     s_extension_to_format["wav"] = "riff";
     s_extension_to_format["wave"] = "riff";
@@ -86,6 +91,9 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["thd"] = "truehd";
     s_extension_to_format["truehd"] = "truehd";
     s_extension_to_format["mlp"] = "truehd";
+    s_extension_to_format["ac3"] = "ac3";
+    s_extension_to_format["eac3"] = "ac3";
+    s_extension_to_format["ec3"] = "ac3";
     s_extension_to_format["pcm"] = "raw";
     s_extension_to_format["raw"] = "raw";
     s_extension_to_format["s8"] = "raw";

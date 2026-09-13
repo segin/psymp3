@@ -315,6 +315,11 @@ void DemuxerRegistry::initializeBuiltInFormats() {
     // MLP/TrueHD major sync, past the four-byte access unit header
     registerSignatureInternal(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBA}, 4, 100)); // Dolby TrueHD
     registerSignatureInternal(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBB}, 4, 100)); // Meridian MLP
+
+    // AC-3 / E-AC-3 sync word. Only sixteen bits, which turn up by chance in
+    // other binary data, so it ranks below every longer signature; the
+    // demuxer then insists on two consecutive valid syncframes.
+    registerSignatureInternal(FormatSignature("ac3", {0x0B, 0x77}, 0, 60));
     
     m_initialized = true;
 }

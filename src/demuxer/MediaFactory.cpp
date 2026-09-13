@@ -532,6 +532,26 @@ void MediaFactory::initializeDefaultFormats() {
         });
     }
 
+    if (DemuxerRegistry::getInstance().isFormatSupported("ac3")) {
+        MediaFormat ac3_format;
+        ac3_format.format_id = "ac3";
+        ac3_format.display_name = "AC-3";
+        ac3_format.extensions = {"AC3", "EAC3", "EC3"};
+        ac3_format.mime_types = {"audio/ac3", "audio/eac3", "audio/vnd.dolby.dd-raw"};
+        ac3_format.magic_signatures = {"\x0B\x77"};
+        // Below everything with a longer signature: sixteen bits match by
+        // chance far more often than four bytes do.
+        ac3_format.priority = 60;
+        ac3_format.supports_streaming = true;
+        ac3_format.supports_seeking = true;
+        ac3_format.description = "Dolby Digital (AC-3) / Dolby Digital Plus (E-AC-3)";
+
+        registerFormatInternal(ac3_format, [](const std::string& uri, const ContentInfo&) {
+            Debug::log("loader", "MediaFactory: Creating DemuxedStream for AC-3 file: ", uri);
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
+        });
+    }
+
 #ifdef HAVE_FLAC
     // FLAC format - uses legacy Stream architecture
     MediaFormat flac_format;

@@ -123,6 +123,7 @@ EXTRA_DIST = \
 	include/demuxer/matroska/MatroskaDemuxer.h \
 	include/demuxer/matroska/MatroskaElements.h \
 	include/demuxer/matroska/SegmentParser.h \
+	include/demuxer/ac3/AC3NullDemuxer.h \
 	include/demuxer/mlp/MLPNullDemuxer.h \
 	include/demuxer/mp3/MP3NullDemuxer.h \
 	include/demuxer/ogg/CodecHeaderParser.h \

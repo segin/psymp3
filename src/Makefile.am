@@ -71,6 +71,10 @@ CODEC_LIBS += codecs/ac3/libpsymp3-codec-ac3.a
 CODEC_LIBS += codecs/mlp/libpsymp3-codec-mlp.a
 DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
 DEMUXER_LIBS += demuxer/mlp/libpsymp3-demuxer-mlp.a
+# The AC-3 demuxer parses syncframe headers with the codec's own parser, and
+# ld resolves archives left to right, so the codec archive follows it again.
+DEMUXER_LIBS += demuxer/ac3/libpsymp3-demuxer-ac3.a
+DEMUXER_LIBS += codecs/ac3/libpsymp3-codec-ac3.a
 # Matroska/WebM: the EBML reader and container parser are in tree, so this
 # needs nothing external and is always available.
 DEMUXER_LIBS += demuxer/matroska/libpsymp3-demuxer-matroska.a

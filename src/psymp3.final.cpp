@@ -177,6 +177,7 @@
 // ============================================================================
 #include "codecs/mlp/MLPCodec.cpp"
 #include "demuxer/mlp/MLPNullDemuxer.cpp"
+#include "demuxer/ac3/AC3NullDemuxer.cpp"
 
 // ============================================================================
 // Vorbis Codec (always available via bundled stb_vorbis; the C implementation

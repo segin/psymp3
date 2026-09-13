@@ -206,6 +206,12 @@ void registerAllDemuxers() {
     }, "MLP", {"thd", "truehd", "mlp"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MLP/TrueHD null demuxer");
 
+    // AC-3 / E-AC-3 null demuxer (always available - AC-3 is self-framing)
+    DemuxerRegistry::getInstance().registerDemuxer("ac3", [](std::unique_ptr<IOHandler> handler) {
+        return std::make_unique<PsyMP3::Demuxer::AC3::AC3NullDemuxer>(std::move(handler));
+    }, "AC-3", {"ac3", "eac3", "ec3"});
+    Debug::log("demuxer", "registerAllDemuxers: Registered AC-3 null demuxer");
+
     // FLAC demuxer registration
 #ifdef HAVE_FLAC
     DemuxerRegistry::getInstance().registerDemuxer("flac", [](std::unique_ptr<IOHandler> handler) {

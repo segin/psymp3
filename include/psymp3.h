@@ -587,6 +587,7 @@ using PsyMP3::Codec::AAC::AACCodec;
 #include "codecs/mlp/MLPCodec.h"
 #include "demuxer/mp3/MP3NullDemuxer.h"
 #include "demuxer/mlp/MLPNullDemuxer.h"
+#include "demuxer/ac3/AC3NullDemuxer.h"
 #ifdef HAVE_OPUS
 using PsyMP3::Codec::Opus::OpusComments;
 #endif

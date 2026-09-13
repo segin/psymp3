@@ -43,7 +43,9 @@ DEMUXER_LIBS += $(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a
 # test that links CodecRegistration, which constructs the demuxer.
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/matroska/libpsymp3-demuxer-matroska.a
 # AC-3: in tree, no external dependency, and referenced by anything that
-# links the codec registry once the decoder is wired in.
+# links the codec registry. The demuxer parses syncframe headers with the
+# codec's parser, so the codec archive comes after it.
+DEMUXER_LIBS += $(top_builddir)/src/demuxer/ac3/libpsymp3-demuxer-ac3.a
 DEMUXER_LIBS += $(top_builddir)/src/codecs/ac3/libpsymp3-codec-ac3.a
 # Repeated after the demuxer: the MLP demuxer decodes the first access unit
 # to learn the channel layout, so it needs the decoder, and ld resolves
