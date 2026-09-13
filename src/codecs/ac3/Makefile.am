@@ -20,6 +20,7 @@ libpsymp3_codec_ac3_a_SOURCES = \
 	AC3Mantissas.cpp \
 	AC3Block.cpp \
 	EAC3Frame.cpp \
+	EAC3SpectralExtension.cpp \
 	AC3Transform.cpp \
 	AC3FrameDecoder.cpp \
 	AC3Codec.cpp
