@@ -212,6 +212,16 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
         }
     }
 
+    if (Debug::isChannelEnabled("ac3")) {
+        for (unsigned b = band_start; b < std::min(band_start + 6, band_end); ++b) {
+            Debug::log("ac3", "     band ", b, " bndpsd=", band_psd[b],
+                       " excite=", excite[b], " hth=",
+                       (int)kHearingThreshold[parameters.fscod][b],
+                       " mask=", mask[b], " snroffset=", snroffset,
+                       " floor=", floor, " fgain=", fgain, " sgain=", sgain);
+        }
+    }
+
     // --- §7.2.2.7: the allocation itself ---
     {
         unsigned bin = start;
