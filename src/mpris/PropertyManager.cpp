@@ -21,7 +21,6 @@ PropertyManager::PropertyManager(Player *player)
       m_shuffle(false),
       m_position_us(0),
       m_position_timestamp(std::chrono::steady_clock::now()),
-      m_can_seek(false),
       m_can_control(true) // Generally true for media players
       ,
       m_metadata_valid(false) {

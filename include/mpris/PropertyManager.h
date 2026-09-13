@@ -203,8 +203,8 @@ private:
     uint64_t m_position_us;
     std::chrono::steady_clock::time_point m_position_timestamp;
     
-    // Control capabilities cache
-    bool m_can_seek;
+    // Control capabilities cache. CanSeek is not cached: it depends on the
+    // stream playing, so canSeek_unlocked() asks the Player each time.
     bool m_can_control;
     
     // Track if metadata has been set

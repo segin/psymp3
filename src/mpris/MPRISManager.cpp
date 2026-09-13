@@ -1034,7 +1034,7 @@ void MPRISManager::configureErrorRecovery_unlocked() {
     // Retry strategy - simple retry (handled by recovery manager automatically)
     m_recovery_manager.setRecoveryAction(
         MPRISError::RecoveryStrategy::Retry,
-        [this]() -> bool {
+        []() -> bool {
             // For retry strategy, we don't do anything special here
             // The recovery manager handles the retry logic
             return true;
