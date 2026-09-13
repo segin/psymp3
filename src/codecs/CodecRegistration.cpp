@@ -74,6 +74,13 @@ void registerAllCodecs() {
     });
     Debug::log("codec", "registerAllCodecs: Registered MLP/TrueHD codec with CodecRegistry");
 
+    // AC-3 (always available, in tree from ATSC A/52)
+    PsyMP3::Codec::AC3::AC3CodecSupport::registerCodec();
+    CodecRegistry::registerCodec("ac3", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::AC3::AC3Codec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered AC-3 codec with CodecRegistry");
+
 #ifdef HAVE_VORBIS
     // Register the new container-agnostic VorbisCodec with AudioCodecFactory
     PsyMP3::Codec::Vorbis::VorbisCodecSupport::registerCodec();

@@ -98,6 +98,8 @@
 #include "codecs/ac3/AC3Mantissas.cpp"
 #include "codecs/ac3/AC3Block.cpp"
 #include "codecs/ac3/AC3Transform.cpp"
+#include "codecs/ac3/AC3FrameDecoder.cpp"
+#include "codecs/ac3/AC3Codec.cpp"
 #include "demuxer/matroska/EBMLReader.cpp"
 #include "demuxer/matroska/SegmentParser.cpp"
 #include "demuxer/matroska/BlockParser.cpp"
