@@ -95,13 +95,13 @@ protected:
         ASSERT_TRUE(codecNameForId("A_AACPLUS").empty(),
                     "A prefix match requires the separator, so A_AACPLUS is not AAC");
 
-        // AC-3 is decoded in tree, and is the commonest audio in .mkv.
+        // AC-3 and E-AC-3 are decoded in tree, and are the commonest audio in .mkv.
         ASSERT_TRUE(codecNameForId("A_AC3") == "ac3", "A_AC3");
+        ASSERT_TRUE(codecNameForId("A_EAC3") == "eac3", "A_EAC3");
 
         // Unsupported codecs map to nothing on purpose: a file can then be
-        // refused by name instead of failing at its first packet. These two
-        // are the common ones in .mkv.
-        ASSERT_TRUE(codecNameForId("A_EAC3").empty(), "E-AC-3 has no decoder in tree");
+        // refused by name instead of failing at its first packet. DTS is the
+        // common one in .mkv.
         ASSERT_TRUE(codecNameForId("A_DTS").empty(), "DTS has no decoder in tree");
         ASSERT_TRUE(codecNameForId("V_VP9").empty(), "A video codec is not an audio codec");
 
