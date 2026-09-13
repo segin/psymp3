@@ -39,6 +39,9 @@ CODEC_LIBS += $(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a
 CODEC_LIBS += $(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/mp3/libpsymp3-demuxer-mp3.a
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a
+# Matroska/WebM: no external dependency, so it is always built. Needed by any
+# test that links CodecRegistration, which constructs the demuxer.
+DEMUXER_LIBS += $(top_builddir)/src/demuxer/matroska/libpsymp3-demuxer-matroska.a
 # Repeated after the demuxer: the MLP demuxer decodes the first access unit
 # to learn the channel layout, so it needs the decoder, and ld resolves
 # archives left to right -- the codec archive has already been passed by the
