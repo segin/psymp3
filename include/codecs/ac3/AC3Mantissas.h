@@ -50,8 +50,10 @@ unsigned ac3MantissaGroupSize(uint8_t bap);
 /// for each of them would consume the next mantissa's bits instead, and every
 /// coefficient after it would come from the wrong place.
 ///
-/// State is per exponent set, so a fresh reader is used for each channel of
-/// each block.
+/// §7.3.5 is explicit that a partial group is *not* flushed at an exponent
+/// set boundary: "the groups are shared across exponent sets. The next
+/// exponent set in the block continues filling the partial groups." So one
+/// reader serves every channel of a block, and a fresh one starts each block.
 class AC3MantissaReader {
 public:
     /// One dequantized coefficient, already scaled by its exponent.

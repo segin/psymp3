@@ -410,7 +410,10 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
             unsigned bits = 0;
             for (unsigned bin = 0; bin < state.endmant[ch]; ++bin) {
                 counts[bap[ch][bin] & 15]++;
-                bits += ac3MantissaGroupBits(bap[ch][bin]);
+                // A grouped bap pays its codeword once for the whole group,
+                // so charging every member the full width would treble it.
+                const unsigned size = ac3MantissaGroupSize(bap[ch][bin]);
+                bits += size ? ac3MantissaGroupBits(bap[ch][bin]) / size : 0;
             }
             unsigned high = 0;
             for (unsigned k = 6; k < 16; ++k) { high += counts[k]; }
