@@ -1939,6 +1939,27 @@ test_audio_thread_safety_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(AM_LDFLAGS)
 
+# Decoded PCM stays whole-frame and gapless across stream reads
+check_PROGRAMS += test_audio_frame_assembly
+test_audio_frame_assembly_SOURCES = test_audio_frame_assembly.cpp
+test_audio_frame_assembly_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/dsp/Equalizer.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/core/fft.o \
+	$(top_builddir)/src/core/fft_draw.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(AM_LDFLAGS)
+
 # Audio threading pattern test (simpler test without SDL dependencies)
 test_audio_threading_pattern_SOURCES = test_audio_threading_pattern.cpp
 test_audio_threading_pattern_LDADD = \

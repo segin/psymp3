@@ -60,6 +60,21 @@ public:
 
     std::mutex& getFFTMutex() const { return m_fft_mutex; }
 
+    /// Read up to @p max_samples (0: half a second) from @p stream ahead of
+    /// playback, in whole frames. Returns the samples and whether the stream
+    /// ended.
+    static std::pair<std::vector<AudioSample>, bool> primeStream(Stream* stream, size_t max_samples);
+
+    /// Append the whole frames of one read to @p out, keeping a frame the
+    /// read ends part way into in @p carry for the next call to complete.
+    ///
+    /// A stream fills a read to the byte, so a read whose size is not a whole
+    /// number of frames ends inside one, and the stream has already moved past
+    /// those samples. Dropping them would lose audio and rotate every channel
+    /// after them; appending them would leave the queue off a frame boundary.
+    static void appendWholeFrames(std::vector<AudioSample>& out, std::vector<AudioSample>& carry,
+                                  const AudioSample* samples, size_t count, size_t channels);
+
 private:
     void setup();
     // SDL3 audio-stream "get more data" callback (pull model): assemble PCM
@@ -68,7 +83,6 @@ private:
                                  int additional_amount, int total_amount);
     static void toFloat(int channels, const AudioSample *in, float *out,
                         size_t in_frames, size_t out_frames);
-    static std::pair<std::vector<AudioSample>, bool> primeStream(Stream* stream, size_t max_samples);
 
     // Private unlocked versions of public methods (assumes locks are already held)
     // Lock acquisition order: m_stream_mutex before m_buffer_mutex

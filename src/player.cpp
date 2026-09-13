@@ -232,10 +232,13 @@ size_t getPrimeSampleCount(Stream* stream)
         return 0;
     }
 
+    // In whole frames: priming that stops inside a frame would leave the
+    // decoder thread to start there, with every channel shifted.
+    const size_t channels = std::max<size_t>(1, static_cast<size_t>(stream->getChannels()));
     const size_t samples_per_half_second =
-        (static_cast<size_t>(stream->getRate()) *
-         static_cast<size_t>(stream->getChannels())) / 2;
-    return std::max<size_t>(4096, samples_per_half_second);
+        (static_cast<size_t>(stream->getRate()) * channels) / 2;
+    const size_t samples = std::max<size_t>(4096, samples_per_half_second);
+    return std::max(channels, samples - samples % channels);
 }
 
 std::pair<std::vector<AudioSample>, bool> primeLoadedStream(Stream* stream)
@@ -244,11 +247,7 @@ std::pair<std::vector<AudioSample>, bool> primeLoadedStream(Stream* stream)
         return {{}, false};
     }
 
-    const size_t prime_samples = getPrimeSampleCount(stream);
-    std::vector<AudioSample> primed_samples(prime_samples);
-    const size_t bytes_read = stream->getData(prime_samples * sizeof(AudioSample), primed_samples.data());
-    primed_samples.resize(bytes_read / sizeof(AudioSample));
-    return {std::move(primed_samples), stream->eof()};
+    return Audio::primeStream(stream, getPrimeSampleCount(stream));
 }
 
 std::unique_ptr<Widget> createTestWindowHClient(Font* font)

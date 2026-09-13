@@ -203,6 +203,7 @@ The software-rendered UI (`src/widget/`) imitates Windows 3.1, and since 2.0-BET
 - `Audio` keeps decoded stream format separate from SDL's obtained device format so playback timing, seeks, and reuse decisions stay tied to source PCM instead of backend conversion details.
 - Loader-thread prebuffering primes PCM before track handoff so both reused and recreated audio paths do not start from an empty queue.
 - The decoder thread discards stale decode results after a stream swap.
+- The decoder thread and priming read and queue whole frames only. A read that ends inside a frame keeps the rest for the next read instead of dropping it — dropping it cut a gap into every read and rotated the channels of every 3-, 5-, 6- or 7-channel stream — and the buffer limits are sized in time, so surround streams get the same look-ahead as stereo.
 - Playlist population stays asynchronous, and inline playlist arguments are flattened in place before later command-line media paths are appended.
 - Text stays UTF-8 internally once it enters the process: command-line file arguments are normalized before playlist population, Unix file I/O opens `TagLib::String` paths through UTF-8 byte strings, SDL window titles receive UTF-8, and the FreeType font layer measures/renders decoded Unicode codepoints instead of raw UTF-8 bytes.
 - Widget input is hierarchical, clip-aware, and capture-aware.

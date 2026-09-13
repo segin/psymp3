@@ -75,7 +75,6 @@ Audio::Audio(std::unique_ptr<Stream> stream_to_own,
         throw std::invalid_argument("Audio constructor called with a null stream.");
     }
     Debug::log("audio", "Audio::Audio(): ", std::dec, m_owned_stream->getRate(), "Hz, channels: ", std::dec, m_owned_stream->getChannels());
-    m_buffer.reserve(16384); // Reserve space for the buffer to avoid reallocations
     m_buffer = std::move(primed_samples);
     m_stream_eof = primed_eof;
     setup();
@@ -328,11 +327,24 @@ void Audio::decoderThreadLoop() {
     System::setThisThreadName("audio-decoder");
     System::setThreadPriority(System::ThreadPriority::High);
     System::pinThreadToRole(System::CpuRole::Decoder);
-    std::vector<AudioSample> decode_chunk(4096); // Decode in 8KB chunks
-    // The high water mark prevents the decoder from reading too far ahead,
-    // which is important for responsive seeking and track changes. It defines
-    // the maximum amount of decoded audio to keep in the buffer.
-    constexpr size_t BUFFER_HIGH_WATER_MARK = 16384; // 1 sec of 48kHz stereo
+    // Sizes here are in frames and in time, not in samples. A sample count
+    // tuned for stereo gave a 5.1 stream a third of the look-ahead, and a read
+    // size that is not a whole number of frames ends every read inside one.
+    // setup() has fixed the format before this thread starts, and a stream
+    // swapped in later must match it.
+    const size_t channels = static_cast<size_t>(std::max(1, m_channels));
+    constexpr size_t kFramesPerRead = 1024;
+    std::vector<AudioSample> decode_chunk(kFramesPerRead * channels);
+    // The high water mark stops the decoder reading too far ahead, which keeps
+    // seeks and track changes responsive: a quarter of a second at any channel
+    // count, and never less than two reads.
+    const size_t buffer_high_water_mark = std::max<size_t>(
+        static_cast<size_t>(std::max(0, m_rate)) * channels / 4, 2 * decode_chunk.size());
+    // The part of a frame a read ended inside, waiting for the rest of it; see
+    // appendWholeFrames(). Only meaningful for the stream and seek epoch it
+    // was read in.
+    std::vector<AudioSample> carry;
+    uint64_t carry_epoch = 0;
 
     while (m_active)
     {
@@ -350,20 +362,21 @@ void Audio::decoderThreadLoop() {
             if (!m_active) break;
             local_stream = m_owned_stream;
         }
+        carry.clear();
 
         // Inner loop: Decode from the current stream until it ends.
         // Use the local_stream pointer to avoid race conditions.
         while (local_stream && m_active) {
             {
                 std::unique_lock<std::mutex> lock(m_buffer_mutex);
-                m_buffer_cv.wait(lock, [this] {
+                m_buffer_cv.wait(lock, [this, buffer_high_water_mark] {
                     // Backpressure: only decode when the buffer is below the high
                     // water mark (or on shutdown). Do NOT also wake on !m_playing:
                     // while paused nothing drains the buffer, so a !m_playing term
                     // lets the decoder run past the mark and grow it without bound.
                     // resetBuffer() (seek) and the SDL callback (drain) both notify
                     // this cv, so the decoder still wakes promptly when space frees.
-                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active;
+                    return m_buffer.size() < buffer_high_water_mark || !m_active;
                 });
             }
 
@@ -446,21 +459,23 @@ void Audio::decoderThreadLoop() {
             }
 
             if (bytes_read > 0) {
-                size_t samples_read = bytes_read / sizeof(AudioSample);
-                // Keep the queue frame-aligned: a decoder returning a byte
-                // count that is not a multiple of the frame size would
-                // channel-rotate every subsequent buffer, corrupting the EQ's
-                // per-channel state and the FFT's L/R pairing. Trim (and
-                // report) rather than propagate the misalignment.
-                if (m_channels > 0 && samples_read % static_cast<size_t>(m_channels) != 0) {
-                    size_t trimmed = samples_read % static_cast<size_t>(m_channels);
-                    samples_read -= trimmed;
-                    Debug::log("audio", "Audio decoder thread: stream returned a partial frame; trimmed ",
-                               trimmed, " sample(s) to keep the queue frame-aligned");
+                const size_t samples_read = bytes_read / sizeof(AudioSample);
+                // The queue stays frame-aligned -- the EQ's per-channel state
+                // and the FFT's channel pairing depend on it -- without losing
+                // anything: a read that ends inside a frame leaves the rest in
+                // `carry`. Trimming it instead, as this once did, dropped
+                // samples the stream had already moved past, cutting a gap
+                // into every read and rotating the channels after it for any
+                // stream whose channel count did not divide the read size --
+                // every 5.1 stream. A carry from before a seek is stale.
+                if (carry_epoch != decode_epoch) {
+                    carry.clear();
+                    carry_epoch = decode_epoch;
                 }
-                m_buffer.insert(m_buffer.end(), decode_chunk.begin(), decode_chunk.begin() + samples_read);
+                const size_t before = m_buffer.size();
+                appendWholeFrames(m_buffer, carry, decode_chunk.data(), samples_read, channels);
 
-                Debug::log("audio", "Audio decoder thread: Added ", samples_read, " samples to buffer, new buffer size=", m_buffer.size());
+                Debug::log("audio", "Audio decoder thread: Added ", m_buffer.size() - before, " samples to buffer, new buffer size=", m_buffer.size());
             } else {
                 Debug::log("audio", "Audio decoder thread: Got 0 bytes from stream, eof=", eof);
             }
@@ -708,25 +723,58 @@ std::pair<std::vector<AudioSample>, bool> Audio::primeStream(Stream* stream, siz
         return {{}, false};
     }
 
+    const size_t channels = std::max<size_t>(1, static_cast<size_t>(stream->getChannels()));
     if (max_samples == 0) {
-        const size_t samples_per_ms = static_cast<size_t>(stream->getRate()) *
-                                      static_cast<size_t>(stream->getChannels());
-        max_samples = std::max<size_t>(4096, samples_per_ms / 2);
+        const size_t samples_per_second = static_cast<size_t>(stream->getRate()) * channels;
+        max_samples = std::max<size_t>(4096, samples_per_second / 2);
     }
+    // Whole frames, so the decoder thread carries on from a frame boundary.
+    max_samples = std::max(channels, max_samples - max_samples % channels);
 
     std::vector<AudioSample> primed_samples(max_samples);
-    const size_t bytes_read = stream->getData(max_samples * sizeof(AudioSample), primed_samples.data());
-    size_t samples_read = bytes_read / sizeof(AudioSample);
-    // Keep the primed data frame-aligned for the same reason as the decoder
-    // loop: a partial trailing frame would channel-rotate everything after it.
-    const size_t channels = static_cast<size_t>(stream->getChannels());
-    if (channels > 0 && samples_read % channels != 0) {
-        Debug::log("audio", "primeStream: stream returned a partial frame; trimmed ",
+    size_t samples_read = stream->getData(max_samples * sizeof(AudioSample), primed_samples.data()) /
+                          sizeof(AudioSample);
+    // A stream that comes back short of a frame boundary is asked for the rest
+    // of the frame: dropping the samples it has already moved past would
+    // rotate the channels of everything after them. Only a stream that ends
+    // inside a frame leaves a partial one, and that is discarded.
+    while (samples_read % channels != 0 && !stream->eof()) {
+        const size_t want = channels - samples_read % channels;
+        const size_t got = stream->getData(want * sizeof(AudioSample),
+                                           primed_samples.data() + samples_read) /
+                           sizeof(AudioSample);
+        if (got == 0) {
+            break;
+        }
+        samples_read += got;
+    }
+    if (samples_read % channels != 0) {
+        Debug::log("audio", "primeStream: stream ended inside a frame; dropped ",
                    samples_read % channels, " sample(s)");
         samples_read -= samples_read % channels;
     }
     primed_samples.resize(samples_read);
     return {std::move(primed_samples), stream->eof()};
+}
+
+void Audio::appendWholeFrames(std::vector<AudioSample>& out, std::vector<AudioSample>& carry,
+                              const AudioSample* samples, size_t count, size_t channels)
+{
+    channels = std::max<size_t>(1, channels);
+    size_t used = 0;
+    // First finish the frame the previous read ended inside.
+    if (!carry.empty()) {
+        used = std::min(channels - carry.size(), count);
+        carry.insert(carry.end(), samples, samples + used);
+        if (carry.size() == channels) {
+            out.insert(out.end(), carry.begin(), carry.end());
+            carry.clear();
+        }
+    }
+    const size_t remaining = count - used;
+    const size_t whole = remaining - remaining % channels;
+    out.insert(out.end(), samples + used, samples + used + whole);
+    carry.insert(carry.end(), samples + used + whole, samples + count);
 }
 
 /**
