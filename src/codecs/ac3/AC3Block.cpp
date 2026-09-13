@@ -77,7 +77,6 @@ bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
     for (unsigned ch = 0; ch < nfchans; ++ch) {
         dithflag[ch] = reader.readBit() != 0;
     }
-    (void)dithflag; // §7.3.4 dither is not generated yet; see AC3MantissaReader
 
     // --- dynamic range control ---
     if (reader.readBit()) {
@@ -488,6 +487,30 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
             // mantissas for bins it never codes and run off the end of the
             // frame. The coupling bins are filled from the shared channel
             // here, not read per channel.
+        }
+    }
+
+    // --- dither, A/52 §7.3.4 ---
+    // Bins that got no bits are filled with noise rather than silence, which
+    // keeps the reconstruction from sounding hollow where the allocator spent
+    // nothing. The spec puts this after decoupling on purpose: coupled
+    // channels share one spectrum, and dithering them separately afterwards
+    // is what keeps their top ends uncorrelated.
+    for (unsigned ch = 0; ch < nfchans; ++ch) {
+        if (!dithflag[ch]) {
+            continue;
+        }
+        const unsigned end = (state.cplinu && state.chincpl[ch])
+                           ? state.endmant[kCouplingSlot] : state.endmant[ch];
+        for (unsigned bin = 0; bin < end; ++bin) {
+            const unsigned slot = (state.cplinu && state.chincpl[ch]
+                                   && bin >= state.strtmant[kCouplingSlot])
+                                ? kCouplingSlot : ch;
+            if (bap[slot][bin] != 0) {
+                continue;
+            }
+            block.coefficients[ch][bin] =
+                state.dither.next() / static_cast<float>(1u << state.exponents[slot][bin]);
         }
     }
 
