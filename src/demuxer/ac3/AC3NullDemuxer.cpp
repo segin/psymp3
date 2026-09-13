@@ -286,14 +286,19 @@ bool AC3NullDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
     }
 
     // Every syncframe restarts its own exponents and bit allocation, so any
-    // one of them is a valid place to begin. The transform's overlap is the
-    // only history, and the codec's reset() drops it; the first half-block
-    // after a seek is therefore not the encoder's signal, which at 5 ms is
-    // shorter than the pipeline's own seek fade.
+    // one of them is a valid place to begin decoding -- but not to begin
+    // listening. The transform's overlap, E-AC-3's enhanced coupling and its
+    // transient pre-noise corrections all reach across frame boundaries, and
+    // the codec's reset() drops them. So the seek lands a frame early, which
+    // rebuilds them, and getGranulePosition() reports where it landed so the
+    // stream discards what lies before the target.
     const uint64_t target = (timestamp_ms * m_stream_info.sample_rate) / 1000;
     uint64_t index = target / m_samples_per_frame;
     if (index >= m_frame_offsets.size()) {
         index = m_frame_offsets.size() - 1;
+    }
+    if (index > 0) {
+        --index;
     }
 
     m_read_offset = m_frame_offsets[static_cast<size_t>(index)];
@@ -318,6 +323,13 @@ uint64_t AC3NullDemuxer::getPosition() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_position_ms;
+}
+
+uint64_t AC3NullDemuxer::getGranulePosition(uint32_t stream_id) const
+{
+    (void)stream_id;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_current_sample;
 }
 
 } // namespace AC3

@@ -45,6 +45,12 @@ public:
     uint64_t getPosition() const override;
     std::string getContainerName() const override;
 
+    /// Where the next chunk starts, in samples. A seek lands on a syncframe
+    /// boundary before its target, and saying where lets DemuxedStream drop
+    /// the difference rather than take the landing as exact.
+    bool providesGranulePositions() const override { return true; }
+    uint64_t getGranulePosition(uint32_t stream_id) const override;
+
 private:
     bool parseContainer_unlocked();
     MediaChunk readChunk_unlocked();
