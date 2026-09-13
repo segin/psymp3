@@ -517,6 +517,8 @@ using PsyMP3::Codec::PCM::G722Codec;
 
 // Demuxer subsystem - Raw Audio
 #include "demuxer/raw/RawAudioDemuxer.h"
+#include "codecs/ac3/AC3BitReader.h"
+#include "codecs/ac3/AC3FrameHeader.h"
 #include "demuxer/matroska/EBMLReader.h"
 #include "demuxer/matroska/MatroskaElements.h"
 #include "demuxer/matroska/SegmentParser.h"

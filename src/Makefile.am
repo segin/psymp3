@@ -65,6 +65,8 @@ DEMUXER_LIBS =
 CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
 CODEC_LIBS += codecs/mp2/libpsymp3-codec-mp2.a
 CODEC_LIBS += codecs/alac/libpsymp3-codec-alac.a
+# AC-3, written in tree from ATSC A/52, so nothing external is needed.
+CODEC_LIBS += codecs/ac3/libpsymp3-codec-ac3.a
 # MLP/TrueHD is always built (the decoder is bundled, no external dependency)
 CODEC_LIBS += codecs/mlp/libpsymp3-codec-mlp.a
 DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
