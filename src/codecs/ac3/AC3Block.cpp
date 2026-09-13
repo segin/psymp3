@@ -180,9 +180,7 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
     if (cplstre) {
         state.cplinu = eac3 ? eac3->cplinu[blk] : (reader.readBit() != 0);
         if (state.cplinu) {
-            if (eac3 && reader.readBit()) { // ecplinu
-                return fail("E-AC-3 enhanced coupling is not implemented");
-            }
+            state.ecplinu = eac3 ? (reader.readBit() != 0) : false;
             if (eac3 && stereo) {
                 // E-AC-3 2/0 always couples both channels; the flags are implied.
                 state.chincpl[0] = true;
@@ -192,48 +190,81 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
                     state.chincpl[ch] = reader.readBit() != 0;
                 }
             }
-            state.phsflginu = stereo ? (reader.readBit() != 0) : false;
-            state.cplbegf = static_cast<uint8_t>(reader.read(4));
-            if (eac3 && state.spxinu) {
-                // §E3.3.1: coupling ends where spectral extension begins.
-                state.cplendf = state.spxbegf < 6 ? state.spxbegf - 2 : state.spxbegf * 2 - 7;
+            if (!state.ecplinu) {
+                state.phsflginu = stereo ? (reader.readBit() != 0) : false;
+                state.cplbegf = static_cast<uint8_t>(reader.read(4));
+                if (eac3 && state.spxinu) {
+                    // §E3.3.1: coupling ends where spectral extension begins.
+                    state.cplendf = state.spxbegf < 6 ? state.spxbegf - 2 : state.spxbegf * 2 - 7;
+                } else {
+                    state.cplendf = static_cast<int>(reader.read(4));
+                }
+                if (state.cplendf + 3 < static_cast<int>(state.cplbegf)) {
+                    return fail("inverted coupling range");
+                }
+                state.ncplsubnd = static_cast<unsigned>(3 + state.cplendf - static_cast<int>(state.cplbegf));
+                if (state.ncplsubnd > kMaxCouplingBands) {
+                    return fail("too many coupling sub-bands");
+                }
+                // Sub-bands may be joined into wider coupling bands; band 0 always
+                // starts one, and each set bit merges the sub-band into it.
+                // AC-3 always sends the structure. E-AC-3 may omit it: the first
+                // coupled block of a frame then takes Table E2.12's default, and a
+                // later block keeps the previous block's (§E2.3.3.15).
+                const bool cplbndstrce = eac3 ? (reader.readBit() != 0) : true;
+                state.cplbndstrc[0] = 0;
+                if (cplbndstrce) {
+                    for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
+                        state.cplbndstrc[bnd] = static_cast<uint8_t>(reader.readBit());
+                    }
+                } else if (!state.cplbndstrc_set) {
+                    // The default is indexed by absolute sub-band, and the
+                    // structure here is relative to cplbegf.
+                    for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
+                        state.cplbndstrc[bnd] = kDefaultCouplingBandStructure[state.cplbegf + bnd];
+                    }
+                }
+                state.cplbndstrc_set = true;
+                state.ncplbnd = 1;
+                for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
+                    if (!state.cplbndstrc[bnd]) {
+                        ++state.ncplbnd;
+                    }
+                }
+                state.strtmant[kCouplingSlot] = ac3CouplingStartMantissa(state.cplbegf);
+                state.endmant[kCouplingSlot] = ac3CouplingEndMantissa(state.cplendf);
             } else {
-                state.cplendf = static_cast<int>(reader.read(4));
-            }
-            if (state.cplendf + 3 < static_cast<int>(state.cplbegf)) {
-                return fail("inverted coupling range");
-            }
-            state.ncplsubnd = static_cast<unsigned>(3 + state.cplendf - static_cast<int>(state.cplbegf));
-            if (state.ncplsubnd > kMaxCouplingBands) {
-                return fail("too many coupling sub-bands");
-            }
-            // Sub-bands may be joined into wider coupling bands; band 0 always
-            // starts one, and each set bit merges the sub-band into it.
-            // AC-3 always sends the structure. E-AC-3 may omit it: the first
-            // coupled block of a frame then takes Table E2.12's default, and a
-            // later block keeps the previous block's (§E2.3.3.15).
-            const bool cplbndstrce = eac3 ? (reader.readBit() != 0) : true;
-            state.cplbndstrc[0] = 0;
-            if (cplbndstrce) {
-                for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
-                    state.cplbndstrc[bnd] = static_cast<uint8_t>(reader.readBit());
+                // Table E1.4, §E2.3.3.16-19: the enhanced coupling range, in
+                // its own sub-bands, and how they group into bands.
+                state.phsflginu = false;
+                state.ecplbegf = static_cast<uint8_t>(reader.read(4));
+                const unsigned f = state.ecplbegf;
+                const unsigned begin = f < 3 ? f * 2 : (f < 13 ? f + 2 : f * 2 - 10);
+                unsigned end = 0;
+                if (!state.spxinu) {
+                    end = reader.read(4) + 7;              // ecplendf
+                } else {
+                    end = state.spxbegf < 6 ? state.spxbegf + 5u : state.spxbegf * 2u;
                 }
-            } else if (!state.cplbndstrc_set) {
-                // The default is indexed by absolute sub-band, and the
-                // structure here is relative to cplbegf.
-                for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
-                    state.cplbndstrc[bnd] = kDefaultCouplingBandStructure[state.cplbegf + bnd];
+                if (end > kEcplSubbands || begin >= end) {
+                    return fail("enhanced coupling range out of bounds");
                 }
-            }
-            state.cplbndstrc_set = true;
-            state.ncplbnd = 1;
-            for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
-                if (!state.cplbndstrc[bnd]) {
-                    ++state.ncplbnd;
+                if (reader.readBit()) {                    // ecplbndstrce
+                    for (unsigned sbnd = std::max(9u, begin + 1); sbnd < end; ++sbnd) {
+                        state.ecplbndstrc[sbnd] = static_cast<uint8_t>(reader.readBit());
+                    }
+                } else if (!state.ecplbndstrc_set) {
+                    std::copy(kDefaultEcplBandStructure, kDefaultEcplBandStructure + kEcplSubbands,
+                              state.ecplbndstrc);
                 }
+                state.ecplbndstrc_set = true;
+                eac3EcplComputeBands(begin, end, state.ecplbndstrc, state.ecpl_bands);
+                // The coupling channel's exponents and mantissas cover the
+                // enhanced range; A/52's ncplgrps formula over that range is
+                // exactly §E3.3.5's.
+                state.strtmant[kCouplingSlot] = eac3EcplSubbandStart(begin);
+                state.endmant[kCouplingSlot] = eac3EcplSubbandStart(end);
             }
-            state.strtmant[kCouplingSlot] = ac3CouplingStartMantissa(state.cplbegf);
-            state.endmant[kCouplingSlot] = ac3CouplingEndMantissa(state.cplendf);
         } else if (eac3) {
             // Coupling switched off: the next block to switch it on has to
             // send fresh coordinates and leak values again.
@@ -243,6 +274,7 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
             }
             state.firstcplleak = true;
             state.phsflginu = false;
+            state.ecplinu = false;
         }
     }
 
@@ -251,7 +283,47 @@ Debug::log("ac3", "  after cplstre: bit ", reader.tell(), " cplinu=", state.cpli
                " nbnd=", state.ncplbnd);
 
     // --- coupling coordinates ---
-    if (state.cplinu) {
+    if (state.cplinu && state.ecplinu) {
+        // Table E1.4. The first coupled channel is the phase reference, so it
+        // sends no angle, chaos or transient flag; every parameter is
+        // mandatory the first time a channel is coupled in a frame.
+        int firstchincpl = -1;
+        state.ecplangleintrp = reader.readBit() != 0;
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            if (!state.chincpl[ch]) {
+                state.firstcplcos[ch] = true;
+                continue;
+            }
+            if (firstchincpl < 0) {
+                firstchincpl = static_cast<int>(ch);
+            }
+            const bool later = static_cast<int>(ch) > firstchincpl;
+            bool param1 = false;
+            bool param2 = false;
+            if (state.firstcplcos[ch]) {
+                param1 = true;
+                param2 = later;
+                state.firstcplcos[ch] = false;
+            } else {
+                param1 = reader.readBit() != 0;
+                param2 = later ? (reader.readBit() != 0) : false;
+            }
+            EAC3EcplChannel& p = state.ecpl[ch];
+            p.first = !later;
+            if (param1) {
+                for (unsigned bnd = 0; bnd < state.ecpl_bands.count; ++bnd) {
+                    p.amp[bnd] = static_cast<uint8_t>(reader.read(5));
+                }
+            }
+            if (param2) {
+                for (unsigned bnd = 0; bnd < state.ecpl_bands.count; ++bnd) {
+                    p.angle[bnd] = static_cast<uint8_t>(reader.read(6));
+                    p.chaos[bnd] = static_cast<uint8_t>(reader.read(3));
+                }
+            }
+            p.transient = later ? (reader.readBit() != 0) : false;
+        }
+    } else if (state.cplinu) {
         bool any_new_coordinates = false;
         for (unsigned ch = 0; ch < nfchans; ++ch) {
             if (!state.chincpl[ch]) {
@@ -294,7 +366,10 @@ Debug::log("ac3", "  after cplco: bit ", reader.tell());
         const bool rematstr = (eac3 && blk == 0) ? true : (reader.readBit() != 0);
         if (rematstr) {
             unsigned bands = 4;
-            if (state.cplinu) {
+            if (state.cplinu && state.ecplinu) {
+                const unsigned f = state.ecplbegf;
+                bands = f == 0 ? 0u : f == 1 ? 1u : f == 2 ? 2u : f < 5 ? 3u : 4u;
+            } else if (state.cplinu) {
                 bands = state.cplbegf > 2 ? 4u : (state.cplbegf > 0 ? 3u : 2u);
             } else if (state.spxinu) {
                 bands = state.spxbegf < 2 ? 3u : 4u;       // §E3.3.2
@@ -740,7 +815,17 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
     // Each coupled channel gets the shared coupling channel back, scaled by
     // its own per-band coordinate. That is what makes coupling cheap: one
     // spectrum is sent and several channels reconstruct from it.
-    if (state.cplinu && coupling_read) {
+    if (state.cplinu && coupling_read && state.ecplinu) {
+        block.ecplinu = true;
+        block.ecpl_angle_interpolation = state.ecplangleintrp;
+        std::copy(coupling, coupling + kSamplesPerBlock, block.ecpl_coupling);
+        block.ecpl_bands = state.ecpl_bands;
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            block.chincpl[ch] = state.chincpl[ch];
+            block.ecpl[ch] = state.ecpl[ch];
+        }
+    }
+    if (state.cplinu && coupling_read && !state.ecplinu) {
         for (unsigned ch = 0; ch < nfchans; ++ch) {
             if (!state.chincpl[ch]) {
                 continue;
@@ -824,10 +909,19 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
     // the copy is of the channel rather than of a coupling or sum signal.)
     if (state.spxinu) {
         for (unsigned ch = 0; ch < nfchans; ++ch) {
-            if (state.chinspx[ch]) {
-                eac3SpxSynthesise(block.coefficients[ch], state.spx_bands, state.spx[ch],
-                                  state.spx_noise);
+            if (!state.chinspx[ch]) {
+                continue;
             }
+            if (block.ecplinu && state.chincpl[ch]) {
+                block.spx_deferred[ch] = true;
+                continue;
+            }
+            eac3SpxSynthesise(block.coefficients[ch], state.spx_bands, state.spx[ch],
+                              state.spx_noise);
+        }
+        block.spx_bands = state.spx_bands;
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            block.spx[ch] = state.spx[ch];
         }
     }
 

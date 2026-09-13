@@ -158,6 +158,15 @@ struct AC3FrameState {
     int8_t aht[kChannelSlots] = {};
     /// All six blocks of an AHT slot's coefficients, read at once.
     EAC3AhtSpectrum aht_spectrum[kChannelSlots];
+
+    // --- E-AC-3 enhanced coupling, §E3.5 ---
+    bool ecplinu = false;
+    bool ecplangleintrp = false;
+    uint8_t ecplbegf = 0;
+    uint8_t ecplbndstrc[kEcplSubbands] = {};
+    bool ecplbndstrc_set = false;
+    EAC3EcplBands ecpl_bands;
+    EAC3EcplChannel ecpl[kMaxFullBandwidthChannels];
 };
 
 /// One decoded audio block: 256 transform coefficients per coded channel,
@@ -170,6 +179,23 @@ struct AC3Block {
     bool block_switch[kMaxFullBandwidthChannels] = {};
     /// Dynamic range control word, or 1.0 when the block sends none.
     float dynamic_range = 1.0f;
+
+    /// Enhanced coupling leaves the coupled channels unfinished: rebuilding
+    /// them needs the coupling signal of the block after this one too
+    /// (§E3.5.5.1), so the parser records what the frame decoder will need.
+    bool ecplinu = false;
+    bool ecpl_angle_interpolation = false;
+    float ecpl_coupling[kSamplesPerBlock] = {};
+    EAC3EcplBands ecpl_bands;
+    EAC3EcplChannel ecpl[kMaxFullBandwidthChannels];
+    bool chincpl[kMaxFullBandwidthChannels] = {};
+
+    /// Spectral extension copies a channel's finished low band, which for an
+    /// enhanced-coupled channel is not finished until the frame decoder has
+    /// regenerated it; such channels are synthesised there instead.
+    bool spx_deferred[kMaxFullBandwidthChannels] = {};
+    EAC3SpxBands spx_bands;
+    EAC3SpxChannel spx[kMaxFullBandwidthChannels];
 };
 
 /// Parses one audio block and produces its transform coefficients.
