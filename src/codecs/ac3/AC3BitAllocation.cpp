@@ -86,7 +86,7 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
                              AllocationChannel channel,
                              const AllocationParameters& parameters,
                              const std::vector<DeltaBitAllocation>& deltas,
-                             uint8_t* bap)
+                             uint8_t* bap, const uint8_t* pointer_table)
 {
     if (!exponents || !bap || end <= start || end > kBinCount
         || parameters.fscod > 2 || parameters.sdcycod > 3 || parameters.fdcycod > 3
@@ -234,6 +234,10 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
     }
 
     // --- §7.2.2.7: the allocation itself ---
+    // Everything up to here is shared with E-AC-3's Adaptive Hybrid
+    // Transform; only the last lookup differs, into hebaptab instead of
+    // baptab (§E3.4.3.1).
+    const uint8_t* const table = pointer_table ? pointer_table : kBapTable;
     {
         unsigned bin = start;
         unsigned band = kBinToBand[start];
@@ -253,7 +257,7 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
             for (; bin < last; ++bin) {
                 int address = (psd[bin] - band_mask) >> 5;
                 address = std::min(63, std::max(0, address));
-                bap[bin] = kBapTable[address];
+                bap[bin] = table[address];
             }
             ++band;
         } while (end > kBandStart[band - 1] + kBandSize[band - 1]);

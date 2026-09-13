@@ -95,7 +95,7 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
                              AllocationChannel channel,
                              const AllocationParameters& parameters,
                              const std::vector<DeltaBitAllocation>& deltas,
-                             uint8_t* bap);
+                             uint8_t* bap, const uint8_t* pointer_table = nullptr);
 
 /// A/52 §7.2.2.4. Exposed for testing: it is a small state machine whose
 /// behaviour changes at bands 7 and 20, and those boundaries are easy to get
