@@ -127,11 +127,13 @@ Debug::log("ac3", "  after cplstre: bit ", reader.tell(), " cplinu=", state.cpli
 
     // --- coupling coordinates ---
     if (state.cplinu) {
+        bool any_new_coordinates = false;
         for (unsigned ch = 0; ch < nfchans; ++ch) {
             if (!state.chincpl[ch]) {
                 continue;
             }
             if (reader.readBit()) { // cplcoe
+                any_new_coordinates = true;
                 const unsigned master = reader.read(2);
                 for (unsigned bnd = 0; bnd < state.ncplbnd; ++bnd) {
                     const unsigned exponent = reader.read(4);
@@ -140,7 +142,9 @@ Debug::log("ac3", "  after cplstre: bit ", reader.tell(), " cplinu=", state.cpli
                 }
             }
         }
-        if (stereo && state.phsflginu) {
+        // The phase flags ride along with the coordinates: if neither channel
+        // sent new ones this block, the flags are not in the stream either.
+        if (stereo && state.phsflginu && any_new_coordinates) {
             for (unsigned bnd = 0; bnd < state.ncplbnd; ++bnd) {
                 state.phsflg[bnd] = reader.readBit() != 0;
             }
