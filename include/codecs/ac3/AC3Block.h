@@ -55,25 +55,26 @@ constexpr uint8_t kDeltaNone = 2;
 ///
 /// The spec asks only for "any reasonably random sequence" of about eight
 /// bits, uniform over [-1, 1) and scaled by 0.707; the exact sequence is not
-/// normative and no two decoders need agree on it. A 16-bit LFSR is cheap,
-/// has no startup cost and does not repeat within a frame.
+/// normative and no two decoders need agree on it. What does matter is that
+/// successive values are independent: they fill adjacent bins, and
+/// correlated bins pile their energy up at one point of the block, which
+/// pumps at the block rate. (A byte taken from an LFSR stepped one bit at a
+/// time is half the previous byte, and did exactly that.) xorshift32 replaces
+/// every bit between calls.
 class AC3Dither {
 public:
     /// A uniform value in roughly [-0.707, 0.707).
     float next()
     {
-        // x^16 + x^14 + x^13 + x^11 + 1, the maximal-length Galois form.
-        const bool bit = (m_state & 1u) != 0;
-        m_state >>= 1;
-        if (bit) {
-            m_state ^= 0xb400u;
-        }
-        const int sample = static_cast<int>(m_state & 0xffu) - 128;
+        m_state ^= m_state << 13;
+        m_state ^= m_state >> 17;
+        m_state ^= m_state << 5;
+        const int sample = static_cast<int>(m_state >> 24) - 128;
         return static_cast<float>(sample) * (0.707f / 128.0f);
     }
 
 private:
-    uint16_t m_state = 0xacedu; // any non-zero seed will do
+    uint32_t m_state = 0xace1d5b7u; // any non-zero seed will do
 };
 
 /// What survives from one audio block to the next.

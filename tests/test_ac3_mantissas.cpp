@@ -247,6 +247,45 @@ protected:
     }
 };
 
+/// §7.3.4 dither fills adjacent unallocated bins, so successive values must
+/// be independent -- correlated bins shape the noise in time -- as well as
+/// uniform over roughly +/-0.707.
+class DitherTest : public TestCase {
+public:
+    DitherTest() : TestCase("Dither is uniform over +/-0.707 and uncorrelated") {}
+
+protected:
+    void runTest() override
+    {
+        AC3Dither dither;
+        constexpr unsigned kSamples = 1u << 18;
+        std::vector<double> v(kSamples);
+        double sum = 0.0, squares = 0.0, peak = 0.0;
+        for (auto& x : v) {
+            x = dither.next();
+            sum += x;
+            squares += x * x;
+            peak = std::max(peak, std::abs(x));
+        }
+        const double mean = sum / kSamples;
+        // Uniform over [-a, a) has variance a^2 / 3.
+        const double variance = squares / kSamples - mean * mean;
+        ASSERT_TRUE(std::abs(mean) < 0.005, "zero mean (" + std::to_string(mean) + ")");
+        ASSERT_TRUE(std::abs(variance - 0.707 * 0.707 / 3.0) < 0.005,
+                    "uniform variance (" + std::to_string(variance) + ")");
+        ASSERT_TRUE(peak <= 0.7071, "bounded by 0.707");
+        for (unsigned lag = 1; lag <= 4; ++lag) {
+            double cross = 0.0;
+            for (unsigned i = 0; i + lag < kSamples; ++i) {
+                cross += v[i] * v[i + lag];
+            }
+            const double r = cross / squares;
+            ASSERT_TRUE(std::abs(r) < 0.01,
+                        "lag " + std::to_string(lag) + " correlation " + std::to_string(r));
+        }
+    }
+};
+
 } // namespace
 
 int main()
@@ -259,6 +298,7 @@ int main()
     suite.addTest(std::make_unique<ExponentScalingTest>());
     suite.addTest(std::make_unique<ResetTest>());
     suite.addTest(std::make_unique<ZeroBapTest>());
+    suite.addTest(std::make_unique<DitherTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
