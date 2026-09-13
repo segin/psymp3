@@ -101,6 +101,7 @@
 #include "codecs/ac3/EAC3SpectralExtension.cpp"
 #include "codecs/ac3/EAC3TransientPreNoise.cpp"
 #include "codecs/ac3/EAC3AhtMantissas.cpp"
+#include "codecs/ac3/EAC3EnhancedCoupling.cpp"
 #include "codecs/ac3/AC3Transform.cpp"
 #include "codecs/ac3/AC3FrameDecoder.cpp"
 #include "codecs/ac3/AC3Codec.cpp"
