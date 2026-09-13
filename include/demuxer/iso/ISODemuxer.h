@@ -220,6 +220,8 @@ constexpr uint32_t BRAND_3G2A = FOURCC('3','g','2','a'); // 3GPP2
  */
 class ISODemuxer : public Demuxer {
 public:
+    /// ISO Base Media: .mp4, .m4a and .mov all sit on it.
+    std::string getContainerName() const override { return "ISO Base Media"; }
     explicit ISODemuxer(std::unique_ptr<IOHandler> handler);
     virtual ~ISODemuxer();
     

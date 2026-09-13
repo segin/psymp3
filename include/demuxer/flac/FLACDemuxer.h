@@ -282,6 +282,9 @@ struct FLACFrameIndexEntry {
  */
 class FLACDemuxer : public Demuxer {
 public:
+    /// A native FLAC stream, which frames itself rather than sitting in a
+    /// container. Ogg FLAC goes through OggDemuxer instead.
+    std::string getContainerName() const override { return "FLAC"; }
     /**
      * @brief Construct FLAC demuxer with I/O handler
      * @param handler IOHandler for reading FLAC data (takes ownership)

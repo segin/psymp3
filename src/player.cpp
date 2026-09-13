@@ -4949,8 +4949,9 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
 {
     if (!stream) {
         // Stopped: every value is a placeholder.
-        return {{"Codec:", "---"}, {"Sampling Rate:", "---"}, {"Bit Depth:", "---"},
-                {"Bitrate:", "---"}, {"Format:", "---"}, {"Size on Disk:", "---"}};
+        return {{"Container:", "---"}, {"Codec:", "---"}, {"Sampling Rate:", "---"},
+                {"Bit Depth:", "---"}, {"Bitrate:", "---"}, {"Format:", "---"},
+                {"Size on Disk:", "---"}};
     }
 
     const std::string codec = stream->getCodecName().to8Bit(true);
@@ -4985,16 +4986,15 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
         codec_uc = it->second;
     }
 
-    // For container formats whose "codec" is really a sample encoding, the
-    // Codec row names the CONTAINER and the encoding moves to Format:
-    // raw .alaw -> Codec: Raw / Format: G.711 A-law;
-    // .wav PCM  -> Codec: WAVE / Format: PCM S16 LE.
+    // The container has a row of its own now. It used to be shown in place of
+    // the codec for the formats whose "codec" is really a sample encoding --
+    // Codec: WAVE for a .wav -- because there was nowhere else to put it; that
+    // cost the codec its own row and said nothing about the container of
+    // anything else.
     std::string codec_display = codec_uc;
+    std::string container = "Unknown";
     if (auto* demuxed = dynamic_cast<DemuxedStream*>(stream)) {
-        const std::string container = demuxed->getDemuxerType();
-        if (container == "Raw" || container == "WAVE" || container == "AIFF") {
-            codec_display = container;
-        }
+        container = demuxed->getDemuxerType();
     }
 
     // A decoder that can name its profile wins: only the decoder knows an
@@ -5060,6 +5060,7 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     }
 
     return {
+        {"Container:", container},
         {"Codec:", codec_display},
         {"Sampling Rate:", rate > 0 ? std::to_string(rate) + " Hz" : "Unknown"},
         {"Bit Depth:", bits > 0 ? std::to_string(bits) + "-bit" : "Unknown"},

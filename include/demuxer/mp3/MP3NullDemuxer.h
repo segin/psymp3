@@ -24,6 +24,9 @@ namespace MP3 {
  */
 class MP3NullDemuxer : public Demuxer {
 public:
+    /// MPEG audio frames self-delimit, so there is no container to name --
+    /// the elementary stream is the file.
+    std::string getContainerName() const override { return "MPEG Audio"; }
     explicit MP3NullDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler);
     ~MP3NullDemuxer() override = default;
 

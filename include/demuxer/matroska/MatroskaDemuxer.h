@@ -41,7 +41,11 @@ class MatroskaDemuxer : public Demuxer {
 public:
     explicit MatroskaDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler);
 
-    std::string getContainerName() const override { return "Matroska"; }
+    /// WebM is Matroska with a restricted DocType, and a listener who
+    /// picked a .webm expects to be told so.
+    std::string getContainerName() const override {
+        return m_parser.docType() == "webm" ? "WebM" : "Matroska";
+    }
 
     bool parseContainer() override;
     std::vector<StreamInfo> getStreams() const override;

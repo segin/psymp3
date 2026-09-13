@@ -45,6 +45,7 @@ struct OggStream {
 
 class OggDemuxer : public Demuxer {
 public:
+    std::string getContainerName() const override { return "Ogg"; }
     explicit OggDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler);
     ~OggDemuxer() override;
 
