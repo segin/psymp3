@@ -90,6 +90,13 @@ struct AC3FrameHeader {
     uint32_t bitrate = 0;         ///< nominal, bits per second
     uint16_t frame_size = 0;      ///< bytes in this syncframe, including header
     uint8_t channels = 0;         ///< full-bandwidth channels, excluding LFE
+    /// Audio blocks in the frame. Always six for AC-3; E-AC-3 codes 1, 2, 3
+    /// or 6 in numblkscod (Table E1.3), so samples per frame vary with it.
+    uint8_t blocks = kBlocksPerFrame;
+    /// E-AC-3 stream type, §E2.3.1.1: 0 independent, 1 dependent (extends
+    /// the independent frame before it), 2 independent converted from AC-3.
+    /// Always 0 for AC-3.
+    uint8_t strmtyp = 0;
 
     /// Channels a decoder would output, LFE included.
     uint8_t outputChannels() const { return static_cast<uint8_t>(channels + (lfeon ? 1 : 0)); }

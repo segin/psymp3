@@ -198,7 +198,7 @@ bool parseAC3(AC3BitReader& reader, AC3FrameHeader& header)
 /// stream, not to decode it -- Annex E is a separate decoder.
 bool parseEAC3(AC3BitReader& reader, AC3FrameHeader& header)
 {
-    reader.skip(2);                                           // strmtyp
+    header.strmtyp = static_cast<uint8_t>(reader.read(2));
     reader.skip(3);                                           // substreamid
     // frmsiz is one less than the frame length in 16-bit words, so a frame is
     // never zero-length and 2047 means 2048 words.
@@ -211,9 +211,12 @@ bool parseEAC3(AC3BitReader& reader, AC3FrameHeader& header)
         // from fscod2 instead, and the frame always holds six blocks.
         const uint32_t fscod2 = reader.read(2);
         header.sample_rate = kReducedSampleRates[fscod2];
+        header.blocks = 6;
     } else {
         header.sample_rate = ac3SampleRate(header.fscod);
-        reader.skip(2);                                       // numblkscod
+        // Table E1.3: numblkscod 0..3 is 1, 2, 3 or 6 blocks.
+        static constexpr uint8_t kBlocksForCode[4] = { 1, 2, 3, 6 };
+        header.blocks = kBlocksForCode[reader.read(2)];
     }
 
     header.acmod = static_cast<AudioCodingMode>(reader.read(3));
