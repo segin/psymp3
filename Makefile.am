@@ -40,6 +40,7 @@ EXTRA_DIST = \
 	include/codecs/ac3/AC3BitReader.h \
 	include/codecs/ac3/AC3Exponents.h \
 	include/codecs/ac3/AC3FrameHeader.h \
+	include/codecs/ac3/AC3Tables.h \
 	include/codecs/aac/AACCodec.h \
 	include/codecs/aac/fdk_aac.h \
 	include/codecs/alac/ALACCodec.h \
