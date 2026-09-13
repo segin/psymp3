@@ -261,11 +261,112 @@ protected:
     }
 };
 
+/// A/52 §5.4.3.55: only the first segment's offset is an absolute band
+/// number. The rest step on from where the previous segment stopped.
+class DeltaAccumulationTest : public TestCase {
+public:
+    DeltaAccumulationTest()
+        : TestCase("Delta segment offsets accumulate from the previous segment's end") {}
+
+protected:
+    void runTest() override
+    {
+        uint8_t exponents[kBinCount];
+        for (unsigned i = 0; i < kBinCount; ++i) {
+            exponents[i] = 8;
+        }
+        const auto parameters = defaultParameters();
+
+        // Two segments: bands 2..5, then four bands on from there, which is
+        // 9..12 -- not 4..7, which is where an absolute reading would put it.
+        std::vector<DeltaBitAllocation> split{{2, 4, 0}, {3, 4, 0}};
+        uint8_t got[kBinCount] = {0};
+        ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 0, 253,
+                                            AllocationChannel::FullBandwidth,
+                                            parameters, split, got), "two segments allocate");
+
+        // The same two ranges written as absolute single segments must agree.
+        std::vector<DeltaBitAllocation> first{{2, 4, 0}};
+        std::vector<DeltaBitAllocation> second{{9, 4, 0}};
+        uint8_t a[kBinCount] = {0}, b[kBinCount] = {0};
+        ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 0, 253,
+                                            AllocationChannel::FullBandwidth,
+                                            parameters, first, a), "first range alone");
+        ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 0, 253,
+                                            AllocationChannel::FullBandwidth,
+                                            parameters, second, b), "second range alone");
+
+        // Every bin the two single-segment runs raised must be raised by the
+        // combined run too, and nowhere else may differ.
+        uint8_t plain[kBinCount] = {0};
+        ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 0, 253,
+                                            AllocationChannel::FullBandwidth,
+                                            parameters, {}, plain), "no deltas");
+        bool second_range_moved = false;
+        for (unsigned i = 0; i < 253; ++i) {
+            const bool raised = a[i] != plain[i] || b[i] != plain[i];
+            if (raised) {
+                ASSERT_TRUE(got[i] == std::max(a[i], b[i]),
+                            "a covered bin matches the single-segment result");
+            } else {
+                ASSERT_TRUE(got[i] == plain[i], "an uncovered bin is untouched");
+            }
+            if (b[i] != plain[i] && got[i] != plain[i]) {
+                second_range_moved = true;
+            }
+        }
+        ASSERT_TRUE(second_range_moved,
+                    "the second segment lands on the accumulated bands, not absolute ones");
+    }
+};
+
+/// A/52 §7.2.2.1: the coupling channel starts part way up the spectrum, so
+/// the encoder transmits where its leaky integrators had got to.
+class CouplingLeakTest : public TestCase {
+public:
+    CouplingLeakTest() : TestCase("Coupling leak initialisation reaches the excitation") {}
+
+protected:
+    void runTest() override
+    {
+        uint8_t exponents[kBinCount];
+        for (unsigned i = 0; i < kBinCount; ++i) {
+            exponents[i] = 12;
+        }
+
+        auto low = defaultParameters();
+        low.snroffset = ((20 - 15) << 4) << 2;
+        auto high = low;
+        low.cplfleak = 0;
+        low.cplsleak = 0;
+        high.cplfleak = 7;
+        high.cplsleak = 7;
+
+        uint8_t quiet[kBinCount] = {0}, loud[kBinCount] = {0};
+        ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 37, 121, AllocationChannel::Coupling,
+                                            low, {}, quiet), "seeded low");
+        ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 37, 121, AllocationChannel::Coupling,
+                                            high, {}, loud), "seeded high");
+
+        // A higher leak means more masking, so fewer bits -- and it must
+        // actually reach the result rather than being parsed and dropped.
+        unsigned quiet_total = 0, loud_total = 0;
+        for (unsigned i = 37; i < 121; ++i) {
+            quiet_total += quiet[i];
+            loud_total += loud[i];
+        }
+        ASSERT_TRUE(loud_total < quiet_total,
+                    "a higher transmitted leak masks more and allocates fewer bits");
+    }
+};
+
 } // namespace
 
 int main()
 {
     TestSuite suite("AC-3 Bit Allocation Tests");
+    suite.addTest(std::make_unique<DeltaAccumulationTest>());
+    suite.addTest(std::make_unique<CouplingLeakTest>());
     suite.addTest(std::make_unique<LowCompTest>());
     suite.addTest(std::make_unique<RangeTest>());
     suite.addTest(std::make_unique<LoudSignalTest>());
