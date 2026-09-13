@@ -3274,6 +3274,7 @@ endif
 
 # Additional test scripts and headers to be distributed
 EXTRA_DIST += \
+	generate_ac3_corpus.sh \
 	run_mpris_static_analysis.sh \
 	run_mpris_final_validation.sh \
 	run_mpris_integration_tests.sh \

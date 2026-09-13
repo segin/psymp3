@@ -140,6 +140,7 @@ tests/verify_*
 # Generator executables
 tests/generate_*
 !tests/generate_*.cpp
+!tests/generate_*.sh
 
 # Dump executables
 tests/dump_*
