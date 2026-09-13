@@ -202,12 +202,10 @@ protected:
                     "E-AC-3 is recognised rather than refused");
         ASSERT_TRUE(header.isEAC3(), "and is E-AC-3");
         ASSERT_FALSE(header.isAC3(), "not AC-3");
-        ASSERT_FALSE(header.isDecodable(),
-                     "but cannot be decoded, which is a separate question from "
-                     "having been recognised");
+        ASSERT_TRUE(header.isDecodable(),
+                    "and can be decoded -- the same decoder handles both");
         ASSERT_TRUE(std::string(header.displayName()) == "E-AC-3",
-                    "and is named E-AC-3, which is what tells a listener why the "
-                    "file did not play");
+                    "and is named E-AC-3, so Media Information can tell the two apart");
 
         // The Annex D alternate syntax is still AC-3 by name.
         auto alternate = ac3Header(0, 0, /*bsid=*/9);

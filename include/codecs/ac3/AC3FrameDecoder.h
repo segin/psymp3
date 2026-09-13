@@ -33,8 +33,10 @@ public:
     /// Decode one syncframe into interleaved samples.
     ///
     /// Output is in WAVE channel order (L R C LFE Ls Rs), not the bitstream's
-    /// own order, so it can go straight to an audio device. Emits
-    /// kFrameSamples per channel on success.
+    /// own order, so it can go straight to an audio device. Emits 256
+    /// samples per channel per audio block on success -- 1536 for AC-3, as few
+    /// as 256 for a one-block E-AC-3 frame -- and none for an E-AC-3
+    /// dependent substream, which extends a program rather than adding time.
     ///
     /// @param data   the frame, starting at its sync word
     /// @param size   bytes available; the frame's own length is taken from

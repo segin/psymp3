@@ -57,7 +57,7 @@ float couplingCoordinate(unsigned mantissa, unsigned exponent, unsigned master)
 
 bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
                         AC3FrameState& state, AC3Block& block,
-                        const char** reason)
+                        const char** reason, const EAC3AudioFrame* eac3)
 {
     auto fail = [&](const char* why) { if (reason) { *reason = why; } return false; };
     const unsigned nfchans = header.channels;
@@ -68,14 +68,32 @@ bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
     const bool stereo = header.acmod == AudioCodingMode::Stereo;
 
     block = AC3Block();
+    const unsigned blk = state.block_index;
+
+    // Annex E tools this decoder does not implement yet. Refusing the frame
+    // is better than reading its mantissas the conventional way, which would
+    // desynchronise every block after it.
+    if (eac3) {
+        bool aht = eac3->cplahtinu || eac3->lfeahtinu;
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            aht = aht || eac3->chahtinu[ch];
+        }
+        if (aht) {
+            return fail("E-AC-3 adaptive hybrid transform is not implemented");
+        }
+    }
 
     // --- block switch and dither flags ---
-    for (unsigned ch = 0; ch < nfchans; ++ch) {
-        block.block_switch[ch] = reader.readBit() != 0;
+    // E-AC-3 may switch either off for the whole frame, in which case no
+    // block transforms short and every channel is dithered (Table E1.4).
+    if (!eac3 || eac3->blkswe) {
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            block.block_switch[ch] = reader.readBit() != 0;
+        }
     }
     bool dithflag[kMaxFullBandwidthChannels] = {};
     for (unsigned ch = 0; ch < nfchans; ++ch) {
-        dithflag[ch] = reader.readBit() != 0;
+        dithflag[ch] = (!eac3 || eac3->dithflage) ? (reader.readBit() != 0) : true;
     }
 
     // --- dynamic range control ---
@@ -88,12 +106,37 @@ bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
 
 Debug::log("ac3", "  after dynrng: bit ", reader.tell());
 
-    // --- coupling strategy ---
-    if (reader.readBit()) { // cplstre
-        state.cplinu = reader.readBit() != 0;
-        if (state.cplinu) {
+    // --- spectral extension strategy, E-AC-3 only ---
+    if (eac3) {
+        const bool spxstre = blk == 0 ? true : (reader.readBit() != 0);
+        if (spxstre) {
+            state.spxinu = reader.readBit() != 0;
+            if (state.spxinu) {
+                return fail("E-AC-3 spectral extension is not implemented");
+            }
             for (unsigned ch = 0; ch < nfchans; ++ch) {
-                state.chincpl[ch] = reader.readBit() != 0;
+                state.chinspx[ch] = false;
+            }
+        }
+    }
+
+    // --- coupling strategy ---
+    // E-AC-3 decides the strategy for every block in audfrm().
+    const bool cplstre = eac3 ? eac3->cplstre[blk] : (reader.readBit() != 0);
+    if (cplstre) {
+        state.cplinu = eac3 ? eac3->cplinu[blk] : (reader.readBit() != 0);
+        if (state.cplinu) {
+            if (eac3 && reader.readBit()) { // ecplinu
+                return fail("E-AC-3 enhanced coupling is not implemented");
+            }
+            if (eac3 && stereo) {
+                // E-AC-3 2/0 always couples both channels; the flags are implied.
+                state.chincpl[0] = true;
+                state.chincpl[1] = true;
+            } else {
+                for (unsigned ch = 0; ch < nfchans; ++ch) {
+                    state.chincpl[ch] = reader.readBit() != 0;
+                }
             }
             state.phsflginu = stereo ? (reader.readBit() != 0) : false;
             state.cplbegf = static_cast<uint8_t>(reader.read(4));
@@ -107,16 +150,40 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
             }
             // Sub-bands may be joined into wider coupling bands; band 0 always
             // starts one, and each set bit merges the sub-band into it.
-            state.ncplbnd = 1;
+            // AC-3 always sends the structure. E-AC-3 may omit it: the first
+            // coupled block of a frame then takes Table E2.12's default, and a
+            // later block keeps the previous block's (§E2.3.3.15).
+            const bool cplbndstrce = eac3 ? (reader.readBit() != 0) : true;
             state.cplbndstrc[0] = 0;
+            if (cplbndstrce) {
+                for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
+                    state.cplbndstrc[bnd] = static_cast<uint8_t>(reader.readBit());
+                }
+            } else if (!state.cplbndstrc_set) {
+                // The default is indexed by absolute sub-band, and the
+                // structure here is relative to cplbegf.
+                for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
+                    state.cplbndstrc[bnd] = kDefaultCouplingBandStructure[state.cplbegf + bnd];
+                }
+            }
+            state.cplbndstrc_set = true;
+            state.ncplbnd = 1;
             for (unsigned bnd = 1; bnd < state.ncplsubnd; ++bnd) {
-                state.cplbndstrc[bnd] = static_cast<uint8_t>(reader.readBit());
                 if (!state.cplbndstrc[bnd]) {
                     ++state.ncplbnd;
                 }
             }
             state.strtmant[kCouplingSlot] = ac3CouplingStartMantissa(state.cplbegf);
             state.endmant[kCouplingSlot] = ac3CouplingEndMantissa(state.cplendf);
+        } else if (eac3) {
+            // Coupling switched off: the next block to switch it on has to
+            // send fresh coordinates and leak values again.
+            for (unsigned ch = 0; ch < nfchans; ++ch) {
+                state.chincpl[ch] = false;
+                state.firstcplcos[ch] = true;
+            }
+            state.firstcplleak = true;
+            state.phsflginu = false;
         }
     }
 
@@ -129,9 +196,19 @@ Debug::log("ac3", "  after cplstre: bit ", reader.tell(), " cplinu=", state.cpli
         bool any_new_coordinates = false;
         for (unsigned ch = 0; ch < nfchans; ++ch) {
             if (!state.chincpl[ch]) {
+                state.firstcplcos[ch] = true;
                 continue;
             }
-            if (reader.readBit()) { // cplcoe
+            // E-AC-3 does not send cplcoe the first time a channel is coupled
+            // in a frame: coordinates are mandatory then.
+            bool cplcoe = false;
+            if (eac3 && state.firstcplcos[ch]) {
+                cplcoe = true;
+                state.firstcplcos[ch] = false;
+            } else {
+                cplcoe = reader.readBit() != 0;
+            }
+            if (cplcoe) {
                 any_new_coordinates = true;
                 const unsigned master = reader.read(2);
                 for (unsigned bnd = 0; bnd < state.ncplbnd; ++bnd) {
@@ -154,7 +231,9 @@ Debug::log("ac3", "  after cplco: bit ", reader.tell());
 
     // --- rematrixing, 2/0 only ---
     if (stereo) {
-        if (reader.readBit()) { // rematstr
+        // E-AC-3 block 0 always carries the flags, so rematstr is implied.
+        const bool rematstr = (eac3 && blk == 0) ? true : (reader.readBit() != 0);
+        if (rematstr) {
             unsigned bands = 4;
             if (state.cplinu) {
                 bands = state.cplbegf > 2 ? 4u : (state.cplbegf > 0 ? 3u : 2u);
@@ -168,15 +247,28 @@ Debug::log("ac3", "  after cplco: bit ", reader.tell());
 Debug::log("ac3", "  after remat: bit ", reader.tell());
 
     // --- exponent strategies ---
-    if (state.cplinu) {
-        state.expstr[kCouplingSlot] = static_cast<ExponentStrategy>(reader.read(2));
-    }
-    for (unsigned ch = 0; ch < nfchans; ++ch) {
-        state.expstr[ch] = static_cast<ExponentStrategy>(reader.read(2));
-    }
-    if (header.lfeon) {
-        state.expstr[kLfeSlot] = reader.readBit()
-                               ? ExponentStrategy::D15 : ExponentStrategy::Reuse;
+    if (eac3) {
+        // E-AC-3 settles them for the whole frame in audfrm().
+        if (state.cplinu) {
+            state.expstr[kCouplingSlot] = eac3->cplexpstr[blk];
+        }
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            state.expstr[ch] = eac3->chexpstr[blk][ch];
+        }
+        if (header.lfeon) {
+            state.expstr[kLfeSlot] = eac3->lfeexpstr[blk];
+        }
+    } else {
+        if (state.cplinu) {
+            state.expstr[kCouplingSlot] = static_cast<ExponentStrategy>(reader.read(2));
+        }
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            state.expstr[ch] = static_cast<ExponentStrategy>(reader.read(2));
+        }
+        if (header.lfeon) {
+            state.expstr[kLfeSlot] = reader.readBit()
+                                   ? ExponentStrategy::D15 : ExponentStrategy::Reuse;
+        }
     }
 
     // --- channel bandwidth ---
@@ -246,39 +338,139 @@ Debug::log("ac3", "  after expstr/bw: bit ", reader.tell());
 Debug::log("ac3", "  after exponents: bit ", reader.tell());
 
     // --- bit allocation parameters ---
-    if (reader.readBit()) { // baie
-        state.sdcycod = static_cast<uint8_t>(reader.read(2));
-        state.fdcycod = static_cast<uint8_t>(reader.read(2));
-        state.sgaincod = static_cast<uint8_t>(reader.read(2));
-        state.dbpbcod = static_cast<uint8_t>(reader.read(2));
-        state.floorcod = static_cast<uint8_t>(reader.read(3));
-        state.have_allocation = true;
-    }
-    if (reader.readBit()) { // snroffste
-        state.csnroffst = static_cast<int>(reader.read(6));
+    if (eac3) {
+        const auto setFine = [&](int value) {
+            state.fsnroffst[kCouplingSlot] = value;
+            state.fsnroffst[kLfeSlot] = value;
+            for (unsigned ch = 0; ch < nfchans; ++ch) {
+                state.fsnroffst[ch] = value;
+            }
+        };
+        const auto setFastGain = [&](uint8_t code) {
+            state.fgaincod[kCouplingSlot] = code;
+            state.fgaincod[kLfeSlot] = code;
+            for (unsigned ch = 0; ch < nfchans; ++ch) {
+                state.fgaincod[ch] = code;
+            }
+        };
+
+        // Parametric model: sent only if audfrm() enabled the syntax, and
+        // otherwise the defaults of Table E1.4.
+        if (eac3->bamode) {
+            if (reader.readBit()) { // baie
+                state.sdcycod = static_cast<uint8_t>(reader.read(2));
+                state.fdcycod = static_cast<uint8_t>(reader.read(2));
+                state.sgaincod = static_cast<uint8_t>(reader.read(2));
+                state.dbpbcod = static_cast<uint8_t>(reader.read(2));
+                state.floorcod = static_cast<uint8_t>(reader.read(3));
+            }
+        } else {
+            state.sdcycod = 0x2;
+            state.fdcycod = 0x1;
+            state.sgaincod = 0x1;
+            state.dbpbcod = 0x2;
+            state.floorcod = 0x7;
+        }
+
+        // SNR offsets, Table E2.9: strategy 1 is one pair for the whole
+        // frame; 2 and 3 are sent per block (always in block 0) and reused
+        // when a block omits them.
+        if (eac3->snroffststr == 0x0) {
+            state.csnroffst = eac3->frmcsnroffst;
+            setFine(eac3->frmfsnroffst);
+        } else {
+            const bool snroffste = blk == 0 ? true : (reader.readBit() != 0);
+            if (snroffste) {
+                state.csnroffst = static_cast<int>(reader.read(6));
+                if (eac3->snroffststr == 0x1) {
+                    setFine(static_cast<int>(reader.read(4))); // blkfsnroffst
+                } else if (eac3->snroffststr == 0x2) {
+                    if (state.cplinu) {
+                        state.fsnroffst[kCouplingSlot] = static_cast<int>(reader.read(4));
+                    }
+                    for (unsigned ch = 0; ch < nfchans; ++ch) {
+                        state.fsnroffst[ch] = static_cast<int>(reader.read(4));
+                    }
+                    if (header.lfeon) {
+                        state.fsnroffst[kLfeSlot] = static_cast<int>(reader.read(4));
+                    }
+                } else {
+                    return fail("reserved SNR offset strategy");
+                }
+            }
+        }
+
+        // Fast gain codes default to 4 unless a block sends its own.
+        const bool fgaincode = eac3->frmfgaincode ? (reader.readBit() != 0) : false;
+        if (fgaincode) {
+            if (state.cplinu) {
+                state.fgaincod[kCouplingSlot] = static_cast<uint8_t>(reader.read(3));
+            }
+            for (unsigned ch = 0; ch < nfchans; ++ch) {
+                state.fgaincod[ch] = static_cast<uint8_t>(reader.read(3));
+            }
+            if (header.lfeon) {
+                state.fgaincod[kLfeSlot] = static_cast<uint8_t>(reader.read(3));
+            }
+        } else {
+            setFastGain(0x4);
+        }
+
+        // An offset for re-encoding to AC-3; nothing a decoder applies.
+        if (header.strmtyp == 0x0 && reader.readBit()) { // convsnroffste
+            reader.skip(10);                            // convsnroffst
+        }
+
         if (state.cplinu) {
-            state.fsnroffst[kCouplingSlot] = static_cast<int>(reader.read(4));
-            state.fgaincod[kCouplingSlot] = static_cast<uint8_t>(reader.read(3));
-        }
-        for (unsigned ch = 0; ch < nfchans; ++ch) {
-            state.fsnroffst[ch] = static_cast<int>(reader.read(4));
-            state.fgaincod[ch] = static_cast<uint8_t>(reader.read(3));
-        }
-        if (header.lfeon) {
-            state.fsnroffst[kLfeSlot] = static_cast<int>(reader.read(4));
-            state.fgaincod[kLfeSlot] = static_cast<uint8_t>(reader.read(3));
+            bool cplleake = false;
+            if (state.firstcplleak) {
+                cplleake = true;
+                state.firstcplleak = false;
+            } else {
+                cplleake = reader.readBit() != 0;
+            }
+            if (cplleake) {
+                state.cplfleak = static_cast<uint8_t>(reader.read(3));
+                state.cplsleak = static_cast<uint8_t>(reader.read(3));
+            }
         }
         state.have_allocation = true;
-    }
-    if (state.cplinu && reader.readBit()) { // cplleake
-        state.cplfleak = static_cast<uint8_t>(reader.read(3));
-        state.cplsleak = static_cast<uint8_t>(reader.read(3));
+    } else {
+        if (reader.readBit()) { // baie
+            state.sdcycod = static_cast<uint8_t>(reader.read(2));
+            state.fdcycod = static_cast<uint8_t>(reader.read(2));
+            state.sgaincod = static_cast<uint8_t>(reader.read(2));
+            state.dbpbcod = static_cast<uint8_t>(reader.read(2));
+            state.floorcod = static_cast<uint8_t>(reader.read(3));
+            state.have_allocation = true;
+        }
+        if (reader.readBit()) { // snroffste
+            state.csnroffst = static_cast<int>(reader.read(6));
+            if (state.cplinu) {
+                state.fsnroffst[kCouplingSlot] = static_cast<int>(reader.read(4));
+                state.fgaincod[kCouplingSlot] = static_cast<uint8_t>(reader.read(3));
+            }
+            for (unsigned ch = 0; ch < nfchans; ++ch) {
+                state.fsnroffst[ch] = static_cast<int>(reader.read(4));
+                state.fgaincod[ch] = static_cast<uint8_t>(reader.read(3));
+            }
+            if (header.lfeon) {
+                state.fsnroffst[kLfeSlot] = static_cast<int>(reader.read(4));
+                state.fgaincod[kLfeSlot] = static_cast<uint8_t>(reader.read(3));
+            }
+            state.have_allocation = true;
+        }
+        if (state.cplinu && reader.readBit()) { // cplleake
+            state.cplfleak = static_cast<uint8_t>(reader.read(3));
+            state.cplsleak = static_cast<uint8_t>(reader.read(3));
+        }
     }
 
 Debug::log("ac3", "  after snroffst: bit ", reader.tell());
 
     // --- delta bit allocation ---
-    if (reader.readBit()) { // deltbaie
+    const bool deltbaie = (!eac3 || eac3->dbaflde) ? (reader.readBit() != 0) : false;
+    if (deltbaie) {
         uint8_t cpldeltbae = kDeltaReuse;
         uint8_t deltbae[kMaxFullBandwidthChannels] = {};
         if (state.cplinu) {
@@ -318,7 +510,8 @@ Debug::log("ac3", "  after snroffst: bit ", reader.tell());
                 return fail("reserved delta bit allocation strategy");
             }
         }
-    } else if (state.block_index == 0) {
+    } else if (blk == 0 || (eac3 && !eac3->dbaflde)) {
+        // An E-AC-3 frame without the syntax has no delta allocation at all.
         // 5.4.3.47: deltbaie of 0 in block 0 is defined to mean the same as a
         // deltbae of '10' everywhere -- no delta allocation at all.
         for (auto& slot : state.deltas) {
@@ -337,7 +530,7 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
     // them, but they sit between the allocation and the mantissas, so a
     // decoder that does not step over them starts the mantissa stream inside
     // the padding and loses the rest of the frame.
-    if (reader.readBit()) { // skiple
+    if ((!eac3 || eac3->skipflde) && reader.readBit()) { // skiple
         const unsigned skipl = reader.read(9);
         reader.skip(skipl * 8); // skipfld
         Debug::log("ac3", "  skipped ", skipl, " dummy bytes");

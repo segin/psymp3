@@ -472,6 +472,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_ac3_bit_allocation \
 	test_ac3_mantissas \
 	test_ac3_transform \
+	test_eac3_frame \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_http_iohandler_validation \
@@ -533,6 +534,12 @@ test_ac3_mantissas_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_ac3_transform_SOURCES = test_ac3_transform.cpp
 test_ac3_transform_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_eac3_frame_SOURCES = test_eac3_frame.cpp
+test_eac3_frame_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+
+
 
 generate_matroska_corpus_SOURCES = generate_matroska_corpus.cpp
 generate_matroska_corpus_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)

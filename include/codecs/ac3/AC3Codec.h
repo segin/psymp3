@@ -24,10 +24,9 @@ namespace AC3 {
 /// complete syncframe in it is decoded, and a partial frame at the end waits
 /// for the next chunk.
 ///
-/// E-AC-3 is deliberately not accepted yet. It shares the sync word and is
-/// told apart by bsid, but Annex E's frame layout is different enough that
-/// feeding it to the AC-3 path would produce noise rather than an error; a
-/// stream that needs it is refused by name like any other unsupported codec.
+/// E-AC-3 goes through the same decoder: its frames are told apart by bsid,
+/// and the audio blocks differ from AC-3's only in which fields the frame
+/// layer lets them omit.
 class AC3Codec : public AudioCodec {
 public:
     explicit AC3Codec(const StreamInfo& stream_info);
@@ -37,7 +36,7 @@ public:
     AudioFrame decode(const MediaChunk& chunk) override;
     AudioFrame flush() override;
     void reset() override;
-    std::string getCodecName() const override { return "ac3"; }
+    std::string getCodecName() const override { return m_stream_info.codec_name == "eac3" ? "eac3" : "ac3"; }
     bool canDecode(const StreamInfo& stream_info) const override;
 
 private:

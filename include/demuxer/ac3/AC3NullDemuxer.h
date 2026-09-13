@@ -26,9 +26,8 @@ namespace AC3 {
  * land on any frame, and since frames of one stream share a length and a
  * sample count, the frame for a given time is found arithmetically.
  *
- * An E-AC-3 stream is recognised and reported as "eac3" so Media Information
- * can name it, but no codec claims that name yet, so the file is refused the
- * same way any other unsupported codec is.
+ * An E-AC-3 stream is reported as "eac3", so Media Information can name it;
+ * the same codec decodes both.
  */
 class AC3NullDemuxer : public Demuxer {
 public:

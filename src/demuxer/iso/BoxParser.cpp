@@ -874,9 +874,8 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 track.codecType = "ac3";
                 break;
             case CODEC_EC3:
-                // Named so Media Information can say E-AC-3; no codec claims
-                // it yet, so the track is refused by name like any other
-                // unsupported codec.
+                // E-AC-3, decoded by the same codec as AC-3; as with 'ac-3',
+                // the 'dec3' box restates what each syncframe says itself.
                 track.codecType = "eac3";
                 break;
             case CODEC_ALAC:

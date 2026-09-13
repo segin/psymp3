@@ -105,7 +105,7 @@ struct AC3FrameHeader {
     bool isEAC3() const { return flavour == Flavour::EAC3; }
     /// True when this decoder can actually decode the frame, as opposed to
     /// merely having recognised it.
-    bool isDecodable() const { return flavour == Flavour::AC3; }
+    bool isDecodable() const { return flavour == Flavour::AC3 || flavour == Flavour::EAC3; }
 
     /// What to call this stream in Media Information. Names the flavour even
     /// when it cannot be decoded, since "E-AC-3" tells a listener why a file

@@ -41,6 +41,10 @@ constexpr unsigned kChannelSlots = kMaxFullBandwidthChannels + 2;
 /// and ncplsubnd = 3 + cplendf - cplbegf, so eighteen is the ceiling.
 constexpr unsigned kMaxCouplingBands = 18;
 
+/// E-AC-3's frame layer, defined in EAC3Frame.h. The block parser reads
+/// through it when it is given one.
+struct EAC3AudioFrame;
+
 /// A/52 Table 5.16, the delta bit allocation strategies. "Apply none" is
 /// distinct from "reuse": it discards whatever the previous block sent.
 constexpr uint8_t kDeltaReuse = 0;
@@ -123,6 +127,19 @@ struct AC3FrameState {
     /// several places: it may not say "reuse", and an absent delta bit
     /// allocation there means "apply none" rather than "keep the last".
     unsigned block_index = 0;
+
+    // --- E-AC-3 syntax state, reset with the rest at every syncframe ---
+    // Table E1.4 stops transmitting some flags once a frame has established
+    // them: the first block to couple a channel must send its coordinates,
+    // and the first coupled block must send leak values, so those are implied
+    // rather than read. These record whether that first time has passed.
+    bool firstcplcos[kMaxFullBandwidthChannels] = { true, true, true, true, true };
+    bool firstcplleak = true;
+    /// Whether a coupling band structure is in force for this frame, so an
+    /// omitted one means "reuse" rather than "take the default".
+    bool cplbndstrc_set = false;
+    bool spxinu = false;
+    bool chinspx[kMaxFullBandwidthChannels] = {};
 };
 
 /// One decoded audio block: 256 transform coefficients per coded channel,
@@ -153,7 +170,8 @@ struct AC3Block {
 ///                decoder up. Points at a literal; never freed.
 bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
                         AC3FrameState& state, AC3Block& block,
-                        const char** reason = nullptr);
+                        const char** reason = nullptr,
+                        const EAC3AudioFrame* eac3 = nullptr);
 
 } // namespace AC3
 } // namespace Codec

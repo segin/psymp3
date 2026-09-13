@@ -58,7 +58,23 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
 
     AC3BitReader reader(data, header.frame_size);
     AC3FrameHeader consumed;
-    if (!ac3ParseFrameHeader(reader, consumed)) {
+    EAC3AudioFrame eac3;
+    const bool is_eac3 = header.isEAC3();
+    if (is_eac3) {
+        const char* why = nullptr;
+        if (!eac3ParseFrame(reader, consumed, eac3, &why)) {
+            Debug::log("ac3", "E-AC-3 frame header failed: ", why ? why : "unknown");
+            return false;
+        }
+        if (header.strmtyp == 0x1) {
+            // A dependent substream carries channels beyond the independent
+            // program's 5.1 (§E3.8). Mixing them in is not supported, so the
+            // independent program plays on its own; its state is left alone
+            // so the next independent frame is unaffected.
+            pcm.clear();
+            return true;
+        }
+    } else if (!ac3ParseFrameHeader(reader, consumed)) {
         return false;
     }
 
@@ -72,12 +88,15 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
     const unsigned fbw = header.channels;
     const unsigned acmod = static_cast<unsigned>(header.acmod);
 
-    pcm.assign(static_cast<size_t>(channels) * kFrameSamples, 0.0f);
+    // Six blocks for AC-3; E-AC-3 frames carry 1, 2, 3 or 6.
+    const unsigned blocks = header.blocks;
+    pcm.assign(static_cast<size_t>(channels) * blocks * kBlockSamples, 0.0f);
 
-    for (unsigned b = 0; b < kBlocksPerFrame; ++b) {
+    for (unsigned b = 0; b < blocks; ++b) {
         AC3Block block;
         const char* reason = nullptr;
-        if (!ac3ParseAudioBlock(reader, header, m_state, block, &reason)) {
+        if (!ac3ParseAudioBlock(reader, header, m_state, block, &reason,
+                                is_eac3 ? &eac3 : nullptr)) {
             Debug::log("ac3", "frame failed at block ", b, ": ",
                        reason ? reason : "unknown");
             return false;

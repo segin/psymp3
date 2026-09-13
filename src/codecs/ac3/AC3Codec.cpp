@@ -97,7 +97,11 @@ AudioFrame AC3Codec::decode_unlocked(const MediaChunk& chunk)
                        " bytes) - skipping");
         }
         offset += header.frame_size;
-        m_pending_timestamp += static_cast<uint64_t>(header.blocks) * kSamplesPerBlock;
+        // A dependent E-AC-3 substream extends the frame before it rather than
+        // following it, so it does not move the clock.
+        if (!(header.isEAC3() && header.strmtyp == 0x1)) {
+            m_pending_timestamp += static_cast<uint64_t>(header.blocks) * kSamplesPerBlock;
+        }
     }
 
     m_pending.erase(m_pending.begin(), m_pending.begin() + static_cast<std::ptrdiff_t>(offset));
@@ -161,7 +165,8 @@ namespace AC3CodecSupport {
 
 bool isAC3Stream(const StreamInfo& stream_info)
 {
-    return stream_info.codec_type == "audio" && stream_info.codec_name == "ac3";
+    return stream_info.codec_type == "audio" &&
+           (stream_info.codec_name == "ac3" || stream_info.codec_name == "eac3");
 }
 
 std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info)
@@ -175,7 +180,8 @@ std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info)
 void registerCodec()
 {
     AudioCodecFactory::registerCodec("ac3", createCodec);
-    Debug::log("ac3", "AC3CodecSupport: Registered ac3 codec with AudioCodecFactory");
+    AudioCodecFactory::registerCodec("eac3", createCodec);
+    Debug::log("ac3", "AC3CodecSupport: Registered ac3 and eac3 codecs with AudioCodecFactory");
 }
 
 } // namespace AC3CodecSupport

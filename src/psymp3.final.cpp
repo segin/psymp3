@@ -97,6 +97,7 @@
 #include "codecs/ac3/AC3BitAllocation.cpp"
 #include "codecs/ac3/AC3Mantissas.cpp"
 #include "codecs/ac3/AC3Block.cpp"
+#include "codecs/ac3/EAC3Frame.cpp"
 #include "codecs/ac3/AC3Transform.cpp"
 #include "codecs/ac3/AC3FrameDecoder.cpp"
 #include "codecs/ac3/AC3Codec.cpp"
