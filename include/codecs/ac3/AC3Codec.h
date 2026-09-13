@@ -1,5 +1,5 @@
 /*
- * AC3Codec.h - AudioCodec-based AC-3 (A/52) decoder
+ * AC3Codec.h - AudioCodec-based AC-3 and E-AC-3 (A/52) decoder
  * This file is part of PsyMP3.
  * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
  *
@@ -24,9 +24,8 @@ namespace AC3 {
 /// complete syncframe in it is decoded, and a partial frame at the end waits
 /// for the next chunk.
 ///
-/// E-AC-3 goes through the same decoder: its frames are told apart by bsid,
-/// and the audio blocks differ from AC-3's only in which fields the frame
-/// layer lets them omit.
+/// E-AC-3 goes through the same decoder, whose output runs one syncframe
+/// behind its input; flush() releases the last frame at the end of a stream.
 class AC3Codec : public AudioCodec {
 public:
     explicit AC3Codec(const StreamInfo& stream_info);
@@ -41,12 +40,19 @@ public:
 
 private:
     AudioFrame decode_unlocked(const MediaChunk& chunk);
+    /// Scale decoded floats to full-scale S32 and stamp them.
+    AudioFrame toAudioFrame_unlocked(const std::vector<float>& pcm);
 
     AC3FrameDecoder m_decoder;
     std::vector<float> m_pcm;       // scratch for one syncframe
-    std::vector<float> m_out;       // every syncframe decoded from one chunk
+    std::vector<float> m_out;       // everything decoded from one chunk
     std::vector<uint8_t> m_pending; // bytes not yet forming a whole syncframe
-    uint64_t m_pending_timestamp = 0; // sample position of m_pending's start
+    /// Sample position of the next sample handed on. Output is contiguous, so
+    /// it is taken from the first chunk after a reset and then advanced by
+    /// what is emitted -- which stays exact although E-AC-3 output lags its
+    /// input by a frame.
+    uint64_t m_output_timestamp = 0;
+    bool m_output_started = false;
     mutable std::mutex m_mutex;
 };
 
