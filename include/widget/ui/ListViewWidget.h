@@ -24,8 +24,12 @@ using PsyMP3::Widget::Foundation::DrawableWidget;
  * @brief A vertically scrolling list of selectable text rows.
  *
  * Rows are drawn into the widget's own surface; a child ScrollbarWidget on the
- * right edge scrolls the view when the item count exceeds what fits. Exactly one
- * row may be selected at a time. The widget re-lays out (scrollbar geometry,
+ * right edge scrolls the view when the item count exceeds what fits.
+ *
+ * The selection is one contiguous run of rows, from an anchor (the row a plain
+ * click selected) to the cursor (the row it was last extended to, which holds
+ * the keyboard focus rectangle). Shift+click and Shift+Up/Down extend it; a
+ * drag moves the whole run. The widget re-lays out (scrollbar geometry,
  * visible-row count, scroll clamping) whenever it is resized, so a container can
  * grow/shrink it freely — call onResize(new_w, new_h) from the resize handler.
  */
@@ -43,12 +47,23 @@ public:
     void clearItems();
     size_t itemCount() const { return m_items.size(); }
 
-    // Selection. getSelectedIndex() returns -1 when nothing is selected.
-    // ensure_visible scrolls the new selection into view; pass false to move
-    // the selection without disturbing the viewport (e.g. a background list
-    // refresh that must not yank the view away from where the user left it).
+    // Selection. getSelectedIndex() is the cursor row, -1 when nothing is
+    // selected; the anchor is the other end of the run. ensure_visible scrolls
+    // the cursor into view; pass false to change the selection without
+    // disturbing the viewport (e.g. a background list refresh that must not
+    // yank the view away from where the user left it).
     int getSelectedIndex() const { return m_selected; }
+    int getSelectionAnchor() const { return m_anchor; }
+    int getSelectionFirst() const;  // lowest selected row, or -1
+    int getSelectionLast() const;   // highest selected row, or -1
+    int getSelectionCount() const;  // number of selected rows
+    bool isRowSelected(int index) const;
+    // Select exactly one row (-1 clears the selection).
     void setSelectedIndex(int index, bool ensure_visible = true);
+    // Select every row from anchor to cursor inclusive, in either order. An
+    // out-of-range cursor clears the selection; an out-of-range anchor is
+    // clamped into the list.
+    void setSelectionRange(int anchor, int cursor, bool ensure_visible = true);
     // Scroll so the given row is within the visible area (no-op if already shown).
     void ensureVisible(int index);
     // Abandon any in-progress drag-to-reorder (e.g. the list changed underneath).
@@ -62,9 +77,11 @@ public:
     // gapAt() for hit-testing an external file drop.
     int  dropGapAt(int relative_y) const { return gapAt(relative_y); }
     // Keyboard focus, using the same click-to-focus scheme as TextInputWidget:
-    // clicking the row area takes focus; while focused, the selected row shows
+    // clicking the row area takes focus; while focused, the cursor row shows
     // the classic dotted focus rectangle and Up/Down move the cursor (scrolling
-    // one row when it crosses the viewport edge). Focus returns to the main
+    // one row when it crosses the viewport edge). Shift+Up/Down move the cursor
+    // with the anchor held, selecting or deselecting rows as the run grows or
+    // shrinks; Delete reports the whole selection. Focus returns to the main
     // program when the user clicks elsewhere or the focused list is destroyed.
     static void clearFocusedWidget();
     static bool handleFocusedKeyPress(const SDL_keysym& keysym);
@@ -78,21 +95,27 @@ public:
     // boundary while beyond an edge — or -1 when x is outside the widget.
     int externalDropHover(int relative_x, int relative_y);
 
+    // Fired whenever the selection changes (the cursor row).
     void setOnSelectionChanged(std::function<void(int)> cb) { m_on_selection_changed = std::move(cb); }
     // Fired when a row is double-clicked (the row index).
     void setOnActivate(std::function<void(int)> cb) { m_on_activate = std::move(cb); }
-    // Fired when Delete is pressed while this list has keyboard focus and a
-    // row is selected (the row index).
-    void setOnDelete(std::function<void(int)> cb) { m_on_delete = std::move(cb); }
-    // Fired when a row is drag-reordered: (from index, to index) after adjusting
-    // for the removal, so it maps directly onto a move(from, to) operation.
-    void setOnReorder(std::function<void(int from, int to)> cb) { m_on_reorder = std::move(cb); }
-    // Fired on right-click of a row: (row, x, y) with x/y relative to this widget.
+    // Fired when Delete is pressed while this list has keyboard focus and
+    // rows are selected: the first and last selected rows.
+    void setOnDelete(std::function<void(int first, int last)> cb) { m_on_delete = std::move(cb); }
+    // Fired when the selected rows are dragged elsewhere: rows first..last
+    // move as a block so that row `first` lands at index `to`, counted in the
+    // list as it will be after the move. A drop inside or at either edge of
+    // the block itself does nothing and is never reported.
+    void setOnReorder(std::function<void(int first, int last, int to)> cb) { m_on_reorder = std::move(cb); }
+    // Fired on right-click of a row: (row, x, y) with x/y relative to this
+    // widget. Right-clicking a row inside the selection keeps the selection;
+    // any other row is selected first.
     void setOnContextMenu(std::function<void(int row, int x, int y)> cb) { m_on_context = std::move(cb); }
 
-    // Editing helpers operating on the current selection. Each is a no-op when
+    // Editing helpers operating on the whole selection. Each is a no-op when
     // the operation is not possible (nothing selected, already at an end, etc.)
-    // and keeps the moved/adjacent item selected and visible.
+    // and keeps the moved rows (or, after a removal, the row that took their
+    // place) selected and visible.
     void removeSelected();
     void moveSelectedUp();
     void moveSelectedDown();
@@ -128,6 +151,9 @@ private:
     void setTop(int top);     // scroll so the given row is first, clamped
     int  rowAt(int relative_y) const; // item index under a y coordinate, or -1
     int  gapAt(int relative_y) const; // insertion gap index (0..count) for a drag
+    // `gap`, or -1 when dropping the dragged block there would put it back
+    // where it is: any gap from its first row to just past its last.
+    int  dropGapOutsideBlock(int gap) const;
 
     void focus();
     void blur();
@@ -137,23 +163,30 @@ private:
 
     Core::Font* m_font;
     std::vector<TagLib::String> m_items;
-    int m_selected;           // -1 = none
+    int m_selected;           // cursor row; -1 = no selection
+    int m_anchor = -1;        // other end of the selected run; -1 = none
     int m_top;                // index of the first visible row
     int m_row_height;
     ScrollbarWidget* m_scrollbar; // owned via addChild(); non-owning pointer
     std::function<void(int)> m_on_selection_changed;
     std::function<void(int)> m_on_activate;
-    std::function<void(int)> m_on_delete;
-    std::function<void(int, int)> m_on_reorder;
+    std::function<void(int, int)> m_on_delete;
+    std::function<void(int, int, int)> m_on_reorder;
     std::function<void(int, int, int)> m_on_context;
 
-    // Drag-to-reorder state. m_drag_from is the grabbed row (-1 when not
-    // dragging); m_dragging becomes true once the pointer passes a small
-    // threshold, and m_drag_gap is the insertion gap the drop marker shows.
-    int m_drag_from = -1;
+    // Drag-to-reorder state. m_drag_first..m_drag_last is the grabbed block
+    // (-1 when not dragging); m_dragging becomes true once the pointer passes a
+    // small threshold, and m_drag_gap is the insertion gap the drop marker
+    // shows, -1 while the pointer is over the block itself.
+    int m_drag_first = -1;
+    int m_drag_last = -1;
     int m_drag_start_y = 0;
     bool m_dragging = false;
     int m_drag_gap = -1;
+    // A plain click inside a multi-row selection keeps the selection so the
+    // block can be dragged; this row is what the click selects instead if it
+    // is released without dragging. -1 otherwise.
+    int m_collapse_on_release = -1;
     int m_drop_indicator = -1; // external-drop insertion gap (blue bar); -1 = none
 
     // The list holding keyboard focus (dotted focus rect + Up/Down cursor).

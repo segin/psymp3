@@ -460,6 +460,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
 	test_widget_event_routing \
+	test_list_view_selection \
 	test_widget_hierarchy_properties \
 	test_widget_rendering \
 	test_complex_script_rendering \
@@ -791,6 +792,9 @@ test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
 test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 test_widget_event_routing_SOURCES = test_widget_event_routing.cpp
 test_widget_event_routing_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_list_view_selection_SOURCES = test_list_view_selection.cpp
+test_list_view_selection_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_widget_hierarchy_properties_SOURCES = test_widget_hierarchy_properties.cpp
 test_widget_hierarchy_properties_LDADD = $(COMMON_TEST_LIBS) $(RAPIDCHECK_LIBS) $(AM_LDFLAGS)
 

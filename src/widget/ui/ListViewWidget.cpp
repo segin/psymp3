@@ -106,9 +106,15 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
                 sel += (keysym.sym == SDLK_DOWN) ? 1 : -1;
             }
             sel = std::max(0, std::min(sel, static_cast<int>(w.m_items.size()) - 1));
-            // setSelectedIndex() no-ops at the ends and, via ensureVisible(),
-            // scrolls exactly one row when the cursor crosses a viewport edge.
-            w.setSelectedIndex(sel);
+            // Shift extends the selection from its anchor; otherwise the
+            // cursor moves alone. Either no-ops at the ends and, via
+            // ensureVisible(), scrolls exactly one row when the cursor crosses
+            // a viewport edge.
+            if ((keysym.mod & SDL_KMOD_SHIFT) != 0 && w.m_anchor >= 0) {
+                w.setSelectionRange(w.m_anchor, sel);
+            } else {
+                w.setSelectedIndex(sel);
+            }
             return true;
         }
         case SDLK_RETURN:
@@ -121,11 +127,11 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
             }
             return true;
         case SDLK_DELETE:
-            // Delete removes the cursor row (in the Playlist Manager, the same
-            // action as its Delete button).
+            // Delete removes the selected rows (in the Playlist Manager, the
+            // same action as its Delete button).
             if (w.m_selected >= 0 && w.m_on_delete) {
                 auto on_delete = w.m_on_delete;
-                on_delete(w.m_selected);
+                on_delete(w.getSelectionFirst(), w.getSelectionLast());
             }
             return true;
         default:
@@ -203,6 +209,7 @@ void ListViewWidget::setItems(const std::vector<TagLib::String>& items, bool pre
 {
     m_items = items;
     m_selected = -1;
+    m_anchor = -1;
     if (!preserve_scroll) {
         m_top = 0;
     }
@@ -214,20 +221,51 @@ void ListViewWidget::clearItems()
 {
     m_items.clear();
     m_selected = -1;
+    m_anchor = -1;
     m_top = 0;
     relayout();
     invalidate();
 }
 
+int ListViewWidget::getSelectionFirst() const
+{
+    return m_selected < 0 ? -1 : std::min(m_anchor, m_selected);
+}
+
+int ListViewWidget::getSelectionLast() const
+{
+    return m_selected < 0 ? -1 : std::max(m_anchor, m_selected);
+}
+
+int ListViewWidget::getSelectionCount() const
+{
+    return m_selected < 0 ? 0 : getSelectionLast() - getSelectionFirst() + 1;
+}
+
+bool ListViewWidget::isRowSelected(int index) const
+{
+    return m_selected >= 0 && index >= getSelectionFirst() && index <= getSelectionLast();
+}
+
 void ListViewWidget::setSelectedIndex(int index, bool ensure_visible)
 {
-    if (index < -1 || index >= static_cast<int>(m_items.size())) {
-        index = -1;
+    setSelectionRange(index, index, ensure_visible);
+}
+
+void ListViewWidget::setSelectionRange(int anchor, int cursor, bool ensure_visible)
+{
+    const int count = static_cast<int>(m_items.size());
+    if (cursor < 0 || cursor >= count) {
+        anchor = -1;
+        cursor = -1;
+    } else {
+        anchor = std::max(0, std::min(anchor, count - 1));
     }
-    if (index == m_selected) {
+    if (anchor == m_anchor && cursor == m_selected) {
         return;
     }
-    m_selected = index;
+    m_anchor = anchor;
+    m_selected = cursor;
     if (ensure_visible) {
         ensureVisible(m_selected);
     }
@@ -249,18 +287,17 @@ void ListViewWidget::ensureVisible(int index)
 
 void ListViewWidget::removeSelected()
 {
-    if (m_selected < 0 || m_selected >= static_cast<int>(m_items.size())) {
+    const int first = getSelectionFirst();
+    const int last = getSelectionLast();
+    if (first < 0 || last >= static_cast<int>(m_items.size())) {
         return;
     }
-    m_items.erase(m_items.begin() + m_selected);
+    m_items.erase(m_items.begin() + first, m_items.begin() + last + 1);
 
-    // Keep the same slot selected (now holding the next item); if we removed the
-    // last item, fall back to the new last row, or clear when the list is empty.
-    if (m_items.empty()) {
-        m_selected = -1;
-    } else if (m_selected >= static_cast<int>(m_items.size())) {
-        m_selected = static_cast<int>(m_items.size()) - 1;
-    }
+    // Select the single row now in the first removed slot (the item after the
+    // block); past the end, the new last row; nothing when the list is empty.
+    m_selected = m_items.empty() ? -1 : std::min(first, static_cast<int>(m_items.size()) - 1);
+    m_anchor = m_selected;
 
     relayout();
     ensureVisible(m_selected);
@@ -272,10 +309,14 @@ void ListViewWidget::removeSelected()
 
 void ListViewWidget::moveSelectedUp()
 {
-    if (m_selected <= 0 || m_selected >= static_cast<int>(m_items.size())) {
+    const int first = getSelectionFirst();
+    const int last = getSelectionLast();
+    if (first <= 0 || last >= static_cast<int>(m_items.size())) {
         return;
     }
-    std::swap(m_items[m_selected - 1], m_items[m_selected]);
+    // The row above the block moves to just below it.
+    std::rotate(m_items.begin() + first - 1, m_items.begin() + first, m_items.begin() + last + 1);
+    m_anchor -= 1;
     m_selected -= 1;
     ensureVisible(m_selected);
     invalidate();
@@ -286,10 +327,14 @@ void ListViewWidget::moveSelectedUp()
 
 void ListViewWidget::moveSelectedDown()
 {
-    if (m_selected < 0 || m_selected >= static_cast<int>(m_items.size()) - 1) {
+    const int first = getSelectionFirst();
+    const int last = getSelectionLast();
+    if (first < 0 || last >= static_cast<int>(m_items.size()) - 1) {
         return;
     }
-    std::swap(m_items[m_selected], m_items[m_selected + 1]);
+    // The row below the block moves to just above it.
+    std::rotate(m_items.begin() + first, m_items.begin() + last + 1, m_items.begin() + last + 2);
+    m_anchor += 1;
     m_selected += 1;
     ensureVisible(m_selected);
     invalidate();
@@ -308,12 +353,16 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
     const bool in_rows = (relative_x >= BORDER && relative_x < BORDER + listAreaWidth() &&
                           relative_y >= BORDER && relative_y < BORDER + listAreaHeight());
 
-    // Right-click a row: select it and raise the context menu at the cursor.
+    // Right-click a row: raise the context menu at the cursor. A row inside the
+    // selection keeps it, so the menu acts on every selected row; any other
+    // row is selected first.
     if (event.button == SDL_BUTTON_RIGHT && isEnabled() && in_rows) {
         focus();
         int row = rowAt(relative_y);
         if (row >= 0) {
-            setSelectedIndex(row);
+            if (!isRowSelected(row)) {
+                setSelectedIndex(row);
+            }
             if (m_on_context) m_on_context(row, relative_x, relative_y);
             return true;
         }
@@ -325,25 +374,41 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
     }
 
     // Clicks inside the row area select the row under the cursor; a second click
-    // on the same row within the double-click window activates it.
+    // on the same row within the double-click window activates it. Shift+click
+    // extends the selection from its anchor to the clicked row instead.
     if (relative_x >= BORDER && relative_x < BORDER + listAreaWidth() &&
         relative_y >= BORDER && relative_y < BORDER + listAreaHeight()) {
         focus();
         int row = rowAt(relative_y);
         if (row >= 0) {
+            const bool extend = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 && m_selected >= 0;
             Uint32 now = SDL_GetTicks();
-            if (row == m_last_click_row && (now - m_last_click_ms) <= DOUBLE_CLICK_MS) {
+            if (!extend && row == m_last_click_row && (now - m_last_click_ms) <= DOUBLE_CLICK_MS) {
                 m_last_click_ms = 0; // consume, so a third click isn't a double
                 m_last_click_row = -1;
                 if (m_on_activate) m_on_activate(row);
             } else {
-                setSelectedIndex(row);
-                m_last_click_row = row;
-                m_last_click_ms = now;
-                // Begin a potential drag-to-reorder (only meaningful with 2+ rows);
-                // it becomes a real drag once the pointer passes a threshold.
+                if (extend) {
+                    setSelectionRange(m_anchor, row);
+                    m_last_click_row = -1; // a range click is never half a double-click
+                    m_last_click_ms = 0;
+                } else if (getSelectionCount() > 1 && isRowSelected(row)) {
+                    // Keep the block selected so it can be dragged as one; a
+                    // release without dragging selects just this row.
+                    m_collapse_on_release = row;
+                    m_last_click_row = row;
+                    m_last_click_ms = now;
+                } else {
+                    setSelectedIndex(row);
+                    m_last_click_row = row;
+                    m_last_click_ms = now;
+                }
+                // Begin a potential drag of the selected rows (only meaningful
+                // with 2+ rows); it becomes a real drag once the pointer passes
+                // a threshold.
                 if (m_items.size() >= 2) {
-                    m_drag_from = row;
+                    m_drag_first = getSelectionFirst();
+                    m_drag_last = getSelectionLast();
                     m_drag_start_y = relative_y;
                     m_dragging = false;
                     m_drag_gap = -1;
@@ -359,17 +424,19 @@ bool ListViewWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
 
 bool ListViewWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
-    if (m_drag_from >= 0) {
+    if (m_drag_first >= 0) {
         // Ignore small jitter so a plain click doesn't register as a drag.
         if (!m_dragging && std::abs(relative_y - m_drag_start_y) < m_row_height / 2) {
             return true;
         }
         m_dragging = true;
+        m_collapse_on_release = -1; // a drag, not a click
         // Above/below the rows: arm the edge auto-scroll (speed follows the
         // pointer's current distance past the edge; see autoScrollTick()) and
-        // pin the marker to the visible boundary instead of a hidden gap.
+        // pin the marker to the visible boundary instead of a hidden gap. Over
+        // the dragged block itself there is nowhere to drop, so no marker.
         updateScrollZone(relative_y);
-        int gap = (m_scroll_zone == 0) ? gapAt(relative_y) : edgeGap();
+        int gap = dropGapOutsideBlock((m_scroll_zone == 0) ? gapAt(relative_y) : edgeGap());
         if (gap != m_drag_gap) {
             m_drag_gap = gap;
             invalidate();
@@ -381,7 +448,7 @@ bool ListViewWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int re
 
 bool ListViewWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    if (m_drag_from >= 0) {
+    if (m_drag_first >= 0) {
         // A drag-reorder is a LEFT-button gesture: releases of other buttons
         // (routed here via the capture) must not commit the reorder and drop
         // the capture while the left button is still physically held.
@@ -389,22 +456,32 @@ bool ListViewWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relati
             return true; // swallow the stray release; the gesture continues
         }
         releaseMouse();
-        int from = m_drag_from;
-        bool dragged = m_dragging;
-        int gap = m_drag_gap;
-        m_drag_from = -1;
+        const int first = m_drag_first;
+        const int last = m_drag_last;
+        const bool dragged = m_dragging;
+        const int gap = m_drag_gap;
+        const int collapse = m_collapse_on_release;
+        m_drag_first = -1;
+        m_drag_last = -1;
         m_dragging = false;
         m_drag_gap = -1;
+        m_collapse_on_release = -1;
         m_scroll_zone = 0;
         m_scroll_distance = 0;
         invalidate();
-        if (dragged && m_on_reorder) {
-            // gap is the insertion slot (0..count); after removing `from`, a slot
-            // past it shifts down one, giving the final destination index.
-            int dest = (gap > from) ? gap - 1 : gap;
-            if (dest != from && dest >= 0 && dest < static_cast<int>(m_items.size())) {
-                m_on_reorder(from, dest);
+        if (dragged) {
+            // gap is an insertion slot (0..count) outside the block; one inside
+            // it was refused as it was hovered. Taking the block out shifts
+            // every slot after it up by the block's length, which gives the
+            // index its first row lands on.
+            const int size = last - first + 1;
+            const int to = (gap > last) ? gap - size : gap;
+            if (gap >= 0 && m_on_reorder && to != first && to >= 0 &&
+                to + size <= static_cast<int>(m_items.size())) {
+                m_on_reorder(first, last, to);
             }
+        } else if (collapse >= 0) {
+            setSelectedIndex(collapse, /*ensure_visible=*/false);
         }
         return true;
     }
@@ -413,11 +490,13 @@ bool ListViewWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relati
 
 void ListViewWidget::cancelDrag()
 {
-    if (m_drag_from < 0) {
+    if (m_drag_first < 0) {
         return;
     }
     releaseMouse(); // no-op if we don't hold capture
-    m_drag_from = -1;
+    m_drag_first = -1;
+    m_drag_last = -1;
+    m_collapse_on_release = -1;
     m_dragging = false;
     m_drag_gap = -1;
     m_scroll_zone = 0;
@@ -501,7 +580,7 @@ void ListViewWidget::autoScrollTick()
     }
     // Keep the active insertion marker pinned to the boundary gap.
     if (m_dragging) {
-        m_drag_gap = edgeGap();
+        m_drag_gap = dropGapOutsideBlock(edgeGap());
     } else if (m_drop_indicator >= 0) {
         m_drop_indicator = edgeGap();
     }
@@ -524,6 +603,14 @@ int ListViewWidget::rowAt(int relative_y) const
     }
     int r = m_top + (relative_y - BORDER) / m_row_height;
     return (r >= 0 && r < static_cast<int>(m_items.size())) ? r : -1;
+}
+
+int ListViewWidget::dropGapOutsideBlock(int gap) const
+{
+    // Every gap from the block's first row to just past its last leaves the
+    // block where it is -- and dropping a block into the middle of itself has
+    // no meaning -- so none of them is a drop target.
+    return (m_drag_first >= 0 && gap >= m_drag_first && gap <= m_drag_last + 1) ? -1 : gap;
 }
 
 int ListViewWidget::gapAt(int relative_y) const
@@ -583,7 +670,7 @@ void ListViewWidget::draw(Surface& surface)
             break;
         }
         int row_y = BORDER + i * m_row_height;
-        bool selected = (index == m_selected);
+        bool selected = isRowSelected(index);
 
         if (selected) {
             surface.box(BORDER, row_y, BORDER + content_w - 1, row_y + m_row_height - 1,
@@ -604,7 +691,7 @@ void ListViewWidget::draw(Surface& surface)
 
         // Classic keyboard-focus rectangle: while this list holds keyboard
         // focus, the cursor row gets a 1px dotted outline over its highlight.
-        if (selected && s_focused_widget == this) {
+        if (index == m_selected && s_focused_widget == this) {
             const int x0 = BORDER;
             const int x1 = BORDER + content_w - 1;
             const int y0 = row_y;
