@@ -46,6 +46,14 @@ struct AC3TransformState {
 void ac3InverseTransform(const float* coefficients, bool block_switch,
                          AC3TransformState& state, float* pcm);
 
+/// Steps 1 to 5 of §7.9.4.1 (or §7.9.4.2): the 512 windowed time samples one
+/// block's coefficients produce, before any overlap-add.
+///
+/// E-AC-3 enhanced coupling (§E3.5.5.1) needs exactly this for a block and
+/// both its neighbours, to rebuild a coupling signal free of time-domain
+/// aliasing before it adjusts phase.
+void ac3WindowedImdct(const float* coefficients, bool block_switch, float* windowed);
+
 } // namespace AC3
 } // namespace Codec
 } // namespace PsyMP3

@@ -134,11 +134,9 @@ void twiddleFftTwiddle(const float* x, unsigned first, unsigned step,
 
 } // namespace
 
-void ac3InverseTransform(const float* coefficients, bool block_switch,
-                         AC3TransformState& state, float* pcm)
+void ac3WindowedImdct(const float* coefficients, bool block_switch, float* windowed)
 {
     const Twiddles& t = twiddles();
-    float windowed[kTransformSize];
 
     if (!block_switch) {
         // --- §7.9.4.1, one 512-sample transform ---
@@ -184,6 +182,13 @@ void ac3InverseTransform(const float* coefficients, bool block_switch,
             windowed[3 * kN / 4 + 2 * n + 1] = -yr2[e - n - 1]   * kWindow[kN / 4 - 2 * n - 2];
         }
     }
+}
+
+void ac3InverseTransform(const float* coefficients, bool block_switch,
+                         AC3TransformState& state, float* pcm)
+{
+    float windowed[kTransformSize];
+    ac3WindowedImdct(coefficients, block_switch, windowed);
 
     // --- Step 6: overlap and add ---
     // The factor of two undoes headroom the encoder left itself. The spec
