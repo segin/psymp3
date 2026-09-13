@@ -268,6 +268,35 @@ protected:
     }
 };
 
+/// Successive noise values fill adjacent bins, so they must be independent:
+/// correlation between neighbouring bins shapes the noise in time and makes
+/// it pump at the block rate.
+class NoiseIndependenceTest : public TestCase {
+public:
+    NoiseIndependenceTest() : TestCase("Spectral extension noise is uncorrelated from one value to the next") {}
+
+protected:
+    void runTest() override
+    {
+        EAC3SpxNoise noise;
+        constexpr unsigned kSamples = 1u << 18;
+        std::vector<double> v(kSamples);
+        for (auto& x : v) {
+            x = noise.next();
+        }
+        for (unsigned lag = 1; lag <= 4; ++lag) {
+            double cross = 0.0, power = 0.0;
+            for (unsigned i = 0; i + lag < kSamples; ++i) {
+                cross += v[i] * v[i + lag];
+                power += v[i] * v[i];
+            }
+            const double r = cross / power;
+            ASSERT_TRUE(std::abs(r) < 0.01,
+                        "lag " + std::to_string(lag) + " correlation " + std::to_string(r));
+        }
+    }
+};
+
 } // namespace
 
 int main()
@@ -280,6 +309,7 @@ int main()
     suite.addTest(std::make_unique<NotchTest>());
     suite.addTest(std::make_unique<NoiseEnergyTest>());
     suite.addTest(std::make_unique<NoiseStatisticsTest>());
+    suite.addTest(std::make_unique<NoiseIndependenceTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

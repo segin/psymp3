@@ -67,14 +67,14 @@ void eac3SpxBlendFactors(unsigned spxblnd, const EAC3SpxBands& bands, EAC3SpxCha
 
 float EAC3SpxNoise::next()
 {
-    // x^16 + x^14 + x^13 + x^11 + 1, maximal length, Galois form.
-    const bool bit = (m_state & 1u) != 0;
-    m_state >>= 1;
-    if (bit) {
-        m_state ^= 0xb400u;
-    }
-    // Uniform over [-1, 1), then widened to unit variance.
-    const float uniform = static_cast<float>(m_state) / 32768.0f - 1.0f;
+    // xorshift32 (13, 17, 5): full period, and every bit of the state is
+    // replaced between one output and the next.
+    m_state ^= m_state << 13;
+    m_state ^= m_state >> 17;
+    m_state ^= m_state << 5;
+    // The top 24 bits as a uniform value over [-1, 1), widened to unit
+    // variance.
+    const float uniform = static_cast<float>(m_state >> 8) / 8388608.0f - 1.0f;
     return uniform * 1.7320508f;
 }
 

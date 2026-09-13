@@ -111,15 +111,21 @@ void eac3SpxBlendFactors(unsigned spxblnd, const EAC3SpxBands& bands, EAC3SpxCha
 /// Zero-mean, unit-variance noise for §E3.6.4.2.4.
 ///
 /// The standard requires that variance, not a sequence, so any generator
-/// will do. A uniform distribution has unit variance over [-sqrt(3), sqrt(3)),
-/// which a 16-bit LFSR reaches cheaply; it carries on across blocks and
-/// frames rather than restarting, which would repeat audibly.
+/// will do -- provided successive values are independent. The noise fills
+/// adjacent transform bins, and bins that are correlated with each other
+/// concentrate their energy at one point of the block in time: an LFSR
+/// stepped one bit per value, whose outputs are mostly the previous value
+/// shifted, made the synthesised high band swell and fade by some 5 dB at
+/// the block rate. A uniform distribution has unit variance over
+/// [-sqrt(3), sqrt(3)); xorshift32 supplies fresh bits every call and runs
+/// on across blocks and frames rather than restarting, which would repeat
+/// audibly.
 class EAC3SpxNoise {
 public:
     float next();
 
 private:
-    uint16_t m_state = 0x6b3d;
+    uint32_t m_state = 0x6b3d9a41u;   // any non-zero seed
 };
 
 /// Synthesise one channel's coefficients from spx_begin_subbnd to
