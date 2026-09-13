@@ -97,6 +97,7 @@
 #include "codecs/ac3/AC3BitAllocation.cpp"
 #include "codecs/ac3/AC3Mantissas.cpp"
 #include "codecs/ac3/AC3Block.cpp"
+#include "codecs/ac3/AC3Transform.cpp"
 #include "demuxer/matroska/EBMLReader.cpp"
 #include "demuxer/matroska/SegmentParser.cpp"
 #include "demuxer/matroska/BlockParser.cpp"
