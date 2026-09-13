@@ -5029,6 +5029,10 @@ std::vector<std::pair<std::string, std::string>> Player::mediaInfoRows()
     } else if (codec_lc.find("g722") != std::string::npos) {
         format = "G.722";
 
+    } else if (codec_lc == "ac3") {
+        format = "Dolby Digital (AC-3)";
+    } else if (codec_lc == "eac3") {
+        format = "Dolby Digital Plus (E-AC-3)";
     } else if (codec_lc == "flac" || codec_lc == "alac" ||
                codec_lc == "truehd" || codec_lc == "mlp") {
         format = codec_uc + (bits > 0 ? " S" + std::to_string(bits) + " LE" : "");
