@@ -42,6 +42,9 @@ DEMUXER_LIBS += $(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a
 # Matroska/WebM: no external dependency, so it is always built. Needed by any
 # test that links CodecRegistration, which constructs the demuxer.
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/matroska/libpsymp3-demuxer-matroska.a
+# AC-3: in tree, no external dependency, and referenced by anything that
+# links the codec registry once the decoder is wired in.
+DEMUXER_LIBS += $(top_builddir)/src/codecs/ac3/libpsymp3-codec-ac3.a
 # Repeated after the demuxer: the MLP demuxer decodes the first access unit
 # to learn the channel layout, so it needs the decoder, and ld resolves
 # archives left to right -- the codec archive has already been passed by the
@@ -462,6 +465,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_matroska_segment \
 	test_matroska_block \
 	test_matroska_cues \
+	test_ac3_frame_header \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_http_iohandler_validation \
@@ -508,6 +512,9 @@ test_matroska_block_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_matroska_cues_SOURCES = test_matroska_cues.cpp
 test_matroska_cues_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_ac3_frame_header_SOURCES = test_ac3_frame_header.cpp
+test_ac3_frame_header_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 generate_matroska_corpus_SOURCES = generate_matroska_corpus.cpp
 generate_matroska_corpus_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
