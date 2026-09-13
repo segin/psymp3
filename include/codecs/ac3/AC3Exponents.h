@@ -56,8 +56,23 @@ unsigned ac3ChannelExponentGroups(ExponentStrategy strategy, unsigned end_mantis
 unsigned ac3CouplingExponentGroups(ExponentStrategy strategy,
                                    unsigned start_mantissa, unsigned end_mantissa);
 
+/// Largest legal channel bandwidth code, A/52 §5.4.3.24.
+///
+/// The field is six bits but only 0..60 are valid, and the standard is
+/// unusually firm about the rest: "If a value greater than 60 is received, the
+/// bit stream is invalid and the decoder shall cease decoding audio and mute."
+/// 60 puts the last bin at 253, which is exactly the span the banding tables
+/// cover -- a larger code would index past them.
+constexpr uint8_t kMaxChannelBandwidthCode = 60;
+
+/// Largest end bin any channel can reach, from kMaxChannelBandwidthCode.
+constexpr unsigned kMaxEndMantissa = 253;
+
 /// End mantissa bin for an independent channel from its bandwidth code,
 /// A/52 §7.1.3: endmant = ((chbwcod + 12) * 3) + 37.
+///
+/// Returns 0 for a code past kMaxChannelBandwidthCode, which the caller must
+/// treat as a stream to stop decoding rather than a bin count to use.
 unsigned ac3ChannelEndMantissa(uint8_t chbwcod);
 
 /// Coupling channel bin range, A/52 §7.1.3.

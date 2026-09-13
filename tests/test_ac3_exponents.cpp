@@ -67,7 +67,12 @@ protected:
     {
         // A/52 §7.1.3: endmant = ((chbwcod + 12) * 3) + 37.
         ASSERT_TRUE(ac3ChannelEndMantissa(0) == 73, "chbwcod 0 ends at bin 73");
-        ASSERT_TRUE(ac3ChannelEndMantissa(63) == 262, "chbwcod 63 ends at 262");
+        // A/52 §5.4.3.24 caps the code at 60, and 60 lands on bin 253 -- which is
+        // exactly the span the banding tables cover. A larger code is not a wider
+        // channel, it is an invalid stream the decoder must mute on.
+        ASSERT_TRUE(ac3ChannelEndMantissa(60) == kMaxEndMantissa, "chbwcod 60 ends at 253");
+        ASSERT_TRUE(ac3ChannelEndMantissa(61) == 0, "61 is refused rather than extrapolated");
+        ASSERT_TRUE(ac3ChannelEndMantissa(63) == 0, "as is the largest the field can hold");
 
         // cplstrtmant = cplbegf*12 + 37, cplendmant = (cplendf+3)*12 + 37.
         ASSERT_TRUE(ac3CouplingStartMantissa(0) == 37, "coupling starts at 37");
@@ -100,7 +105,7 @@ protected:
         // three -- 73, 76, 79 and so on -- and the rounding terms are sized for
         // exactly those. A bin count outside that sequence cannot occur, and
         // testing one would say nothing about the formula.
-        for (uint8_t chbwcod = 0; chbwcod < 64; ++chbwcod) {
+        for (uint8_t chbwcod = 0; chbwcod <= kMaxChannelBandwidthCode; ++chbwcod) {
             const unsigned end = ac3ChannelEndMantissa(chbwcod);
             for (auto strategy : {ExponentStrategy::D15, ExponentStrategy::D25,
                                   ExponentStrategy::D45}) {

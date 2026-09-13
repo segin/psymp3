@@ -45,8 +45,14 @@ unsigned ac3ExponentGroupSize(ExponentStrategy strategy)
 
 unsigned ac3ChannelEndMantissa(uint8_t chbwcod)
 {
-    // A/52 §7.1.3. chbwcod is 6 bits, so this tops out at 37 + 73*3 = 253,
-    // just inside the 256 bins a block carries.
+    // A/52 §5.4.3.24: the field is six bits but only 0..60 are valid, and a
+    // larger value makes the stream invalid outright -- the standard says the
+    // decoder shall mute. It is not merely out of taste: 60 puts the last bin
+    // at 253, which is exactly what the banding tables cover, so 61 would
+    // index past them.
+    if (chbwcod > kMaxChannelBandwidthCode) {
+        return 0;
+    }
     return ((static_cast<unsigned>(chbwcod) + 12) * 3) + 37;
 }
 
