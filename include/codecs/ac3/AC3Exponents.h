@@ -77,7 +77,7 @@ unsigned ac3ChannelEndMantissa(uint8_t chbwcod);
 
 /// Coupling channel bin range, A/52 §7.1.3.
 unsigned ac3CouplingStartMantissa(uint8_t cplbegf);
-unsigned ac3CouplingEndMantissa(uint8_t cplendf);
+unsigned ac3CouplingEndMantissa(int cplendf);
 
 /// The LFE channel is fixed: bins 0 to 7, always two groups, always D15.
 constexpr unsigned kLfeEndMantissa = 7;

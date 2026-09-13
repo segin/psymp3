@@ -61,9 +61,11 @@ unsigned ac3CouplingStartMantissa(uint8_t cplbegf)
     return (static_cast<unsigned>(cplbegf) * 12) + 37;
 }
 
-unsigned ac3CouplingEndMantissa(uint8_t cplendf)
+unsigned ac3CouplingEndMantissa(int cplendf)
 {
-    return ((static_cast<unsigned>(cplendf) + 3) * 12) + 37;
+    // Signed because E-AC-3 spectral extension derives cplendf from spxbegf
+    // rather than sending it, and the derivation reaches -2 (§E3.3.1).
+    return static_cast<unsigned>(((cplendf + 3) * 12) + 37);
 }
 
 unsigned ac3ChannelExponentGroups(ExponentStrategy strategy, unsigned end_mantissa)

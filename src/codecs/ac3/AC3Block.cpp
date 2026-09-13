@@ -106,16 +106,72 @@ bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
 
 Debug::log("ac3", "  after dynrng: bit ", reader.tell());
 
-    // --- spectral extension strategy, E-AC-3 only ---
+    // --- spectral extension strategy and coordinates, E-AC-3 only ---
     if (eac3) {
+        if (blk == 0) {
+            // §E3.6.2: the default banding is loaded at frame start, so a
+            // first block that omits the structure uses it.
+            std::copy(kDefaultSpxBandStructure, kDefaultSpxBandStructure + kSpxSubbands,
+                      state.spxbndstrc);
+        }
         const bool spxstre = blk == 0 ? true : (reader.readBit() != 0);
         if (spxstre) {
             state.spxinu = reader.readBit() != 0;
             if (state.spxinu) {
-                return fail("E-AC-3 spectral extension is not implemented");
+                if (header.acmod == AudioCodingMode::Mono) {
+                    state.chinspx[0] = true;
+                } else {
+                    for (unsigned ch = 0; ch < nfchans; ++ch) {
+                        state.chinspx[ch] = reader.readBit() != 0;
+                    }
+                }
+                const unsigned spxstrtf = reader.read(2);
+                state.spxbegf = static_cast<uint8_t>(reader.read(3));
+                const unsigned spxendf = reader.read(3);
+                const unsigned begin = state.spxbegf < 6 ? state.spxbegf + 2u : state.spxbegf * 2u - 3u;
+                const unsigned end = spxendf < 3 ? spxendf + 5u : spxendf * 2u + 3u;
+                if (end > kSpxSubbands || begin >= end || spxstrtf >= begin) {
+                    return fail("spectral extension range out of bounds");
+                }
+                if (reader.readBit()) { // spxbndstrce
+                    for (unsigned sbnd = begin + 1; sbnd < end; ++sbnd) {
+                        state.spxbndstrc[sbnd] = static_cast<uint8_t>(reader.readBit());
+                    }
+                }
+                eac3SpxComputeBands(spxstrtf, begin, end, state.spxbndstrc, state.spx_bands);
+            } else {
+                for (unsigned ch = 0; ch < nfchans; ++ch) {
+                    state.chinspx[ch] = false;
+                    state.firstspxcos[ch] = true;
+                }
             }
+        }
+        if (state.spxinu) {
             for (unsigned ch = 0; ch < nfchans; ++ch) {
-                state.chinspx[ch] = false;
+                if (!state.chinspx[ch]) {
+                    state.firstspxcos[ch] = true;
+                    continue;
+                }
+                // Coordinates are mandatory the first time in a frame.
+                bool spxcoe = false;
+                if (state.firstspxcos[ch]) {
+                    spxcoe = true;
+                    state.firstspxcos[ch] = false;
+                } else {
+                    spxcoe = reader.readBit() != 0;
+                }
+                if (spxcoe) {
+                    const unsigned spxblnd = reader.read(5);
+                    const unsigned master = reader.read(2);
+                    for (unsigned bnd = 0; bnd < state.spx_bands.count; ++bnd) {
+                        const unsigned exponent = reader.read(4);
+                        const unsigned mantissa = reader.read(2);
+                        state.spx[ch].coordinate[bnd] = eac3SpxCoordinate(exponent, mantissa, master);
+                    }
+                    eac3SpxBlendFactors(spxblnd, state.spx_bands, state.spx[ch]);
+                }
+                state.spx[ch].attenuate = eac3->chinspxatten[ch];
+                state.spx[ch].attenuation_code = eac3->spxattencod[ch];
             }
         }
     }
@@ -140,11 +196,16 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
             }
             state.phsflginu = stereo ? (reader.readBit() != 0) : false;
             state.cplbegf = static_cast<uint8_t>(reader.read(4));
-            state.cplendf = static_cast<uint8_t>(reader.read(4));
-            if (state.cplendf + 3 < state.cplbegf) {
+            if (eac3 && state.spxinu) {
+                // §E3.3.1: coupling ends where spectral extension begins.
+                state.cplendf = state.spxbegf < 6 ? state.spxbegf - 2 : state.spxbegf * 2 - 7;
+            } else {
+                state.cplendf = static_cast<int>(reader.read(4));
+            }
+            if (state.cplendf + 3 < static_cast<int>(state.cplbegf)) {
                 return fail("inverted coupling range");
             }
-            state.ncplsubnd = 3u + state.cplendf - state.cplbegf;
+            state.ncplsubnd = static_cast<unsigned>(3 + state.cplendf - static_cast<int>(state.cplbegf));
             if (state.ncplsubnd > kMaxCouplingBands) {
                 return fail("too many coupling sub-bands");
             }
@@ -188,7 +249,7 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
     }
 
 Debug::log("ac3", "  after cplstre: bit ", reader.tell(), " cplinu=", state.cplinu,
-               " begf=", (unsigned)state.cplbegf, " endf=", (unsigned)state.cplendf,
+               " begf=", (unsigned)state.cplbegf, " endf=", state.cplendf,
                " nbnd=", state.ncplbnd);
 
     // --- coupling coordinates ---
@@ -237,6 +298,8 @@ Debug::log("ac3", "  after cplco: bit ", reader.tell());
             unsigned bands = 4;
             if (state.cplinu) {
                 bands = state.cplbegf > 2 ? 4u : (state.cplbegf > 0 ? 3u : 2u);
+            } else if (state.spxinu) {
+                bands = state.spxbegf < 2 ? 3u : 4u;       // §E3.3.2
             }
             for (unsigned rbnd = 0; rbnd < 4; ++rbnd) {
                 state.rematflg[rbnd] = rbnd < bands ? (reader.readBit() != 0) : false;
@@ -281,6 +344,12 @@ Debug::log("ac3", "  after remat: bit ", reader.tell());
             // exponents -- coupling can start, or its range move, in a block
             // that sends none.
             state.endmant[ch] = state.strtmant[kCouplingSlot];
+            continue;
+        }
+        if (state.spxinu && state.chinspx[ch]) {
+            // §E3.3.3: no chbwcod is sent; the coded band stops at the first
+            // synthesised sub-band.
+            state.endmant[ch] = eac3SpxBandStart(state.spx_bands.begin_subband);
             continue;
         }
         if (state.expstr[ch] == ExponentStrategy::Reuse) {
@@ -723,6 +792,20 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
                 const float difference = block.coefficients[1][bin];
                 block.coefficients[0][bin] = sum + difference;
                 block.coefficients[1][bin] = sum - difference;
+            }
+        }
+    }
+
+    // --- spectral extension synthesis, §E3.6.4 ---
+    // Last: it copies a channel's own finished low band upward, so the
+    // baseband has to be decoupled and rematrixed first. (Annex E does not
+    // place it in the pipeline explicitly; this is the only order in which
+    // the copy is of the channel rather than of a coupling or sum signal.)
+    if (state.spxinu) {
+        for (unsigned ch = 0; ch < nfchans; ++ch) {
+            if (state.chinspx[ch]) {
+                eac3SpxSynthesise(block.coefficients[ch], state.spx_bands, state.spx[ch],
+                                  state.spx_noise);
             }
         }
     }

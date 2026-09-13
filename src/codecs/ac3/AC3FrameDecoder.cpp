@@ -84,8 +84,14 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
     // Each syncframe starts its own bit allocation and exponent history --
     // that is what makes a frame the unit a decoder can resynchronise on --
     // but the transform's delay line deliberately survives, because the
-    // overlap that reconstructs the signal spans the frame boundary.
+    // overlap that reconstructs the signal spans the frame boundary. The
+    // noise generators survive too: restarting them every frame would repeat
+    // the same noise 31 times a second.
+    const AC3Dither dither = m_state.dither;
+    const EAC3SpxNoise spx_noise = m_state.spx_noise;
     m_state = AC3FrameState();
+    m_state.dither = dither;
+    m_state.spx_noise = spx_noise;
 
     const unsigned channels = header.outputChannels();
     const unsigned fbw = header.channels;

@@ -87,7 +87,7 @@ struct AC3FrameState {
     bool cplinu = false;
     bool chincpl[kMaxFullBandwidthChannels] = {};
     uint8_t cplbegf = 0;
-    uint8_t cplendf = 0;
+    int cplendf = 0;             ///< signed: spectral extension derives it, down to -2
     unsigned ncplsubnd = 0;
     unsigned ncplbnd = 0;
     uint8_t cplbndstrc[kMaxCouplingBands] = {};
@@ -114,10 +114,6 @@ struct AC3FrameState {
     uint8_t cplfleak = 0;
     uint8_t cplsleak = 0;
 
-    /// §7.3.4 noise for unallocated bins. It lives in the frame state so the
-    /// sequence runs on across blocks rather than restarting six times a
-    /// frame, which would be audible as a periodic artefact.
-    AC3Dither dither;
 
     /// True once a block has set the coupling strategy and bit allocation
     /// parameters. A frame whose first block omits them is malformed.
@@ -140,6 +136,20 @@ struct AC3FrameState {
     bool cplbndstrc_set = false;
     bool spxinu = false;
     bool chinspx[kMaxFullBandwidthChannels] = {};
+
+    // --- E-AC-3 spectral extension, §E3.6 ---
+    uint8_t spxbegf = 0;
+    uint8_t spxbndstrc[kSpxSubbands] = {};   ///< reset to Table E2.11 at block 0
+    bool firstspxcos[kMaxFullBandwidthChannels] = { true, true, true, true, true };
+    EAC3SpxBands spx_bands;
+    EAC3SpxChannel spx[kMaxFullBandwidthChannels];
+
+    /// Noise for unallocated bins and for spectral extension. Unlike
+    /// everything above, these must not restart with each syncframe -- a
+    /// sequence restarted 31 times a second is audible as a buzz -- so the
+    /// frame decoder carries them across its per-frame reset.
+    AC3Dither dither;
+    EAC3SpxNoise spx_noise;
 };
 
 /// One decoded audio block: 256 transform coefficients per coded channel,
