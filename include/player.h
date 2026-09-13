@@ -210,9 +210,10 @@ class Player
         // track after its index shifts (an insert/remove elsewhere).
         TagLib::String playlistPathAt(long index) const;
         long playlistIndexOfPath(const TagLib::String& path) const;
-        // Remove / reorder a playlist entry and refresh the "Playlist n/N" label.
-        void playlistManagerRemove(long index);
-        void playlistManagerMove(long from, long to);
+        // Remove / move entries first..last as a block (moving the first of them
+        // to `to`) and refresh the "Playlist n/N" label.
+        void playlistManagerRemove(long first, long last);
+        void playlistManagerMove(long first, long last, long to);
         // Jump playback to the given playlist index (double-click in the manager).
         void playlistManagerJumpTo(long index);
         // Open the file chooser and queue the chosen track(s) next / at the end.

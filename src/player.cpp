@@ -340,53 +340,41 @@ public:
         m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
         // Double-click a row to jump playback to that track.
         m_list->setOnActivate([this](int i) { m_player->playlistManagerJumpTo(i); });
-        // Delete key on the focused list removes the row, like the Delete button.
-        m_list->setOnDelete([this](int i) {
-            m_player->playlistManagerRemove(i);
-            reload(i);
+        // Delete key on the focused list removes the selected rows, like the
+        // Delete button.
+        m_list->setOnDelete([this](int, int) { removeSelection(); });
+        // Drag the selected rows to move them as a block; keep them selected
+        // but leave the viewport where the drop happened.
+        m_list->setOnReorder([this](int first, int last, int to) {
+            const int shift = to - first;
+            const int anchor = m_list->getSelectionAnchor() + shift;
+            const int cursor = m_list->getSelectedIndex() + shift;
+            m_player->playlistManagerMove(first, last, to);
+            reloadSelection(anchor, cursor, /*keep_viewport=*/true);
         });
-        // Drag a row to reorder the playlist; keep the moved row selected but
-        // leave the viewport where the drop happened.
-        m_list->setOnReorder([this](int from, int to) {
-            m_player->playlistManagerMove(from, to);
-            reload(to, /*keep_viewport=*/true);
-        });
-        // Right-click a row for a context menu of the same actions as the buttons.
+        // Right-click a row for a context menu of the same actions as the
+        // buttons, acting on the selection (the list keeps a multi-row
+        // selection when the click lands inside it).
         m_list->setOnContextMenu([this](int row, int rx, int ry) {
-            int count = static_cast<int>(m_list->itemCount());
+            const int count = static_cast<int>(m_list->itemCount());
+            const int first = m_list->getSelectionFirst();
+            const int last = m_list->getSelectionLast();
             std::vector<ContextMenuWidget::Entry> entries;
             entries.push_back({ "Play", [this, row] { m_player->playlistManagerJumpTo(row); }, true });
-            entries.push_back({ "Delete", [this, row] {
-                m_player->playlistManagerRemove(row); reload(row);
-            }, count >= 1 });
-            entries.push_back({ "Move Up", [this, row] {
-                if (row > 0) { m_player->playlistManagerMove(row, row - 1); reload(row - 1); }
-            }, row > 0 });
-            entries.push_back({ "Move Down", [this, row, count] {
-                if (row < count - 1) { m_player->playlistManagerMove(row, row + 1); reload(row + 1); }
-            }, row < count - 1 });
+            entries.push_back({ "Delete", [this] { removeSelection(); }, first >= 0 });
+            entries.push_back({ "Move Up", [this] { moveSelection(-1); }, first > 0 });
+            entries.push_back({ "Move Down", [this] { moveSelection(1); }, last >= 0 && last < count - 1 });
             m_context->setEntries(std::move(entries));
             Rect lp = m_list->getPos();
             m_context->openAt(lp.x() + rx, lp.y() + ry);
         });
         addChild(std::move(list));
 
-        // Delete / Move Up / Move Down operate on the current selection; Add Next /
-        // Add To End open the file chooser and queue into the playlist.
-        m_buttons[0] = makeButton("Delete", [this]() {
-            int i = m_list->getSelectedIndex();
-            if (i >= 0) { m_player->playlistManagerRemove(i); reload(i); }
-        });
-        m_buttons[1] = makeButton("Move Up", [this]() {
-            int i = m_list->getSelectedIndex();
-            if (i > 0) { m_player->playlistManagerMove(i, i - 1); reload(i - 1); }
-        });
-        m_buttons[2] = makeButton("Move Down", [this]() {
-            int i = m_list->getSelectedIndex();
-            if (i >= 0 && i < static_cast<int>(m_list->itemCount()) - 1) {
-                m_player->playlistManagerMove(i, i + 1); reload(i + 1);
-            }
-        });
+        // Delete / Move Up / Move Down operate on every selected row as a block;
+        // Add Next / Add To End open the file chooser and queue into the playlist.
+        m_buttons[0] = makeButton("Delete", [this]() { removeSelection(); });
+        m_buttons[1] = makeButton("Move Up", [this]() { moveSelection(-1); });
+        m_buttons[2] = makeButton("Move Down", [this]() { moveSelection(1); });
         m_buttons[3] = makeButton("Add Next", [this]() {
             // Remember the selected track before the insert shifts its index.
             TagLib::String keep = selectedTrackPath();
@@ -448,15 +436,22 @@ public:
     // the user just was.
     void reload(int desired_sel, bool keep_viewport = false)
     {
+        reloadSelection(desired_sel, desired_sel, keep_viewport);
+    }
+
+    // The same, selecting the run from `anchor` to `cursor` (each clamped).
+    void reloadSelection(int anchor, int cursor, bool keep_viewport = false)
+    {
         std::vector<TagLib::String> labels = m_player->playlistManagerLabels();
-        // Keep the viewport where it is; setSelectedIndex() below only scrolls if
-        // the new selection actually falls outside it (and not even then when
+        // Keep the viewport where it is; setSelectionRange() below only scrolls
+        // if the cursor actually falls outside it (and not even then when
         // keep_viewport is set).
         m_list->setItems(labels, /*preserve_scroll=*/true);
         if (!labels.empty()) {
-            int s = desired_sel < 0 ? 0 : desired_sel;
-            if (s >= static_cast<int>(labels.size())) s = static_cast<int>(labels.size()) - 1;
-            m_list->setSelectedIndex(s, /*ensure_visible=*/!keep_viewport);
+            const int max_row = static_cast<int>(labels.size()) - 1;
+            auto clamp_row = [max_row](int r) { return std::max(0, std::min(r, max_row)); };
+            m_list->setSelectionRange(clamp_row(anchor), clamp_row(cursor),
+                                      /*ensure_visible=*/!keep_viewport);
         }
         updateButtonStates();
         // Remember the generation we just synced to, so the per-frame check below
@@ -481,7 +476,8 @@ public:
                 // must stay where the user left it, not snap to the selection.
                 m_list->cancelDrag();
                 m_context->close();
-                reload(m_list->getSelectedIndex(), /*keep_viewport=*/true);
+                reloadSelection(m_list->getSelectionAnchor(), m_list->getSelectedIndex(),
+                                /*keep_viewport=*/true);
                 m_last_reload_ms = now;
             }
         }
@@ -533,6 +529,34 @@ private:
     static constexpr int BUTTON_GAP = 6;
     static constexpr int NUM_BUTTONS = 5;
     static constexpr Uint32 RELOAD_DEBOUNCE_MS = 100; // cap external-refresh rate
+
+    // Remove every selected row, then select the row that took the first one's
+    // place.
+    void removeSelection()
+    {
+        const int first = m_list->getSelectionFirst();
+        const int last = m_list->getSelectionLast();
+        if (first < 0) {
+            return;
+        }
+        m_player->playlistManagerRemove(first, last);
+        reload(first);
+    }
+
+    // Move the selected rows one place up (delta -1) or down (+1) as a block,
+    // keeping them selected with the anchor and cursor where they were.
+    void moveSelection(int delta)
+    {
+        const int first = m_list->getSelectionFirst();
+        const int last = m_list->getSelectionLast();
+        if (first < 0 || first + delta < 0 || last + delta >= static_cast<int>(m_list->itemCount())) {
+            return;
+        }
+        const int anchor = m_list->getSelectionAnchor() + delta;
+        const int cursor = m_list->getSelectedIndex() + delta;
+        m_player->playlistManagerMove(first, last, first + delta);
+        reloadSelection(anchor, cursor);
+    }
 
     // Path of the currently selected track (empty if none), captured before a
     // mutation so the same track can be re-selected afterwards.
@@ -1749,16 +1773,16 @@ long Player::playlistIndexOfPath(const TagLib::String& path) const
     return -1;
 }
 
-void Player::playlistManagerRemove(long index)
+void Player::playlistManagerRemove(long first, long last)
 {
-    if (playlist && playlist->removeTrack(index)) {
+    if (playlist && playlist->removeTracks(first, last)) {
         updateInfo();
     }
 }
 
-void Player::playlistManagerMove(long from, long to)
+void Player::playlistManagerMove(long first, long last, long to)
 {
-    if (playlist && playlist->moveTrack(from, to)) {
+    if (playlist && playlist->moveTracks(first, last, to)) {
         updateInfo();
     }
 }
