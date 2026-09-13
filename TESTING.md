@@ -46,6 +46,21 @@ flac --force-raw-format --channels=2 --bps=16 --sample-rate=44100 \
 
 Ogg/Opus real-file tests have no synthesizable fixture (encoding one needs tools CI lacks); they SKIP when their sample file is absent.
 
+### AC-3 / E-AC-3 corpus
+
+`tests/generate_ac3_corpus.sh` builds the AC-3 sample set under `tests/data/ac3/`, one directory per container: `raw/` (`.ac3`, `.eac3`), `avi/`, `wav/`, `mp4/`, `m4a/` and `mka/`, plus `ref/` holding ffmpeg's s16le decode of each raw stream. It needs `ffmpeg` on `PATH` (or `FFMPEG=/path/to/ffmpeg`) and takes an optional output directory:
+
+```bash
+./tests/generate_ac3_corpus.sh              # into tests/data/ac3
+./tests/generate_ac3_corpus.sh /tmp/ac3     # anywhere else
+```
+
+- **ffmpeg is an oracle, nothing more.** It encodes the streams and its decode is the reference to diff against; its source is GPL-3.0-only and is never read. PsyMP3's decoder is written from ATSC A/52.
+- **One encode, every container.** Each stream is encoded once as raw and stream-copied into the containers, so all of them hold bit-identical syncframes. A decode through any demuxer must therefore match the raw decode sample for sample — a mismatch is a demuxer bug. The script re-extracts every container and `cmp`s it against the raw stream, and fails if one differs.
+- **What each stream is for:** `ac3_stereo` the common case; `ac3_51` coupling, LFE and channel order (each channel carries its own tone — L 220, R 330, C 440, LFE 55, Ls 550, Rs 660 Hz — so a swap is measurable); `ac3_mono` so a desynchronised block cannot hide behind a second channel; `ac3_silence` the degenerate allocation; `ac3_lowrate` frames short enough that the six audio blocks must land within a few bits of the frame end; `eac3_stereo` and `eac3_51` for telling Annex E apart.
+- **E-AC-3 is in MP4 and Matroska only.** It has no registered RIFF format tag (ffmpeg writes `0`, `WAVE_FORMAT_UNKNOWN`), and ffmpeg's M4A muxer refuses it.
+- The files are not checked in — `tests/data/` is ignored — so tests that read them must **exit 77** when the directory is absent.
+
 ### Synthetic media data
 
 Hand-built container data must be **structurally valid** — the demuxers verify checksums and reject fiction:
