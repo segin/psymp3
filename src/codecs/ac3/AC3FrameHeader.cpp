@@ -167,6 +167,30 @@ bool parseAC3(AC3BitReader& reader, AC3FrameHeader& header)
     }
     header.lfeon = reader.readBit() != 0;
     header.dialnorm = static_cast<uint8_t>(reader.read(5));
+
+    // The rest of bsi is metadata this decoder does not use, but it has to be
+    // stepped over exactly: the first audio block starts wherever bsi ends,
+    // and every field past here is optional, so its length depends on the
+    // flags rather than being fixed. Guessing leaves the block parser reading
+    // from the wrong bit.
+    if (reader.readBit()) { reader.skip(8); }   // compre / compr
+    if (reader.readBit()) { reader.skip(8); }   // langcode / langcod
+    if (reader.readBit()) { reader.skip(7); }   // audprodie: mixlevel 5 + roomtyp 2
+    if (header.acmod == AudioCodingMode::DualMono) {
+        // 1+1 carries a second programme, so these repeat.
+        reader.skip(5);                          // dialnorm2
+        if (reader.readBit()) { reader.skip(8); } // compr2e / compr2
+        if (reader.readBit()) { reader.skip(8); } // langcod2e / langcod2
+        if (reader.readBit()) { reader.skip(7); } // audprodi2e
+    }
+    reader.skip(2);                              // copyrightb, origbs
+    if (reader.readBit()) { reader.skip(14); }   // timecod1e / timecod1
+    if (reader.readBit()) { reader.skip(14); }   // timecod2e / timecod2
+    if (reader.readBit()) {                      // addbsie
+        const unsigned length = reader.read(6) + 1;
+        reader.skip(length * 8);                 // addbsi
+    }
+
     return !reader.overrun();
 }
 
@@ -206,15 +230,8 @@ bool parseEAC3(AC3BitReader& reader, AC3FrameHeader& header)
 
 } // namespace
 
-bool parseAC3FrameHeader(const uint8_t* data, size_t size, AC3FrameHeader& header)
+bool ac3ParseFrameHeader(AC3BitReader& reader, AC3FrameHeader& header)
 {
-    // syncinfo is 5 bytes and the longest fixed run of bsi another handful;
-    // 8 bytes covers everything read below without a length check per field.
-    if (!data || size < 8) {
-        return false;
-    }
-
-    AC3BitReader reader(data, size);
     if (reader.read(16) != kSyncWord) {
         return false;
     }
@@ -223,17 +240,29 @@ bool parseAC3FrameHeader(const uint8_t* data, size_t size, AC3FrameHeader& heade
     // after crc1, fscod and frmsizecod in AC-3, and after strmtyp,
     // substreamid, frmsiz, fscod and acmod in E-AC-3. Reading it first is the
     // only way to know which layout the rest of the frame is in.
-    AC3BitReader probe(data, size);
-    probe.seek(40);
-    const auto bsid = static_cast<uint8_t>(probe.read(5));
+    const size_t after_sync = reader.tell();
+    reader.seek(after_sync - 16 + 40);
+    const auto bsid = static_cast<uint8_t>(reader.read(5));
     const Flavour flavour = flavourForBsid(bsid);
     if (flavour == Flavour::Unknown) {
         return false;
     }
+    reader.seek(after_sync);
 
     header = AC3FrameHeader();
     return flavour == Flavour::EAC3 ? parseEAC3(reader, header)
                                     : parseAC3(reader, header);
+}
+
+bool parseAC3FrameHeader(const uint8_t* data, size_t size, AC3FrameHeader& header)
+{
+    // syncinfo is 5 bytes and the longest fixed run of bsi another handful;
+    // 8 bytes covers everything read below without a length check per field.
+    if (!data || size < 8) {
+        return false;
+    }
+    AC3BitReader reader(data, size);
+    return ac3ParseFrameHeader(reader, header);
 }
 
 } // namespace AC3

@@ -39,6 +39,7 @@ EXTRA_DIST = \
 	include/codecs/OggCodecs.h \
 	include/codecs/ac3/AC3BitReader.h \
 	include/codecs/ac3/AC3BitAllocation.h \
+	include/codecs/ac3/AC3Block.h \
 	include/codecs/ac3/AC3Exponents.h \
 	include/codecs/ac3/AC3Mantissas.h \
 	include/codecs/ac3/AC3FrameHeader.h \

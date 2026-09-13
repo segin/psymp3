@@ -104,24 +104,29 @@ unsigned ac3CouplingExponentGroups(ExponentStrategy strategy,
 
 unsigned ac3DecodeExponents(AC3BitReader& reader, ExponentStrategy strategy,
                             unsigned group_count, uint8_t absolute_exponent,
-                            uint8_t* exponents, unsigned capacity)
+                            uint8_t* exponents, unsigned capacity,
+                            bool absolute_is_bin)
 {
     const unsigned group_size = ac3ExponentGroupSize(strategy);
     if (group_size == 0 || !exponents || capacity == 0) {
         return 0;
     }
 
-    // Bin 0 holds the absolute exponent and every later bin is reached from
-    // it, so the written count is one plus three deltas per group, each
-    // repeated across the group size.
-    const unsigned written = 1 + group_count * 3 * group_size;
+    // A full-bandwidth or LFE channel spends its absolute exponent on bin 0
+    // and reaches every later bin from it. The coupling channel does not: A/52
+    // §7.1.3 says cplabsexp is a reference for the differentials and "does not
+    // represent an actual exponent", so its first differential lands on the
+    // first coupling bin rather than the second.
+    const unsigned written = (absolute_is_bin ? 1u : 0u) + group_count * 3 * group_size;
     if (written > capacity) {
         return 0;
     }
 
-    exponents[0] = absolute_exponent;
+    unsigned out = 0;
+    if (absolute_is_bin) {
+        exponents[out++] = absolute_exponent;
+    }
     int previous = absolute_exponent;
-    unsigned out = 1;
 
     for (unsigned group = 0; group < group_count; ++group) {
         // Three mapped values packed into one 7-bit word, A/52 §7.1.3:

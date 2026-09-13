@@ -17,7 +17,8 @@ libpsymp3_codec_ac3_a_SOURCES = \
 	AC3FrameHeader.cpp \
 	AC3Exponents.cpp \
 	AC3BitAllocation.cpp \
-	AC3Mantissas.cpp
+	AC3Mantissas.cpp \
+	AC3Block.cpp
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)

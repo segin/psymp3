@@ -118,6 +118,15 @@ struct AC3FrameHeader {
 ///         a frame size that cannot be resolved.
 bool parseAC3FrameHeader(const uint8_t* data, size_t size, AC3FrameHeader& header);
 
+/// The same, reading from a caller's bit reader and leaving it positioned at
+/// the first audio block.
+///
+/// The buffer form above cannot be used to start decoding, because bsi has no
+/// fixed length -- half its fields are optional -- so the only way to know
+/// where the audio begins is to have consumed it with the same reader that
+/// goes on to read the blocks.
+bool ac3ParseFrameHeader(AC3BitReader& reader, AC3FrameHeader& header);
+
 /// Frame length in bytes for a sample rate and frame size code, or 0 if either
 /// is out of range. Exposed because a demuxer wants to walk frames without
 /// decoding their bsi.

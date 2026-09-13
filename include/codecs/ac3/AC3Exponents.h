@@ -101,9 +101,18 @@ constexpr unsigned kLfeExponentGroups = 2;
 /// @param capacity           size of @p exponents
 /// @return exponents written, or 0 if the buffer is too small or the stream
 ///         ran out.
+/// @param absolute_is_bin  true when the absolute exponent is itself the first
+///                         bin's exponent, which holds for full-bandwidth and
+///                         LFE channels. False for the coupling channel: A/52
+///                         §7.1.3 says cplabsexp "is only used as a reference
+///                         to begin decoding the differential exponents ... it
+///                         does not represent an actual exponent". Writing it
+///                         as a bin shifts every coupling exponent up by one,
+///                         and with it every coupling mantissa's width.
 unsigned ac3DecodeExponents(AC3BitReader& reader, ExponentStrategy strategy,
                             unsigned group_count, uint8_t absolute_exponent,
-                            uint8_t* exponents, unsigned capacity);
+                            uint8_t* exponents, unsigned capacity,
+                            bool absolute_is_bin = true);
 
 } // namespace AC3
 } // namespace Codec

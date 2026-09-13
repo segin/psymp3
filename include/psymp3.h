@@ -523,6 +523,7 @@ using PsyMP3::Codec::PCM::G722Codec;
 #include "codecs/ac3/AC3Exponents.h"
 #include "codecs/ac3/AC3BitAllocation.h"
 #include "codecs/ac3/AC3Mantissas.h"
+#include "codecs/ac3/AC3Block.h"
 #include "demuxer/matroska/EBMLReader.h"
 #include "demuxer/matroska/MatroskaElements.h"
 #include "demuxer/matroska/SegmentParser.h"
