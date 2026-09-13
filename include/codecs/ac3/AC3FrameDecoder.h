@@ -24,7 +24,7 @@ constexpr unsigned kFrameSamples = kBlocksPerFrame * kBlockSamples;
 
 /// Drives syncframes to PCM: header, audio blocks, the inverse transform for
 /// each coded channel, the E-AC-3 steps that need more than one block, and
-/// the mapping of coded channels onto output channels.
+/// the mapping of coded channels onto a fixed output layout (AC3Downmix).
 ///
 /// Decoded samples go into one planar line per coded channel, positioned by
 /// absolute sample index, and are released from there. AC-3 releases all a
@@ -53,7 +53,14 @@ public:
     /// Release everything still held back, at the end of a stream.
     void flush(std::vector<float>& pcm);
 
-    /// Channels in the samples released, including LFE.
+    /// Fix the output at @p channels, in the layouts ac3OutputChannels()
+    /// describes, or 0 to take the first frame's own layout. Every frame is
+    /// rendered into it -- mixed down by §7.8 where it has more channels than
+    /// the layout has speakers -- so the channel count never changes under a
+    /// device opened for one, even when the programme does. Survives reset().
+    void setOutputChannels(unsigned channels);
+
+    /// Channels in the samples released, including LFE: the output layout.
     unsigned channels() const { return m_output_channels; }
     /// Sample rate of the samples released.
     unsigned sampleRate() const { return m_sample_rate; }
@@ -71,6 +78,7 @@ private:
         unsigned acmod = 0;
         bool lfeon = false;
         unsigned sample_rate = 0;
+        AC3MixLevels levels;
         EAC3AudioFrame params;
         std::unique_ptr<AC3Block[]> block;   // large, so on the heap
     };
@@ -89,7 +97,7 @@ private:
     void queueCorrections(const Frame& frame, uint64_t frame_start);
     /// Apply every queued correction whose transient has been decoded.
     void applyCorrections();
-    /// Hand on samples up to @p end, mapped to the output channels.
+    /// Hand on samples up to @p end, mixed into the output layout.
     void release(uint64_t end, std::vector<float>& pcm);
     /// Finish and release everything, with no next frame to wait for.
     void drain(std::vector<float>& pcm);
@@ -106,7 +114,7 @@ private:
     Frame m_pending;
 
     /// The full-bandwidth channels in bitstream order, then the LFE.
-    static constexpr unsigned kLines = kMaxFullBandwidthChannels + 1;
+    static constexpr unsigned kLines = kMixInputs;
     std::vector<float> m_line[kLines];
     uint64_t m_line_start = 0;   ///< absolute position of each line's first sample
     uint64_t m_decoded = 0;      ///< one past the last sample decoded
@@ -119,10 +127,11 @@ private:
     bool m_layout_eac3 = false;
     unsigned m_layout_acmod = 0;
     bool m_layout_lfeon = false;
+    AC3MixLevels m_layout_levels;
     unsigned m_sample_rate = 0;
+    unsigned m_requested_channels = 0;
     unsigned m_output_channels = 0;
-    /// Gain from each line to each output channel.
-    float m_gain[8][kLines] = {};
+    AC3OutputMatrix m_matrix;
 };
 
 } // namespace AC3

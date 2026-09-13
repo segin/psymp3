@@ -86,10 +86,17 @@ bool eac3ParseFrame(AC3BitReader& reader, AC3FrameHeader& header,
         }
     }
 
-    if (reader.readBit()) {                               // mixmdate
+    frame.mixmdate = reader.readBit() != 0;
+    if (frame.mixmdate) {
         if (acmod > 0x2) { reader.skip(2); }              // dmixmod
-        if ((acmod & 0x1) && acmod > 0x2) { reader.skip(6); } // ltrtcmixlev, lorocmixlev
-        if (acmod & 0x4) { reader.skip(6); }              // ltrtsurmixlev, lorosurmixlev
+        if ((acmod & 0x1) && acmod > 0x2) {
+            reader.skip(3);                               // ltrtcmixlev
+            frame.lorocmixlev = static_cast<uint8_t>(reader.read(3));
+        }
+        if (acmod & 0x4) {
+            reader.skip(3);                               // ltrtsurmixlev
+            frame.lorosurmixlev = static_cast<uint8_t>(reader.read(3));
+        }
         if (lfeon && reader.readBit()) { reader.skip(5); } // lfemixlevcode / lfemixlevcod
         if (strmtyp == 0x0) {
             if (reader.readBit()) { reader.skip(6); }     // pgmscle / pgmscl

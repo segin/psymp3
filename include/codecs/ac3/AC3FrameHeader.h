@@ -65,6 +65,35 @@ enum class AudioCodingMode {
     ThreeTwo   = 7, ///< 3/2: L, C, R, SL, SR
 };
 
+/// How many channels a coded arrangement plays through, in SDL's default
+/// layouts (SDL_audio.h): 1 mono, 2 stereo, 3 2.1, 4 quad, 5 4.1, 6 5.1,
+/// 7 6.1, 8 7.1.
+///
+/// The smallest of those with a speaker for every coded channel. A count of
+/// channels is not enough on its own: SDL has no centre speaker below six
+/// channels, so 3/0 and 3/2 need all six even without an LFE -- a 5-channel
+/// 3/2 would put its centre in the subwoofer -- and 1/0 with an LFE needs
+/// them too. A single surround plays through a surround pair at -3 dB each,
+/// as §7.8.1 lays out, rather than calling for 6.1.
+inline unsigned ac3OutputChannels(AudioCodingMode acmod, bool lfeon)
+{
+    switch (acmod) {
+    case AudioCodingMode::DualMono:
+    case AudioCodingMode::Stereo:
+        return lfeon ? 3 : 2;
+    case AudioCodingMode::Mono:
+        return lfeon ? 6 : 1;
+    case AudioCodingMode::TwoOne:
+    case AudioCodingMode::TwoTwo:
+        return lfeon ? 5 : 4;
+    case AudioCodingMode::ThreeZero:
+    case AudioCodingMode::ThreeOne:
+    case AudioCodingMode::ThreeTwo:
+        return 6;
+    }
+    return 2;
+}
+
 /// syncinfo() and bsi(), A/52 Tables 5.1 and 5.2.
 ///
 /// Only the fields a caller outside the decoder needs are kept: enough to
@@ -81,6 +110,11 @@ struct AC3FrameHeader {
     uint8_t bsmod = 0;        ///< bit stream mode (service type), Table 5.7
     AudioCodingMode acmod = AudioCodingMode::Stereo;
     bool lfeon = false;
+    /// AC-3's downmix levels, Tables 5.9 and 5.10, as written: 0 when the
+    /// mode has no centre or no surround to mix. E-AC-3 carries its own in
+    /// EAC3AudioFrame.
+    uint8_t cmixlev = 0;
+    uint8_t surmixlev = 0;
     /// Dialogue normalisation, as written: 1..31 means -1..-31 dBFS, and 0 is
     /// reserved. Kept raw rather than negated so a caller can tell 0 apart.
     uint8_t dialnorm = 0;
@@ -110,8 +144,9 @@ struct AC3FrameHeader {
         return flavour == Flavour::EAC3 && (strmtyp == 1 || substreamid != 0);
     }
 
-    /// Channels a decoder would output, LFE included.
-    uint8_t outputChannels() const { return static_cast<uint8_t>(channels + (lfeon ? 1 : 0)); }
+    /// Channels the decoder outputs for this arrangement, in the layout
+    /// ac3OutputChannels() describes -- which is not always the coded count.
+    uint8_t outputChannels() const { return static_cast<uint8_t>(ac3OutputChannels(acmod, lfeon)); }
 
     bool isAC3() const { return flavour == Flavour::AC3; }
     bool isEAC3() const { return flavour == Flavour::EAC3; }

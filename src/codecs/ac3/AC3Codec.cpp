@@ -34,8 +34,15 @@ bool AC3Codec::initialize()
     }
 
     // Everything the decoder needs is in each syncframe's own header, so
-    // there is no out-of-band configuration to apply.
+    // there is no out-of-band configuration to apply -- except the output
+    // layout. The audio device is opened with the channel count the demuxer
+    // declared, so output is rendered into exactly that many channels: a
+    // stream whose arrangement differs, or changes mid-stream, is mixed to
+    // fit instead of being played at the wrong stride. A count no layout has
+    // leaves the choice to the first frame.
     m_decoder.reset();
+    const unsigned declared = m_stream_info.channels;
+    m_decoder.setOutputChannels(declared <= kMaxOutputChannels ? declared : 0);
     m_pending.clear();
     m_output_started = false;
     m_initialized = true;

@@ -34,6 +34,12 @@ struct EAC3AudioFrame {
     bool chanmape = false;    ///< dependent substream supplies a channel map
     uint16_t chanmap = 0;     ///< Table E2.5 locations, MSB first
     uint8_t blocks = 6;       ///< audio blocks in the frame
+    /// Lo/Ro downmix levels, needed only when the output has fewer speakers
+    /// than the stream has channels. Without mixing metadata both stay at
+    /// -3 dB (code 4 of Tables D2.5 and D2.6).
+    bool mixmdate = false;
+    uint8_t lorocmixlev = 4;
+    uint8_t lorosurmixlev = 4;
 
     // --- audfrm: which optional block syntax is present ---
     bool expstre = true;      ///< per-block exponent strategies (else Table E2.10)

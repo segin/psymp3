@@ -16,7 +16,7 @@ namespace AC3 {
 namespace {
 
 /// The LFE's line, after the full-bandwidth channels.
-constexpr unsigned kLfeLine = kMaxFullBandwidthChannels;
+constexpr unsigned kLfeLine = kMixLfeInput;
 
 /// How far E-AC-3 output is held behind the last decoded sample. A
 /// correction not yet applied has its transient at or past the next sample to
@@ -28,35 +28,6 @@ constexpr uint64_t kHoldBack = static_cast<uint64_t>(EAC3TransientCorrection::kM
 /// buffer starts at most 2*TC1 + 2*511 = 1534 samples before its transient,
 /// which is at most 512 samples before the oldest sample still held.
 constexpr uint64_t kHistory = 1024;
-
-/// Where each bitstream channel belongs in WAVE order (L R C LFE Ls Rs).
-///
-/// A/52 Table 5.8 orders the coded channels the way the arrangement is
-/// written -- 3/2 is L, C, R, Ls, Rs -- which puts centre second. Every audio
-/// device expects centre third and the LFE fourth, so the two disagree for
-/// any mode with a centre channel. Indexed by acmod; -1 marks a slot the mode
-/// does not carry.
-constexpr int kWaveOrder[8][5] = {
-    { 0,  1, -1, -1, -1},  // 1+1: two independent programmes, left as they are
-    { 0, -1, -1, -1, -1},  // 1/0: C alone, so it is the only channel
-    { 0,  1, -1, -1, -1},  // 2/0: L R
-    { 0,  2,  1, -1, -1},  // 3/0: L C R     -> L R C
-    { 0,  1,  2, -1, -1},  // 2/1: L R S
-    { 0,  2,  1,  3, -1},  // 3/1: L C R S   -> L R C S
-    { 0,  1,  2,  3, -1},  // 2/2: L R Ls Rs
-    { 0,  2,  1,  3,  4},  // 3/2: L C R Ls Rs -> L R C Ls Rs
-};
-
-/// The interleaved output slot of full-bandwidth channel @p ch, or -1. The
-/// LFE takes WAVE slot 3, so everything from there on moves up one.
-int outputSlot(unsigned acmod, bool lfeon, unsigned ch)
-{
-    const int slot = kWaveOrder[acmod][ch];
-    if (slot < 0) {
-        return -1;
-    }
-    return (lfeon && slot >= 3) ? slot + 1 : slot;
-}
 
 } // namespace
 
@@ -217,7 +188,7 @@ void AC3FrameDecoder::release(uint64_t end, std::vector<float>& pcm)
     pcm.resize(base + count * outputs, 0.0f);
     for (unsigned out = 0; out < outputs; ++out) {
         for (unsigned in = 0; in < kLines; ++in) {
-            const float gain = m_gain[out][in];
+            const float gain = m_matrix.gain[out][in];
             if (gain == 0.0f) {
                 continue;
             }
@@ -253,26 +224,28 @@ void AC3FrameDecoder::drain(std::vector<float>& pcm)
     release(m_decoded, pcm);
 }
 
+void AC3FrameDecoder::setOutputChannels(unsigned channels)
+{
+    m_requested_channels = channels <= kMaxOutputChannels ? channels : 0;
+    m_output_channels = m_requested_channels;
+    // The next frame rebuilds the matrix for the new layout.
+    m_have_layout = false;
+}
+
 void AC3FrameDecoder::setLayout(const Frame& frame)
 {
+    const auto acmod = static_cast<AudioCodingMode>(frame.acmod);
     m_have_layout = true;
     m_layout_eac3 = frame.eac3;
     m_layout_acmod = frame.acmod;
     m_layout_lfeon = frame.lfeon;
+    m_layout_levels = frame.levels;
     m_sample_rate = frame.sample_rate;
-    m_output_channels = frame.fbw + (frame.lfeon ? 1u : 0u);
-    for (auto& row : m_gain) {
-        std::fill(std::begin(row), std::end(row), 0.0f);
+    // With no layout asked for, the first frame's own fixes it for good.
+    if (m_output_channels == 0) {
+        m_output_channels = ac3OutputChannels(acmod, frame.lfeon);
     }
-    for (unsigned ch = 0; ch < frame.fbw; ++ch) {
-        const int out = outputSlot(frame.acmod, frame.lfeon, ch);
-        if (out >= 0) {
-            m_gain[out][ch] = 1.0f;
-        }
-    }
-    if (frame.lfeon) {
-        m_gain[std::min(3u, m_output_channels - 1)][kLfeLine] = 1.0f;
-    }
+    m_matrix = ac3OutputMatrix(acmod, frame.lfeon, m_output_channels, frame.levels);
 }
 
 bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float>& pcm)
@@ -337,11 +310,15 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
         }
     }
     frame.valid = true;
+    frame.levels = frame.eac3
+        ? eac3MixLevels(frame.params.lorocmixlev, frame.params.lorosurmixlev)
+        : ac3MixLevels(header.cmixlev, header.surmixlev);
 
     // A new channel arrangement -- mode, LFE, rate, or AC-3 against E-AC-3 --
-    // ends what came before. Everything held is released as it was, and the
-    // transforms' overlap and the enhanced coupling history are dropped: they
-    // belong to channels that now mean something else.
+    // ends what came before. Everything held is released in the old mix, and
+    // the transforms' overlap and the enhanced coupling history are dropped:
+    // they belong to channels that now mean something else. The output
+    // layout itself stays put. New downmix levels alone only change the mix.
     if (!m_have_layout || frame.acmod != m_layout_acmod || frame.lfeon != m_layout_lfeon ||
         frame.eac3 != m_layout_eac3 || frame.sample_rate != m_sample_rate) {
         if (m_have_layout) {
@@ -352,6 +329,10 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
             m_previous_ecpl = false;
         }
         setLayout(frame);
+    } else if (frame.levels != m_layout_levels) {
+        m_layout_levels = frame.levels;
+        m_matrix = ac3OutputMatrix(static_cast<AudioCodingMode>(frame.acmod), frame.lfeon,
+                                   m_output_channels, frame.levels);
     }
 
     const uint64_t frame_start = m_next_frame;

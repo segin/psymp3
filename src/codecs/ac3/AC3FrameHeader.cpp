@@ -157,10 +157,12 @@ bool parseAC3(AC3BitReader& reader, AC3FrameHeader& header)
 
     const auto acmod_bits = static_cast<unsigned>(header.acmod);
     if ((acmod_bits & 0x1) && acmod_bits != 0x1) {
-        reader.skip(2); // cmixlev, present with three front channels
+        // Present with three front channels.
+        header.cmixlev = static_cast<uint8_t>(reader.read(2));
     }
     if (acmod_bits & 0x4) {
-        reader.skip(2); // surmixlev, present with a surround channel
+        // Present with a surround channel.
+        header.surmixlev = static_cast<uint8_t>(reader.read(2));
     }
     if (header.acmod == AudioCodingMode::Stereo) {
         reader.skip(2); // dsurmod, Dolby Surround mode, 2/0 only

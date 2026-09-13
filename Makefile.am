@@ -47,6 +47,7 @@ EXTRA_DIST = \
 	include/codecs/ac3/AC3Codec.h \
 	include/codecs/ac3/AC3FrameDecoder.h \
 	include/codecs/ac3/AC3Transform.h \
+	include/codecs/ac3/AC3Downmix.h \
 	include/codecs/ac3/AC3Window.h \
 	include/codecs/ac3/EAC3Frame.h \
 	include/codecs/ac3/EAC3Tables.h \
