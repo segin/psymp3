@@ -183,19 +183,24 @@ Debug::log("ac3", "  after remat: bit ", reader.tell());
     // --- channel bandwidth ---
     for (unsigned ch = 0; ch < nfchans; ++ch) {
         state.strtmant[ch] = 0;
+        if (state.chincpl[ch] && state.cplinu) {
+            // §5.4.3.61: a coupled channel's mantissa count comes from
+            // cplbegf, a property of this block's coupling strategy, so it
+            // has to be re-derived even when the channel reuses its
+            // exponents -- coupling can start, or its range move, in a block
+            // that sends none.
+            state.endmant[ch] = state.strtmant[kCouplingSlot];
+            continue;
+        }
         if (state.expstr[ch] == ExponentStrategy::Reuse) {
             continue;
         }
-        if (state.chincpl[ch] && state.cplinu) {
-            state.endmant[ch] = state.strtmant[kCouplingSlot];
-        } else {
-            const uint8_t chbwcod = static_cast<uint8_t>(reader.read(6));
-            state.endmant[ch] = ac3ChannelEndMantissa(chbwcod);
-            if (state.endmant[ch] == 0) {
-                // A/52 §5.4.3.24: past 60 the stream is invalid and the
-                // decoder is told to mute rather than carry on.
-                return fail("channel bandwidth code past 60");
-            }
+        const uint8_t chbwcod = static_cast<uint8_t>(reader.read(6));
+        state.endmant[ch] = ac3ChannelEndMantissa(chbwcod);
+        if (state.endmant[ch] == 0) {
+            // A/52 §5.4.3.24: past 60 the stream is invalid and the
+            // decoder is told to mute rather than carry on.
+            return fail("channel bandwidth code past 60");
         }
     }
 
