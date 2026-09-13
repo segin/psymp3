@@ -209,12 +209,16 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
     // The encoder's override, where the parametric model alone misjudges a
     // block. Adjustments are in multiples of 6 dB, with 4 and above meaning a
     // reduction rather than an increase.
+    // The first segment's offset is an absolute band number; every one after
+    // it is measured from where the previous segment stopped (§5.4.3.55), so
+    // the cursor runs on rather than being reseated.
+    unsigned band = 0;
     for (const DeltaBitAllocation& delta : deltas) {
-        unsigned band = delta.offset;
+        band += delta.offset;
+        const int adjust = delta.bit_allocation >= 4
+                         ? (static_cast<int>(delta.bit_allocation) - 3) << 7
+                         : (static_cast<int>(delta.bit_allocation) - 4) << 7;
         for (unsigned i = 0; i < delta.length && band < kBandCount; ++i, ++band) {
-            const int adjust = delta.bit_allocation >= 4
-                             ? (static_cast<int>(delta.bit_allocation) - 3) << 7
-                             : (static_cast<int>(delta.bit_allocation) - 4) << 7;
             mask[band] += adjust;
         }
     }
