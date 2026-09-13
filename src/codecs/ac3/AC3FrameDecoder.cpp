@@ -44,6 +44,9 @@ void AC3FrameDecoder::reset()
     for (auto& transform : m_transforms) {
         transform = AC3TransformState();
     }
+    for (auto& tpnp : m_tpnp) {
+        tpnp.reset();
+    }
 }
 
 bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float>& pcm)
@@ -131,6 +134,33 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
             float* dst = pcm.data() + static_cast<size_t>(b) * kBlockSamples * channels;
             for (unsigned n = 0; n < kBlockSamples; ++n) {
                 dst[n * channels + out] = samples[n];
+            }
+        }
+    }
+
+    // --- transient pre-noise processing, §E3.7 ---
+    // Applied to finished PCM, channel by channel. Every E-AC-3 frame goes
+    // through it so each channel's history stays continuous, because a
+    // correction in one frame may copy from the one before.
+    if (is_eac3) {
+        const size_t frames = static_cast<size_t>(blocks) * kBlockSamples;
+        std::vector<float> channel(frames);
+        for (unsigned ch = 0; ch < fbw; ++ch) {
+            const int slot = kWaveOrder[acmod][ch];
+            if (slot < 0) {
+                continue;
+            }
+            unsigned out = static_cast<unsigned>(slot);
+            if (header.lfeon && out >= 3) {
+                ++out;
+            }
+            for (size_t n = 0; n < frames; ++n) {
+                channel[n] = pcm[n * channels + out];
+            }
+            m_tpnp[ch].process(channel.data(), frames, eac3.chintransproc[ch],
+                               eac3.transprocloc[ch], eac3.transproclen[ch]);
+            for (size_t n = 0; n < frames; ++n) {
+                pcm[n * channels + out] = channel[n];
             }
         }
     }

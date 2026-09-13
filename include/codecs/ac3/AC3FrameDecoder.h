@@ -59,6 +59,10 @@ public:
 private:
     AC3FrameState m_state;
     AC3TransformState m_transforms[kChannelSlots];
+    /// Per full-bandwidth channel, in bitstream order. Fed every E-AC-3
+    /// frame whether or not it corrects anything, since a correction can
+    /// reach back into the previous frame's output.
+    EAC3TransientPreNoise m_tpnp[kMaxFullBandwidthChannels];
     unsigned m_channels = 0;
     unsigned m_sample_rate = 0;
 };
