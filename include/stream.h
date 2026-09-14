@@ -31,6 +31,7 @@
 namespace PsyMP3 {
 namespace Tag {
     class Tag;
+    struct Picture;
 }
 }
 
@@ -76,6 +77,18 @@ class Stream
          * @thread_safety Safe to call concurrently after stream is opened
          */
         virtual const PsyMP3::Tag::Tag& getTag() const;
+
+        /**
+         * @brief The picture that best stands for this track
+         *
+         * The embedded front cover if there is one, otherwise the first
+         * embedded picture with any data; nullopt without either. PsyMP3's
+         * own tag reader is asked first -- it carries ID3v2, FLAC and Ogg
+         * pictures and works where TagLib cannot open the source -- and
+         * TagLib's PICTURE property after it, which also reaches MP4 cover
+         * art.
+         */
+        virtual std::optional<PsyMP3::Tag::Picture> getCoverArt() const;
         
         // Lyrics support
         std::shared_ptr<LyricsFile> getLyrics() const;

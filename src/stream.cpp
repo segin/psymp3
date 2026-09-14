@@ -615,6 +615,63 @@ void Stream::loadLyrics()
  * 
  * @return Reference to Tag object (NullTag if no metadata)
  */
+std::optional<PsyMP3::Tag::Picture> Stream::getCoverArt() const
+{
+    using PsyMP3::Tag::Picture;
+    using PsyMP3::Tag::PictureType;
+    std::optional<Picture> first;
+
+    const PsyMP3::Tag::Tag& tag = getTag();
+    for (size_t i = 0; i < tag.pictureCount(); ++i) {
+        std::optional<Picture> picture = tag.getPicture(i);
+        if (!picture || picture->isEmpty()) {
+            continue;
+        }
+        if (picture->type == PictureType::FrontCover) {
+            return picture;
+        }
+        if (!first) {
+            first = std::move(picture);
+        }
+    }
+    if (first) {
+        return first;
+    }
+
+#if TAGLIB_MAJOR_VERSION >= 2
+    // TagLib 2 lists a file's pictures as complex properties, whichever
+    // container stores them.
+    if (m_tags && !m_tags->isNull()) {
+        const TagLib::List<TagLib::VariantMap> pictures = m_tags->complexProperties("PICTURE");
+        for (const TagLib::VariantMap& entry : pictures) {
+            const auto data = entry.find("data");
+            if (data == entry.end()) {
+                continue;
+            }
+            const TagLib::ByteVector bytes = data->second.value<TagLib::ByteVector>();
+            if (bytes.isEmpty()) {
+                continue;
+            }
+            Picture picture;
+            picture.data.assign(bytes.begin(), bytes.end());
+            const auto mime = entry.find("mimeType");
+            if (mime != entry.end()) {
+                picture.mime_type = mime->second.value<TagLib::String>().to8Bit(true);
+            }
+            const auto kind = entry.find("pictureType");
+            if (kind != entry.end() && kind->second.value<TagLib::String>() == "Front Cover") {
+                picture.type = PictureType::FrontCover;
+                return picture;
+            }
+            if (!first) {
+                first = std::move(picture);
+            }
+        }
+    }
+#endif
+    return first;
+}
+
 const PsyMP3::Tag::Tag& Stream::getTag() const
 {
     // Return the stored tag if available, otherwise return NullTag
