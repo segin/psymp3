@@ -226,6 +226,20 @@ bool seekWouldNaturallyEndTrack(unsigned long requested_pos_ms, unsigned long to
            requested_pos_ms + kSeekNaturalEndToleranceMs >= total_len_ms;
 }
 
+#ifdef HAVE_DBUS
+// The track's cover for MPRIS's mpris:artUrl: the image itself as a data: URI
+// rather than a link to it, as KDE's own Elisa publishes it. Empty when the
+// track has no cover that can be sent that way.
+static std::string mprisArtUrl(Stream* stream)
+{
+    if (!stream) {
+        return std::string();
+    }
+    const std::optional<PsyMP3::Tag::Picture> cover = stream->getCoverArt();
+    return cover ? PsyMP3::Tag::ImageUtils::dataUri(*cover) : std::string();
+}
+#endif
+
 size_t getPrimeSampleCount(Stream* stream)
 {
     if (!stream) {
@@ -1108,7 +1122,8 @@ void Player::handleTrackSeamlessSwapEvent() {
                 stream->getArtist().to8Bit(true),
                 stream->getTitle().to8Bit(true),
                 stream->getAlbum().to8Bit(true),
-                static_cast<uint64_t>(stream->getLength()) * 1000
+                static_cast<uint64_t>(stream->getLength()) * 1000,
+                mprisArtUrl(stream)
             );
         }
     }
@@ -5833,7 +5848,8 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
                 stream->getArtist().to8Bit(true),
                 stream->getTitle().to8Bit(true),
                 stream->getAlbum().to8Bit(true),
-                static_cast<uint64_t>(stream->getLength()) * 1000
+                static_cast<uint64_t>(stream->getLength()) * 1000,
+                mprisArtUrl(stream)
             );
         }
     }
