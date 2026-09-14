@@ -87,7 +87,9 @@ public:
      * @param album Album name
      * @param length_us Track length in microseconds (0 if unknown)
      */
-    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us = 0);
+    // art_url becomes mpris:artUrl: a URI for the track's cover, left out when empty.
+    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us = 0,
+                        const std::string& art_url = std::string());
     
     /**
      * Update playback status
@@ -208,7 +210,8 @@ private:
     
     PsyMP3::MPRIS::Result<void> initialize_unlocked();
     void shutdown_unlocked();
-    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us);
+    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us,
+                                 const std::string& art_url);
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);

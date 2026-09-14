@@ -35,9 +35,10 @@ PropertyManager::~PropertyManager() {
 void PropertyManager::updateMetadata(const std::string &artist,
                                      const std::string &title,
                                      const std::string &album,
-                                     uint64_t length_us) {
+                                     uint64_t length_us,
+                                     const std::string &art_url) {
   std::lock_guard<std::mutex> lock(m_mutex);
-  updateMetadata_unlocked(artist, title, album, length_us);
+  updateMetadata_unlocked(artist, title, album, length_us, art_url);
 }
 
 void PropertyManager::updatePlaybackStatus(
@@ -138,7 +139,8 @@ PropertyManager::getAllProperties() const {
 void PropertyManager::updateMetadata_unlocked(const std::string &artist,
                                               const std::string &title,
                                               const std::string &album,
-                                              uint64_t length_us) {
+                                              uint64_t length_us,
+                                              const std::string &art_url) {
   m_artist = artist;
   m_title = title;
   m_album = album;
@@ -154,6 +156,7 @@ void PropertyManager::updateMetadata_unlocked(const std::string &artist,
   }
 
   m_length_us = length_us;
+  m_art_url = art_url;
 }
 
 void PropertyManager::updatePlaybackStatus_unlocked(

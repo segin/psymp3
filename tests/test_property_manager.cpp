@@ -344,6 +344,27 @@ public:
     }
 };
 
+// Test the cover art URL
+class TestArtUrl : public PropertyManagerTest {
+public:
+    TestArtUrl() : PropertyManagerTest("Art URL") {}
+
+    void runTest() override {
+        const std::string art = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+        m_property_manager->updateMetadata("Artist", "Title", "Album", 1000000, art);
+        auto metadata = m_property_manager->getMetadata();
+        auto it = metadata.find("mpris:artUrl");
+        ASSERT_TRUE(it != metadata.end(), "mpris:artUrl should be present when art is given");
+        ASSERT_EQUALS(it->second.get<std::string>(), art, "mpris:artUrl should carry the URI unchanged");
+
+        // The next track has no art: the previous track's must not linger.
+        m_property_manager->updateMetadata("Artist", "Other Title", "Album", 1000000);
+        metadata = m_property_manager->getMetadata();
+        ASSERT_TRUE(metadata.find("mpris:artUrl") == metadata.end(),
+                    "mpris:artUrl should be absent for a track without art");
+    }
+};
+
 int main() {
     TestFramework::TestSuite suite("PropertyManager Tests");
     
@@ -355,6 +376,7 @@ int main() {
     suite.addTest(std::make_unique<TestAllProperties>());
     suite.addTest(std::make_unique<TestEdgeCases>());
     suite.addTest(std::make_unique<TestVolume>());
+    suite.addTest(std::make_unique<TestArtUrl>());
     
     // Run all tests
     auto results = suite.runAll();

@@ -97,9 +97,10 @@ void MPRISManager::processEvents() {
     dbus_connection_read_write_dispatch(conn, 0);
 }
 
-void MPRISManager::updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us) {
+void MPRISManager::updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us,
+                                  const std::string& art_url) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    updateMetadata_unlocked(artist, title, album, length_us);
+    updateMetadata_unlocked(artist, title, album, length_us, art_url);
 }
 
 void MPRISManager::updatePlaybackStatus(PlaybackStatus status) {
@@ -278,7 +279,8 @@ void MPRISManager::shutdown_unlocked() {
     logInfo_unlocked("MPRIS system shutdown complete");
 }
 
-void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us) {
+void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us,
+                                           const std::string& art_url) {
     MPRIS_MEASURE_LOCK("MPRISManager::updateMetadata");
     
     if (!isInitialized_unlocked() || !m_properties) {
@@ -295,7 +297,7 @@ void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std:
     MPRIS_LOG_TRACE("MPRISManager", "Updating metadata: artist='" + artist + "', title='" + title + "', album='" + album + "', length='" + std::to_string(length_us) + "'");
     
     try {
-        m_properties->updateMetadata(artist, title, album, length_us);
+        m_properties->updateMetadata(artist, title, album, length_us, art_url);
         emitPropertyChanges_unlocked();
         MPRIS_LOG_DEBUG("MPRISManager", "Metadata updated successfully");
     } catch (const std::exception& e) {
@@ -1055,7 +1057,7 @@ Result<void> MPRISManager::initialize() {
 void MPRISManager::shutdown() {}
 void MPRISManager::processEvents() {}
 std::string MPRISManager::getServiceName() const { return {}; }
-void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&, uint64_t) {}
+void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&, uint64_t, const std::string&) {}
 void MPRISManager::updatePlaybackStatus(PlaybackStatus) {}
 void MPRISManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus) {}
 void MPRISManager::updateShuffle(bool) {}
