@@ -38,6 +38,31 @@ namespace ImageUtils {
  */
 void extractDimensions(Picture& picture);
 
+/**
+ * @brief The image format an image's own header declares
+ *
+ * Tags carry a MIME type too, but taggers get it wrong often enough -- a JPEG
+ * labelled image/png is common -- that the bytes are the better witness.
+ *
+ * @return image/jpeg, image/png, image/gif, image/webp or image/bmp; empty
+ *         when the data is none of these
+ */
+std::string sniffMimeType(const std::vector<uint8_t>& data);
+
+/// The largest image dataUri() will encode.
+constexpr size_t kMaxDataUriImageBytes = 1024 * 1024;
+
+/**
+ * @brief A picture as an RFC 2397 data: URI, base64-encoded
+ *
+ * The MIME type comes from sniffMimeType(), not from the tag. Empty when the
+ * data is not a recognised image, or is larger than kMaxDataUriImageBytes:
+ * a URI like this is sent whole to everything that asks for it -- MPRIS
+ * clients receive it with every metadata change -- so an oversized scan is
+ * better left out than sent.
+ */
+std::string dataUri(const Picture& picture);
+
 } // namespace ImageUtils
 } // namespace Tag
 } // namespace PsyMP3

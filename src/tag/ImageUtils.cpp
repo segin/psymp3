@@ -24,6 +24,56 @@ namespace PsyMP3 {
 namespace Tag {
 namespace ImageUtils {
 
+std::string sniffMimeType(const std::vector<uint8_t>& data)
+{
+    auto starts = [&data](std::initializer_list<uint8_t> magic, size_t at = 0) {
+        if (data.size() < at + magic.size()) {
+            return false;
+        }
+        size_t i = at;
+        for (uint8_t byte : magic) {
+            if (data[i++] != byte) {
+                return false;
+            }
+        }
+        return true;
+    };
+    if (starts({0xFF, 0xD8, 0xFF})) {
+        return "image/jpeg";
+    }
+    if (starts({0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A})) {
+        return "image/png";
+    }
+    if (starts({'G', 'I', 'F', '8', '7', 'a'}) || starts({'G', 'I', 'F', '8', '9', 'a'})) {
+        return "image/gif";
+    }
+    if (starts({'R', 'I', 'F', 'F'}) && starts({'W', 'E', 'B', 'P'}, 8)) {
+        return "image/webp";
+    }
+    // "BM" alone matches too much to trust; require the header's pixel-data
+    // offset to lie inside the file as well.
+    if (starts({'B', 'M'}) && data.size() >= 14) {
+        const uint32_t offset = static_cast<uint32_t>(data[10]) | (static_cast<uint32_t>(data[11]) << 8) |
+                                (static_cast<uint32_t>(data[12]) << 16) | (static_cast<uint32_t>(data[13]) << 24);
+        if (offset >= 14 && offset < data.size()) {
+            return "image/bmp";
+        }
+    }
+    return std::string();
+}
+
+std::string dataUri(const Picture& picture)
+{
+    if (picture.data.size() > kMaxDataUriImageBytes) {
+        return std::string();
+    }
+    const std::string mime = sniffMimeType(picture.data);
+    if (mime.empty()) {
+        return std::string();
+    }
+    return "data:" + mime + ";base64," + Core::Utility::Base64::encode(picture.data);
+}
+
 void extractDimensions(Picture& picture) {
     if (picture.data.size() < 16) {
         return; // Too small for any image header
