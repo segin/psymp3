@@ -1943,6 +1943,11 @@ test_audio_thread_safety_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(AM_LDFLAGS)
 
+# Cover art selection and data: URIs for MPRIS
+check_PROGRAMS += test_cover_art
+test_cover_art_SOURCES = test_cover_art.cpp
+test_cover_art_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 # Decoded PCM stays whole-frame and gapless across stream reads
 check_PROGRAMS += test_audio_frame_assembly
 test_audio_frame_assembly_SOURCES = test_audio_frame_assembly.cpp
