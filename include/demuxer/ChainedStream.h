@@ -44,6 +44,8 @@ public:
     virtual unsigned long long getSLength() override;
     virtual unsigned int getPosition() override;
     virtual unsigned long long getSPosition() override;
+    // The playing track's cover, not the chain's first.
+    virtual std::optional<PsyMP3::Tag::Picture> getCoverArt() const override;
 
 private:
     bool openNextTrack();                       // assumes m_chain_mutex is held

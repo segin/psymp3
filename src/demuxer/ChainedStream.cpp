@@ -316,5 +316,11 @@ void ChainedStream::seekTo(unsigned long pos)
     m_position = (m_rate > 0) ? (m_sposition * 1000) / m_rate : 0;
 }
 
+std::optional<PsyMP3::Tag::Picture> ChainedStream::getCoverArt() const
+{
+    std::lock_guard<std::mutex> lock(m_chain_mutex);
+    return m_current_stream ? m_current_stream->getCoverArt() : Stream::getCoverArt();
+}
+
 } // namespace Demuxer
 } // namespace PsyMP3
