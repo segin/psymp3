@@ -237,30 +237,38 @@ overlapping glyph boxes so the stroke that joins one letter to the next
 survives instead of being overwritten by its neighbour. Hebrew and N'Ko read
 right to left.
 
-What DejaVu Sans does **not** have is CJK, Kana and Hangul, the Indic scripts
-(Devanagari, Bengali, Tamil and the rest), Thai, Khmer, Syriac, Thaana and
-Mongolian. Those draw as empty boxes until you give PsyMP3 a second font.
+Scripts that DejaVu Sans does not cover draw as empty boxes — Chinese,
+Japanese and Korean are the most common example, along with many Indic and
+Southeast Asian scripts, among others — until you give PsyMP3 a second font.
 
-### Adding characters with `extra.ttf`
+### Adding languages with `extra.ttf`
 
-Drop an `extra.ttf` next to `psymp3.exe` (or in the working directory; on Unix,
-in the data directory) and PsyMP3 chains it behind `vera.ttf`. Any TrueType or
-OpenType file works — Noto Sans CJK is the usual choice for Chinese, Japanese
-and Korean, and the Noto family covers essentially everything else.
+`extra.ttf` is an optional second font. PsyMP3 uses it for any character
+`vera.ttf` cannot draw, so a single file can add whichever languages you need.
+Any TrueType or OpenType font works; a family with broad coverage, such as
+Noto, covers most scripts at once. Without an `extra.ttf`, nothing changes.
 
-- It supplies **any character `vera.ttf` lacks**, so one file is enough to add a
-  script. Absent, nothing changes at all.
-- On Windows it **supplements** the font embedded in the executable rather than
-  replacing it, so adding one script does not cost you the coverage of
-  everything else. No rebuild needed.
-- Latin, Greek, Cyrillic and CJK always keep `vera.ttf`, so adding a fallback
-  cannot restyle the bulk of the interface.
-- One exception to that: for scripts that join or reorder — Arabic, Hebrew,
-  Indic, Thai — a fallback that covers the script is preferred over `vera.ttf`
-  even where DejaVu has the characters. So a font added for, say, Chinese will
-  also take over Arabic and Hebrew if it happens to cover them. DejaVu renders
-  those correctly on its own, so this is a matter of which typeface you get, not
-  whether the text is legible.
+Where PsyMP3 looks for it:
 
-Replacing `vera.ttf` outright still works too, and still overrides the embedded
-copy.
+| Platform | Location |
+|---|---|
+| Windows | next to `psymp3.exe`; otherwise `extra.ttf` or `res\extra.ttf` in the working directory |
+| Linux/BSD | the installed data directory, `$(prefix)/share/psymp3/data/extra.ttf` (`/usr/local/share/psymp3/data` for a default install); otherwise `res/extra.ttf` in the working directory, for running from the source tree |
+
+How it works alongside `vera.ttf`:
+
+- **It adds to the bundled font rather than replacing it.** On Windows that
+  includes the copy of `vera.ttf` built into the executable, so no rebuild is
+  needed.
+- **Anything `vera.ttf` can draw keeps `vera.ttf`**, so adding a font for one
+  language does not restyle the rest of the interface.
+- **One exception: scripts that are shaped or reordered.** For right-to-left
+  scripts such as Arabic and Hebrew, and scripts that combine or rearrange
+  characters, such as the Indic ones, `extra.ttf` is used wherever it covers
+  the script, even for characters `vera.ttf` also has. A font added for one
+  language can therefore change how those scripts look, if it happens to cover
+  them too. They render correctly with DejaVu Sans alone, so this changes which
+  typeface you get, not whether the text is readable.
+
+Replacing `vera.ttf` itself still works too. On Windows, a `vera.ttf` next to
+the executable or in the working directory overrides the built-in copy.
