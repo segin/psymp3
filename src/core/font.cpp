@@ -45,11 +45,6 @@ constexpr int kMeasureLoadFlags = FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME |
 // FT_LOAD_TARGET_LCD asks for horizontal RGB-subpixel rendering. The resulting
 // bitmap has FT_PIXEL_MODE_LCD with width tripled (one byte per subpixel).
 constexpr int kLCDRenderFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
-// The same hinting without rasterising. HarfBuzz is given these so the advances
-// it reports come from the same hinted outlines FreeType draws; by default
-// hb-ft measures unhinted, and Arabic then renders with correct letter forms
-// whose joins do not meet, because the pen lands a fraction off each time.
-constexpr int kLCDMetricFlags = FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
 // Shaped text is loaded unhinted. The autohinter snaps stems and side bearings
 // to the pixel grid, which for a script whose letters must physically touch
 // moves the joins apart -- badly at small sizes, where a rounding of half a
