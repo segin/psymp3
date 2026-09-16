@@ -23,6 +23,9 @@ using namespace TestFramework;
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 
 /**
  * @brief Test MPRIS reconnection behavior when D-Bus connection is lost
@@ -81,9 +84,17 @@ private:
     std::string m_test_session_address;
     
     bool startTestDBusSession() {
-        // Create a temporary D-Bus session for testing
-        std::string config_file = "/tmp/test_dbus_session_$$.conf";
-        
+        // A test can end, or bail out early, with its daemon still running.
+        // Stop that daemon first: overwriting m_test_session_pid would orphan
+        // it, and a --nofork daemon then outlives the whole run.
+        cleanupTestSession();
+
+        // Create a temporary D-Bus session for testing. A literal "$$" is not
+        // expanded outside a shell, so the pid is spelled out; otherwise
+        // concurrent runs would share, and delete, one config file.
+        const std::string config_file =
+            "/tmp/test_dbus_session_" + std::to_string(getpid()) + ".conf";
+
         // Write D-Bus configuration
         std::ofstream config(config_file);
         config << "<!DOCTYPE busconfig PUBLIC \"-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN\"\n";
@@ -104,30 +115,50 @@ private:
         int pipefd[2];
         if (pipe(pipefd) == -1) {
             std::cerr << "Failed to create pipe" << std::endl;
+            unlink(config_file.c_str());
             return false;
         }
-        
+
+#ifdef __linux__
+        const pid_t parent_pid = getpid();
+#endif
         m_test_session_pid = fork();
         if (m_test_session_pid == -1) {
             std::cerr << "Failed to fork D-Bus daemon" << std::endl;
             close(pipefd[0]);
             close(pipefd[1]);
+            unlink(config_file.c_str());
             return false;
         }
-        
+
         if (m_test_session_pid == 0) {
-            // Child process - run D-Bus daemon
+            // Child process - run D-Bus daemon. The load test forks while its
+            // generator thread runs, so only async-signal-safe calls until exec.
+#ifdef __linux__
+            // Take the daemon down with this test if the test is killed (by a
+            // harness timeout, say) before cleanupTestSession() can run. The
+            // check closes the window where the parent died before prctl.
+            prctl(PR_SET_PDEATHSIG, SIGKILL);
+            if (getppid() != parent_pid) {
+                _exit(127);
+            }
+#endif
             close(pipefd[0]);
             dup2(pipefd[1], STDOUT_FILENO);
             close(pipefd[1]);
-            
-            execlp("dbus-daemon", "dbus-daemon", 
+
+            execlp("dbus-daemon", "dbus-daemon",
                    "--config-file", config_file.c_str(),
                    "--print-address", "--nofork", nullptr);
-            
-            // If we get here, exec failed
-            std::cerr << "Failed to exec dbus-daemon" << std::endl;
-            exit(1);
+
+            // exec failed. Use _exit rather than exit: exit would run this
+            // copy's atexit handlers and flush stdio buffers inherited from the
+            // parent, duplicating its output.
+            static const char message[] = "Failed to exec dbus-daemon\n";
+            if (write(STDERR_FILENO, message, sizeof(message) - 1) < 0) {
+                // Nothing left to report it to.
+            }
+            _exit(127);
         }
         
         // Parent process - read address
@@ -161,6 +192,7 @@ private:
         
         std::cerr << "Failed to read D-Bus address" << std::endl;
         cleanupTestSession();
+        unlink(config_file.c_str());
         return false;
     }
     
