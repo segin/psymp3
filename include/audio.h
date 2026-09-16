@@ -95,10 +95,21 @@ private:
     void resetBuffer_unlocked();
     uint64_t getBufferLatencyMs_unlocked() const;
 
+    // The queue is m_buffer[m_buffer_read, end). The callback consumes by
+    // advancing the cursor. Erasing the front of the vector instead moved the
+    // whole remaining queue on every callback while holding the lock: up to
+    // 250 ms of audio, about 1.5 MB at 192 kHz 7.1. The decoder thread
+    // reclaims the played prefix when it commits new samples. All three
+    // helpers require m_buffer_mutex.
+    size_t bufferedSamples_unlocked() const { return m_buffer.size() - m_buffer_read; }
+    void consumeBuffered_unlocked(size_t samples);
+    void compactBuffer_unlocked();
+
     // Decoder thread and buffer
     void decoderThreadLoop();
     std::thread m_decoder_thread;
     std::vector<AudioSample> m_buffer;
+    size_t m_buffer_read = 0; // first unplayed sample in m_buffer
     mutable std::mutex m_buffer_mutex;
     mutable std::mutex m_stream_mutex;
     std::condition_variable m_stream_cv;

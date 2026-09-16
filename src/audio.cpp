@@ -76,6 +76,7 @@ Audio::Audio(std::unique_ptr<Stream> stream_to_own,
     }
     Debug::log("audio", "Audio::Audio(): ", std::dec, m_owned_stream->getRate(), "Hz, channels: ", std::dec, m_owned_stream->getChannels());
     m_buffer = std::move(primed_samples);
+    m_buffer_read = 0;
     m_stream_eof = primed_eof;
     setup();
     m_decoder_thread = std::thread(&Audio::decoderThreadLoop, this);
@@ -376,7 +377,7 @@ void Audio::decoderThreadLoop() {
                     // lets the decoder run past the mark and grow it without bound.
                     // resetBuffer() (seek) and the SDL callback (drain) both notify
                     // this cv, so the decoder still wakes promptly when space frees.
-                    return m_buffer.size() < buffer_high_water_mark || !m_active;
+                    return bufferedSamples_unlocked() < buffer_high_water_mark || !m_active;
                 });
             }
 
@@ -422,7 +423,7 @@ void Audio::decoderThreadLoop() {
                 size_t buffer_size = 0;
                 {
                     std::lock_guard<std::mutex> buf_lock(m_buffer_mutex);
-                    buffer_size = m_buffer.size();
+                    buffer_size = bufferedSamples_unlocked();
                 }
                 
                 Debug::log("audio", "Audio decoder thread: getData returned ", bytes_read, " bytes, eof=", eof, 
@@ -472,17 +473,20 @@ void Audio::decoderThreadLoop() {
                     carry.clear();
                     carry_epoch = decode_epoch;
                 }
+                // Reclaim what the callback has played before growing the
+                // vector, so the move happens here rather than in the callback.
+                compactBuffer_unlocked();
                 const size_t before = m_buffer.size();
                 appendWholeFrames(m_buffer, carry, decode_chunk.data(), samples_read, channels);
 
-                Debug::log("audio", "Audio decoder thread: Added ", m_buffer.size() - before, " samples to buffer, new buffer size=", m_buffer.size());
+                Debug::log("audio", "Audio decoder thread: Added ", m_buffer.size() - before, " samples to buffer, new buffer size=", bufferedSamples_unlocked());
             } else {
                 Debug::log("audio", "Audio decoder thread: Got 0 bytes from stream, eof=", eof);
             }
             m_buffer_cv.notify_one();
 
             if (eof) {
-                Debug::log("audio", "Audio decoder thread: EOF detected, final buffer size=", m_buffer.size(), " samples");
+                Debug::log("audio", "Audio decoder thread: EOF detected, final buffer size=", bufferedSamples_unlocked(), " samples");
                 m_stream_eof = true;
                 break; // Exit the inner decoding loop.
             }
@@ -545,22 +549,23 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
         // applies to the NEXT buffer, not retroactively to this one.
         self->m_eq.latchReset();
 
-        if (!self->m_buffer.empty() && self->m_active && self->m_playing) {
+        const size_t buffered = self->bufferedSamples_unlocked();
+        if (buffered > 0 && self->m_active && self->m_playing) {
             size_t bytes_to_copy = len;
-            size_t bytes_available = self->m_buffer.size() * sizeof(AudioSample);
+            size_t bytes_available = buffered * sizeof(AudioSample);
             bytes_copied = std::min(bytes_to_copy, bytes_available);
 
             if (bytes_copied > 0) {
-                memcpy(buf, self->m_buffer.data(), bytes_copied);
+                memcpy(buf, self->m_buffer.data() + self->m_buffer_read, bytes_copied);
                 size_t samples_copied = bytes_copied / sizeof(AudioSample);
-                self->m_buffer.erase(self->m_buffer.begin(), self->m_buffer.begin() + samples_copied);
+                self->consumeBuffered_unlocked(samples_copied);
                 self->m_samples_played += samples_copied / self->m_channels;
-                
+
                 // Only log occasionally to avoid spam
                 thread_local int callback_counter = 0;
                 if ((++callback_counter % 100 == 0)) {
                     uint64_t current_time_ms = (self->m_samples_played * 1000) / self->m_rate;
-                    Debug::log("audio", "Audio callback: pos=", current_time_ms, "ms, copied=", bytes_copied, " bytes, buffer size now=", self->m_buffer.size(), " samples");
+                    Debug::log("audio", "Audio callback: pos=", current_time_ms, "ms, copied=", bytes_copied, " bytes, buffer size now=", self->bufferedSamples_unlocked(), " samples");
                 }
             }
         } else {
@@ -568,7 +573,7 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
             if (self->m_active && self->m_playing) {
                 thread_local int underrun_counter = 0;
                 if (++underrun_counter % 50 == 0) {  // Log every 50th underrun to avoid spam
-                    Debug::log("audio", "Audio callback: Buffer underrun, buffer_size=", self->m_buffer.size(), " samples, active=", self->m_active, ", playing=", self->m_playing);
+                    Debug::log("audio", "Audio callback: Buffer underrun, buffer_size=", buffered, " samples, active=", self->m_active, ", playing=", self->m_playing);
                 }
             }
         }
@@ -660,7 +665,7 @@ float Audio::getVolume() const {
  * @return true if the stream is decoded and the buffer is empty, false otherwise.
  */
 bool Audio::isFinished_unlocked() const {
-    return m_stream_eof && m_buffer.empty();
+    return m_stream_eof && bufferedSamples_unlocked() == 0;
 }
 
 /**
@@ -685,6 +690,7 @@ std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_st
     }
 
     m_buffer = std::move(primed_samples);
+    m_buffer_read = 0;
     m_owned_stream = std::shared_ptr<Stream>(std::move(new_stream));
     m_current_stream_raw_ptr.store(m_owned_stream.get());
     m_samples_played = 0;
@@ -701,6 +707,7 @@ std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_st
  */
 void Audio::resetBuffer_unlocked() {
     m_buffer.clear();
+    m_buffer_read = 0;
     m_samples_played = 0;
     m_eq.requestReset(); // seek: clear filter history to avoid a transient
 }
@@ -713,8 +720,38 @@ uint64_t Audio::getBufferLatencyMs_unlocked() const {
     if (m_rate == 0 || m_channels == 0) {
         return 0;
     }
-    size_t samples_in_buffer = m_buffer.size() / m_channels;
+    size_t samples_in_buffer = bufferedSamples_unlocked() / m_channels;
     return (static_cast<uint64_t>(samples_in_buffer) * 1000) / m_rate;
+}
+
+/**
+ * @brief Marks @p samples queued samples as played - assumes m_buffer_mutex is held.
+ *
+ * Moves the read cursor instead of erasing, so the callback never shifts the
+ * rest of the queue. Once everything queued has been played the vector is
+ * emptied, which costs nothing for trivially destructible samples.
+ */
+void Audio::consumeBuffered_unlocked(size_t samples) {
+    m_buffer_read += std::min(samples, bufferedSamples_unlocked());
+    if (m_buffer_read == m_buffer.size()) {
+        m_buffer.clear();
+        m_buffer_read = 0;
+    }
+}
+
+/**
+ * @brief Drops the played prefix of m_buffer - assumes m_buffer_mutex is held.
+ *
+ * Reclaims the prefix only once it is at least as long as what is still
+ * queued. The move is then paid for by the samples consumed since the last
+ * compaction, and the vector never grows beyond about twice the queue.
+ */
+void Audio::compactBuffer_unlocked() {
+    if (m_buffer_read > 0 && m_buffer_read >= bufferedSamples_unlocked()) {
+        m_buffer.erase(m_buffer.begin(),
+                       m_buffer.begin() + static_cast<std::ptrdiff_t>(m_buffer_read));
+        m_buffer_read = 0;
+    }
 }
 
 std::pair<std::vector<AudioSample>, bool> Audio::primeStream(Stream* stream, size_t max_samples)

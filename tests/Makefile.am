@@ -1943,6 +1943,12 @@ test_audio_thread_safety_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(AM_LDFLAGS)
 
+# Audio's PCM queue: read cursor, compaction, and continuity through the
+# real SDL callback and decoder thread (SDL dummy driver, no device output)
+check_PROGRAMS += test_audio_buffer_cursor
+test_audio_buffer_cursor_SOURCES = test_audio_buffer_cursor.cpp
+test_audio_buffer_cursor_LDADD = $(test_audio_thread_safety_LDADD)
+
 # Cover art selection and data: URIs for MPRIS
 check_PROGRAMS += test_cover_art
 test_cover_art_SOURCES = test_cover_art.cpp
