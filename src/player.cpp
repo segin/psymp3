@@ -4974,6 +4974,24 @@ void Player::saveLastFmCredentials(const std::string& username, const std::strin
 #ifndef _WIN32
     umask(old_mask);
 #endif
+    if (!out.is_open()) {
+        Debug::log("player", "Failed to write Last.fm credentials to ", path);
+        return;
+    }
+#ifndef _WIN32
+    // umask only governs a file it creates. An existing lastfm.conf keeps its
+    // old mode through std::ios::trunc -- a hand-made one is typically 0644 --
+    // and a plaintext password is about to be written into it. Set the mode
+    // before writing anything.
+    std::error_code perm_ec;
+    std::filesystem::permissions(System::pathFromUtf8(path),
+                                 std::filesystem::perms::owner_read |
+                                     std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, perm_ec);
+    if (perm_ec) {
+        Debug::log("player", "Could not restrict ", path, " to 0600: ", perm_ec.message());
+    }
+#endif
     out << "username=" << username << "\n";
     if (!password.empty()) {
         out << "password=" << password << "\n";
