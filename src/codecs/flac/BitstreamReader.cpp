@@ -544,8 +544,12 @@ bool BitstreamReader::readRiceCode(int32_t &value, uint32_t rice_param) {
 
   // Combine quotient and remainder in 64-bit; a folded value that doesn't fit
   // in 32 bits can't be a valid residual (see ResidualDecoder::decodeRiceCode).
+  // 0xFFFFFFFF is refused as well: it would unfold to -2^31, which RFC 9639
+  // Section 9.2.7.3 forbids as a residual, and the (folded + 1) >> 1 in
+  // unfoldSigned wraps it to 0 -- so accepting it would decode a wrong sample
+  // instead of flagging a corrupt stream. This matches the production decoder.
   uint64_t folded64 = (static_cast<uint64_t>(quotient) << rice_param) | remainder;
-  if (folded64 > 0xFFFFFFFFull) {
+  if (folded64 >= 0xFFFFFFFFull) {
     return false;
   }
 

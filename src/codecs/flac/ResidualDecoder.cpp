@@ -254,7 +254,7 @@ bool ResidualDecoder::decodeRiceCode(int32_t &value, uint32_t rice_param) {
   // rice_param (up to 30) can exceed 32 bits, which would wrap silently and
   // yield a garbage residual. A folded value that doesn't fit in 32 bits can't
   // be a valid residual, so reject it as corrupt. 0xFFFFFFFF is rejected too:
-  // it would unfold to -2^31, which RFC 9639 Section 9.2.7.2 forbids, and the
+  // it would unfold to -2^31, which RFC 9639 Section 9.2.7.3 forbids, and the
   // unfold arithmetic (folded + 1) would wrap it to 0 instead — silently
   // decoding a wrong sample rather than flagging the invalid stream.
   uint64_t folded64 = (static_cast<uint64_t>(quotient) << rice_param) | remainder;

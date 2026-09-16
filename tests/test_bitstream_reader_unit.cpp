@@ -158,6 +158,33 @@ void test_rice_code_decoding() {
     ASSERT_EQUALS(4, value, "Folded 8 -> zigzag 4");
 }
 
+// The residual limit at the top of the folded range. A folded 0xFFFFFFFF would
+// unfold to -2^31, which RFC 9639 Section 9.2.7.3 forbids as a residual; the
+// largest legal folded value, 0xFFFFFFFE, unfolds to INT32_MAX. With rice_param
+// 30 the quotient supplies the top two bits, so unary 3 (0b0001) gives 0b11 and
+// the 30-bit remainder fills in the rest.
+void test_rice_code_residual_limit() {
+    {   // 0001 + thirty 1s -> folded 0xFFFFFFFF: must be refused. Before the
+        // check was tightened it was accepted, and unfoldSigned's
+        // (folded + 1) >> 1 wrapped it to a silent 0.
+        BitstreamReader reader;
+        uint8_t data[] = {0x1F, 0xFF, 0xFF, 0xFF, 0xC0};
+        reader.feedData(data, 5);
+        int32_t value = 12345;
+        ASSERT_FALSE(reader.readRiceCode(value, 30),
+                     "folded 0xFFFFFFFF unfolds to -2^31 and must be refused");
+    }
+    {   // 0001 + twenty-nine 1s + a 0 -> folded 0xFFFFFFFE: the largest legal
+        // value, which must still be accepted.
+        BitstreamReader reader;
+        uint8_t data[] = {0x1F, 0xFF, 0xFF, 0xFF, 0x80};
+        reader.feedData(data, 5);
+        int32_t value = 0;
+        ASSERT_TRUE(reader.readRiceCode(value, 30), "folded 0xFFFFFFFE is legal");
+        ASSERT_EQUALS(int32_t{0x7FFFFFFF}, value, "and unfolds to INT32_MAX");
+    }
+}
+
 // Test buffer management
 void test_buffer_management() {
     BitstreamReader reader;
@@ -311,6 +338,7 @@ int main() {
     suite.addTest("UTF-8 2-byte", test_utf8_2byte);
     suite.addTest("UTF-8 3-byte", test_utf8_3byte);
     suite.addTest("Rice Code Decoding", test_rice_code_decoding);
+    suite.addTest("Rice Code Residual Limit", test_rice_code_residual_limit);
     suite.addTest("Buffer Management", test_buffer_management);
     suite.addTest("Byte Alignment", test_byte_alignment);
     suite.addTest("Position Tracking", test_position_tracking);
