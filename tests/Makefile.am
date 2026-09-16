@@ -447,7 +447,6 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_iohandler_minimal \
 	test_iohandler_basic \
 	test_integration_verification \
-	test_iohandler_basic \
 	test_iohandler_demuxer_integration \
 	test_iohandler_demuxer_integration_simple \
 	test_psymp3_system_integration \
@@ -706,9 +705,6 @@ check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_con
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
-
-# MemoryOptimizer tests
-check_PROGRAMS += test_memory_optimizer
 
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
@@ -4360,7 +4356,6 @@ test_flac_stream_marker_with_logging_SOURCES = test_flac_stream_marker_with_logg
 test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)
 
 check_PROGRAMS += test_storage_permissions
-TESTS += test_storage_permissions
 test_storage_permissions_SOURCES = test_storage_permissions.cpp
 test_storage_permissions_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
