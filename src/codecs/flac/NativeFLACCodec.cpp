@@ -391,12 +391,15 @@ bool FLACCodec::initialize_unlocked() {
 
     // Recover the STREAMINFO metadata (block sizes, MD5 signature) from the
     // demuxer-supplied codec_data. Without this, m_has_streaminfo stays false
-    // and whole-stream MD5 verification never runs. Three layouts occur:
+    // and whole-stream MD5 verification never runs. Four layouts occur:
     //   - native FLAC demuxer: the bare 34-byte STREAMINFO body (RFC 9639
     //     Section 8.2), so codec_data.size() == 34.
     //   - FLAC-in-MP4 (dfLa box): FLAC metadata blocks each prefixed with a
     //     4-byte block header (type + 24-bit length); the first block is
     //     STREAMINFO, so its body starts at offset 4.
+    //   - Matroska (A_FLAC CodecPrivate): the whole FLAC file header -- the
+    //     "fLaC" stream marker then the metadata blocks -- so STREAMINFO's body
+    //     starts at 4 + 4 == 8. ffmpeg writes exactly 42 bytes here.
     //   - Ogg FLAC (RFC 9639 Section 10.1): the first Ogg packet, verbatim:
     //     0x7F "FLAC" <major:1> <minor:1> <header-count:2 BE> "fLaC"
     //     <STREAMINFO block header:4> <STREAMINFO body:34>. The body therefore
@@ -406,6 +409,15 @@ bool FLACCodec::initialize_unlocked() {
     size_t streaminfo_offset = SIZE_MAX;
     if (cd.size() == 34) {
         streaminfo_offset = 0;
+    } else if (cd.size() >= 42 && cd[0] == 'f' && cd[1] == 'L' && cd[2] == 'a' &&
+               cd[3] == 'C' && (cd[4] & 0x7F) == 0) {
+        // Stream marker followed by the STREAMINFO block header; check the
+        // block length before trusting the offset.
+        uint32_t block_len = (static_cast<uint32_t>(cd[5]) << 16) |
+                             (static_cast<uint32_t>(cd[6]) << 8) | cd[7];
+        if (block_len == 34) {
+            streaminfo_offset = 8;
+        }
     } else if (cd.size() >= 51 && cd[0] == 0x7F &&
                cd[1] == 'F' && cd[2] == 'L' && cd[3] == 'A' && cd[4] == 'C') {
         // Ogg FLAC mapping prefix: verify the embedded "fLaC" signature and the

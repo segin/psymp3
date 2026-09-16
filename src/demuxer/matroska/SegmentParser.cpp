@@ -391,6 +391,24 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     info.codec_name = codecNameForId(track.codec_id);
     info.big_endian_samples = codecIsBigEndianPCM(track.codec_id);
 
+    // Two codecs need a codec_tag to reach the right decoder, and Matroska has
+    // no tag of its own to carry.
+    if (track.codec_id == "A_PCM/FLOAT/IEEE") {
+        // Float and integer PCM share BitDepth 32, so the CodecID is the only
+        // signal; PCMCodec selects its float path on codec_tag 0x0003
+        // (WAVE_FORMAT_IEEE_FLOAT). Without it every float bit pattern is
+        // reinterpreted as int32 -- +1.0f reads as +1.065e9 -- and the track
+        // plays as full-scale broadband noise rather than audio.
+        info.codec_tag = 0x0003;
+    } else if (track.codec_id == "A_FLAC") {
+        // AudioCodecFactory routes codec_name "flac" with codec_tag 0 to the
+        // Ogg FLAC passthrough, which exists to strip the RFC 9639 Section 10.1
+        // mapping headers Ogg delivers as packets. Matroska keeps those headers
+        // in CodecPrivate and every Block payload is already a bare frame, so
+        // this wants the native decoder -- the tag the native FLAC demuxer sets.
+        info.codec_tag = 0x43614C66; // 'fLaC'
+    }
+
     // OutputSamplingFrequency is what comes out of the decoder and
     // SamplingFrequency is what the stream is coded at; they differ for SBR,
     // where an HE-AAC track is coded at half the rate it plays at. The rest of
@@ -404,11 +422,25 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     info.codec_data = track.codec_private;
     info.duration_ms = m_info.durationMs();
 
-    // CodecDelay is nanoseconds of decoder startup to throw away; PsyMP3
-    // counts that in sample frames, as it does for AAC's priming. Opus states
-    // it here as well as in OpusHead, and the container's value is the one the
-    // muxer actually timed the stream against.
-    if (track.codec_delay_ns > 0 && info.sample_rate > 0) {
+    // CodecDelay is nanoseconds of decoder startup to throw away; PsyMP3 counts
+    // that in sample frames, as it does for AAC's priming. It restates what the
+    // *decoder* discards (RFC 9559 5.1.4.1.25), so it must be applied once.
+    // OpusCodec already seeds its own skip counter from the OpusHead in
+    // CodecPrivate, and DemuxedStream::trimEncoderDelay would then cut the same
+    // frames again: a stock 48 kHz Opus track states pre_skip 312 in OpusHead
+    // and CodecDelay 6,500,000 ns, and 624 frames of real audio went missing.
+    //
+    // So leave the trim to the decoder whenever the header it reads is one it
+    // will actually accept -- the same test OpusCodec applies before seeding
+    // m_pre_skip -- and keep the container's value otherwise, so a truncated or
+    // absent OpusHead does not end up with no trim at all.
+    const std::vector<uint8_t>& cp = track.codec_private;
+    const bool decoder_trims_its_own_delay =
+        track.codec_id == "A_OPUS" && cp.size() >= 19 && cp[8] == 1 &&
+        cp[0] == 'O' && cp[1] == 'p' && cp[2] == 'u' && cp[3] == 's' &&
+        cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd';
+
+    if (track.codec_delay_ns > 0 && info.sample_rate > 0 && !decoder_trims_its_own_delay) {
         info.encoder_delay = static_cast<uint32_t>(
             (track.codec_delay_ns * info.sample_rate) / 1000000000ULL);
     }

@@ -360,6 +360,68 @@ protected:
     }
 };
 
+class CodecTagTest : public TestCase {
+public:
+    CodecTagTest() : TestCase("Codec tags route PCM float and FLAC to the right decoder") {}
+
+protected:
+    void runTest() override
+    {
+        auto tagFor = [](const char* codec_id, uint64_t bit_depth) {
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, codec_id)
+                                      + element(Id::Audio,
+                                                floatEl(Id::SamplingFrequency, 48000.0)
+                                              + uintEl(Id::Channels, 2)
+                                              + uintEl(Id::BitDepth, bit_depth)));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            return parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack());
+        };
+
+        // Float and integer PCM both state BitDepth 32, so the CodecID is the
+        // only signal and PCMCodec keys its float path off this tag. Without it
+        // every float bit pattern is read as int32 -- +1.0f becomes +1.065e9 --
+        // and the track is full-scale noise.
+        ASSERT_EQUALS(uint32_t{0x0003}, tagFor("A_PCM/FLOAT/IEEE", 32).codec_tag,
+                      "A_PCM/FLOAT/IEEE carries WAVE_FORMAT_IEEE_FLOAT");
+        ASSERT_EQUALS(uint32_t{0}, tagFor("A_PCM/INT/LIT", 16).codec_tag,
+                      "integer PCM needs no tag");
+        // codec_name "flac" with codec_tag 0 is what AudioCodecFactory sends to
+        // the Ogg passthrough; Matroska blocks are bare frames and want the
+        // native decoder instead.
+        ASSERT_EQUALS(uint32_t{0x43614C66}, tagFor("A_FLAC", 16).codec_tag,
+                      "A_FLAC is tagged like the native FLAC demuxer's streams");
+    }
+};
+
+class OpusDelayTest : public TestCase {
+public:
+    OpusDelayTest() : TestCase("CodecDelay is left to the Opus decoder when OpusHead is usable") {}
+
+protected:
+    void runTest() override
+    {
+        auto delayFor = [](const std::vector<uint8_t>& codec_private) {
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_OPUS")
+                                      + element(Id::CodecPrivate, codec_private)
+                                      + uintEl(Id::CodecDelay, 6500000)
+                                      + element(Id::Audio,
+                                                floatEl(Id::SamplingFrequency, 48000.0)
+                                              + uintEl(Id::Channels, 2)));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            return parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack()).encoder_delay;
+        };
 
         // A real OpusHead, as ffmpeg writes it: magic, version 1, two channels,
         // pre_skip 312 little-endian, 48 kHz. OpusCodec seeds its own skip
@@ -458,6 +520,8 @@ int main()
     suite.addTest(std::make_unique<TrackSelectionTest>());
     suite.addTest(std::make_unique<DefaultFlagTest>());
     suite.addTest(std::make_unique<SchemaDefaultsTest>());
+    suite.addTest(std::make_unique<CodecTagTest>());
+    suite.addTest(std::make_unique<OpusDelayTest>());
     suite.addTest(std::make_unique<StreamInfoMappingTest>());
 
     auto results = suite.runAll();
