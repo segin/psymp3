@@ -84,7 +84,29 @@ namespace TestFramework {
          * @return Vector of TestInfo for matching tests
          */
         std::vector<TestInfo> discoverTests(const std::string& pattern);
-        
+
+        /**
+         * @brief Describe exactly the named programs, instead of discovering tests
+         *
+         * For a build system that already knows which programs are its tests:
+         * a program need not follow the test_*.cpp naming convention, and a
+         * stray binary that is not on the list is never run. Executables are
+         * looked up in the test directory, and sources (for their metadata
+         * annotations) in the source directory.
+         * @param names Program names, in the order they should run
+         * @param pattern Optional glob; only names matching it are returned
+         */
+        std::vector<TestInfo> listedTests(const std::vector<std::string>& names,
+                                          const std::string& pattern = "");
+
+        /**
+         * @brief Set where test sources live, if not beside the executables
+         *
+         * They differ in an out-of-tree (VPATH) build such as distcheck's.
+         * Defaults to the test directory.
+         */
+        void setSourceDirectory(const std::string& source_directory);
+
         /**
          * @brief Check if a filename represents a test file
          * @param filename Name of file to check
@@ -216,7 +238,8 @@ namespace TestFramework {
         std::vector<DependencyInfo> checkDependencies(const TestInfo& test_info);
         
     private:
-        std::string m_test_directory;                           ///< Directory to scan
+        std::string m_test_directory;                           ///< Directory holding the executables
+        std::string m_source_directory;                         ///< Directory holding the test sources
         std::chrono::milliseconds m_default_timeout;           ///< Default test timeout
         std::map<std::string, std::chrono::milliseconds> m_custom_timeouts; ///< Per-test timeouts
         std::vector<TestInfo> m_discovered_tests;              ///< Cache of discovered tests
@@ -228,7 +251,14 @@ namespace TestFramework {
          * @return Vector of test file paths
          */
         std::vector<std::string> scanDirectory(const std::string& directory);
-        
+
+        /**
+         * @brief Fill in a test's paths, metadata, build state and timeout
+         * @param name Program name
+         * @param source_path Its source file, which need not exist
+         */
+        TestInfo describeTest(const std::string& name, const std::string& source_path);
+
         /**
          * @brief Extract test name from filename
          * @param filename Source filename

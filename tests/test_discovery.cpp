@@ -24,41 +24,50 @@ namespace TestFramework {
     // ========================================
     
     TestDiscovery::TestDiscovery(const std::string& test_directory) 
-        : m_test_directory(test_directory), m_default_timeout(30000), m_cache_valid(false) {
+        : m_test_directory(test_directory), m_source_directory(test_directory),
+          m_default_timeout(30000), m_cache_valid(false) {
+    }
+
+    void TestDiscovery::setSourceDirectory(const std::string& source_directory) {
+        m_source_directory = source_directory;
+        m_cache_valid = false;
+    }
+
+    TestInfo TestDiscovery::describeTest(const std::string& name, const std::string& source_path) {
+        TestInfo info;
+        info.name = name;
+        info.source_path = source_path;
+        info.executable_path = getExecutablePath(info.name);
+        info.metadata = parseTestMetadata(source_path);
+        info.is_built = isTestBuilt(info);
+        info.last_modified = getFileModTime(source_path);
+
+        // parseTestMetadata leaves the struct's built-in timeout
+        // unless the source carries a test-timeout annotation;
+        // treat that untouched value as "use the configured
+        // default" so setDefaultTimeout() actually takes effect
+        // (it was stored but never applied to any test).
+        if (info.metadata.timeout == TestMetadata().timeout) {
+            info.metadata.timeout = m_default_timeout;
+        }
+
+        // Apply custom timeout if set
+        auto timeout_it = m_custom_timeouts.find(info.name);
+        if (timeout_it != m_custom_timeouts.end()) {
+            info.metadata.timeout = timeout_it->second;
+        }
+        return info;
     }
     
     std::vector<TestInfo> TestDiscovery::discoverTests() {
         if (!m_cache_valid) {
             m_discovered_tests.clear();
             
-            std::vector<std::string> test_files = scanDirectory(m_test_directory);
+            std::vector<std::string> test_files = scanDirectory(m_source_directory);
             
             for (const std::string& file_path : test_files) {
                 if (isTestFile(file_path)) {
-                    TestInfo info;
-                    info.name = extractTestName(file_path);
-                    info.source_path = file_path;
-                    info.executable_path = getExecutablePath(info.name);
-                    info.metadata = parseTestMetadata(file_path);
-                    info.is_built = isTestBuilt(info);
-                    info.last_modified = getFileModTime(file_path);
-
-                    // parseTestMetadata leaves the struct's built-in timeout
-                    // unless the source carries a test-timeout annotation;
-                    // treat that untouched value as "use the configured
-                    // default" so setDefaultTimeout() actually takes effect
-                    // (it was stored but never applied to any test).
-                    if (info.metadata.timeout == TestMetadata().timeout) {
-                        info.metadata.timeout = m_default_timeout;
-                    }
-
-                    // Apply custom timeout if set
-                    auto timeout_it = m_custom_timeouts.find(info.name);
-                    if (timeout_it != m_custom_timeouts.end()) {
-                        info.metadata.timeout = timeout_it->second;
-                    }
-                    
-                    m_discovered_tests.push_back(info);
+                    m_discovered_tests.push_back(describeTest(extractTestName(file_path), file_path));
                 }
             }
             
@@ -68,6 +77,20 @@ namespace TestFramework {
         return m_discovered_tests;
     }
     
+    std::vector<TestInfo> TestDiscovery::listedTests(const std::vector<std::string>& names,
+                                                     const std::string& pattern) {
+        std::vector<TestInfo> tests;
+        for (const std::string& name : names) {
+            if (name.empty() || (!pattern.empty() && !matchesPattern(pattern, name))) {
+                continue;
+            }
+            // A program without a source of the same name (it is built from
+            // differently named files) simply has no annotations to read.
+            tests.push_back(describeTest(name, m_source_directory + "/" + name + ".cpp"));
+        }
+        return tests;
+    }
+
     std::vector<TestInfo> TestDiscovery::discoverTests(const std::string& pattern) {
         std::vector<TestInfo> all_tests = discoverTests();
         std::vector<TestInfo> matching_tests;

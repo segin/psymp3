@@ -39,6 +39,8 @@ struct CommandLineArgs {
     std::string filter_pattern = "";
     std::string output_format = "console";
     std::string test_directory = ".";
+    std::string source_directory = "";   // empty: same as test_directory
+    std::string programs_file = "";      // empty: discover test_*.cpp sources
     int max_parallel = 4;
     // Long-running stress suites (IOHandler thread safety, MPRIS stress)
     // legitimately exceed 30s; automake's own per-test limits still apply.
@@ -65,6 +67,10 @@ struct CommandLineArgs {
         std::cout << "  -f, --filter PATTERN    Run only tests matching the pattern (glob-style)\n";
         std::cout << "  -o, --output FORMAT     Output format: console, xml, json (default: console)\n";
         std::cout << "  -d, --directory DIR     Test directory to scan (default: .)\n";
+        std::cout << "  --source-dir DIR        Where test sources live, if not in the test directory\n";
+        std::cout << "  --programs-file FILE    Run exactly the programs listed in FILE (whitespace-\n";
+        std::cout << "                          separated names) instead of discovering test_*.cpp;\n";
+        std::cout << "                          a listed program that is not built is a failure\n";
         std::cout << "  -j, --jobs N            Maximum parallel processes (default: 4)\n";
         std::cout << "  -t, --timeout SECONDS   Test timeout in seconds (default: 120)\n";
         std::cout << "  --track-performance     Enable performance tracking and trend analysis\n";
@@ -114,6 +120,8 @@ CommandLineArgs parseCommandLine(int argc, char* argv[]) {
         {"outlier-threshold", required_argument, 0, 1007},
         {"analyze-trends", no_argument,        0, 1008},
         {"trend-history", required_argument,   0, 1009},
+        {"source-dir",      required_argument, 0, 1010},
+        {"programs-file",   required_argument, 0, 1011},
         {"help",            no_argument,       0, 'h'},
         {0, 0, 0, 0}
     };
@@ -195,6 +203,12 @@ CommandLineArgs parseCommandLine(int argc, char* argv[]) {
                     std::cerr << "Error: Invalid trend history value: " << optarg << std::endl;
                     exit(1);
                 }
+                break;
+            case 1010:
+                args.source_directory = optarg;
+                break;
+            case 1011:
+                args.programs_file = optarg;
                 break;
             case 'h':
                 args.printUsage(argv[0]);
@@ -317,23 +331,44 @@ int main(int argc, char* argv[]) {
         // made absolute first: the executor changes into it before exec'ing
         // each test by the path discovery built from it, and a relative path
         // would then no longer resolve.
-        std::error_code dir_ec;
-        std::filesystem::path test_dir =
-            std::filesystem::absolute(args.test_directory, dir_ec).lexically_normal();
-        if (!dir_ec) {
-            if (test_dir.has_relative_path() && !test_dir.has_filename()) {
-                test_dir = test_dir.parent_path(); // drop the trailing separator
+        const auto absoluteDirectory = [](const std::string& dir) {
+            std::error_code dir_ec;
+            std::filesystem::path path =
+                std::filesystem::absolute(dir, dir_ec).lexically_normal();
+            if (dir_ec) {
+                return dir;
             }
-            args.test_directory = test_dir.string();
-        }
+            if (path.has_relative_path() && !path.has_filename()) {
+                path = path.parent_path(); // drop the trailing separator
+            }
+            return path.string();
+        };
+        args.test_directory = absoluteDirectory(args.test_directory);
+        // Sources sit beside the executables unless the build is out of tree.
+        args.source_directory = args.source_directory.empty()
+                                    ? args.test_directory
+                                    : absoluteDirectory(args.source_directory);
 
         // Initialize test discovery
         TestDiscovery discovery(args.test_directory);
+        discovery.setSourceDirectory(args.source_directory);
         discovery.setDefaultTimeout(std::chrono::milliseconds(args.timeout_seconds * 1000));
         
-        // Discover tests
+        // Discover tests, or take the build system's list of them
         std::vector<TestInfo> tests;
-        if (args.filter_pattern.empty()) {
+        const bool listed = !args.programs_file.empty();
+        if (listed) {
+            std::ifstream list(args.programs_file);
+            if (!list) {
+                std::cerr << "Error: Cannot read programs file: " << args.programs_file << std::endl;
+                return 1;
+            }
+            std::vector<std::string> names;
+            for (std::string name; list >> name;) {
+                names.push_back(name);
+            }
+            tests = discovery.listedTests(names, args.filter_pattern);
+        } else if (args.filter_pattern.empty()) {
             tests = discovery.discoverTests();
         } else {
             tests = discovery.discoverTests(args.filter_pattern);
@@ -369,13 +404,17 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        // Report unbuilt tests
-        if (!unbuilt_tests.empty() && !args.quiet) {
-            std::cout << "Warning: " << unbuilt_tests.size() << " tests are not built:\n";
+        // Report unbuilt tests. A discovered test may simply not have been
+        // built yet, but a listed one is a test the build system expects to
+        // run, so its absence fails the run.
+        if (!unbuilt_tests.empty() && (listed || !args.quiet)) {
+            std::ostream& out = listed ? std::cerr : std::cout;
+            out << (listed ? "Error: " : "Warning: ") << unbuilt_tests.size()
+                << " tests are not built, or are older than their source:\n";
             for (const auto& test : unbuilt_tests) {
-                std::cout << "  " << test.name << " (missing: " << test.executable_path << ")\n";
+                out << "  " << test.name << " (" << test.executable_path << ")\n";
             }
-            std::cout << "\nRun 'make check' to build all tests.\n\n";
+            out << "\nRun 'make check' to build all tests.\n\n";
         }
         
         if (runnable_tests.empty()) {
@@ -386,6 +425,9 @@ int main(int argc, char* argv[]) {
         // Initialize test executor
         TestExecutor executor;
         executor.setWorkingDirectory(args.test_directory);
+        // Tests find their own source files through srcdir, which automake's
+        // runner exports. It is absolute here, so it holds from any directory.
+        executor.addEnvironmentVariable("srcdir", args.source_directory);
         executor.setGlobalTimeout(std::chrono::milliseconds(args.timeout_seconds * 1000));
         executor.enableParallelExecution(args.parallel);
         executor.setMaxParallelProcesses(args.max_parallel);
@@ -760,7 +802,7 @@ int main(int argc, char* argv[]) {
         }
         
         // Return appropriate exit code
-        return summary.allTestsPassed() ? 0 : 1;
+        return summary.allTestsPassed() && !(listed && !unbuilt_tests.empty()) ? 0 : 1;
         
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
