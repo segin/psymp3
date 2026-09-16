@@ -450,13 +450,19 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     //
     // So leave the trim to the decoder whenever the header it reads is one it
     // will actually accept -- the same test OpusCodec applies before seeding
-    // m_pre_skip -- and keep the container's value otherwise, so a truncated or
-    // absent OpusHead does not end up with no trim at all.
+    // m_pre_skip -- and keep the container's value otherwise, so a truncated,
+    // absent or rejected OpusHead does not end up with no trim at all. The
+    // checks mirror OpusHeader::parseFromPacket() and isValid() field for field
+    // (19 bytes, magic, version 1, a non-zero channel count, mapping family 0, 1
+    // or 255). They are restated here because Opus support is optional and the
+    // demuxer is built without it.
     const std::vector<uint8_t>& cp = track.codec_private;
     const bool decoder_trims_its_own_delay =
-        track.codec_id == "A_OPUS" && cp.size() >= 19 && cp[8] == 1 &&
+        track.codec_id == "A_OPUS" && cp.size() >= 19 &&
         cp[0] == 'O' && cp[1] == 'p' && cp[2] == 'u' && cp[3] == 's' &&
-        cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd';
+        cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd' &&
+        cp[8] == 1 && cp[9] != 0 &&
+        (cp[18] == 0 || cp[18] == 1 || cp[18] == 255);
 
     // RFC 9559 sets no upper bound on CodecDelay, but no codec primes for
     // anything like 10 s (Opus states 6.5 ms). A larger value comes from a

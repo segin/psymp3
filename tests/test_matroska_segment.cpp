@@ -438,6 +438,26 @@ protected:
         const std::vector<uint8_t> stub{'O','p','u','s','H','e','a','d'};
         ASSERT_EQUALS(uint32_t{312}, delayFor(stub),
                       "an unusable header falls back to CodecDelay in frames");
+
+        // Full-length headers that OpusHeader::isValid() still rejects. The
+        // decoder skips nothing for them either, so the container must trim.
+        std::vector<uint8_t> no_channels = head;
+        no_channels[9] = 0;
+        ASSERT_EQUALS(uint32_t{312}, delayFor(no_channels),
+                      "a zero channel count is rejected by the decoder, so CodecDelay applies");
+
+        std::vector<uint8_t> family2 = head;
+        family2[18] = 2;
+        ASSERT_EQUALS(uint32_t{312}, delayFor(family2),
+                      "mapping family 2 is rejected by the decoder, so CodecDelay applies");
+
+        // Families 1 and 255 are ones the decoder accepts, so it trims them.
+        for (uint8_t family : {uint8_t{1}, uint8_t{255}}) {
+            std::vector<uint8_t> accepted = head;
+            accepted[18] = family;
+            ASSERT_EQUALS(uint32_t{0}, delayFor(accepted),
+                          "an accepted mapping family leaves the trim to the decoder");
+        }
     }
 };
 
