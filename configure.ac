@@ -539,7 +539,10 @@ if test "x$enable_asan" = "xyes"; then
 fi
 
 if test "x$enable_ubsan" = "xyes"; then
-  SANITIZER_FLAGS="$SANITIZER_FLAGS -fsanitize=undefined -fno-omit-frame-pointer"
+  # GCC leaves float-cast-overflow out of -fsanitize=undefined (clang includes
+  # it), and a NaN or out-of-range float read from a file and cast to an
+  # integer is exactly the undefined behaviour parsers need checking for.
+  SANITIZER_FLAGS="$SANITIZER_FLAGS -fsanitize=undefined,float-cast-overflow -fno-omit-frame-pointer"
   AC_DEFINE([ENABLE_UBSAN], [1], [Define to 1 if UndefinedBehaviorSanitizer is enabled])
   AC_MSG_NOTICE([UndefinedBehaviorSanitizer enabled])
 fi
