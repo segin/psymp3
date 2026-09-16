@@ -508,6 +508,80 @@ protected:
     }
 };
 
+class HostileFloatTest : public TestCase {
+public:
+    HostileFloatTest() : TestCase("Non-finite and out-of-range floats never reach an integer cast") {}
+
+protected:
+    void runTest() override
+    {
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        const double inf = std::numeric_limits<double>::infinity();
+
+        // SamplingFrequency and Duration are raw IEEE doubles, and converting a
+        // NaN, an infinity or an out-of-range value to an integer is undefined.
+        // On x86-64 some of these happen to come out as 0 and others do not,
+        // so every case is pinned.
+        auto streamFor = [](double sampling, bool with_output, double output) {
+            std::vector<uint8_t> audio = floatEl(Id::SamplingFrequency, sampling)
+                                       + uintEl(Id::Channels, 2);
+            if (with_output) {
+                audio = audio + floatEl(Id::OutputSamplingFrequency, output);
+            }
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                                      + element(Id::Audio, audio));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            return parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack());
+        };
+        auto rateFor = [&](double sampling) {
+            return streamFor(sampling, false, 0.0).sample_rate;
+        };
+
+        ASSERT_EQUALS(uint32_t{0}, rateFor(nan), "a NaN rate is unknown");
+        ASSERT_EQUALS(uint32_t{0}, rateFor(inf), "an infinite rate is unknown");
+        ASSERT_EQUALS(uint32_t{0}, rateFor(-1000.0), "a negative rate is unknown");
+        ASSERT_EQUALS(uint32_t{0}, rateFor(1e10), "a rate past uint32_t is unknown");
+        ASSERT_EQUALS(uint32_t{0}, rateFor(0.25), "a rate below 1 Hz is unknown");
+        ASSERT_EQUALS(uint32_t{1048575}, rateFor(1048575.0), "FLAC's ceiling is still believed");
+        ASSERT_EQUALS(uint32_t{0}, rateFor(1048576.0), "one past it is not");
+
+        // A broken OutputSamplingFrequency must not hide a good coded rate.
+        ASSERT_EQUALS(uint32_t{44100}, streamFor(44100.0, true, inf).sample_rate,
+                      "an infinite output rate falls back to SamplingFrequency");
+        ASSERT_EQUALS(uint32_t{44100}, streamFor(44100.0, true, nan).sample_rate,
+                      "a NaN output rate falls back to SamplingFrequency");
+
+        auto durationFor = [](double ticks) {
+            Parsed parsed(opusFile(1000000, ticks));
+            return parsed.parser().info().durationMs();
+        };
+        ASSERT_EQUALS(uint64_t{0}, durationFor(nan), "a NaN Duration is unknown");
+        ASSERT_EQUALS(uint64_t{0}, durationFor(inf), "an infinite Duration is unknown");
+        ASSERT_EQUALS(uint64_t{0}, durationFor(-5.0), "a negative Duration is unknown");
+        ASSERT_EQUALS(uint64_t{0}, durationFor(1e30), "a Duration past uint64_t is unknown");
+
+        {   // 1e15 ms fits in uint64_t, so the file's claim is reported as it
+            // stands, but at 48 kHz the frame count would wrap -- to a non-zero
+            // value, unlike a power of two, whose product is a multiple of 2^64.
+            // Unknown beats a wrapped number that looks real. 1e15 and 1e21 are
+            // both exact doubles, so the tick arithmetic adds no rounding.
+            Parsed parsed(opusFile(1000000, 1e15));
+            const StreamInfo info =
+                parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack());
+            ASSERT_EQUALS(uint64_t{1000000000000000ULL}, info.duration_ms,
+                          "a representable Duration is kept");
+            ASSERT_EQUALS(uint64_t{0}, info.duration_samples,
+                          "a frame count that would wrap is left unknown");
+        }
+    }
+};
+
 } // namespace
 
 int main()
@@ -523,6 +597,7 @@ int main()
     suite.addTest(std::make_unique<CodecTagTest>());
     suite.addTest(std::make_unique<OpusDelayTest>());
     suite.addTest(std::make_unique<StreamInfoMappingTest>());
+    suite.addTest(std::make_unique<HostileFloatTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

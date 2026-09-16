@@ -90,14 +90,22 @@ bool codecIsBigEndianPCM(const std::string& codec_id)
 
 uint64_t SegmentInfo::durationMs() const
 {
-    if (duration_ticks <= 0.0) {
+    // Written as !(x > 0) so a NaN, which compares false with everything, is
+    // refused here too rather than reaching the cast below.
+    if (!(duration_ticks > 0.0)) {
         return 0;
     }
     // Ticks are timestamp_scale_ns nanoseconds each. Going through nanoseconds
     // rather than scaling milliseconds directly keeps a file with an unusual
     // scale from losing the fraction.
     const double nanoseconds = duration_ticks * static_cast<double>(timestamp_scale_ns);
-    return static_cast<uint64_t>(nanoseconds / 1000000.0);
+    const double milliseconds = nanoseconds / 1000000.0;
+    // Casting an infinity, or anything uint64_t cannot hold, is undefined, and
+    // a file claiming that long a duration is not stating a real one.
+    if (!(milliseconds < 0x1p64)) {
+        return 0;
+    }
+    return static_cast<uint64_t>(milliseconds);
 }
 
 void SegmentParser::parse(EBMLReader& reader)
@@ -413,9 +421,19 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     // SamplingFrequency is what the stream is coded at; they differ for SBR,
     // where an HE-AAC track is coded at half the rate it plays at. The rest of
     // PsyMP3 wants the playback rate.
-    const double rate = track.output_sampling_frequency > 0.0
-                      ? track.output_sampling_frequency
-                      : track.sampling_frequency;
+    //
+    // Both are floats taken straight from the file, and casting a NaN, an
+    // infinity or anything past uint32_t is undefined behaviour. Only a finite
+    // rate from 1 Hz to 1,048,575 Hz (FLAC's 20-bit ceiling, beyond any real
+    // decoder's output) is believed. Otherwise the rate stays unknown (0): a
+    // decoder that reports its own rate still supplies one, and without that
+    // Audio::setup refuses the track instead of playing it at a made-up rate.
+    const auto usable = [](double hz) {
+        return std::isfinite(hz) && hz >= 1.0 && hz <= 1048575.0;
+    };
+    const double rate = usable(track.output_sampling_frequency) ? track.output_sampling_frequency
+                      : usable(track.sampling_frequency)        ? track.sampling_frequency
+                                                                : 0.0;
     info.sample_rate = static_cast<uint32_t>(rate + 0.5);
     info.channels = track.channels;
     info.bits_per_sample = track.bit_depth;
@@ -445,7 +463,10 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
             (track.codec_delay_ns * info.sample_rate) / 1000000000ULL);
     }
 
-    if (info.duration_ms > 0 && info.sample_rate > 0) {
+    // A Duration that is finite but absurd can still wrap this product, so it is
+    // left unknown rather than reported as whatever the wrap happens to give.
+    if (info.duration_ms > 0 && info.sample_rate > 0 &&
+        info.duration_ms <= UINT64_MAX / info.sample_rate) {
         info.duration_samples = (info.duration_ms * info.sample_rate) / 1000;
     }
     return info;
