@@ -21,6 +21,8 @@
 #include <chrono>
 #include <iomanip>
 #include <fstream>
+#include <filesystem>
+#include <system_error>
 
 using namespace TestFramework;
 
@@ -307,7 +309,24 @@ int main(int argc, char* argv[]) {
     try {
         // Parse command line arguments
         CommandLineArgs args = parseCommandLine(argc, argv);
-        
+
+        // Tests find fixtures and helper files relative to tests/, so every
+        // test runs from the test directory, whichever directory the harness
+        // was started in. Otherwise `-d tests` from the project root and
+        // `./test-harness` inside tests/ report different results. The path is
+        // made absolute first: the executor changes into it before exec'ing
+        // each test by the path discovery built from it, and a relative path
+        // would then no longer resolve.
+        std::error_code dir_ec;
+        std::filesystem::path test_dir =
+            std::filesystem::absolute(args.test_directory, dir_ec).lexically_normal();
+        if (!dir_ec) {
+            if (test_dir.has_relative_path() && !test_dir.has_filename()) {
+                test_dir = test_dir.parent_path(); // drop the trailing separator
+            }
+            args.test_directory = test_dir.string();
+        }
+
         // Initialize test discovery
         TestDiscovery discovery(args.test_directory);
         discovery.setDefaultTimeout(std::chrono::milliseconds(args.timeout_seconds * 1000));
@@ -366,6 +385,7 @@ int main(int argc, char* argv[]) {
         
         // Initialize test executor
         TestExecutor executor;
+        executor.setWorkingDirectory(args.test_directory);
         executor.setGlobalTimeout(std::chrono::milliseconds(args.timeout_seconds * 1000));
         executor.enableParallelExecution(args.parallel);
         executor.setMaxParallelProcesses(args.max_parallel);
