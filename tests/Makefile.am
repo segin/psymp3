@@ -471,6 +471,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_matroska_segment \
 	test_matroska_block \
 	test_matroska_cues \
+	test_matroska_seek \
 	test_ac3_frame_header \
 	test_ac3_exponents \
 	test_ac3_bit_allocation \
@@ -529,6 +530,9 @@ test_matroska_block_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_matroska_cues_SOURCES = test_matroska_cues.cpp
 test_matroska_cues_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+test_matroska_seek_SOURCES = test_matroska_seek.cpp
+test_matroska_seek_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_ac3_frame_header_SOURCES = test_ac3_frame_header.cpp
 test_ac3_frame_header_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)

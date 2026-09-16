@@ -57,6 +57,17 @@ public:
     uint64_t getDuration() const override;
     uint64_t getPosition() const override;
 
+    /// A Matroska seek lands on a cluster boundary at or before the target,
+    /// never on the target itself, so the stream has to be told where it
+    /// actually landed in order to drop what lies between the two. Reporting
+    /// granules is what turns that trimming on in DemuxedStream::seekTo;
+    /// without it a seek plays from the cluster boundary while reporting the
+    /// target as its position -- up to a whole cluster of audio the listener
+    /// did not ask for. Only claimed once the sample rate is known, since the
+    /// granule is expressed in samples and means nothing without it.
+    bool providesGranulePositions() const override { return m_sample_rate > 0; }
+    uint64_t getGranulePosition(uint32_t stream_id) const override;
+
 private:
     /// Reads forward until at least one frame for the selected track is
     /// queued, or the file ends. Laced blocks yield several at once, which is
@@ -77,6 +88,11 @@ private:
     /// The track being played. Zero until parseContainer has chosen one.
     uint64_t m_track_number = 0;
     uint32_t m_sample_rate = 0;
+    /// Where playback actually is, in samples -- the landing after a seek, and
+    /// the last chunk handed out otherwise. Guarded by the base class's
+    /// m_state_mutex alongside m_position_ms, which it is derived from the
+    /// same tick count as.
+    uint64_t m_granule_samples = 0;
     uint64_t m_file_size = 0;
 
     /// Where the next element will be read from. Kept explicitly rather than

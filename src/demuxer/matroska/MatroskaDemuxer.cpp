@@ -360,6 +360,7 @@ MediaChunk MatroskaDemuxer::readChunk()
     if (m_sample_rate > 0) {
         std::lock_guard<std::mutex> lock(m_state_mutex);
         m_position_ms = (chunk.timestamp_samples * 1000) / m_sample_rate;
+        m_granule_samples = chunk.timestamp_samples;
     }
     return chunk;
 }
@@ -392,11 +393,75 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     m_cluster_end = 0;
     m_cluster_ticks = 0;
     m_eof = false;
+
+    // What the landing actually is, which is not what the index entry says.
+    //
+    // A Cues entry pairs CueTime -- the timestamp of a *Block* (§5.1.5.1.1) --
+    // with the position of the Cluster that holds it (§5.1.5.1.2.2). The block
+    // need not be the cluster's first: CueRelativePosition (§5.1.5.1.2.3)
+    // exists precisely for that case, and nothing here reads it, so reading
+    // restarts at the cluster's first child. ffmpeg cues audio this way as a
+    // matter of course. Reporting CueTime would name a point later than the
+    // audio about to be produced, and since DemuxedStream labels frames from a
+    // counter anchored on this value rather than from the chunk's own stamp,
+    // everything between the cluster head and CueTime would be kept and
+    // mislabelled -- for the rest of the track, because the counter is free
+    // running. So read the cluster's own Timestamp and report that.
+    //
+    // The scan-built index already stores cluster timestamps, so this changes
+    // only the Cues path; the walk is the same one buildByScanning does, and
+    // costs two element headers.
+    int64_t landing_ticks = static_cast<int64_t>(entry->time_ticks);
+    try {
+        m_reader.seek(entry->cluster_offset);
+        EBMLElement cluster;
+        if (m_reader.readElementHeader(cluster) && cluster.id == Id::Cluster) {
+            const uint64_t cluster_end = cluster.unknown_size ? m_file_size
+                                                              : cluster.end();
+            while (m_reader.tell() < cluster_end) {
+                EBMLElement child;
+                if (!m_reader.readElementHeader(child)) {
+                    break;
+                }
+                if (child.id == Id::Timestamp) {
+                    landing_ticks = static_cast<int64_t>(m_reader.readUInt(child));
+                    break;
+                }
+                if (child.id == Id::SimpleBlock || child.id == Id::BlockGroup
+                    || child.unknown_size) {
+                    break; // reached data: this cluster states no timestamp
+                }
+                m_reader.seek(child.end());
+            }
+        }
+    } catch (const std::exception& e) {
+        // A damaged cluster header is a reason to report a less exact landing,
+        // not to refuse the seek: the walk below will hit the same bytes and
+        // deal with them.
+        Debug::log("demux", "MatroskaDemuxer: seek landing probe: ", e.what());
+    }
+
     {
         std::lock_guard<std::mutex> lock(m_state_mutex);
-        m_position_ms = ticksToMs(static_cast<int64_t>(entry->time_ticks));
+        m_position_ms = ticksToMs(landing_ticks);
+        // Where the seek actually landed, in samples, derived from the same
+        // tick count the blocks in that cluster stamp themselves with. The
+        // stream reads this to drop the audio between the landing and the
+        // target it asked for; reporting the target here instead would leave
+        // that audio in place and put the position counter ahead of it.
+        m_granule_samples = m_sample_rate > 0
+                          ? (m_position_ms * m_sample_rate) / 1000
+                          : 0;
     }
     return true;
+}
+
+uint64_t MatroskaDemuxer::getGranulePosition(uint32_t stream_id) const
+{
+    // Only the selected track is ever queued, so its position is the stream's.
+    (void)stream_id;
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return m_granule_samples;
 }
 
 bool MatroskaDemuxer::isEOF() const
