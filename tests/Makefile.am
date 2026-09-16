@@ -1803,27 +1803,14 @@ if BUILD_TEST_HARNESS
 CHECK_LOCAL_DEPS = test-harness
 endif
 
-# Test execution target
+# Test execution target. Automake's own check-TESTS already runs every entry in
+# TESTS (which is $(check_PROGRAMS)), treating exit 77 as a skip, before
+# check-local, so nothing more is needed here without the harness. A loop
+# repeating that work used to live in an else branch and ran the whole suite a
+# second time.
 check-local: $(check_PROGRAMS) $(CHECK_LOCAL_DEPS)
 if BUILD_TEST_HARNESS
 	./test-harness --verbose
-else
-	@echo "Running individual tests..."
-	@failed=""; \
-	for test in $(check_PROGRAMS); do \
-		echo "Running $$test..."; \
-		./$$test; rc=$$?; \
-		if [ $$rc -eq 77 ]; then \
-			echo "SKIP: $$test"; \
-		elif [ $$rc -ne 0 ]; then \
-			echo "FAIL: $$test (exit $$rc)"; \
-			failed="$$failed $$test"; \
-		fi; \
-	done; \
-	if [ -n "$$failed" ]; then \
-		echo "Failed tests:$$failed"; \
-		exit 1; \
-	fi
 endif
 
 # Clean up test executables
