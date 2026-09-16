@@ -9,7 +9,17 @@ This document covers running the test suite, the test harness, and the conventio
 make check
 ```
 
-This runs the automake test suite (`tests/`) and then re-runs everything through the unified test harness. It works in both regular and `--enable-final` (unity) trees: the unity configuration builds the per-file objects tests link against through a check-only shadow library in `src/Makefile.am`, so `make check` never links stale leftovers.
+What this runs depends on whether the unified test harness is configured:
+
+- **Regular trees** enable the harness by default. `make check` runs the automake test suite in `tests/`, then runs everything a second time through `tests/test-harness`.
+- **`--enable-final` (unity) trees** disable the harness by default, which also leaves `tests/` out of the top-level `SUBDIRS`. A top-level `make check` there **runs no tests**. It builds the per-file objects the tests link against, and a few thread-safety test binaries without running them. Those objects come from the check-only shadow library in `src/Makefile.am`, so tests never link stale leftovers. The suite itself is run from `tests/`, and needs those objects built first:
+
+```bash
+make check              # unity tree: builds src/'s check-only objects, runs nothing
+make -C tests check     # builds and runs the suite, once
+```
+
+To build and run a single test in either kind of tree, use `make -C tests test_foo && ./tests/test_foo`. `make -C tests check TESTS=test_foo` is not a substitute: it still builds every test program first, and where the harness is configured it then runs the whole harness as well.
 
 On a machine without a D-Bus session bus, wrap it:
 ```bash
@@ -97,7 +107,7 @@ Standalone test binaries do not get the setup the player performs at startup. Do
 
 ## Test Harness Options
 
-The unified harness lives at `tests/test-harness` (built by `make check` when configured with `--enable-test-harness`, the default).
+The unified harness lives at `tests/test-harness`. `make check` builds it when the harness is configured, which is the default except in `--enable-final` and Windows builds. `--enable-test-harness` turns it on explicitly.
 
 **Basic usage:**
 ```bash
