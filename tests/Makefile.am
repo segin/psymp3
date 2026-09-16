@@ -18,7 +18,10 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(HARFBUZZ_CFLAGS) $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
+# The vendored SheenBidi headers are needed because several tests compile
+# ../src/core/font.cpp directly, and it includes <SheenBidi/SheenBidi.h>. The
+# main build carries the same two paths in src/Makefile.am.
+AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/third_party/sheenbidi/Headers -I$(top_srcdir)/third_party/sheenbidi/Source $(HARFBUZZ_CFLAGS) $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
