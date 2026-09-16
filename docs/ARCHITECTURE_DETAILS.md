@@ -1,6 +1,6 @@
 # Architecture Details
 
-This file holds the extended subsystem notes that would otherwise bloat [ARCHITECTURE.md](/home/segin/psymp3/ARCHITECTURE.md). The top-level architecture document stays short on purpose; this file keeps the implementation-heavy context close at hand for contributors and reviewers.
+This file holds the extended subsystem notes that would otherwise bloat [ARCHITECTURE.md](../ARCHITECTURE.md). The top-level architecture document stays short on purpose; this file keeps the implementation-heavy context close at hand for contributors and reviewers.
 
 ## Codec Subsystem
 
