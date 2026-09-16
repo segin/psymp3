@@ -77,6 +77,10 @@ public:
         // Test 11: Decoded PCM sanity through VorbisCodec (bundled stb_vorbis)
         testVorbisDecodePinsPCM();
 
+        // Test 12: A file shorter than the first decoded block keeps a sane
+        // position instead of wrapping the granule back-dating to ~2^64
+        testShortVorbisPositionDoesNotWrap();
+
         // Test 11: MediaFactory integration (skipped due to dependencies)
         // testMediaFactoryIntegration();
         
@@ -658,6 +662,46 @@ private:
         return std::make_unique<FileIOHandler>(temp_filename);
     }
     
+    /**
+     * @brief A Vorbis file shorter than its first decoded block keeps a sane position
+     *
+     * DemuxedStream back-dates each page's end granule by the decoded frame's
+     * length. A file shorter than the decoder's first emitted block reports a
+     * granule smaller than that block, and the unsigned subtraction used to wrap
+     * to about 2^64 -- poisoning timestamp_ms and the reported play position.
+     *
+     * getSPosition() is read rather than getPosition(), because the latter
+     * narrows the wrapped value to 32-bit milliseconds and could land on
+     * something plausible by accident. Only one sample is requested, so the position reflects that
+     * first frame: a trailing flush frame stamps itself from the sample counter
+     * instead, which would hide the wrap.
+     */
+    static void testShortVorbisPositionDoesNotWrap() {
+        std::cout << "Testing a sub-block Vorbis file keeps a sane position..." << std::endl;
+
+        registerAllCodecs();
+        registerAllDemuxers();
+
+        constexpr int kSamples = 200; // shorter than the decoder's first block
+        std::string path = createValidVorbisTestFile(kSamples);
+
+        {
+            DemuxedStream stream{TagLib::String(path, TagLib::String::UTF8)};
+            AudioSample one = 0;
+            const size_t got = stream.getData(sizeof(one), &one);
+            ASSERT_TRUE(got > 0, "A 200-sample Vorbis file should still yield audio");
+
+            const unsigned long long position = stream.getSPosition();
+            std::cout << "  position after the first frame: " << position << " samples"
+                      << std::endl;
+            ASSERT_TRUE(position < 44100ULL,
+                        "Position must stay inside the file rather than wrap to ~2^64");
+        }
+
+        std::remove(path.c_str());
+        std::cout << "✓ Sub-block Vorbis position test passed" << std::endl;
+    }
+
     /**
      * @brief Create a memory-based IOHandler for testing
      */

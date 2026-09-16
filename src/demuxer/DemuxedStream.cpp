@@ -387,7 +387,13 @@ AudioFrame DemuxedStream::getNextFrame() {
             // Correct timestamp calculation for non-Opus Ogg codecs. For Ogg
             // Vorbis, granule position is only valid on the last packet of
             // each page.
-            frame.timestamp_samples = granule - frame.getSampleFrameCount();
+            // A granule is the end sample of its page, so back-date by the
+            // frame's length -- but never below zero. A Vorbis file shorter
+            // than its first emitted block reports a granule smaller than that
+            // block, and the unsigned subtraction wrapped to about 2^64, which
+            // then poisoned timestamp_ms and the reported play position.
+            const uint64_t frames = frame.getSampleFrameCount();
+            frame.timestamp_samples = granule >= frames ? granule - frames : 0;
             m_samples_consumed = granule;
         } else {
             frame.timestamp_samples = m_samples_consumed;
