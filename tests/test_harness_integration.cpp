@@ -148,16 +148,22 @@ private:
 };
 
 int main() {
+#ifndef PSYMP3_TEST_HARNESS_BUILT
     // test-harness is only built when configure enables BUILD_TEST_HARNESS;
-    // without it there is nothing to integration-test, so SKIP.
-    if (!std::filesystem::exists("./test-harness")) {
-        std::cout << "SKIP: test-harness not built (BUILD_TEST_HARNESS disabled)" << std::endl;
-        return 77;
-    }
-
+    // without it there is nothing to integration-test, so SKIP. The build
+    // system says which, rather than the directory: a ./test-harness left by an
+    // earlier harness-enabled configuration made this test run, and fail,
+    // against a tree that never asked for the harness.
+    std::cout << "SKIP: configured without the test harness (BUILD_TEST_HARNESS disabled)"
+              << std::endl;
+    return 77;
+#else
+    // Configured with the harness, so a missing ./test-harness is a failure,
+    // which testBasicFunctionality() reports, rather than a reason to skip.
     TestSuite suite("Test Harness Validation");
     suite.addTest(std::make_unique<TestHarnessValidationTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return suite.getFailureCount(results) > 0 ? 1 : 0;
+#endif
 }

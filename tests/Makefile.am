@@ -804,6 +804,18 @@ test_widget_hierarchy_properties_LDADD = $(COMMON_TEST_LIBS) $(RAPIDCHECK_LIBS) 
 
 test_harness_integration_SOURCES = test_harness_integration.cpp
 test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
+# Whether there is a harness to test is compiled in, not read from the
+# directory. A ./test-harness left behind by an earlier harness-enabled
+# configuration used to make this test run, and fail, in a tree that never
+# asked for it. When the harness is configured it is built first:
+# check-TESTS runs before check-local, which is what otherwise builds it.
+# CPPFLAGS is set in both branches so that AM_CPPFLAGS survives in either.
+if BUILD_TEST_HARNESS
+test_harness_integration_CPPFLAGS = $(AM_CPPFLAGS) -DPSYMP3_TEST_HARNESS_BUILT=1
+EXTRA_test_harness_integration_DEPENDENCIES = test-harness$(EXEEXT)
+else
+test_harness_integration_CPPFLAGS = $(AM_CPPFLAGS)
+endif
 
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
@@ -1813,11 +1825,9 @@ if BUILD_TEST_HARNESS
 	./test-harness --verbose
 endif
 
-# Clean up test executables
-CLEANFILES = $(check_PROGRAMS)
-if BUILD_TEST_HARNESS
-CLEANFILES += test-harness
-endif
+# Clean up test executables. test-harness is listed whatever the configuration,
+# so that `make clean` also removes one left by an earlier harness-enabled one.
+CLEANFILES = $(check_PROGRAMS) test-harness$(EXEEXT)
 
 # Runtime debug logs some tests write into the build directory; distcheck's
 # distcleancheck fails on anything left behind after distclean.
