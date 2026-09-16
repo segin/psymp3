@@ -283,6 +283,21 @@ void LastFM::persistSessionKey()
         DEBUG_LOG_LAZY("lastfm", "Failed to persist session key to ", m_config_file);
         return;
     }
+#ifndef _WIN32
+    // umask only governs a file it creates. An existing lastfm.conf keeps
+    // whatever mode it already had through std::ios::trunc -- a hand-made one
+    // is typically 0644 -- and a session key that never expires is about to be
+    // written into it. Set the mode explicitly, before anything is written.
+    std::error_code perm_ec;
+    std::filesystem::permissions(System::pathFromUtf8(m_config_file),
+                                 std::filesystem::perms::owner_read |
+                                     std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, perm_ec);
+    if (perm_ec) {
+        DEBUG_LOG_LAZY("lastfm", "Could not restrict ", m_config_file, " to 0600: ",
+                       perm_ec.message());
+    }
+#endif
     for (const auto& line : kept) {
         out << line << "\n";
     }
@@ -389,6 +404,20 @@ void LastFM::saveScrobbles_unlocked()
         DEBUG_LOG_LAZY("lastfm", "Failed to write cache file: ", m_cache_file);
         return;
     }
+#ifndef _WIN32
+    // As for lastfm.conf: umask cannot tighten a cache file that already
+    // exists, and the listening history is private. Set the mode before
+    // writing it.
+    std::error_code perm_ec;
+    std::filesystem::permissions(System::pathFromUtf8(m_cache_file),
+                                 std::filesystem::perms::owner_read |
+                                     std::filesystem::perms::owner_write,
+                                 std::filesystem::perm_options::replace, perm_ec);
+    if (perm_ec) {
+        DEBUG_LOG_LAZY("lastfm", "Could not restrict ", m_cache_file, " to 0600: ",
+                       perm_ec.message());
+    }
+#endif
     
     pugi::xml_document doc;
     pugi::xml_node decl = doc.append_child(pugi::node_declaration);
