@@ -14,6 +14,13 @@ namespace PsyMP3 {
 namespace Codec {
 namespace PCM {
 
+/// G.722 wideband ADPCM, decoded in-tree by G722Decoder.
+///
+/// Not internally synchronised, and deliberately so. Like the other PCM codecs
+/// it holds no mutex: DemuxedStream serialises decode(), flush() and reset()
+/// under its own m_decode_mutex -- getData() and seekTo() both take it -- and
+/// initialize() runs before the stream is shared. A lock here would only nest
+/// inside one every caller already holds.
 class G722Codec : public AudioCodec {
 public:
     explicit G722Codec(const StreamInfo& stream_info);
@@ -28,7 +35,7 @@ public:
 
 private:
     /// Which lower-band width the stream's declared bitrate asks for.
-    G722Decoder::Bitrate selectBitrate_unlocked() const;
+    G722Decoder::Bitrate selectBitrate() const;
 
     std::unique_ptr<G722Decoder> m_decoder;
 };

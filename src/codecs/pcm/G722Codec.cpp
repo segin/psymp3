@@ -73,7 +73,7 @@ bool G722Codec::initialize()
 
     // The 8 kHz mode decodes only the lower sub-band, so it yields one sample
     // per octet instead of two.
-    m_decoder = std::make_unique<G722Decoder>(selectBitrate_unlocked(),
+    m_decoder = std::make_unique<G722Decoder>(selectBitrate(),
                                               m_stream_info.sample_rate != 8000);
     m_initialized = true;
     return true;
@@ -124,7 +124,7 @@ void G722Codec::reset()
     }
 }
 
-G722Decoder::Bitrate G722Codec::selectBitrate_unlocked() const
+G722Decoder::Bitrate G722Codec::selectBitrate() const
 {
     switch (m_stream_info.bitrate) {
         case 48000: return G722Decoder::Bitrate::Rate48k;
