@@ -8,8 +8,6 @@
  */
 
 #include "psymp3.h"
-#include <openssl/crypto.h>
-#include <openssl/crypto.h>
 
 #ifndef _WIN32
 #include <sys/types.h>
