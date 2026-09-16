@@ -508,6 +508,39 @@ protected:
     }
 };
 
+class CodecDelayCeilingTest : public TestCase {
+public:
+    CodecDelayCeilingTest() : TestCase("An implausible CodecDelay is ignored, not trimmed") {}
+
+protected:
+    void runTest() override
+    {
+        // opusFile() carries a stub OpusHead the decoder cannot use, so the
+        // container's CodecDelay is what gets applied, at 48 kHz.
+        auto delayFor = [](uint64_t codec_delay_ns) {
+            Parsed parsed(opusFile(1000000, 2008.0, codec_delay_ns));
+            return parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack())
+                       .encoder_delay;
+        };
+
+        ASSERT_EQUALS(uint32_t{480000}, delayFor(10ULL * 1000000000ULL),
+                      "10 s is the largest delay still honoured");
+        ASSERT_EQUALS(uint32_t{0}, delayFor(10ULL * 1000000000ULL + 1),
+                      "anything past 10 s is ignored");
+
+        // An hour of "priming" converts cleanly to 172,800,000 frames, and
+        // DemuxedStream would discard every one of them: the track plays as
+        // silence.
+        ASSERT_EQUALS(uint32_t{0}, delayFor(3600ULL * 1000000000ULL),
+                      "an hour of delay would silence the track, so it is ignored");
+
+        // The largest value wraps the nanoseconds-times-rate product and then
+        // truncates to uint32_t, leaving an arbitrary frame count.
+        ASSERT_EQUALS(uint32_t{0}, delayFor(UINT64_MAX),
+                      "a delay that wraps the conversion is ignored");
+    }
+};
+
 class HostileFloatTest : public TestCase {
 public:
     HostileFloatTest() : TestCase("Non-finite and out-of-range floats never reach an integer cast") {}
@@ -598,6 +631,7 @@ int main()
     suite.addTest(std::make_unique<OpusDelayTest>());
     suite.addTest(std::make_unique<StreamInfoMappingTest>());
     suite.addTest(std::make_unique<HostileFloatTest>());
+    suite.addTest(std::make_unique<CodecDelayCeilingTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

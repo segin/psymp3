@@ -458,7 +458,15 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
         cp[0] == 'O' && cp[1] == 'p' && cp[2] == 'u' && cp[3] == 's' &&
         cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd';
 
-    if (track.codec_delay_ns > 0 && info.sample_rate > 0 && !decoder_trims_its_own_delay) {
+    // RFC 9559 sets no upper bound on CodecDelay, but no codec primes for
+    // anything like 10 s (Opus states 6.5 ms). A larger value comes from a
+    // damaged or hostile file. Honouring it would have trimEncoderDelay discard
+    // up to 2^32 frames, i.e. the whole track played as silence, and at high
+    // rates the product below also wraps. Such a value is ignored. With the
+    // rate capped at 1,048,575 Hz above, 10 s keeps that product under 2^54.
+    constexpr uint64_t kMaxCodecDelayNs = 10ULL * 1000000000ULL;
+    if (track.codec_delay_ns > 0 && track.codec_delay_ns <= kMaxCodecDelayNs &&
+        info.sample_rate > 0 && !decoder_trims_its_own_delay) {
         info.encoder_delay = static_cast<uint32_t>(
             (track.codec_delay_ns * info.sample_rate) / 1000000000ULL);
     }
