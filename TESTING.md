@@ -11,7 +11,7 @@ make check
 
 What this runs depends on whether the unified test harness is configured:
 
-- **Regular trees** enable the harness by default. `make check` runs the automake test suite in `tests/`, then runs everything a second time through `tests/test-harness`.
+- **Regular trees** enable the harness by default. `make check` runs every check program once, through `tests/test-harness`. Automake's own runner is given nothing, so the suite does not run twice. The console output is also saved to `tests/test-harness.log`.
 - **`--enable-final` (unity) trees** disable the harness by default, which also leaves `tests/` out of the top-level `SUBDIRS`. A top-level `make check` there **runs no tests**. It builds the per-file objects the tests link against, and a few thread-safety test binaries without running them. Those objects come from the check-only shadow library in `src/Makefile.am`, so tests never link stale leftovers. The suite itself is run from `tests/`, and needs those objects built first:
 
 ```bash
@@ -101,13 +101,15 @@ Standalone test binaries do not get the setup the player performs at startup. Do
 
 ### Timeouts and flakiness
 
-- The harness default per-test timeout is **120s** (long-running stress suites legitimately exceed the old 30s). Override per test with a source annotation (`// @test-timeout: 5000`, milliseconds) or globally with `./test-harness -t <seconds>`.
+- The harness default per-test timeout is **120s** (long-running stress suites legitimately exceed the old 30s). Override it per program with a source annotation (`// @test-timeout: 5000` in milliseconds, or with an `s` or `m` suffix), or globally with `./test-harness -t <seconds>`.
 - Don't gate assertions on wall-clock performance thresholds or lock-contention ratios — CI machines run loaded; assert sanity (ratio within [0,1], operations completed) instead of magic numbers.
 - If a mock is configured with a random failure rate, don't assert single operations succeed — retry setup operations, and let the stress phase own the randomness.
 
 ## Test Harness Options
 
 The unified harness lives at `tests/test-harness`. `make check` builds it when the harness is configured, which is the default except in `--enable-final` and Windows builds. `--enable-test-harness` turns it on explicitly.
+
+Run by hand, the harness discovers tests by looking for `test_*.cpp` sources next to their binaries. `make check` does not rely on that. It writes every check program's name to `tests/check-programs.list` and passes `--programs-file check-programs.list --source-dir $(srcdir)`. The harness then runs exactly those programs, whatever they are called, and never a stray binary that is not one of them. A listed program that is missing or older than its source fails the run. `--source-dir` says where the sources, and so their annotations, live; in an out-of-tree build such as `make distcheck`, that is not where the binaries are. Every test is run from the test directory, with `srcdir` set to the source directory in its environment, as automake's runner does.
 
 **Basic usage:**
 ```bash
@@ -123,6 +125,7 @@ cd tests && ./test-harness -f "*rect*"       # Run tests matching a pattern
 cd tests && ./test-harness -s                # Stop on first failure (skips don't stop the run)
 cd tests && ./test-harness -t 60             # 60-second timeout per test (default 120)
 cd tests && ./test-harness -d /path/to/tests # Specify test directory
+cd tests && ./test-harness --programs-file check-programs.list  # Exactly the programs make check runs
 ```
 
 **Parallel execution:**
@@ -162,10 +165,10 @@ Run individual tests from the `tests/` directory so relative fixture paths (`dat
 
 ## Continuous Integration
 
-CI (`.github/workflows/c-cpp.yml`) builds in a Debian trixie container (SDL3), generates the FLAC fixture with the `flac` CLI, and runs `dbus-run-session -- make check`. For report artifacts:
+CI (`.github/workflows/c-cpp.yml`) builds in a Debian trixie container (SDL3), generates the FLAC fixture with the `flac` CLI, and runs `dbus-run-session -- make check`. The harness's console output is kept in `tests/test-harness.log`, which CI uploads with the other logs. A JUnit report needs a second run of the same programs:
 
 ```bash
-make check && cd tests && ./test-harness -o xml > test-results.xml
+cd tests && ./test-harness --programs-file check-programs.list -o xml > test-results.xml
 ```
 
 ## Troubleshooting

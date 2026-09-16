@@ -95,8 +95,8 @@ jobs:
       run: |
         if make -n check 2>/dev/null; then
           # The MPRIS tests need a session bus, which the container lacks.
-          # make -k keeps going past a failing phase so the automake suite,
-          # the harness re-run, and the top-level threading checks ALL
+          # make -k keeps going past a failing phase so the test suite (run
+          # once, by the harness) and the top-level threading checks BOTH
           # report, rather than aborting at the first failing sub-target.
           dbus-run-session -- make -k check
           echo "Tests completed successfully"
