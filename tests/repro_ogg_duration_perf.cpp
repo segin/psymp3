@@ -1,4 +1,9 @@
 // tests/repro_ogg_duration_perf.cpp
+//
+// @test-timeout: 10m
+// Every read of the mock file below sleeps 100 ms, and parseContainer() reads
+// the whole file to work out the duration, so this runs for about four and a
+// half minutes. That is past the test harness's two-minute default.
 
 #include "psymp3.h"
 #include "demuxer/ogg/OggDemuxer.h"
