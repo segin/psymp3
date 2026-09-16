@@ -7,8 +7,22 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <cstdlib>
+#include <string>
 
 using namespace TestFramework;
+
+// The build directory is the current one, but sources live in srcdir, and the
+// two differ in an out-of-tree build such as distcheck's. Both test runners
+// export srcdir. "." covers running the test by hand in an in-tree build.
+static std::string sourceDir() {
+    const char* srcdir = std::getenv("srcdir");
+    return (srcdir && *srcdir) ? srcdir : ".";
+}
+
+static std::string sourcePath(const std::string& name) {
+    return sourceDir() + "/" + name;
+}
 
 class TestHarnessValidationTest : public TestCase {
 public:
@@ -36,7 +50,8 @@ private:
         ASSERT_TRUE(help_output.find("--filter") != std::string::npos, "Help should show filter option");
         
         // Test that test harness can list tests
-        std::string list_output = executeCommand("./test-harness --list");
+        std::string list_output =
+            executeCommand("./test-harness --list --source-dir '" + sourceDir() + "'");
         ASSERT_TRUE(list_output.find("rect") != std::string::npos, "Should list rect tests");
     }
     
@@ -68,9 +83,9 @@ private:
         std::cout << "Testing build system integration..." << std::endl;
         
         // Test that Makefile.am exists and has proper structure
-        ASSERT_TRUE(std::filesystem::exists("./Makefile.am"), "Makefile.am should exist");
+        ASSERT_TRUE(std::filesystem::exists(sourcePath("Makefile.am")), "Makefile.am should exist");
         
-        std::ifstream makefile("./Makefile.am");
+        std::ifstream makefile(sourcePath("Makefile.am"));
         std::string makefile_content((std::istreambuf_iterator<char>(makefile)),
                                    std::istreambuf_iterator<char>());
         
@@ -101,7 +116,7 @@ private:
         };
         
         for (const auto& file : expected_files) {
-            ASSERT_TRUE(std::filesystem::exists("./" + file), 
+            ASSERT_TRUE(std::filesystem::exists(sourcePath(file)),
                        "Test framework file should exist: " + file);
         }
         
@@ -112,14 +127,14 @@ private:
         };
         
         for (const auto& script : validation_scripts) {
-            if (std::filesystem::exists("./" + script)) {
+            if (std::filesystem::exists(sourcePath(script))) {
                 std::cout << "  Found validation script: " << script << std::endl;
             }
         }
         
         // Test that README has been updated with testing information
-        if (std::filesystem::exists("../README")) {
-            std::ifstream readme("../README");
+        if (std::filesystem::exists(sourcePath("../README"))) {
+            std::ifstream readme(sourcePath("../README"));
             std::string readme_content((std::istreambuf_iterator<char>(readme)),
                                      std::istreambuf_iterator<char>());
             
