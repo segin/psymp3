@@ -807,8 +807,8 @@ test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/li
 # Whether there is a harness to test is compiled in, not read from the
 # directory. A ./test-harness left behind by an earlier harness-enabled
 # configuration used to make this test run, and fail, in a tree that never
-# asked for it. When the harness is configured it is built first:
-# check-TESTS runs before check-local, which is what otherwise builds it.
+# asked for it. When the harness is configured it is built first, so that
+# this test also works when built and run on its own.
 # CPPFLAGS is set in both branches so that AM_CPPFLAGS survives in either.
 if BUILD_TEST_HARNESS
 test_harness_integration_CPPFLAGS = $(AM_CPPFLAGS) -DPSYMP3_TEST_HARNESS_BUILT=1
@@ -1815,19 +1815,28 @@ if BUILD_TEST_HARNESS
 CHECK_LOCAL_DEPS = test-harness
 endif
 
-# Test execution target. Automake's own check-TESTS already runs every entry in
-# TESTS (which is $(check_PROGRAMS)), treating exit 77 as a skip, before
-# check-local, so nothing more is needed here without the harness. A loop
-# repeating that work used to live in an else branch and ran the whole suite a
-# second time.
+# Test execution target. With the harness configured, it runs the suite: make
+# hands it exactly $(check_PROGRAMS), so a program need not be named test_*,
+# and a stale binary that is no longer (or never was) a check program is not
+# run. The sources are read from $(srcdir) for their annotations, which in an
+# out-of-tree build such as distcheck's is not where the binaries are. The
+# output is kept in test-harness.log as well, since CI keeps the *.log files.
+# Without the harness, automake's check-TESTS has already run TESTS, treating
+# exit 77 as a skip, so there is nothing left to do here.
 check-local: $(check_PROGRAMS) $(CHECK_LOCAL_DEPS)
 if BUILD_TEST_HARNESS
-	./test-harness --verbose
+	@rm -f check-programs.list test-harness.status
+	@for program in $(check_PROGRAMS); do echo "$$program"; done > check-programs.list
+	@{ ./test-harness$(EXEEXT) --verbose --source-dir $(srcdir) \
+	      --programs-file check-programs.list; \
+	   echo $$? > test-harness.status; } 2>&1 | tee test-harness.log
+	@status=`cat test-harness.status`; rm -f test-harness.status; exit $$status
 endif
 
 # Clean up test executables. test-harness is listed whatever the configuration,
 # so that `make clean` also removes one left by an earlier harness-enabled one.
-CLEANFILES = $(check_PROGRAMS) test-harness$(EXEEXT)
+CLEANFILES = $(check_PROGRAMS) test-harness$(EXEEXT) \
+	check-programs.list test-harness.log test-harness.status
 
 # Runtime debug logs some tests write into the build directory; distcheck's
 # distcleancheck fails on anything left behind after distclean.
@@ -4322,8 +4331,15 @@ test_fft_mode_LDADD = \
 	libtest_utilities.a \
 	../src/core/libpsymp3-core.a
 
-# Run all check programs
+# Every check program is a test, and runs exactly once per `make check`. With
+# the harness configured, it is the runner (see check-local) and automake's
+# check-TESTS is given nothing, or the whole suite would run twice. Without the
+# harness, check-TESTS runs them.
+if BUILD_TEST_HARNESS
+TESTS =
+else
 TESTS = $(check_PROGRAMS)
+endif
 
 if HAVE_DBUS
 check_PROGRAMS += test_loop_status
