@@ -103,10 +103,21 @@ bool MatroskaDemuxer::parseContainer()
     // Cues are written after the clusters, so SeekHead is the only way to find
     // them; failing that, the cluster headers are walked instead.
     if (m_track_number != 0) {
-        const uint64_t cues_at = m_parser.seekPosition(Id::Cues);
-        if (!m_index.parseCues(m_reader, cues_at, m_parser.segmentDataOffset(),
-                               m_track_number)) {
-            m_index.buildByScanning(m_reader, m_parser.firstClusterOffset(), m_file_size);
+        // A damaged index costs seeking, not playback. Cues are only
+        // SHOULD-be-present (5.1.5) and the clusters behind them are intact, but
+        // both builders throw on a malformed VINT or an integer wider than eight
+        // octets, and an exception escaping here fails parseContainer, which
+        // makes DemuxedStream refuse a file whose audio reads perfectly. Log it
+        // and carry on unindexed, the way parseTags below already does.
+        try {
+            const uint64_t cues_at = m_parser.seekPosition(Id::Cues);
+            if (!m_index.parseCues(m_reader, cues_at, m_parser.segmentDataOffset(),
+                                   m_track_number)) {
+                m_index.buildByScanning(m_reader, m_parser.firstClusterOffset(), m_file_size);
+            }
+        } catch (const std::exception& e) {
+            Debug::log("demux", "MatroskaDemuxer: index unusable, seeking disabled: ", e.what());
+            m_index = CueIndex();
         }
     }
 

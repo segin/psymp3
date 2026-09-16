@@ -297,7 +297,23 @@ std::vector<uint8_t> sparseCues(const std::vector<std::vector<uint8_t>>& cluster
     return element(Id::Cues, points);
 }
 
-std::vector<uint8_t> buildCuedFile()
+/// Cues carrying a CueTime whose payload is nine octets wide.
+///
+/// EBMLReader::readUInt refuses an integer wider than eight octets by throwing,
+/// and kMaxSizeLength bounds the VINT's *width*, not its value, so a single
+/// size byte legally announces nine. This is the cheapest way to make the index
+/// build throw over a file whose clusters are perfectly readable.
+std::vector<uint8_t> damagedCues(uint64_t first_cluster_relative)
+{
+    return element(Id::Cues,
+                   element(Id::CuePoint,
+                           element(Id::CueTime, std::vector<uint8_t>(9, 0x00))
+                         + element(Id::CueTrackPositions,
+                                   uintEl(Id::CueTrack, 1)
+                                 + uintEl(Id::CueClusterPosition, first_cluster_relative))));
+}
+
+std::vector<uint8_t> buildCuedFile(bool damaged_cues = false)
 {
     const std::vector<uint8_t> info =
         element(Id::Info, uintEl(Id::TimestampScale, 1000000)
@@ -320,8 +336,10 @@ std::vector<uint8_t> buildCuedFile()
         seekHeadFor({{Id::Info,   0},
                      {Id::Tracks, info.size()},
                      {Id::Cues,   info.size() + tracks.size() + clusters_flat.size()}});
+    const uint64_t first_cluster_at = head.size() + info.size() + tracks.size();
     const std::vector<uint8_t> cues =
-        sparseCues(cluster_bytes, 1, head.size() + info.size() + tracks.size());
+        damaged_cues ? damagedCues(first_cluster_at)
+                     : sparseCues(cluster_bytes, 1, first_cluster_at);
 
     return ebmlHeader("matroska")
          + element(Id::Segment, head + info + tracks + clusters_flat + cues);
@@ -374,6 +392,46 @@ protected:
     }
 };
 
+class DamagedCuesCostSeekingNotPlaybackTest : public TestCase {
+public:
+    DamagedCuesCostSeekingNotPlaybackTest()
+        : TestCase("A damaged Cues element costs seeking, not playback") {}
+
+protected:
+    void runTest() override
+    {
+        // Cues are only SHOULD-be-present (RFC 9559 5.1.5) and every Cluster in
+        // this file is intact, so a CueTime the reader refuses is a reason to
+        // lose the index -- not the track. The index build used to sit outside
+        // parseContainer's try, so this exception escaped and DemuxedStream
+        // refused a file whose audio reads perfectly.
+        const std::vector<uint8_t> file = buildCuedFile(/*damaged_cues=*/true);
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+
+        // Catch the throw here rather than letting it escape runTest(). The
+        // harness records an escaping exception as ERROR, and
+        // TestSuite::getFailureCount counts only FAILED, so main()'s exit code
+        // would stay 0 and this regression would sail through make check while
+        // printing a failure nobody's build acts on.
+        bool opened = false;
+        try {
+            opened = demuxer.parseContainer();
+        } catch (const std::exception&) {
+            opened = false;
+        }
+        ASSERT_TRUE(opened,
+                    "a Cues element that throws must not refuse the whole file");
+
+        auto chunk = demuxer.readChunk();
+        ASSERT_TRUE(chunk.isValid(), "the clusters are intact, so playback continues");
+        ASSERT_EQUALS(samplesAt(0), chunk.timestamp_samples, "starting at the first cluster");
+
+        // What was actually lost: with no index there is nothing to seek by.
+        ASSERT_FALSE(demuxer.seekTo(250), "seeking is the part that degrades");
+    }
+};
+
 } // namespace
 
 int main()
@@ -385,6 +443,7 @@ int main()
     suite.addTest(std::make_unique<GranuleTracksPlaybackTest>());
     suite.addTest(std::make_unique<SeekBackwardsTest>());
     suite.addTest(std::make_unique<SeekLandsOnClusterHeadNotCueTimeTest>());
+    suite.addTest(std::make_unique<DamagedCuesCostSeekingNotPlaybackTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
