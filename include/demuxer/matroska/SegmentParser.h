@@ -65,7 +65,12 @@ struct TrackEntry {
     std::string name;
     std::vector<uint8_t> codec_private;
     bool lacing_allowed = true;   ///< FlagLacing; blocks may pack several frames
-    bool default_track = false;
+    /// FlagDefault, whose schema default is 1 (RFC 9559 5.1.4.1.5): a TrackEntry
+    /// that omits the element *is* eligible for automatic selection. libmatroska
+    /// renders with bWithDefault=false, so the default track is written as
+    /// absence while the others carry an explicit 0 -- reading absence as "not
+    /// default" therefore picks exactly the track the muxer excluded.
+    bool default_track = true;
     bool enabled = true;
     uint64_t default_duration_ns = 0;
     /// Nanoseconds of decoder startup to discard. Opus in Matroska states its
@@ -73,13 +78,19 @@ struct TrackEntry {
     uint64_t codec_delay_ns = 0;
     uint64_t seek_preroll_ns = 0;
 
-    // Audio sub-element.
-    double sampling_frequency = 0.0;
+    // Audio sub-element. These carry the schema's defaults rather than zero:
+    // RFC 9559 5.1.4.1.29.1 gives SamplingFrequency 8000 and 5.1.4.1.29.3 gives
+    // Channels 1, and RFC 8794 11.1.19 requires a reader to apply the default of
+    // a mandatory element the writer left out. Holding 0 instead let an omitted
+    // element reach StreamInfo as sample_rate 0, which silently disables seek
+    // trimming, stamps every chunk 0, and makes Audio::setup refuse a track the
+    // file listed as playable.
+    double sampling_frequency = 8000.0;
     /// Non-zero when the decoder outputs at a different rate than the stream is
     /// coded at, which is how SBR is signalled: an HE-AAC track is coded at
     /// half the rate it plays at.
     double output_sampling_frequency = 0.0;
-    uint16_t channels = 0;
+    uint16_t channels = 1;
     uint16_t bit_depth = 0;
 
     bool isAudio() const { return type == TrackType::Audio; }

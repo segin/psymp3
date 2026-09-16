@@ -253,32 +253,129 @@ protected:
 
 class DefaultFlagTest : public TestCase {
 public:
-    DefaultFlagTest() : TestCase("A track flagged default wins over an earlier one") {}
+    DefaultFlagTest() : TestCase("FlagDefault's schema default of 1 decides which track plays") {}
 
 protected:
     void runTest() override
     {
-        auto audioTrack = [](uint64_t number, const char* codec, bool is_default) {
+        // flag: 1 writes FlagDefault 1, 0 writes an explicit 0, and -1 omits the
+        // element -- which RFC 9559 5.1.4.1.5 says *is* default, its schema
+        // default being 1.
+        auto audioTrack = [](uint64_t number, const char* codec, int flag) {
             std::vector<uint8_t> body = uintEl(Id::TrackNumber, number)
                                       + uintEl(Id::TrackType, TrackType::Audio)
                                       + strEl(Id::CodecID, codec)
                                       + element(Id::Audio, uintEl(Id::Channels, 2));
-            if (is_default) {
-                body = body + uintEl(Id::FlagDefault, 1);
+            if (flag >= 0) {
+                body = body + uintEl(Id::FlagDefault, static_cast<uint64_t>(flag));
             }
             return element(Id::TrackEntry, body);
         };
+        auto file = [](const std::vector<uint8_t>& tracks) {
+            return ebmlHeader("matroska")
+                 + element(Id::Segment,
+                           element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                         + element(Id::Tracks, tracks));
+        };
 
-        Parsed parsed(ebmlHeader("matroska")
-                      + element(Id::Segment,
-                                element(Id::Info, uintEl(Id::TimestampScale, 1000000))
-                              + element(Id::Tracks, audioTrack(1, "A_VORBIS", false)
-                                                  + audioTrack(2, "A_OPUS", true))));
-        const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
-        ASSERT_NOT_NULL(chosen, "A track was chosen");
-        ASSERT_TRUE(chosen->number == 2,
-                    "FlagDefault beats file order, which is how a multi-language "
-                    "release says which track to play");
+        {   // What ffmpeg and mkvmerge actually emit: an explicit 0 on every
+            // track that is not default, and nothing at all on the one that is,
+            // because libmatroska renders with bWithDefault=false. Reading the
+            // absence as "not default" picked track 1 -- precisely the track the
+            // muxer marked ineligible.
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", 0) + audioTrack(2, "A_OPUS", -1)));
+            const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
+            ASSERT_NOT_NULL(chosen, "A track was chosen");
+            ASSERT_TRUE(chosen->number == 2,
+                        "an omitted FlagDefault is default; an explicit 0 is not");
+        }
+        {   // Neither writes it, so both are eligible and file order decides --
+            // 19.1 prefers the first of an equally preferable group.
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", -1) + audioTrack(2, "A_OPUS", -1)));
+            const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
+            ASSERT_NOT_NULL(chosen, "A track was chosen");
+            ASSERT_TRUE(chosen->number == 1, "equally default, so the first wins");
+        }
+        {   // An explicit 1 on the first track keeps it, though the second is
+            // default by omission too.
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", 1) + audioTrack(2, "A_OPUS", -1)));
+            const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
+            ASSERT_NOT_NULL(chosen, "A track was chosen");
+            ASSERT_TRUE(chosen->number == 1, "explicit default on the first track");
+        }
+        {   // Nothing is eligible. A playable track is still better than none,
+            // so the first decodable one stands in.
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", 0) + audioTrack(2, "A_OPUS", 0)));
+            const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
+            ASSERT_NOT_NULL(chosen, "A playable track is still offered");
+            ASSERT_TRUE(chosen->number == 1, "no eligible track, so first decodable");
+        }
+    }
+};
+
+class SchemaDefaultsTest : public TestCase {
+public:
+    SchemaDefaultsTest() : TestCase("Audio defaults apply when the elements are omitted") {}
+
+protected:
+    void runTest() override
+    {
+        auto parse = [](const std::vector<uint8_t>& track) {
+            return ebmlHeader("matroska")
+                 + element(Id::Segment,
+                           element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                         + element(Id::Tracks, track));
+        };
+
+        {   // No Audio element at all. RFC 8794 11.1.19: a reader must apply the
+            // declared default of a mandatory element the writer left out.
+            Parsed parsed(parse(element(Id::TrackEntry,
+                                        uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_FLAC"))));
+            const TrackEntry* t = parsed.parser().preferredAudioTrack();
+            ASSERT_NOT_NULL(t, "A track was chosen");
+            ASSERT_TRUE(t->sampling_frequency == 8000.0, "SamplingFrequency defaults to 8000");
+            ASSERT_TRUE(t->channels == 1, "Channels defaults to 1");
+
+            const StreamInfo info = parsed.parser().toStreamInfo(*t);
+            ASSERT_EQUALS(8000u, info.sample_rate,
+                          "a rate of 0 disables seek trimming, stamps every chunk 0, "
+                          "and gets the track refused by Audio::setup");
+            ASSERT_TRUE(info.channels == 1, "and one channel, not zero");
+        }
+        {   // An Audio element that states only the rate still takes the channel
+            // default, and the stated rate still wins.
+            Parsed parsed(parse(element(Id::TrackEntry,
+                                        uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_FLAC")
+                                      + element(Id::Audio,
+                                                floatEl(Id::SamplingFrequency, 44100.0)))));
+            const StreamInfo info =
+                parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack());
+            ASSERT_EQUALS(44100u, info.sample_rate, "an explicit rate wins over the default");
+            ASSERT_TRUE(info.channels == 1, "Channels still defaults");
+        }
+    }
+};
+
+
+        // A real OpusHead, as ffmpeg writes it: magic, version 1, two channels,
+        // pre_skip 312 little-endian, 48 kHz. OpusCodec seeds its own skip
+        // counter from this, so trimming encoder_delay as well removed 624
+        // frames of a track that owed 312.
+        const std::vector<uint8_t> head{'O','p','u','s','H','e','a','d',
+                                        1, 2, 0x38, 0x01, 0x80, 0xBB, 0x00, 0x00,
+                                        0x00, 0x00, 0x00};
+        ASSERT_EQUALS(uint32_t{0}, delayFor(head),
+                      "the decoder applies its own pre-skip, so the container's is dropped");
+
+        // Too short for OpusCodec to parse, so it will not skip anything. The
+        // container's value has to survive or the priming is never trimmed.
+        const std::vector<uint8_t> stub{'O','p','u','s','H','e','a','d'};
+        ASSERT_EQUALS(uint32_t{312}, delayFor(stub),
+                      "an unusable header falls back to CodecDelay in frames");
     }
 };
 
@@ -360,6 +457,7 @@ int main()
     suite.addTest(std::make_unique<TrackEntryTest>());
     suite.addTest(std::make_unique<TrackSelectionTest>());
     suite.addTest(std::make_unique<DefaultFlagTest>());
+    suite.addTest(std::make_unique<SchemaDefaultsTest>());
     suite.addTest(std::make_unique<StreamInfoMappingTest>());
 
     auto results = suite.runAll();
