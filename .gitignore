@@ -165,3 +165,6 @@ package/rpm/out/
 # Dropped in beside vera.ttf at runtime; never part of the source tree.
 res/extra.ttf
 extra.ttf
+
+# Code::Blocks generated dependency cache
+ref/psymp3.depend
