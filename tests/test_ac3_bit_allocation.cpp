@@ -214,6 +214,17 @@ protected:
         ASSERT_FALSE(ac3ComputeBitAllocation(exponents, 0, kBinCount + 1,
                                              AllocationChannel::FullBandwidth,
                                              parameters, {}, bap), "past the last bin");
+        // The bands end at 253; an end between that and kBinCount used to be
+        // accepted and ran the band loops past band 49.
+        for (unsigned end : {254u, kBinCount}) {
+            ASSERT_FALSE(ac3ComputeBitAllocation(exponents, 0, end,
+                                                 AllocationChannel::FullBandwidth,
+                                                 parameters, {}, bap),
+                         "past the last band (end " + std::to_string(end) + ")");
+        }
+        ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 0, 253,
+                                            AllocationChannel::FullBandwidth,
+                                            parameters, {}, bap), "the last band's end is fine");
 
         parameters.fscod = 3;   // reserved: there is no such hearing threshold column
         ASSERT_FALSE(ac3ComputeBitAllocation(exponents, 0, 253,
@@ -377,5 +388,6 @@ int main()
 
     auto results = suite.runAll();
     suite.printResults(results);
-    return suite.getFailureCount(results);
+    // An exception is not a failure to getFailureCount(); count it anyway.
+    return static_cast<int>(results.size()) - suite.getPassedCount(results);
 }
