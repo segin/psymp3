@@ -576,7 +576,7 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
             return "gsm";
         case 0x0040: // WAVE_FORMAT_G721_ADPCM
             return "g721";
-        case 0x0042: // WAVE_FORMAT_G728_CELP
+        case 0x0041: // WAVE_FORMAT_G728_CELP (0x0042 is WAVE_FORMAT_MSG723)
             return "g728";
         case WAVE_FORMAT_G722:
         // WAVE_FORMAT_G722_ADPCM is the registered tag. No file carrying it
@@ -584,10 +584,15 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
         // G.722 §1.4.4 has them, as under 0x028F. FFmpeg reads it as G.726.
         case WAVE_FORMAT_G722_ADPCM:
             return "g722";
-        case 0x2000: // WAVE_FORMAT_DOLBY_AC3_SPDIF, in practice plain AC-3
-            // The registered name says S/PDIF, but encoders use this tag for
-            // ordinary AC-3 syncframes in a data chunk, and those are all it
-            // is seen carrying. E-AC-3 has no tag of its own and is not mapped.
+        case 0x2000: // WAVE_FORMAT_DVM (FAST Multimedia)
+            // The tag AC-3 in WAV uses in practice, and what FFmpeg writes:
+            // plain syncframes in the data chunk. E-AC-3 has no tag of its
+            // own and is not mapped.
+            //
+            // WAVE_FORMAT_DOLBY_AC3_SPDIF (0x0092) is left unmapped. Its data
+            // may be IEC 61937 bursts, byte-swapped AC-3 behind a preamble,
+            // which the AC-3 codec cannot find a sync word in, and no such
+            // file has been seen to settle it.
             return "ac3";
         default:
             Debug::log("chunk", "ChunkDemuxer: Unknown WAV format tag: 0x", std::hex, format_tag);
