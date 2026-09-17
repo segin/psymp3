@@ -36,8 +36,10 @@ namespace AC3 {
 
 namespace {
 
-/// A/52 §7.5: which bins each rematrixing band covers. The fourth band's end
-/// depends on the channel bandwidth, so it is clamped by the caller.
+/// A/52 §7.5.2.1, Table 7.25: rematrixing band n covers the bins from
+/// kRematrixBands[n] up to, not including, kRematrixBands[n + 1]. The last
+/// band ends early when coupling or spectral extension starts below bin 253
+/// (Tables 7.26 and 7.27), so the caller clamps it to the channels' endmant.
 constexpr unsigned kRematrixBands[5] = {13, 25, 37, 61, 253};
 
 /// Decodes a coupling coordinate, A/52 §7.4.3. The exponent is offset by the
@@ -918,9 +920,13 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
             if (!state.rematflg[rbnd]) {
                 continue;
             }
-            const unsigned begin = rbnd == 0 ? 13u : kRematrixBands[rbnd - 1];
-            unsigned end = kRematrixBands[rbnd];
-            end = std::min(end, std::min(state.endmant[0], state.endmant[1]));
+            // rematflg[n] governs band n (§7.5.4). Reading the edges one
+            // band early applied every flag to the band below it and never
+            // dematrixed bins 61 and up, which left the right channel as the
+            // half-difference signal above about 5.7 kHz.
+            const unsigned begin = kRematrixBands[rbnd];
+            const unsigned end = std::min(kRematrixBands[rbnd + 1],
+                                          std::min(state.endmant[0], state.endmant[1]));
             for (unsigned bin = begin; bin < end; ++bin) {
                 const float sum = block.coefficients[0][bin];
                 const float difference = block.coefficients[1][bin];
