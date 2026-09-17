@@ -103,6 +103,7 @@ bool MatroskaDemuxer::parseContainer()
         m_stream_id = chosen->ordinal;
         m_sample_rate = m_streams.front().sample_rate;
         m_frame_prefix = chosen->stripped_frame_prefix;
+        m_track_timestamp_scale = chosen->timestamp_scale;
         // No real frame lasts a second; anything longer would only overflow
         // the lace arithmetic in takeBlock.
         constexpr uint64_t kMaxFrameNs = 1000000000ULL;
@@ -404,7 +405,10 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
 
     // A Cluster Timestamp at the edge of the int64 range would overflow the
     // sum, which is undefined; such a block has no usable time anyway.
-    const int64_t offset = header.timestamp_offset;
+    // A Matroska v1-3 track can scale the block's offset (RFC 9559 11.2).
+    const int64_t offset = m_track_timestamp_scale == 1.0
+                         ? header.timestamp_offset
+                         : std::llround(header.timestamp_offset * m_track_timestamp_scale);
     if ((offset > 0 && cluster_ticks > std::numeric_limits<int64_t>::max() - offset) ||
         (offset < 0 && cluster_ticks < std::numeric_limits<int64_t>::min() - offset)) {
         Debug::log("demux", "MatroskaDemuxer: block time out of range at ", block.header_offset);

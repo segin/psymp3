@@ -454,6 +454,15 @@ TrackEntry SegmentParser::parseTrackEntry(EBMLReader& reader, const EBMLElement&
         case Id::TrackName:       track.name = reader.readUTF8(child); break;
         case Id::Language:        track.language = reader.readString(child); break;
         case Id::DefaultDuration: track.default_duration_ns = reader.readUInt(child); break;
+        case Id::TrackTimestampScale: {
+            // The bound keeps a block offset times the scale well inside
+            // int64; nothing real comes near it.
+            const double scale = floatOr(reader, child, 1.0);
+            if (std::isfinite(scale) && scale > 0.0 && scale <= 1000000.0) {
+                track.timestamp_scale = scale;
+            }
+            break;
+        }
         case Id::CodecDelay:      track.codec_delay_ns = reader.readUInt(child); break;
         case Id::SeekPreRoll:     track.seek_preroll_ns = reader.readUInt(child); break;
         case Id::FlagLacing:      track.lacing_allowed = uintOr(reader, child, 1) != 0; break;

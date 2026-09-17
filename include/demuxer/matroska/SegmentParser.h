@@ -78,6 +78,10 @@ struct TrackEntry {
     bool default_track = true;
     bool enabled = true;
     uint64_t default_duration_ns = 0;
+    /// TrackTimestampScale (Matroska v1 to v3): what a block's relative
+    /// timestamp is multiplied by (RFC 9559 11.2). 1 unless the file states a
+    /// finite, positive value no larger than 1000000.
+    double timestamp_scale = 1.0;
     /// Nanoseconds of decoder startup to discard. Opus in Matroska states its
     /// pre-skip here rather than only in OpusHead.
     uint64_t codec_delay_ns = 0;

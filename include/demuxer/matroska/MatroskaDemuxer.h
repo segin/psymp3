@@ -103,6 +103,8 @@ private:
     /// The selected track's DefaultDuration, or 0 when it states none (or
     /// states something absurd): the spacing of a laced block's frames.
     uint64_t m_default_duration_ns = 0;
+    /// The selected track's TrackTimestampScale.
+    double m_track_timestamp_scale = 1.0;
     /// How far before a seek target decoding has to start for the output at
     /// the target to be valid: the track's SeekPreRoll, and for Opus at
     /// least the 80 ms RFC 7845 4.6 asks for.

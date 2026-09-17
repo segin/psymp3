@@ -72,6 +72,7 @@ constexpr uint32_t CodecID         = 0x86;
 constexpr uint32_t CodecPrivate    = 0x63A2;
 constexpr uint32_t CodecName       = 0x258688;
 constexpr uint32_t CodecDelay      = 0x56AA;
+constexpr uint32_t TrackTimestampScale = 0x23314F;
 constexpr uint32_t SeekPreRoll     = 0x56BB;
 
 // ContentEncodings, RFC 9559 5.1.4.1.31.

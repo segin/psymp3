@@ -846,6 +846,36 @@ protected:
     }
 };
 
+class TrackTimestampScaleTest : public TestCase {
+public:
+    TrackTimestampScaleTest() : TestCase("TrackTimestampScale scales a block's offset") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> track =
+            element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                  + uintEl(Id::TrackType, TrackType::Audio)
+                                  + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                                  + floatEl(Id::TrackTimestampScale, 2.0)
+                                  + element(Id::Audio, floatEl(Id::SamplingFrequency, kSampleRate)
+                                                     + uintEl(Id::Channels, kChannels)
+                                                     + uintEl(Id::BitDepth, kBitDepth)));
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment,
+                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                  + element(Id::Tracks, track)
+                  + element(Id::Cluster, uintEl(Id::Timestamp, 100)
+                                       + simpleBlock(1, 10, std::vector<uint8_t>(kFrameBytes, 0x5A))));
+        MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        const MediaChunk chunk = demuxer.readChunk();
+        ASSERT_TRUE(chunk.isValid(), "the block is read");
+        ASSERT_EQUALS(samplesAt(120), chunk.timestamp_samples, "100 ms plus 10 ticks times 2");
+    }
+};
+
 class NothingPlayableTest : public TestCase {
 public:
     NothingPlayableTest() : TestCase("A file whose only audio track is disabled ends at once") {}
@@ -977,6 +1007,7 @@ int main()
     suite.addTest(std::make_unique<WideTrackNumberTest>());
     suite.addTest(std::make_unique<SeekPreRollTest>());
     suite.addTest(std::make_unique<NothingPlayableTest>());
+    suite.addTest(std::make_unique<TrackTimestampScaleTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
