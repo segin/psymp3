@@ -51,8 +51,9 @@ protected:
         ASSERT_EQUALS(3, EBMLReader::vintLength(0x20), "0x20 starts a three-byte VINT");
         ASSERT_EQUALS(4, EBMLReader::vintLength(0x10), "0x10 starts a four-byte VINT");
         ASSERT_EQUALS(8, EBMLReader::vintLength(0x01), "0x01 starts an eight-byte VINT");
-        // A first byte with no marker bit would mean a ninth byte or beyond,
-        // which EBML does not define.
+        // A first byte with no marker bit would start a VINT of nine bytes or
+        // more. EBML allows that only under a larger declared EBMLMaxIDLength
+        // or EBMLMaxSizeLength, and Matroska forbids both.
         ASSERT_EQUALS(0, EBMLReader::vintLength(0x00), "0x00 cannot start a VINT");
     }
 };
@@ -197,14 +198,17 @@ protected:
             ASSERT_TRUE(bytes.reader().readUInt(element) == 0x010203ULL,
                         "A three-byte unsigned integer is big-endian");
         }
-        {   // A zero-length integer is legal EBML and means zero. Matroska
-            // leans on it to leave a defaulted field present but empty.
+        {   // A zero-length integer is legal EBML, and the reader returns 0 for
+            // it. An empty element whose schema declares a default means that
+            // default instead (RFC 8794 6.1), which is for the schema layer to
+            // apply; RFC 9559 4.4 forbids Matroska writers to write one empty
+            // unless its default is 0.
             Bytes bytes({0x81, 0x80});
             EBMLElement element;
             bytes.reader().readElementHeader(element);
             ASSERT_TRUE(element.size == 0, "The payload is empty");
             ASSERT_TRUE(bytes.reader().readUInt(element) == 0,
-                        "A zero-length integer is zero, not an error");
+                        "A zero-length integer reads as zero, not as an error");
         }
         {   // Signed, one byte: 0xFF is -1, and must not come back as 255.
             Bytes bytes({0x81, 0x81, 0xFF});
@@ -237,7 +241,7 @@ public:
 protected:
     void runTest() override
     {
-        {   // 48000.0f is 0x474EA000. Matroska writes SamplingFrequency as a
+        {   // 48000.0f is 0x473B8000. Matroska writes SamplingFrequency as a
             // float, so this is the shape of a real track header field.
             Bytes bytes({0x81, 0x84, 0x47, 0x3B, 0x80, 0x00});
             EBMLElement element;
@@ -287,8 +291,9 @@ public:
 protected:
     void runTest() override
     {
-        // Segment ID (0x18538067) with a one-byte unknown size, as a live
-        // WebM muxer writes it.
+        // Segment ID (0x18538067) with the one-byte unknown size. ffmpeg's
+        // live WebM writes the eight-byte one, 01 FF FF FF FF FF FF FF; both
+        // are legal.
         Bytes bytes({0x18, 0x53, 0x80, 0x67, 0xFF, 0x00});
         EBMLElement element;
         ASSERT_TRUE(bytes.reader().readElementHeader(element), "The header reads");
@@ -316,8 +321,8 @@ public:
 protected:
     void runTest() override
     {
-        // A size field claiming ~2^48 bytes, which a truncated file produces by
-        // accident often enough. The file is six bytes long.
+        // A size field claiming 2^40 bytes, which a truncated file produces by
+        // accident often enough. The buffer is nine bytes long.
         Bytes bytes({0x81, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00});
         EBMLElement element;
         ASSERT_TRUE(bytes.reader().readElementHeader(element), "The header reads");
@@ -341,7 +346,7 @@ public:
 protected:
     void runTest() override
     {
-        // A master element (ID 0x1A45DFA3, size 9) holding two children:
+        // A master element (ID 0x1A45DFA3, size 8) holding two children:
         //   0x4286 (EBMLVersion) size 1, value 1
         //   0x42F7 (EBMLReadVersion) size 1, value 1
         Bytes bytes({0x1A, 0x45, 0xDF, 0xA3, 0x88,
