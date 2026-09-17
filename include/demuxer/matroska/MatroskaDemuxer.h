@@ -57,14 +57,17 @@ public:
     uint64_t getDuration() const override;
     uint64_t getPosition() const override;
 
-    /// A Matroska seek lands on a cluster boundary at or before the target,
-    /// never on the target itself, so the stream has to be told where it
-    /// actually landed in order to drop what lies between the two. Reporting
-    /// granules is what turns that trimming on in DemuxedStream::seekTo;
-    /// without it a seek plays from the cluster boundary while reporting the
-    /// target as its position -- up to a whole cluster of audio the listener
-    /// did not ask for. Only claimed once the sample rate is known, since the
-    /// granule is expressed in samples and means nothing without it.
+    /// A Matroska seek restarts reading at a cluster, and lands on the first
+    /// frame of the track read from there. That is usually before the target
+    /// and can be exactly on it; it is after the target only when that frame
+    /// is itself later, as when the cluster's audio starts some way in. The
+    /// stream has to be told where the seek landed in order to drop what lies
+    /// between the landing and the target. Reporting granules is what turns
+    /// that trimming on in DemuxedStream::seekTo; without it a seek plays from
+    /// the landing while reporting the target as its position -- up to a whole
+    /// cluster of audio the listener did not ask for. Only claimed once the
+    /// sample rate is known, since the granule is expressed in samples and
+    /// means nothing without it.
     bool providesGranulePositions() const override { return m_sample_rate > 0; }
     uint64_t getGranulePosition(uint32_t stream_id) const override;
 
@@ -93,8 +96,8 @@ private:
     std::vector<uint8_t> m_frame_prefix;
     /// Where playback actually is, in samples -- the landing after a seek, and
     /// the last chunk handed out otherwise. Guarded by the base class's
-    /// m_state_mutex alongside m_position_ms, which it is derived from the
-    /// same tick count as.
+    /// m_state_mutex alongside m_position_ms, which is always set with it and
+    /// names the same point in milliseconds.
     uint64_t m_granule_samples = 0;
     uint64_t m_file_size = 0;
 

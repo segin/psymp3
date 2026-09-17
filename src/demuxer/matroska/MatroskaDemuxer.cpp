@@ -101,10 +101,13 @@ bool MatroskaDemuxer::parseContainer()
 
     m_duration_ms = m_parser.info().durationMs();
 
-    // Cues are written after the clusters, so SeekHead is the only way to find
-    // them; failing that, the cluster headers are walked instead.
+    // Cues are found only through SeekHead. They usually follow the clusters,
+    // and although RFC 9559 6.4 lets them come first instead, the Segment walk
+    // does not collect them there. Without Cues usable for the track, the
+    // cluster headers are walked instead.
     if (m_track_number != 0) {
-        // A damaged index costs seeking, not playback. Cues are only
+        // A damaged index costs fast seeking, not playback: with no index, a
+        // seek restarts at the first cluster and decodes forward. Cues are only
         // SHOULD-be-present (5.1.5) and the clusters behind them are intact, but
         // both builders throw on a malformed VINT or an integer wider than eight
         // octets, and an exception escaping here fails parseContainer, which
@@ -480,12 +483,12 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     // What the landing actually is: the time of the first frame that will be
     // handed out, because DemuxedStream labels frames from a counter anchored
     // on the value reported here. That is neither a Cues entry's CueTime --
-    // the time of some Block in the cluster (RFC 9559 5.1.5.1.1), not
-    // necessarily its first -- nor the Cluster's own Timestamp, since a
-    // block's time is that Timestamp plus its own signed offset (RFC 9559
-    // 11.2), and in mkvmerge files a cluster's first audio block commonly sits
-    // behind a video frame, up to about 200 ms in. Reading ahead to that frame
-    // settles it; the frame stays queued for readChunk.
+    // the time of a seek point (RFC 9559 5.1.5.1.1) whose Block the cluster
+    // holds (5.1.5.1.2.2), not necessarily its first -- nor the Cluster's own
+    // Timestamp, since a block's time is that Timestamp plus its own signed
+    // offset (RFC 9559 11.2), and in mkvmerge files a cluster's first audio
+    // block commonly sits behind a video frame, up to about 200 ms in. Reading
+    // ahead to that frame settles it; the frame stays queued for readChunk.
     uint64_t landing_samples = 0;
     uint64_t landing_ms = 0;
     if (fillQueue()) {
