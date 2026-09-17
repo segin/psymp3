@@ -122,6 +122,9 @@ bool MatroskaDemuxer::parseContainer()
     }
 
     m_duration_ms = m_parser.info().durationMs();
+    if (m_track_number != 0) {
+        findOrigin();
+    }
 
     // The seek index is built at the first seek (buildIndex), as RFC 9559
     // 23.1 advises: without usable Cues it means reading every cluster header
@@ -394,7 +397,12 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
         Debug::log("demux", "MatroskaDemuxer: block time out of range at ", block.header_offset);
         return;
     }
-    const int64_t ticks = cluster_ticks + offset;
+    // Times are handed out relative to the track's first block (findOrigin).
+    const int64_t absolute_ticks = cluster_ticks + offset;
+    if (absolute_ticks < std::numeric_limits<int64_t>::min() + m_origin_ticks) {
+        return;
+    }
+    const int64_t ticks = absolute_ticks - m_origin_ticks;
     const uint64_t milliseconds = ticksToMs(ticks);
 
     // A frame whose time is negative is decoded but not played (RFC 9559
@@ -404,10 +412,9 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
     // leading padding.
     uint32_t before_zero = 0;
     if (ticks < 0 && m_sample_rate > 0) {
-        // Cluster Timestamps are unsigned, so ticks is at least -32768.
         constexpr uint64_t kMaxLeadNs = 10ULL * 1000000000ULL;
         const uint64_t scale = m_parser.info().timestamp_scale_ns;
-        const uint64_t span = static_cast<uint64_t>(-ticks);
+        const uint64_t span = static_cast<uint64_t>(-(ticks + 1)) + 1;
         const uint64_t ns = scale > kMaxLeadNs / span ? kMaxLeadNs : span * scale;
         const uint64_t needed = (ns * m_sample_rate + 999999999ULL) / 1000000000ULL;
         if (needed > m_frames_before_zero) {
@@ -440,6 +447,91 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
             chunk.padding_tail_frames = padding_frames;
         }
         m_queue.push_back(std::move(chunk));
+    }
+}
+
+void MatroskaDemuxer::findOrigin()
+{
+    // A file whose first block is not at time 0 -- the second part of a split
+    // recording, say -- is played from its first block, and DemuxedStream
+    // counts positions from there. Cluster, block and cue times are absolute,
+    // so the first block of this track is what relates the two. Time before 0
+    // is not played (RFC 9559 11.2), so the origin is never below it. Only the
+    // first few clusters are looked at: a track that starts later than that
+    // is taken to start at 0.
+    constexpr int kMaxClusters = 64;
+    m_origin_ticks = 0;
+    try {
+        uint64_t offset = m_parser.firstClusterOffset();
+        for (int n = 0; n < kMaxClusters && offset != 0 && offset < m_file_size; ++n) {
+            m_reader.seek(offset);
+            EBMLElement cluster;
+            if (!m_reader.readElementHeader(cluster) || cluster.unknown_size) {
+                return;
+            }
+            offset = cluster.end();
+            if (cluster.id != Id::Cluster) {
+                continue;
+            }
+            const uint64_t end = cluster.end();
+            const int64_t cluster_ticks = clusterTimestamp(cluster.data_offset, end);
+            uint64_t at = cluster.data_offset;
+            while (at < end) {
+                m_reader.seek(at);
+                EBMLElement child;
+                if (!m_reader.readElementHeader(child) || child.unknown_size) {
+                    break;
+                }
+                at = child.end();
+                EBMLElement block = child;
+                if (child.id == Id::BlockGroup) {
+                    bool found = false;
+                    while (m_reader.tell() < child.end()) {
+                        EBMLElement inner;
+                        if (!m_reader.readElementHeader(inner) || inner.unknown_size) {
+                            break;
+                        }
+                        if (inner.id == Id::Block) {
+                            block = inner;
+                            found = true;
+                            break;
+                        }
+                        m_reader.seek(inner.end());
+                    }
+                    if (!found) {
+                        continue;
+                    }
+                } else if (child.id != Id::SimpleBlock) {
+                    continue;
+                }
+                // The track number and the 16-bit relative time lead the
+                // payload; nothing more is read.
+                uint8_t lead[10] = {};
+                const size_t want = static_cast<size_t>(std::min<uint64_t>(block.size, sizeof(lead)));
+                m_reader.seek(block.data_offset);
+                if (m_handler->read(lead, 1, want) != want) {
+                    return;
+                }
+                uint64_t track = 0;
+                const size_t used = EBMLReader::decodeVInt(lead, want, track, /*keep_marker=*/false);
+                if (used == 0 || used + 2 > want || track != m_track_number) {
+                    continue;
+                }
+                const auto relative = static_cast<int16_t>((lead[used] << 8) | lead[used + 1]);
+                const int64_t offset_ticks = m_track_timestamp_scale == 1.0
+                                           ? relative
+                                           : std::llround(relative * m_track_timestamp_scale);
+                if (offset_ticks > 0 && cluster_ticks > std::numeric_limits<int64_t>::max() - offset_ticks) {
+                    m_origin_ticks = std::numeric_limits<int64_t>::max();
+                } else {
+                    m_origin_ticks = std::max<int64_t>(0, cluster_ticks + offset_ticks);
+                }
+                return;
+            }
+        }
+    } catch (const std::exception& e) {
+        Debug::log("demux", "MatroskaDemuxer: could not find where the track starts: ", e.what());
+        m_origin_ticks = 0;
     }
 }
 
@@ -713,7 +805,12 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
         return false;
     }
     const uint64_t scale = m_parser.info().timestamp_scale_ns;
-    const uint64_t ticks = scale > 0 ? (timestamp_ms * 1000000ULL) / scale : timestamp_ms;
+    // The target counts from the track's first block; the index is absolute.
+    const uint64_t relative = scale > 0 ? (timestamp_ms * 1000000ULL) / scale : timestamp_ms;
+    const uint64_t origin = static_cast<uint64_t>(m_origin_ticks);
+    const uint64_t ticks = relative > std::numeric_limits<uint64_t>::max() - origin
+                         ? std::numeric_limits<uint64_t>::max()
+                         : origin + relative;
 
     // Where to start reading. A seek has to land at or before the target:
     // DemuxedStream decodes forward from the landing and drops everything

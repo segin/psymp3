@@ -73,7 +73,8 @@ std::vector<uint8_t> pcmTrack(uint64_t number)
 /// these tests pin down does not depend on which index picked it.
 /// Each block carries a full kFrameBytes of PCM, so the fixture really holds
 /// the duration its timestamps claim.
-std::vector<uint8_t> buildFile(const std::vector<uint8_t>& track = pcmTrack(1))
+std::vector<uint8_t> buildFile(const std::vector<uint8_t>& track = pcmTrack(1),
+                               uint64_t base_ms = 0)
 {
     const std::vector<uint8_t> info =
         element(Id::Info, uintEl(Id::TimestampScale, 1000000)
@@ -84,7 +85,7 @@ std::vector<uint8_t> buildFile(const std::vector<uint8_t>& track = pcmTrack(1))
     for (int i = 0; i < kClusterCount; ++i) {
         clusters = clusters
                  + element(Id::Cluster,
-                           uintEl(Id::Timestamp, static_cast<uint64_t>(i) * kBlockMs)
+                           uintEl(Id::Timestamp, base_ms + static_cast<uint64_t>(i) * kBlockMs)
                          + simpleBlock(1, 0, std::vector<uint8_t>(kFrameBytes, 0x5A)));
     }
 
@@ -511,21 +512,22 @@ protected:
         MatroskaDemuxer demuxer(std::move(handler));
         ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
 
-        // Cluster 3 starts at 300 ms, and its audio 30 ms later. Reporting the
+        // Times count from the first audio block, 30 ms into the Segment, so
+        // cluster 3 starts at 270 ms and its audio at 300. Reporting the
         // cluster's own Timestamp labelled every frame after the seek 30 ms
         // early, for the rest of the track.
         ASSERT_TRUE(demuxer.seekTo(350), "seek should succeed");
-        ASSERT_EQUALS(samplesAt(300 + kAudioOffsetMs), demuxer.getGranulePosition(1),
+        ASSERT_EQUALS(samplesAt(300), demuxer.getGranulePosition(1),
                       "landing is the audio block's time, not the cluster's");
         auto chunk = demuxer.readChunk();
         ASSERT_TRUE(chunk.isValid(), "the audio frame follows");
-        ASSERT_EQUALS(samplesAt(300 + kAudioOffsetMs), chunk.timestamp_samples,
+        ASSERT_EQUALS(samplesAt(300), chunk.timestamp_samples,
                       "and it is the frame the landing names");
 
-        // 310 ms falls before cluster 3's audio, which starts at 330, so the
-        // seek steps back to cluster 2, whose audio runs from 230.
-        ASSERT_TRUE(demuxer.seekTo(310), "seek should succeed");
-        ASSERT_EQUALS(samplesAt(200 + kAudioOffsetMs), demuxer.getGranulePosition(1),
+        // 290 ms is after cluster 3 starts but before its audio does, so the
+        // seek steps back to cluster 2, whose audio runs from 200.
+        ASSERT_TRUE(demuxer.seekTo(290), "seek should succeed");
+        ASSERT_EQUALS(samplesAt(200), demuxer.getGranulePosition(1),
                       "the landing is never after the target");
     }
 };
@@ -812,7 +814,8 @@ protected:
         for (uint64_t i = 0; i < 3; ++i) {
             const MediaChunk chunk = demuxer.readChunk();
             ASSERT_EQUALS(kFrameBytes, chunk.data.size(), "frame " + std::to_string(i) + " is read");
-            ASSERT_EQUALS(samplesAt(100 + 20 * i), chunk.timestamp_samples, "at its own time");
+            // The block is the file's first, so its time is 0.
+            ASSERT_EQUALS(samplesAt(20 * i), chunk.timestamp_samples, "at its own time");
         }
     }
 };
@@ -875,10 +878,13 @@ protected:
           + element(Id::Segment,
                     element(Id::Info, uintEl(Id::TimestampScale, 1000000))
                   + element(Id::Tracks, track)
+                  + element(Id::Cluster, uintEl(Id::Timestamp, 0)
+                                       + simpleBlock(1, 0, std::vector<uint8_t>(kFrameBytes, 0x5A)))
                   + element(Id::Cluster, uintEl(Id::Timestamp, 100)
                                        + simpleBlock(1, 10, std::vector<uint8_t>(kFrameBytes, 0x5A))));
         MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
         ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        ASSERT_TRUE(demuxer.readChunk().isValid(), "the block at 0 is read");
         const MediaChunk chunk = demuxer.readChunk();
         ASSERT_TRUE(chunk.isValid(), "the block is read");
         ASSERT_EQUALS(samplesAt(120), chunk.timestamp_samples, "100 ms plus 10 ticks times 2");
@@ -1034,6 +1040,29 @@ protected:
     }
 };
 
+class LateStartTest : public TestCase {
+public:
+    LateStartTest() : TestCase("A file that starts after time 0 is timed from its first block") {}
+
+protected:
+    void runTest() override
+    {
+        // The second half of a split recording: it starts 10 s in.
+        const std::vector<uint8_t> file = buildFile(pcmTrack(1), 10000);
+        MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        const MediaChunk first = demuxer.readChunk();
+        ASSERT_EQUALS(uint64_t{0}, first.timestamp_samples, "the first block is at 0");
+
+        ASSERT_TRUE(demuxer.seekTo(530), "seek should succeed");
+        ASSERT_EQUALS(samplesAt(520), demuxer.getGranulePosition(1),
+                      "530 ms into the file lands in the cluster 520 ms in");
+        ASSERT_EQUALS(uint64_t{520}, demuxer.getPosition(), "and says so in milliseconds");
+        ASSERT_TRUE(demuxer.seekTo(0), "a seek to the start");
+        ASSERT_EQUALS(uint64_t{0}, demuxer.getGranulePosition(1), "lands at the start");
+    }
+};
+
 class HostileClustersTest : public TestCase {
 public:
     HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
@@ -1099,6 +1128,7 @@ int main()
     suite.addTest(std::make_unique<StaleCuesTest>());
     suite.addTest(std::make_unique<ResyncTest>());
     suite.addTest(std::make_unique<LateTimestampTest>());
+    suite.addTest(std::make_unique<LateStartTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

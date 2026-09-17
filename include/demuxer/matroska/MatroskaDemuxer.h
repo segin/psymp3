@@ -81,6 +81,8 @@ private:
                    int64_t discard_padding_ns);
     /// Reads Cues, or scans the cluster headers, on the first seek.
     void buildIndex();
+    /// Sets m_origin_ticks from the selected track's first block.
+    void findOrigin();
     /// The Timestamp of the cluster whose children run from @p from to
     /// @p end, wherever among them it is, or 0 if it states none.
     int64_t clusterTimestamp(uint64_t from, uint64_t end);
@@ -121,6 +123,11 @@ private:
     /// Whether buildIndex() has run. The index is only wanted for seeking,
     /// and building it can mean reading the whole file.
     bool m_index_built = false;
+    /// Segment time, in ticks, of the selected track's first block, or 0 if
+    /// that is earlier. DemuxedStream counts from its first decoded frame, so
+    /// every time handed out, and every seek target taken in, is relative to
+    /// this.
+    int64_t m_origin_ticks = 0;
     /// Where playback actually is, in samples -- the landing after a seek, and
     /// the last chunk handed out otherwise. Guarded by the base class's
     /// m_state_mutex alongside m_position_ms, which is always set with it and
