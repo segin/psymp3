@@ -12,8 +12,14 @@
 
 // Building the bytes rather than shipping a .mkv keeps every value in the
 // Matroska tests visible at the call site, and reaches cases no muxer would
-// produce: a zero TimestampScale, a Cues element naming only another track,
-// a Cluster whose timestamp is not its first child.
+// produce: a zero TimestampScale, a CueTime nine octets wide, a NaN
+// SamplingFrequency.
+//
+// The fixtures are minimal rather than schema-valid. Most leave out elements
+// RFC 9559 makes mandatory with no default, such as TrackUID, MuxingApp and
+// WritingApp, and the CRC-32 elements in test_matroska_cues hold 0 rather
+// than a checksum. The parser checks none of that, and the tests rely on it
+// not doing so.
 //
 // tests/data carries no committed binaries -- the FLAC fixture is generated and
 // the G.722 one is an embedded header -- so this is also the house pattern.
@@ -41,7 +47,9 @@ inline std::vector<uint8_t> idBytes(uint32_t id)
 
 inline std::vector<uint8_t> sizeBytes(uint64_t size)
 {
-    // Narrowest width that holds the value, which is what a real muxer writes.
+    // Narrowest width that holds the value without being all ones, which would
+    // mean an unknown size. Real muxers also write wider sizes than they need;
+    // test_ebml_reader reads one back.
     for (int length = 1; length <= 8; ++length) {
         const uint64_t capacity = (1ULL << (7 * length)) - 1;
         if (size < capacity) {
