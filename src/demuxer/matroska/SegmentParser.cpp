@@ -814,10 +814,16 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     // rates the product below also wraps. Such a value is ignored. With the
     // rate capped at 1,048,575 Hz above, 10 s keeps that product under 2^54.
     constexpr uint64_t kMaxCodecDelayNs = 10ULL * 1000000000ULL;
+    //
+    // Rounded to the nearest frame: ffmpeg writes 1105 frames at 44.1 kHz as
+    // 25,056,689 ns, which truncates to 1104.
     if (track.codec_delay_ns > 0 && track.codec_delay_ns <= kMaxCodecDelayNs &&
-        info.sample_rate > 0 && !decoder_trims_its_own_delay) {
-        info.encoder_delay = static_cast<uint32_t>(
-            (track.codec_delay_ns * info.sample_rate) / 1000000000ULL);
+        info.sample_rate > 0) {
+        info.codec_delay = static_cast<uint32_t>(
+            (track.codec_delay_ns * info.sample_rate + 500000000ULL) / 1000000000ULL);
+        if (!decoder_trims_its_own_delay) {
+            info.encoder_delay = info.codec_delay;
+        }
     }
 
     // A Duration that is finite but absurd can still wrap this product, so it is

@@ -211,11 +211,10 @@ protected:
             const std::vector<AudioSample> after = readFirstChannel(stream, kInputRate / 2);
             const long seek_onset = firstLoud(after);
             ASSERT_TRUE(seek_onset > 0, what + "the audio after the seek starts quiet");
-            // The decoder drops its first frame after a seek without the
-            // stream counting it, which can move the tone up to one frame,
-            // 2048 samples, early.
+            // The decoder drops its first frame after a seek, and the stream
+            // counts it. What is left is the block times' millisecond grain.
             const long found = static_cast<long>(target_ms * kInputRate / 1000) + seek_onset;
-            ASSERT_TRUE(std::labs(found - onset) <= 2048 + 64,
+            ASSERT_TRUE(std::labs(found - onset) <= 64,
                         what + "the tone is at " + std::to_string(onset) + " after the seek too, not "
                         + std::to_string(found));
         }

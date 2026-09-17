@@ -69,6 +69,7 @@ public:
     /// sample rate is known, since the granule is expressed in samples and
     /// means nothing without it.
     bool providesGranulePositions() const override { return m_sample_rate > 0; }
+    bool chunkTimesAreExact() const override { return m_sample_rate > 0; }
     uint64_t getGranulePosition(uint32_t stream_id) const override;
 
 private:
@@ -114,6 +115,9 @@ private:
     /// The selected track's DefaultDuration, or 0 when it states none (or
     /// states something absurd): the spacing of a laced block's frames.
     uint64_t m_default_duration_ns = 0;
+    /// The selected track's CodecDelay in sample frames: how far each block's
+    /// time is ahead of the audio it plays.
+    uint64_t m_codec_delay_frames = 0;
     /// The selected track's TrackTimestampScale.
     double m_track_timestamp_scale = 1.0;
     /// How far before a seek target decoding has to start for the output at

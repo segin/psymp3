@@ -63,12 +63,16 @@ constexpr size_t kFramesPerBlock = 882; // 20 ms
 /// the count. With @p tail_padding_ns, the last block is a BlockGroup that
 /// says that much of its end is padding. @p block_offset_ms moves every block
 /// against its cluster, so a negative one starts the audio before time 0.
-std::vector<uint8_t> rampFile(uint32_t tail_padding_ns = 0, int8_t block_offset_ms = 0)
+/// @p codec_delay_ns is written as the track's CodecDelay.
+std::vector<uint8_t> rampFile(uint32_t tail_padding_ns = 0, int8_t block_offset_ms = 0,
+                              uint64_t codec_delay_ns = 0)
 {
     const std::vector<uint8_t> track =
         element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
                               + uintEl(Id::TrackType, TrackType::Audio)
                               + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                              + (codec_delay_ns ? uintEl(Id::CodecDelay, codec_delay_ns)
+                                                : std::vector<uint8_t>{})
                               + element(Id::Audio, floatEl(Id::SamplingFrequency, kRate)
                                                  + uintEl(Id::Channels, 2)
                                                  + uintEl(Id::BitDepth, 16)));
@@ -321,6 +325,85 @@ protected:
     }
 };
 
+/// Drops the first chunk it decodes after a reset, as a codec with a warm-up
+/// frame does, and stamps what it returns with its chunk's time.
+class WarmUpCodec : public AudioCodec {
+public:
+    explicit WarmUpCodec(std::unique_ptr<AudioCodec> inner)
+        : AudioCodec(inner->getStreamInfo()), m_inner(std::move(inner))
+    {
+        m_initialized = true;
+    }
+
+    bool initialize() override { return true; }
+    AudioFrame decode(const MediaChunk& chunk) override
+    {
+        AudioFrame frame = m_inner->decode(chunk);
+        if (m_warming) {
+            m_warming = false;
+            return AudioFrame{};
+        }
+        return frame;
+    }
+    AudioFrame flush() override { return m_inner->flush(); }
+    void reset() override
+    {
+        m_warming = true;
+        m_inner->reset();
+    }
+    std::string getCodecName() const override { return m_inner->getCodecName(); }
+    bool canDecode(const StreamInfo& info) const override { return m_inner->canDecode(info); }
+
+private:
+    std::unique_ptr<AudioCodec> m_inner;
+    bool m_warming = false;
+};
+
+class SeekCountTest : public TestCase {
+public:
+    SeekCountTest() : TestCase("A seek counts from the first audio the codec returns, at its played time") {}
+
+protected:
+    void runTest() override
+    {
+        {   // CodecDelay: every block is 10 ms ahead of the audio in it.
+            constexpr uint32_t kDelay = 441;
+            const std::vector<uint8_t> file = rampFile(0, 0, 10000000);
+            DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                                 TagLib::String("ramp.mka"));
+            ASSERT_EQUALS(uint32_t{kRate}, static_cast<uint32_t>(stream.getRate()), "opened");
+            ASSERT_EQUALS(static_cast<int32_t>(kDelay), readCounters(stream, 1).front(),
+                          "the delay is dropped from the start");
+            stream.seekTo(500);
+            ASSERT_EQUALS(static_cast<int32_t>(22050 + kDelay), readCounters(stream, 1).front(),
+                          "a seek to 500 ms plays what 500 ms plays from the start");
+            stream.seekTo(0);
+            ASSERT_EQUALS(static_cast<int32_t>(kDelay), readCounters(stream, 1).front(),
+                          "and a seek to the start drops the delay again");
+        }
+        {   // A codec that drops its first chunk after a seek.
+            const std::vector<uint8_t> file = rampFile();
+            DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                                 TagLib::String("ramp.mka"));
+            ASSERT_EQUALS(uint32_t{kRate}, static_cast<uint32_t>(stream.getRate()), "opened");
+            stream.m_codec = std::make_unique<WarmUpCodec>(std::move(stream.m_codec));
+            // The seek lands on the block at 500 ms, which the codec drops, so
+            // the first audio it keeps is the block at 520 ms, past the
+            // target. The seek starts again a block earlier, and the audio
+            // from the target on plays.
+            stream.seekTo(510);
+            const std::vector<int32_t> after = readCounters(stream, 2000);
+            ASSERT_EQUALS(size_t{2000}, after.size(), "audio follows the seek");
+            ASSERT_EQUALS(static_cast<int32_t>(22491), after.front(), "starting at the target");
+            for (size_t i = 1; i < after.size(); ++i) {
+                if (after[i] != after[i - 1] + 1) {
+                    ASSERT_EQUALS(after[i - 1] + 1, after[i], "and carrying on without a gap");
+                }
+            }
+        }
+    }
+};
+
 class LastGranuleTest : public TestCase {
 public:
     LastGranuleTest() : TestCase("Audio past the stream's last granule is not played") {}
@@ -390,6 +473,7 @@ int main()
 
     TestSuite suite("DemuxedStream Seek Tests");
     suite.addTest(std::make_unique<RefusedSeekKeepsAudioTest>());
+    suite.addTest(std::make_unique<SeekCountTest>());
     suite.addTest(std::make_unique<TailPaddingTest>());
     suite.addTest(std::make_unique<LastGranuleTest>());
     suite.addTest(std::make_unique<BufferBoundTest>());

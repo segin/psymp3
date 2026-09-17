@@ -157,6 +157,8 @@ void DemuxedStream::updateStreamProperties() {
         if (decoded.channels != 0) m_channels = decoded.channels;
     }
     m_output_format_pending = m_codec && !m_codec->outputFormatKnown();
+    m_codec_delay = stream_info.codec_delay;
+    m_reanchor_pending = false;
     m_bitrate = stream_info.bitrate;
     // Opus states no bitrate at all, and ALAC/Vorbis encoders often leave
     // theirs at zero, so derive the average the way every other player does:
@@ -246,6 +248,35 @@ void DemuxedStream::adoptOutputFormat(const AudioFrame& frame)
     m_samples_consumed = rescale(m_samples_consumed);
     m_discard_until_samples = rescale(m_discard_until_samples);
     m_sposition = static_cast<long long>(rescale(static_cast<uint64_t>(m_sposition)));
+}
+
+void DemuxedStream::reanchorAfterSeek(const AudioFrame& frame)
+{
+    // The frame plays at the landing, moved on by however far past the first
+    // chunk decoded the codec's output starts, and back by the codec delay
+    // every chunk time carries (RFC 9559 5.1.4.1.25). A codec that stamps
+    // nothing usable leaves the landing as it was.
+    m_anchor_start = m_samples_consumed;
+    m_anchor_swallow = 0;
+    if (frame.timestamp_samples < m_seek_base) {
+        return;
+    }
+    const auto landing = static_cast<int64_t>(toOutputFrames(m_seek_landing));
+    const auto skipped = static_cast<int64_t>(toOutputFrames(frame.timestamp_samples - m_seek_base));
+    const auto delay = static_cast<int64_t>(toOutputFrames(m_codec_delay));
+    const int64_t plays_at = landing + skipped - delay;
+    m_anchor_start = plays_at > 0 ? static_cast<uint64_t>(plays_at) : 0;
+    m_anchor_swallow = skipped;
+    if (plays_at >= 0) {
+        m_samples_consumed = static_cast<uint64_t>(plays_at);
+        m_frames_emitted = static_cast<uint64_t>(plays_at);
+    } else {
+        // Audio from before the start of the stream is the priming, dropped
+        // as it is when playing from the top.
+        m_samples_consumed = 0;
+        m_frames_emitted = 0;
+        m_encoder_delay_remaining += static_cast<uint32_t>(-plays_at);
+    }
 }
 
 void DemuxedStream::primeOutputFormat()
@@ -586,6 +617,16 @@ AudioFrame DemuxedStream::getNextFrame() {
         
         AudioFrame frame = m_codec->decode(chunk);
         adoptOutputFormat(frame);
+        if (m_reanchor_pending) {
+            if (!m_seek_base_set) {
+                m_seek_base = chunk.timestamp_samples;
+                m_seek_base_set = true;
+            }
+            if (!frame.samples.empty()) {
+                m_reanchor_pending = false;
+                reanchorAfterSeek(frame);
+            }
+        }
 
         // Container padding (Matroska's DiscardPadding). Padding at the start
         // of a block goes the way of an encoder's priming: it is the next
@@ -766,14 +807,69 @@ void DemuxedStream::seekTo(unsigned long pos) {
 
     // Exclude the decoder thread (getData) for the whole seek; see m_decode_mutex.
     std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
+    if (!restartAt_unlocked(pos, pos) || !m_reanchor_pending) {
+        return;
+    }
 
+    // A codec can drop the audio it decodes first after a reset, and when the
+    // landing is that close to the target, what it keeps starts after the
+    // target: the audio in between is lost. Where chunk times are exact, the
+    // first audio is decoded now, and if it starts late the demuxer is asked
+    // to start earlier by as much as the codec dropped.
+    constexpr int kMaxRestarts = 3;
+    // Taken now: decoding moves the reported position to the audio decoded.
+    const uint64_t target = static_cast<uint64_t>(m_sposition);
+    const uint64_t rate = m_rate > 0 ? static_cast<uint64_t>(m_rate) : 0;
+    unsigned long start = pos;
+    for (int restart = 0;; ++restart) {
+        AudioFrame first = decodeToFirstAudio_unlocked();
+        if (m_reanchor_pending) {
+            return; // nothing came out; the count stays at the landing
+        }
+        if (m_anchor_start <= target || rate == 0 || start == 0 || restart == kMaxRestarts) {
+            m_current_frame = std::move(first);
+            m_current_frame_offset = 0;
+            return;
+        }
+        const uint64_t dropped = m_anchor_swallow > 0 ? static_cast<uint64_t>(m_anchor_swallow) : 0;
+        const uint64_t back_ms = ((m_anchor_start - target) + dropped) * 1000 / rate + 1;
+        const unsigned long earlier = start > back_ms ? start - static_cast<unsigned long>(back_ms) : 0;
+        Debug::log("demux", "DemuxedStream::seekTo(): first audio is ", m_anchor_start - target,
+                   " frames past the target; starting again at ", earlier, " ms");
+        if (!restartAt_unlocked(earlier, pos)) {
+            m_current_frame = std::move(first);
+            m_current_frame_offset = 0;
+            return;
+        }
+        start = earlier;
+    }
+}
+
+AudioFrame DemuxedStream::decodeToFirstAudio_unlocked()
+{
+    AudioFrame frame;
+    for (size_t attempt = 0; m_reanchor_pending && attempt < MAX_EMPTY_FRAME_RETRIES; ++attempt) {
+        frame = getNextFrame();
+        bool drained = false;
+        {
+            std::lock_guard<std::mutex> lock(m_buffer_mutex);
+            drained = m_chunk_buffer.empty();
+        }
+        if (m_reanchor_pending && drained && m_demuxer->isEOF()) {
+            break;
+        }
+    }
+    return frame;
+}
+
+bool DemuxedStream::restartAt_unlocked(unsigned long start_ms, unsigned long target_ms) {
     // Ask the demuxer first. A refused seek leaves the stream exactly where it
     // was: the buffered chunks and the current frame are the audio that plays
     // next, and discarding them first made every refused seek skip ahead --
     // or end the track, once the buffer held everything left to read.
-    if (!m_demuxer->seekTo(pos)) {
-        Debug::log("demux", "DemuxedStream::seekTo(): demuxer refused ", pos, " ms; playback continues");
-        return;
+    if (!m_demuxer->seekTo(start_ms)) {
+        Debug::log("demux", "DemuxedStream::seekTo(): demuxer refused ", start_ms, " ms; playback continues");
+        return false;
     }
 
     // The demuxer has moved, so everything buffered belongs to the old
@@ -800,13 +896,13 @@ void DemuxedStream::seekTo(unsigned long pos) {
             m_codec->reset();
         } catch (const std::exception& e) {
             Debug::log("demux", "DemuxedStream::seekTo(): codec reset failed: ", e.what());
-            return;
+            return false;
         }
     }
     
     // Update position tracking
-    m_position = static_cast<int>(pos);
-    m_sposition = (static_cast<uint64_t>(pos) * m_rate) / 1000;
+    m_position = static_cast<int>(target_ms);
+    m_sposition = (static_cast<uint64_t>(target_ms) * m_rate) / 1000;
     
     // CRITICAL: Sync sample counter with demuxer's granule position after seek.
     // Only Ogg reports a real granule; every other container inherits the base
@@ -820,8 +916,12 @@ void DemuxedStream::seekTo(unsigned long pos) {
     // not report them is seeking by sample table and is already exact, so its
     // position is the target.
     const bool granular = m_demuxer->providesGranulePositions();
-    const uint64_t granule = toOutputFrames(m_demuxer->getGranulePosition(m_current_stream_id));
+    const uint64_t landing = m_demuxer->getGranulePosition(m_current_stream_id);
+    const uint64_t granule = toOutputFrames(landing);
     m_samples_consumed = granular ? granule : m_sposition;
+    m_reanchor_pending = granular && m_demuxer->chunkTimesAreExact();
+    m_seek_base_set = false;
+    m_seek_landing = landing;
 
     // The priming sits at the very start of the file, so anywhere a seek lands
     // is already past it -- re-dropping it would eat real audio. The tail trim
@@ -840,6 +940,7 @@ void DemuxedStream::seekTo(unsigned long pos) {
     m_eof = false;
     m_eof_reached = false;
     m_codec_drained = false;
+    return true;
 }
 
 bool DemuxedStream::eof() {

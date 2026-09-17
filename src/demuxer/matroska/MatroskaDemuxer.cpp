@@ -102,6 +102,7 @@ bool MatroskaDemuxer::parseContainer()
         m_track_number = chosen->number;
         m_stream_id = chosen->ordinal;
         m_sample_rate = m_streams.front().sample_rate;
+        m_codec_delay_frames = m_streams.front().codec_delay;
         m_frame_prefix = chosen->stripped_frame_prefix;
         m_track_timestamp_scale = chosen->timestamp_scale;
         // No real frame lasts a second; anything longer would only overflow
@@ -897,7 +898,8 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
             landing_samples = target_samples;
         }
 
-        if (landing_samples > target_samples && entry && entry->time_ticks > 0
+        // The landing plays CodecDelay earlier than its block time says.
+        if (landing_samples > target_samples + m_codec_delay_frames && entry && entry->time_ticks > 0
             && attempt < m_index.size()) {
             lookup = entry->time_ticks - 1;
             continue;

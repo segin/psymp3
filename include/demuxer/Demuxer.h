@@ -82,6 +82,10 @@ struct StreamInfo {
     /// both stretches are decodable but not part of the recording. Zero when
     /// the container does not say.
     uint32_t encoder_delay = 0;     ///< priming sample frames at the head
+    /// How far every chunk's time is ahead of the audio it decodes to, in
+    /// sample frames: Matroska's CodecDelay (RFC 9559 5.1.4.1.25). Unlike
+    /// encoder_delay it is stated whoever trims the priming.
+    uint32_t codec_delay = 0;
     uint32_t encoder_padding = 0;   ///< padding sample frames at the tail
     uint64_t valid_samples = 0;     ///< real sample frames, 0 when unstated ///< Total duration in sample frames (0 if unknown)
     uint64_t duration_ms = 0;      ///< Total duration in milliseconds (0 if unknown)
@@ -473,6 +477,12 @@ public:
     /// the head of the stream, which is exactly where a seek into the first
     /// page lands -- cannot be told apart from "this demuxer does not know".
     virtual bool providesGranulePositions() const { return false; }
+
+    /// True when every chunk's timestamp_samples is the time of its own
+    /// first sample, less StreamInfo::codec_delay. DemuxedStream then takes
+    /// its count after a seek from the first audio the codec returns rather
+    /// than from the landing, since a codec can drop audio first.
+    virtual bool chunkTimesAreExact() const { return false; }
 
     virtual uint64_t getGranulePosition(uint32_t stream_id) const {
         return 0; // Default implementation for non-Ogg formats

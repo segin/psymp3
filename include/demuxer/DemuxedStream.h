@@ -176,6 +176,31 @@ private:
     // Counts chunks popped for decoding; used to tell "no progress" (a real
     // livelock) apart from "decoded to nothing but consumed input" (damage).
     uint64_t m_chunks_consumed = 0;
+
+    /// After a seek on a demuxer whose chunk times are exact, the count is
+    /// taken again from the first audio the codec returns: a codec can drop
+    /// audio first (AAC's warm-up frame, Opus's pre-skip, MP3 frames without
+    /// their bit reservoir), and each chunk's time is ahead of its audio by
+    /// the codec delay. m_seek_landing and m_seek_base are in the demuxer's
+    /// units: where it landed, and the time of the first chunk decoded.
+    bool m_reanchor_pending = false;
+    bool m_seek_base_set = false;
+    uint64_t m_seek_landing = 0;
+    uint64_t m_seek_base = 0;
+    uint32_t m_codec_delay = 0;  ///< StreamInfo::codec_delay, demuxer units
+    /// Where the first audio after the seek plays, and how much the codec
+    /// dropped before it, both in output frames. Set by reanchorAfterSeek().
+    uint64_t m_anchor_start = 0;
+    int64_t m_anchor_swallow = 0;
+    /// Sets the count from the first audio after a seek; see above.
+    void reanchorAfterSeek(const AudioFrame& frame);
+    /// Moves the demuxer to @p start_ms and resets everything for playback
+    /// from there, counting towards @p target_ms. False if the demuxer
+    /// refused, which leaves the stream as it was.
+    bool restartAt_unlocked(unsigned long start_ms, unsigned long target_ms);
+    /// Decodes until the count has been taken again after a seek. Returns
+    /// the audio decoded then, what of it the seek target leaves.
+    AudioFrame decodeToFirstAudio_unlocked();
     
     /**
      * @brief Initialize demuxer and codec
