@@ -71,7 +71,11 @@ bool G722Codec::initialize()
         m_stream_info.bits_per_sample = 8;
     }
 
-    m_decoder = std::make_unique<G722Decoder>(selectBitrate(), /*wideband_out=*/true);
+    // Always mode 1. The octet stream is 64 kbit/s in every mode, and the
+    // mode is signalled out of band, which no container carries; without that
+    // indication a decoder uses mode 1 (Rec. G.722 §1.3). A header's byte rate
+    // is no indication: 7000 or 6000 bytes a second cannot describe octets.
+    m_decoder = std::make_unique<G722Decoder>(G722Decoder::Bitrate::Rate64k, /*wideband_out=*/true);
     m_initialized = true;
     return true;
 }
@@ -118,15 +122,6 @@ void G722Codec::reset()
 {
     if (m_decoder) {
         m_decoder->reset();
-    }
-}
-
-G722Decoder::Bitrate G722Codec::selectBitrate() const
-{
-    switch (m_stream_info.bitrate) {
-        case 48000: return G722Decoder::Bitrate::Rate48k;
-        case 56000: return G722Decoder::Bitrate::Rate56k;
-        default:    return G722Decoder::Bitrate::Rate64k;
     }
 }
 

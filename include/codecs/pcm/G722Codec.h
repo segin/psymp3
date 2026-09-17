@@ -34,9 +34,6 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
 
 private:
-    /// Which lower-band width the stream's declared bitrate asks for.
-    G722Decoder::Bitrate selectBitrate() const;
-
     std::unique_ptr<G722Decoder> m_decoder;
 };
 
