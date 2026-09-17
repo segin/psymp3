@@ -64,7 +64,9 @@ const int kIlb[32] = {
     3444, 3520, 3597, 3676, 3756, 3838, 3922, 4008
 };
 
-/// Half of the symmetric 24-tap QMF; the other half mirrors it.
+/// The QMF's even-numbered coefficients H0, H2, ..., H22 (Table 11). The
+/// filter is symmetric, Hi = H(23-i), so the odd-numbered ones H1, H3, ...,
+/// H23 are the same values in reverse order.
 const int kQmfCoeffs[12] = {
     3, -11, 12, 32, -210, 951, 3876, -805, 362, -156, 53, -11
 };
@@ -80,13 +82,14 @@ inline int saturate16(int value)
     return value;
 }
 
-/// The range G.722 gives the QMF's signals. Table 9 of the Recommendation
-/// specifies RL, RH and XOUT as 16-bit words "limited to a range of -16384 to
-/// 16383" -- one bit narrower than int16, because the format carries the most
-/// significant magnitude bit at the third bit position. Clipping the two
-/// reconstructed sub-bands to this before the synthesis filter is what makes
-/// loud passages come out right; saturating at 32767 instead lets the filter
-/// see values the standard never allows, and the two bands then drift apart.
+/// LIMIT (Rec. G.722 §6.2.1.6, §6.2.2.5): the sub-band signals RL and RH are
+/// held to -16384..16383 on their way to the receive QMF. §5.1 gives every
+/// QMF input and output that range, one bit narrower than int16, because
+/// Table 9's format carries the most significant magnitude bit at the third
+/// bit position. The adaptive predictors never see the limited values: the
+/// lower band's runs on RLT (Figure 23), the upper band's on YH before its
+/// LIMIT (Figure 30). So the limit changes only what the QMF, or the 8 kHz
+/// output, is given.
 inline int clipToQmfRange(int value)
 {
     if (value > 16383) {
@@ -104,9 +107,12 @@ inline int16_t toPcm(int value)
     return static_cast<int16_t>(value);
 }
 
-/// SCALEL/SCALEH: turn the logarithmic scale factor into the linear one. The
-/// exponent runs the other way for each band (bias 8 for the lower, 10 for the
-/// upper) and can go negative, which shifts the mantissa up rather than down.
+/// SCALEL/SCALEH, Method 2 (Rec. G.722 §6.2.1.3, §6.2.2.3): turn the
+/// logarithmic scale factor into the linear one. The two bands differ only in
+/// the exponent's bias, 8 for the lower and 10 for the upper, which is the
+/// lower band's extra factor of four in equation (3-17) against (3-18). The
+/// shift count can go negative, and §6.2 defines ">> n" with a negative n as
+/// a left shift.
 inline int scaleFactor(int nb, int bias)
 {
     const int mantissa = kIlb[(nb >> 6) & 31];
@@ -138,8 +144,10 @@ void G722Decoder::reset()
 
 void G722Decoder::adapt(Band& band, int dlt)
 {
-    // PARREC / RECONS: the partially reconstructed signal drives the pole
-    // updates, the fully reconstructed one feeds the zero section.
+    // PARREC / RECONS (§6.2.1.4): the partially reconstructed signal,
+    // DLT + SZ, drives the pole coefficient updates, and the reconstructed
+    // one, S + DLT, feeds the pole section (FILTEP). The zero section runs
+    // on the quantised differences alone.
     band.d[0] = dlt;
     band.r[0] = saturate16(band.s + dlt);
     band.p[0] = saturate16(band.sz + dlt);
@@ -208,7 +216,7 @@ void G722Decoder::adapt(Band& band, int dlt)
 
     // FILTEZ: six-zero section, likewise truncated per term, and summed from
     // the sixth term down with the Recommendation's saturating "+" at every
-    // step (§5.2 notation, §6.2.1.4). Saturating only the finished sum lets an
+    // step (§6.2 notation, §6.2.1.4). Saturating only the finished sum lets an
     // intermediate overflow cancel out where the Recommendation clips it.
     band.sz = 0;
     for (int i = 6; i > 0; --i) {
@@ -240,10 +248,10 @@ std::size_t G722Decoder::decode(const uint8_t* data, std::size_t len, int16_t* o
             case Bitrate::Rate64k:
                 dlow = (m_low.det * kQm6[ilr]) >> 15;
                 break;
-            case Bitrate::Rate56k: // INVQBL mode 2: RIL = IRL >>> 1
+            case Bitrate::Rate56k: // INVQBL mode 2: RIL = ILR >>> 1
                 dlow = (m_low.det * kQm5[ilr >> 1]) >> 15;
                 break;
-            case Bitrate::Rate48k: // INVQBL mode 3: RIL = IRL >>> 2
+            case Bitrate::Rate48k: // INVQBL mode 3: RIL = ILR >>> 2
                 dlow = (m_low.det * kQm4[ilr >> 2]) >> 15;
                 break;
         }
@@ -292,7 +300,10 @@ std::size_t G722Decoder::decode(const uint8_t* data, std::size_t len, int16_t* o
 
         // Synthesis QMF. The two bands enter the delay line as their sum and
         // difference; the two polyphase sums are the consecutive output
-        // samples, which is what doubles the rate back to 16 kHz.
+        // samples, which is what doubles the rate back to 16 kHz. `odd` is
+        // ACCUMC's XOUT1, the differences through H0, H2, ..., H22, and
+        // `even` is ACCUMD's XOUT2, the sums through H1, H3, ..., H23;
+        // SELECT emits XOUT1 first (§5.2.2).
         for (int i = 0; i < 22; ++i) {
             m_qmf[i] = m_qmf[i + 2];
         }

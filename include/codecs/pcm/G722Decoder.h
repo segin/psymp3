@@ -28,8 +28,10 @@ namespace PCM {
  * QMF to get two output samples per octet.
  *
  * Written from the G.722 specification so PsyMP3 carries no external
- * dependency for it. The tables below are the normative ones from the
- * standard.
+ * dependency for it. Its tables, in G722Decoder.cpp, are the
+ * Recommendation's (Tables 11, 14, 15, 17, 18, 19 and 21). The inverse
+ * quantiser tables have the codeword conversions and the << 3 scaling folded
+ * in, so the received code indexes them directly, sign included.
  */
 class G722Decoder {
 public:
@@ -78,7 +80,7 @@ private:
         int d[7] = {};    ///< quantised difference history
         int b[7] = {};    ///< zero coefficients
         int bp[7] = {};   ///< zero coefficients, updated
-        int sg[7] = {};   ///< sign history driving the zero updates
+        int sg[7] = {};   ///< signs of p, then d, for the coefficient updates
         int nb = 0;       ///< logarithmic scale factor
         int det = 32;     ///< linear scale factor
     };
