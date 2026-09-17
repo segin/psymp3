@@ -109,11 +109,12 @@ void eac3EcplAnalyse(const float previous[512], const float current[512],
     // time-domain aliasing of each cancels and the signal is continuous.
     //
     // The factor of two is not printed in this step, but it is the same one
-    // §7.9.4.1 step 6 applies to every overlap-add "to undo headroom scaling
-    // performed in the encoder", and without it the whole chain has a gain of
-    // exactly one half: regenerating the reference channel of a consistent
-    // signal at amplitude code 0 -- defined as 0 dB -- measured 0.500000, in
-    // every bin, with a residual under 1e-7 once that was removed.
+    // step 6 of §7.9.4.1 and §7.9.4.2 applies to every overlap-add -- "the
+    // factor of 2 scaling undoes headroom scaling performed in the encoder" --
+    // and without it the whole chain has a gain of exactly one half:
+    // regenerating the reference channel of a consistent signal at amplitude
+    // code 0 -- defined as 0 dB -- measured 0.500000, in every bin, with a
+    // residual under 1e-7 once that was removed.
     float pcm[kTransformSize];
     for (unsigned n = 0; n < kTransformSize / 2; ++n) {
         pcm[n] = 2.0f * (previous[n + kTransformSize / 2] + current[n]);
