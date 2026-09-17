@@ -281,7 +281,7 @@ std::vector<uint8_t> seekHeadFor(const std::vector<std::pair<uint32_t, uint64_t>
 /// the assertions below would fail rather than quietly still passing.
 std::vector<uint8_t> sparseCues(const std::vector<std::vector<uint8_t>>& cluster_bytes,
                                 uint64_t track, uint64_t first_cluster_relative,
-                                size_t first_cued = 0)
+                                size_t first_cued = 0, uint64_t skew = 0)
 {
     std::vector<uint8_t> points;
     uint64_t position = first_cluster_relative;
@@ -291,7 +291,7 @@ std::vector<uint8_t> sparseCues(const std::vector<std::vector<uint8_t>>& cluster
                           uintEl(Id::CueTime, i * kClusterMs + kCueOffsetMs)
                         + element(Id::CueTrackPositions,
                                   uintEl(Id::CueTrack, track)
-                                + uintEl(Id::CueClusterPosition, position)));
+                                + uintEl(Id::CueClusterPosition, position + skew)));
         }
         position += cluster_bytes[i].size();
     }
@@ -314,7 +314,10 @@ std::vector<uint8_t> damagedCues(uint64_t first_cluster_relative)
                                  + uintEl(Id::CueClusterPosition, first_cluster_relative))));
 }
 
-std::vector<uint8_t> buildCuedFile(bool damaged_cues = false, size_t first_cued = 0)
+/// @p cue_skew moves every cue position that many bytes into its cluster, as
+/// a stale index would.
+std::vector<uint8_t> buildCuedFile(bool damaged_cues = false, size_t first_cued = 0,
+                                   uint64_t cue_skew = 0)
 {
     const std::vector<uint8_t> info =
         element(Id::Info, uintEl(Id::TimestampScale, 1000000)
@@ -340,7 +343,7 @@ std::vector<uint8_t> buildCuedFile(bool damaged_cues = false, size_t first_cued 
     const uint64_t first_cluster_at = head.size() + info.size() + tracks.size();
     const std::vector<uint8_t> cues =
         damaged_cues ? damagedCues(first_cluster_at)
-                     : sparseCues(cluster_bytes, 1, first_cluster_at, first_cued);
+                     : sparseCues(cluster_bytes, 1, first_cluster_at, first_cued, cue_skew);
 
     return ebmlHeader("matroska")
          + element(Id::Segment, head + info + tracks + clusters_flat + cues);
@@ -946,6 +949,23 @@ protected:
     }
 };
 
+class StaleCuesTest : public TestCase {
+public:
+    StaleCuesTest() : TestCase("A cue that does not lead to a cluster restarts the seek at the first one") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> file = buildCuedFile(false, 0, /*cue_skew=*/3);
+        MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        ASSERT_TRUE(demuxer.seekTo(500), "the seek still succeeds");
+        ASSERT_EQUALS(samplesAt(0), demuxer.getGranulePosition(1), "from the first cluster");
+        const MediaChunk chunk = demuxer.readChunk();
+        ASSERT_TRUE(chunk.isValid(), "and playback carries on");
+    }
+};
+
 class HostileClustersTest : public TestCase {
 public:
     HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
@@ -1008,6 +1028,7 @@ int main()
     suite.addTest(std::make_unique<SeekPreRollTest>());
     suite.addTest(std::make_unique<NothingPlayableTest>());
     suite.addTest(std::make_unique<TrackTimestampScaleTest>());
+    suite.addTest(std::make_unique<StaleCuesTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

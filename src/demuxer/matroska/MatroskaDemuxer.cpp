@@ -641,6 +641,24 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     } else {
         start = m_parser.firstClusterOffset();
     }
+    // A Cues position is only a claim. One that is stale or damaged, and does
+    // not lead to a Cluster, would end playback at the seek; reading restarts
+    // at the first cluster instead.
+    if (start != m_parser.firstClusterOffset()) {
+        bool at_cluster = false;
+        try {
+            EBMLElement element;
+            m_reader.seek(start);
+            at_cluster = start < m_file_size && m_reader.readElementHeader(element)
+                      && element.id == Id::Cluster;
+        } catch (const std::exception&) {
+            at_cluster = false;
+        }
+        if (!at_cluster) {
+            Debug::log("demux", "MatroskaDemuxer: no Cluster at cued offset ", start);
+            start = m_parser.firstClusterOffset();
+        }
+    }
     if (start == 0 || start >= m_file_size) {
         return false;
     }

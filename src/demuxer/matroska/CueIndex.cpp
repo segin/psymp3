@@ -32,10 +32,13 @@ namespace Matroska {
 void CueIndex::sortAndDedupe()
 {
     // Cues are conventionally written in order but nothing requires it, and a
-    // lookup by binary search needs them sorted whatever the file did.
+    // lookup by binary search needs them sorted whatever the file did. Where
+    // two entries share a time, the earlier cluster is the one to keep:
+    // starting at the later one would skip the audio of the first.
     std::sort(m_entries.begin(), m_entries.end(),
               [](const CueEntry& a, const CueEntry& b) {
-                  return a.time_ticks < b.time_ticks;
+                  return a.time_ticks != b.time_ticks ? a.time_ticks < b.time_ticks
+                                                      : a.cluster_offset < b.cluster_offset;
               });
     m_entries.erase(std::unique(m_entries.begin(), m_entries.end(),
                                 [](const CueEntry& a, const CueEntry& b) {

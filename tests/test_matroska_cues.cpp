@@ -216,6 +216,30 @@ protected:
     }
 };
 
+class EqualTimesTest : public TestCase {
+public:
+    EqualTimesTest() : TestCase("Of two cues at one time, the earlier cluster is kept") {}
+
+protected:
+    void runTest() override
+    {
+        std::vector<uint8_t> points;
+        // Enough points that the sort is not a simple insertion sort, which
+        // would happen to keep file order anyway.
+        for (uint64_t i = 0; i < 40; ++i) {
+            points = points + cuePoint(1000 * i, 1, 9000 + i) + cuePoint(1000 * i, 1, 100 + i);
+        }
+        Bytes bytes(element(Id::Cues, points));
+        CueIndex index;
+        ASSERT_TRUE(index.parseCues(bytes.reader(), bytes.offset(), 0, 1), "parses");
+        ASSERT_EQUALS(size_t{40}, index.size(), "one entry per time");
+        for (uint64_t i = 0; i < 40; ++i) {
+            ASSERT_EQUALS(uint64_t{100 + i}, index.entryFor(1000 * i)->cluster_offset,
+                          "the lower offset survives at " + std::to_string(1000 * i));
+        }
+    }
+};
+
 class SeekHeadTest : public TestCase {
 public:
     SeekHeadTest() : TestCase("SeekHead positions are resolved against the Segment") {}
@@ -292,6 +316,59 @@ protected:
     }
 };
 
+class SegmentRobustnessTest : public TestCase {
+public:
+    SegmentRobustnessTest() : TestCase("Repeated Tracks, a damaged SeekHead and unindexed Tags") {}
+
+protected:
+    void runTest() override
+    {
+        {   // Tracks written twice, as a copy: each track is listed once.
+            Bytes bytes(ebmlHeader("matroska")
+                        + element(Id::Segment,
+                                  element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                + element(Id::Tracks, audioTrack(1))
+                                + element(Id::Tracks, audioTrack(1))), /*lead_in=*/0);
+            SegmentParser parser;
+            parser.parse(bytes.reader());
+            ASSERT_EQUALS(size_t{1}, parser.tracks().size(), "the copy adds nothing");
+        }
+        {   // A SeekPosition nine octets wide, which the reader refuses.
+            const std::vector<uint8_t> bad_seek =
+                element(Id::Seek, element(Id::SeekID, idBytes(Id::Cues))
+                                + element(Id::SeekPosition, std::vector<uint8_t>(9, 0x00)));
+            Bytes bytes(ebmlHeader("matroska")
+                        + element(Id::Segment,
+                                  element(Id::SeekHead, bad_seek)
+                                + element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                + element(Id::Tracks, audioTrack(1))), /*lead_in=*/0);
+            SegmentParser parser;
+            bool parsed = true;
+            try {
+                parser.parse(bytes.reader());
+            } catch (const std::exception&) {
+                parsed = false;
+            }
+            ASSERT_TRUE(parsed, "a damaged SeekHead does not refuse the file");
+            ASSERT_EQUALS(size_t{1}, parser.tracks().size(), "whose tracks are still read");
+        }
+        {   // Tags before the clusters and no SeekHead, as a live stream has.
+            Bytes bytes(ebmlHeader("matroska")
+                        + element(Id::Segment,
+                                  element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                + element(Id::Tracks, audioTrack(1))
+                                + element(Id::Tags, element(Id::Tag, element(Id::Targets, {})))
+                                + cluster(0)), /*lead_in=*/0);
+            SegmentParser parser;
+            parser.parse(bytes.reader());
+            ASSERT_TRUE(parser.seekPosition(Id::Tags) > parser.segmentDataOffset(),
+                        "the Tags are found by the walk");
+            ASSERT_TRUE(parser.seekPosition(Id::Tags) < parser.firstClusterOffset(),
+                        "where they are, before the first cluster");
+        }
+    }
+};
+
 class EmptyAndMalformedTest : public TestCase {
 public:
     EmptyAndMalformedTest() : TestCase("An index that cannot be built reports so rather than guessing") {}
@@ -331,8 +408,12 @@ int main()
     suite.addTest(std::make_unique<SeekHeadTest>());
     suite.addTest(std::make_unique<TracksAfterClustersTest>());
     suite.addTest(std::make_unique<EmptyAndMalformedTest>());
+    suite.addTest(std::make_unique<EqualTimesTest>());
+    suite.addTest(std::make_unique<SegmentRobustnessTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
-    return suite.getFailureCount(results);
+    // Every test that did not pass counts: getFailureCount() skips a test that
+    // ended in an exception.
+    return static_cast<int>(results.size()) - suite.getPassedCount(results);
 }

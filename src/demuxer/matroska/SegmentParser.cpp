@@ -344,8 +344,28 @@ void SegmentParser::parseSegment(EBMLReader& reader, const EBMLElement& segment)
                 m_info_seen = true;
             }
             break;
-        case Id::Tracks:   parseTracks(reader, element);          break;
-        case Id::SeekHead: parseSeekHead(reader, element);        break;
+        case Id::Tracks:
+            // Tracks may recur, as a copy for resilience; the first one is
+            // the one to use (RFC 8794 11.1.17).
+            if (m_tracks.empty()) {
+                parseTracks(reader, element);
+            }
+            break;
+        case Id::SeekHead:
+            // SeekHead is only an index. A damaged one costs the elements it
+            // would have found, not a file whose own elements are intact.
+            try {
+                parseSeekHead(reader, element);
+            } catch (const std::exception& e) {
+                Debug::log("demux", "Matroska: SeekHead unreadable: ", e.what());
+            }
+            break;
+        case Id::Tags:
+            // Live-muxed files have no SeekHead and put Tags before the
+            // clusters (RFC 9559 25.3.4). A SeekHead entry, where there is one,
+            // still takes precedence.
+            m_seek_positions.emplace(Id::Tags, element.header_offset);
+            break;
         default: break;
         }
         reader.seek(element.end());
@@ -425,7 +445,8 @@ void SegmentParser::parseSeekHead(EBMLReader& reader, const EBMLElement& seek_he
         }
 
         // Positions are relative to the start of the Segment's payload, not to
-        // the file, so they are absolute only after that is added.
+        // the file, so they are absolute only after that is added. An entry
+        // counts only once both its fields have been read.
         if (target_id != 0 && have_position) {
             m_seek_positions[target_id] = m_segment_data_offset + position;
         }
