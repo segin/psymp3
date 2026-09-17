@@ -42,6 +42,12 @@ namespace {
 /// (Tables 7.26 and 7.27), so the caller clamps it to the channels' endmant.
 constexpr unsigned kRematrixBands[5] = {13, 25, 37, 61, 253};
 
+/// A/52 §7.4.3 rebuilds a coupled coefficient as cplmant * cplco * 8. A coded
+/// coordinate never exceeds 1, so without the factor a coupled channel could
+/// never be louder than the coupling channel, and every coupled band decoded
+/// 18 dB low.
+constexpr float kCouplingCoordinateGain = 8.0f;
+
 /// Decodes a coupling coordinate, A/52 §7.4.3. The exponent is offset by the
 /// master coordinate, which extends the range beyond what four bits reach.
 float couplingCoordinate(unsigned mantissa, unsigned exponent, unsigned master)
@@ -833,10 +839,11 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
 
 Debug::log("ac3", "  after mantissas: bit ", reader.tell());
 
-    // --- decoupling, A/52 §7.4.4 ---
+    // --- decoupling, A/52 §7.4.3 (its closing pseudo code) and §7.4.1 ---
     // Each coupled channel gets the shared coupling channel back, scaled by
     // its own per-band coordinate. That is what makes coupling cheap: one
-    // spectrum is sent and several channels reconstruct from it.
+    // spectrum is sent and several channels reconstruct from it. §6.1.7
+    // summarises the step; there is no §7.4.4 in any edition of A/52.
     if (state.cplinu && coupling_read && state.ecplinu) {
         block.ecplinu = true;
         block.ecpl_angle_interpolation = state.ecplangleintrp;
@@ -863,7 +870,7 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
                         ++band;
                     }
                 }
-                float value = coupling[bin] * state.cplco[ch][band];
+                float value = coupling[bin] * state.cplco[ch][band] * kCouplingCoordinateGain;
                 // In 2/0 the second channel's phase may be inverted per band.
                 if (stereo && state.phsflginu && ch == 1 && band < kMaxCouplingBands
                     && state.phsflg[band]) {
