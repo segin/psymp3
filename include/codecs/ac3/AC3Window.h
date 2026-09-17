@@ -21,12 +21,14 @@ namespace AC3 {
 ///
 /// Transcribed from the printed table and checked mechanically rather than
 /// read, because four of A/52's other tables turned out to have page
-/// furniture in them. Two properties hold for the extracted values and would
-/// not survive a single wrong digit: the sequence is monotone
-/// non-decreasing, and it is power-complementary --
-/// w[n]^2 + w[255-n]^2 == 1 to within 1.1e-5, which is the rounding of five
-/// decimal places. That second one is the condition that makes the
-/// overlap-add of two adjacent blocks reconstruct the original signal.
+/// furniture in them. Two properties hold for the extracted values: the
+/// sequence is monotone non-decreasing, and it is power-complementary --
+/// w[n]^2 + w[255-n]^2 == 1 to within 1.13e-5 (at n = 112 and 143), inside
+/// the 1.41e-5 that rounding to five decimal places allows. That second one
+/// is the condition that makes the overlap-add of two adjacent blocks
+/// reconstruct the original signal. Neither pins every digit, though: a slip
+/// in one of the small early entries, whose square barely registers, can
+/// pass both.
 constexpr float kWindow[256] = {
     0.00014f, 0.00024f, 0.00037f, 0.00051f, 0.00067f, 0.00086f, 0.00107f, 0.00130f,
     0.00157f, 0.00187f, 0.00220f, 0.00256f, 0.00297f, 0.00341f, 0.00390f, 0.00443f,
