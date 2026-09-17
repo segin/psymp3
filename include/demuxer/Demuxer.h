@@ -203,6 +203,11 @@ struct MediaChunk {
     bool packet_lost = false;         ///< Indicates if this chunk represents a lost packet (gap)
     bool end_of_stream = false;       ///< True when this chunk is the stream's terminal packet
     uint64_t file_offset = 0;         ///< Original file offset (used for seeking optimization)
+    /// Sample frames of padding in the block this chunk came from, which the
+    /// container says to drop (Matroska's DiscardPadding): at the end of the
+    /// block's audio, or at its start. DemuxedStream removes them.
+    uint32_t padding_tail_frames = 0;
+    uint32_t padding_head_frames = 0;
     
     // Constructors
     MediaChunk() = default;

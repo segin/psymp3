@@ -671,6 +671,69 @@ protected:
     }
 };
 
+/// A Block (inside a BlockGroup) holding one unlaced frame for a track.
+std::vector<uint8_t> block(uint64_t track, int16_t relative_ticks,
+                           const std::vector<uint8_t>& frame)
+{
+    const auto raw = static_cast<uint16_t>(relative_ticks);
+    std::vector<uint8_t> body{static_cast<uint8_t>(0x80 | track),
+                              static_cast<uint8_t>(raw >> 8),
+                              static_cast<uint8_t>(raw & 0xFF),
+                              0x00};
+    return element(Id::Block, body + frame);
+}
+
+/// DiscardPadding, a signed integer, written in four bytes.
+std::vector<uint8_t> discardPadding(int32_t nanoseconds)
+{
+    const auto raw = static_cast<uint32_t>(nanoseconds);
+    return element(Id::DiscardPadding, {static_cast<uint8_t>(raw >> 24), static_cast<uint8_t>(raw >> 16),
+                                        static_cast<uint8_t>(raw >> 8), static_cast<uint8_t>(raw)});
+}
+
+class DiscardPaddingTest : public TestCase {
+public:
+    DiscardPaddingTest() : TestCase("DiscardPadding reaches the chunk of the frame it pads") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> frame(kFrameBytes, 0x5A);
+        const std::vector<uint8_t> cluster =
+            element(Id::Cluster,
+                    uintEl(Id::Timestamp, 0)
+                  // Padding at the start, given before the Block.
+                  + element(Id::BlockGroup, discardPadding(-20000000) + block(1, 0, frame))
+                  + simpleBlock(1, 20, frame)
+                  // Padding at the end, given after the Block, the order
+                  // FFmpeg writes.
+                  + element(Id::BlockGroup, block(1, 40, frame) + discardPadding(10000000)));
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment, element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                               + element(Id::Tracks, pcmTrack(1)) + cluster);
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+
+        const MediaChunk head = demuxer.readChunk();
+        ASSERT_TRUE(head.isValid(), "the first block is read");
+        ASSERT_EQUALS(uint32_t{882}, head.padding_head_frames, "20 ms at 44.1 kHz off the front");
+        ASSERT_EQUALS(uint32_t{0}, head.padding_tail_frames, "and none off the end");
+
+        const MediaChunk plain = demuxer.readChunk();
+        ASSERT_TRUE(plain.isValid(), "the SimpleBlock is read");
+        ASSERT_EQUALS(uint32_t{0}, plain.padding_head_frames + plain.padding_tail_frames,
+                      "a block without DiscardPadding has none");
+
+        const MediaChunk tail = demuxer.readChunk();
+        ASSERT_TRUE(tail.isValid(), "the last block is read");
+        ASSERT_EQUALS(samplesAt(40), tail.timestamp_samples, "it is the 40 ms block");
+        ASSERT_EQUALS(uint32_t{441}, tail.padding_tail_frames, "10 ms off the end");
+        ASSERT_EQUALS(uint32_t{0}, tail.padding_head_frames, "and none off the front");
+    }
+};
+
 } // namespace
 
 int main()
@@ -687,6 +750,7 @@ int main()
     suite.addTest(std::make_unique<SeekLandsOnFirstAudioBlockTest>());
     suite.addTest(std::make_unique<HeaderStrippedFramesTest>());
     suite.addTest(std::make_unique<OversizedVideoBlockTest>());
+    suite.addTest(std::make_unique<DiscardPaddingTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

@@ -178,6 +178,8 @@ void DemuxedStream::updateStreamProperties() {
     m_encoder_delay_remaining = stream_info.encoder_delay;
     m_valid_samples = stream_info.valid_samples;
     m_frames_emitted = 0;
+    m_padded_output = AudioFrame{};
+    m_padded_tail_frames = 0;
     if (m_valid_samples > 0) {
         m_slength = m_valid_samples;
         if (m_rate > 0) {
@@ -191,6 +193,7 @@ void DemuxedStream::updateStreamProperties() {
     }
 
     m_eof = false;
+    m_codec_drained = false;
 }
 
 size_t DemuxedStream::getData(size_t len, void *buf) {
@@ -266,7 +269,11 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
                 break;
             }
             
-            if (buffer_empty && m_demuxer && m_demuxer->isEOF()) {
+            if (buffer_empty && m_demuxer && m_demuxer->isEOF() && !m_codec_drained) {
+                // Out of chunks, but the codec has not been drained yet; the
+                // next frame asked for is its flush.
+                continue;
+            } else if (buffer_empty && m_demuxer && m_demuxer->isEOF()) {
                 // Truly at EOF - no more chunks and demuxer is done
                 // Use current position from frame timestamps, not sample counter
                 uint64_t current_time_ms = static_cast<uint64_t>(m_position);
@@ -296,6 +303,26 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
     
     return bytes_written;
 }
+
+namespace {
+
+/// @p head followed by @p tail. Either may be empty.
+AudioFrame joinFrames(AudioFrame head, AudioFrame tail) {
+    if (head.samples.empty()) {
+        return tail;
+    }
+    head.samples.insert(head.samples.end(), tail.samples.begin(), tail.samples.end());
+    return head;
+}
+
+/// Drops @p frames sample frames from the end of @p frame.
+void dropTailFrames(AudioFrame& frame, uint64_t frames) {
+    const uint16_t channels = frame.channels ? frame.channels : 1;
+    const uint64_t have = frame.samples.size() / channels;
+    frame.samples.resize(static_cast<size_t>((have > frames ? have - frames : 0) * channels));
+}
+
+} // namespace
 
 bool DemuxedStream::trimEncoderDelay(AudioFrame& frame) {
     if (m_encoder_delay_remaining == 0 && m_valid_samples == 0) {
@@ -469,6 +496,30 @@ AudioFrame DemuxedStream::getNextFrame() {
         }
         
         AudioFrame frame = m_codec->decode(chunk);
+
+        // Container padding (Matroska's DiscardPadding). Padding at the start
+        // of a block goes the way of an encoder's priming: it is the next
+        // audio the codec returns.
+        m_encoder_delay_remaining += chunk.padding_head_frames;
+        if (m_padded_tail_frames > 0) {
+            // A padded block that was not the last one. Its padding comes off
+            // the output held back for it, taking the codec to have returned
+            // that block whole -- true of the codecs muxers pad, and nothing
+            // better is known here.
+            dropTailFrames(m_padded_output, m_padded_tail_frames);
+            m_padded_tail_frames = 0;
+            frame = joinFrames(std::move(m_padded_output), std::move(frame));
+            m_padded_output = AudioFrame{};
+        }
+        if (chunk.padding_tail_frames > 0) {
+            // Usually the stream's last block: hold its output until the flush
+            // has returned whatever the codec kept, then cut the padding from
+            // the end of the lot.
+            m_padded_output = std::move(frame);
+            m_padded_tail_frames = chunk.padding_tail_frames;
+            return AudioFrame{};
+        }
+
         if (!frame.samples.empty() && !trimEncoderDelay(frame)) {
             // Entirely priming, or entirely past the last real sample.
             return AudioFrame{};
@@ -499,6 +550,17 @@ AudioFrame DemuxedStream::getNextFrame() {
     if (drained && m_demuxer && m_demuxer->isEOF() && m_codec) {
         Debug::log("demux", "DemuxedStream: Attempting to flush codec");
         AudioFrame frame = m_codec->flush();
+        if (frame.samples.empty()) {
+            m_codec_drained = true;
+        }
+        if (m_padded_tail_frames > 0) {
+            // The stream ended on a padded block, so its padding is the end of
+            // everything the codec has returned since.
+            frame = joinFrames(std::move(m_padded_output), std::move(frame));
+            dropTailFrames(frame, m_padded_tail_frames);
+            m_padded_output = AudioFrame{};
+            m_padded_tail_frames = 0;
+        }
         // The drained tail is as much a part of the stream as any decoded
         // frame: the encoder's padding has to come off it too -- otherwise
         // everything the trim removed at the end comes straight back -- and
@@ -665,6 +727,8 @@ void DemuxedStream::seekTo(unsigned long pos) {
     // still applies, so the emitted count is anchored at the seek target.
     m_encoder_delay_remaining = 0;
     m_frames_emitted = m_samples_consumed;
+    m_padded_output = AudioFrame{};
+    m_padded_tail_frames = 0;
 
     // The seek landed on a page boundary at or before the target. Everything
     // between the two is real audio the listener did not ask for, so it is
@@ -674,6 +738,7 @@ void DemuxedStream::seekTo(unsigned long pos) {
 
     m_eof = false;
     m_eof_reached = false;
+    m_codec_drained = false;
 }
 
 bool DemuxedStream::eof() {
@@ -762,6 +827,7 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
     // The new stream is not at EOF; clear the latches seekTo also resets.
     m_eof_reached = false;
     m_eof = false;
+    m_codec_drained = false;
 
     // Update stream ID
     m_current_stream_id = stream_id;

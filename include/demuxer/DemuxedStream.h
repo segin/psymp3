@@ -153,12 +153,24 @@ private:
     uint64_t m_valid_samples = 0;            ///< real frames, 0 when unstated
     uint64_t m_frames_emitted = 0;           ///< frames handed on after trimming
 
+    /// Output of a block whose end is padding, held back until the rest of
+    /// that block has come out of the codec. A codec can keep part of a block
+    /// to itself -- AC-3 and MP3 decoders do -- so the padding is only known
+    /// to be the last m_padded_tail_frames of the stream once the flush has
+    /// returned. Cleared by a seek.
+    AudioFrame m_padded_output;
+    uint32_t m_padded_tail_frames = 0;
+
     /// Sample a seek asked for, while the audio before it is still being
     /// dropped. A seek can only land on a container boundary -- an Ogg page
     /// holds about a second -- so without this the track resumes up to a
     /// page early. Zero once the target has been reached.
     uint64_t m_discard_until_samples = 0;
     bool m_eof_reached = false;
+    /// Set once the codec, flushed at the end of the stream, has nothing left.
+    /// The stream is not over before then: a codec can return nothing for the
+    /// last chunk it is given and hand the audio over in the flush.
+    bool m_codec_drained = false;
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real
     // livelock) apart from "decoded to nothing but consumed input" (damage).

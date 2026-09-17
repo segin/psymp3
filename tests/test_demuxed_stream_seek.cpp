@@ -60,8 +60,9 @@ constexpr size_t kFramesPerBlock = 882; // 20 ms
 
 /// One second of 16-bit stereo PCM in fifty clusters. Both channels hold a
 /// running frame counter, so any lost or repeated audio shows as a break in
-/// the count.
-std::vector<uint8_t> rampFile()
+/// the count. With @p tail_padding_ns, the last block is a BlockGroup that
+/// says that much of its end is padding.
+std::vector<uint8_t> rampFile(uint32_t tail_padding_ns = 0)
 {
     const std::vector<uint8_t> track =
         element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
@@ -81,9 +82,20 @@ std::vector<uint8_t> rampFile()
             }
         }
         std::vector<uint8_t> block{0x81, 0x00, 0x00, 0x80};
+        std::vector<uint8_t> stored = element(Id::SimpleBlock, block + pcm);
+        if (c == 49 && tail_padding_ns != 0) {
+            block[3] = 0x00;
+            stored = element(Id::BlockGroup,
+                             element(Id::Block, block + pcm)
+                           + element(Id::DiscardPadding,
+                                     {static_cast<uint8_t>(tail_padding_ns >> 24),
+                                      static_cast<uint8_t>(tail_padding_ns >> 16),
+                                      static_cast<uint8_t>(tail_padding_ns >> 8),
+                                      static_cast<uint8_t>(tail_padding_ns)}));
+        }
         clusters = clusters
                  + element(Id::Cluster, uintEl(Id::Timestamp, static_cast<uint64_t>(c) * 20)
-                                      + element(Id::SimpleBlock, block + pcm));
+                                      + stored);
     }
     return ebmlHeader("matroska")
          + element(Id::Segment,
@@ -168,6 +180,84 @@ protected:
     }
 };
 
+/// Wraps a codec and hands back each chunk's audio one chunk late, the rest
+/// at the flush -- the way a decoder that keeps output back behaves.
+class LaggingCodec : public AudioCodec {
+public:
+    explicit LaggingCodec(std::unique_ptr<AudioCodec> inner)
+        : AudioCodec(inner->getStreamInfo()), m_inner(std::move(inner))
+    {
+        m_initialized = true;
+    }
+
+    bool initialize() override { return true; }
+    AudioFrame decode(const MediaChunk& chunk) override
+    {
+        AudioFrame out = std::move(m_held);
+        m_held = m_inner->decode(chunk);
+        return out;
+    }
+    AudioFrame flush() override
+    {
+        AudioFrame out = std::move(m_held);
+        m_held = AudioFrame{};
+        return out;
+    }
+    void reset() override { m_held = AudioFrame{}; m_inner->reset(); }
+    std::string getCodecName() const override { return m_inner->getCodecName(); }
+    bool canDecode(const StreamInfo& info) const override { return m_inner->canDecode(info); }
+
+private:
+    std::unique_ptr<AudioCodec> m_inner;
+    AudioFrame m_held;
+};
+
+/// Reads the whole stream and returns each frame's counter value.
+std::vector<int32_t> readAll(DemuxedStream& stream)
+{
+    std::vector<int32_t> counters;
+    for (int reads = 0; reads < 1000 && !stream.eof(); ++reads) {
+        const std::vector<int32_t> part = readCounters(stream, 4096);
+        counters.insert(counters.end(), part.begin(), part.end());
+    }
+    return counters;
+}
+
+class TailPaddingTest : public TestCase {
+public:
+    TailPaddingTest() : TestCase("A last block's DiscardPadding is not played, however late the codec returns it") {}
+
+protected:
+    void runTest() override
+    {
+        constexpr int32_t kTotal = 50 * static_cast<int32_t>(kFramesPerBlock);
+        constexpr int32_t kPadding = 441; // 10 ms at 44.1 kHz
+        const std::vector<uint8_t> file = rampFile(10000000);
+
+        for (bool lagging : {false, true}) {
+            const std::string what = lagging ? "a lagging codec" : "PCM";
+            DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                                 TagLib::String("ramp.mka"));
+            ASSERT_EQUALS(uint32_t{kRate}, static_cast<uint32_t>(stream.getRate()), what + ": opened");
+            if (lagging) {
+                stream.m_codec = std::make_unique<LaggingCodec>(std::move(stream.m_codec));
+            }
+
+            const std::vector<int32_t> counters = readAll(stream);
+            ASSERT_EQUALS(size_t{kTotal - kPadding}, counters.size(), what + ": the padding is gone");
+            // The counter is a 16-bit sample, so it wraps past 32767.
+            for (size_t i = 0; i < counters.size(); ++i) {
+                const auto expected = static_cast<uint16_t>(i);
+                const auto got = static_cast<uint16_t>(counters[i]);
+                if (got != expected) {
+                    ASSERT_EQUALS(expected, got,
+                                  what + ": and only the padding, at frame " + std::to_string(i));
+                }
+            }
+        }
+    }
+};
+
 } // namespace
 
 int main()
@@ -177,6 +267,7 @@ int main()
 
     TestSuite suite("DemuxedStream Seek Tests");
     suite.addTest(std::make_unique<RefusedSeekKeepsAudioTest>());
+    suite.addTest(std::make_unique<TailPaddingTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

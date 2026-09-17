@@ -75,7 +75,7 @@ private:
     bool fillQueue();
     /// Handles one SimpleBlock or the Block inside a BlockGroup.
     void takeBlock(const EBMLElement& block, int64_t cluster_ticks,
-                   uint64_t discard_padding_ns);
+                   int64_t discard_padding_ns);
     /// Matroska Tags into the Tag framework.
     void parseTags(uint64_t tags_offset);
     /// Ticks in the Segment's TimestampScale to milliseconds.

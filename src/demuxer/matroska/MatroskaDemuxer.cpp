@@ -248,7 +248,7 @@ StreamInfo MatroskaDemuxer::getStreamInfo(uint32_t stream_id) const
 }
 
 void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
-                                uint64_t discard_padding_ns)
+                                int64_t discard_padding_ns)
 {
     // The track number leads the payload. Check it before reading the rest:
     // most of a .mkv's blocks are video, and a video frame larger than the
@@ -278,9 +278,27 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
         return;
     }
 
+    // DiscardPadding (RFC 9559 5.1.3.5.7) is silence added to the whole Block:
+    // at its end when positive, at its start when negative. It is carried in
+    // sample frames on the frame it touches, and DemuxedStream drops it.
+    uint32_t padding_frames = 0;
+    if (discard_padding_ns != 0 && m_sample_rate > 0) {
+        // CodecDelay's bound: no real padding comes near 10 s, and with the
+        // rate capped by SegmentParser the product below cannot overflow.
+        constexpr uint64_t kMaxPaddingNs = 10ULL * 1000000000ULL;
+        const uint64_t magnitude = discard_padding_ns < 0
+                                 ? static_cast<uint64_t>(-(discard_padding_ns + 1)) + 1
+                                 : static_cast<uint64_t>(discard_padding_ns);
+        if (magnitude <= kMaxPaddingNs) {
+            padding_frames = static_cast<uint32_t>(
+                (magnitude * m_sample_rate + 500000000ULL) / 1000000000ULL);
+        }
+    }
+
     const int64_t ticks = cluster_ticks + header.timestamp_offset;
     const uint64_t milliseconds = ticksToMs(ticks);
-    for (const BlockFrame& frame : frames) {
+    for (size_t i = 0; i < frames.size(); ++i) {
+        const BlockFrame& frame = frames[i];
         MediaChunk chunk;
         chunk.stream_id = static_cast<uint32_t>(m_track_number);
         // Header stripping (RFC 9559 5.1.4.1.31.7) removed these bytes from the
@@ -293,9 +311,13 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
                                 : 0;
         chunk.is_keyframe = header.keyframe;
         chunk.file_offset = block.header_offset;
+        if (discard_padding_ns < 0 && i == 0) {
+            chunk.padding_head_frames = padding_frames;
+        } else if (discard_padding_ns > 0 && i + 1 == frames.size()) {
+            chunk.padding_tail_frames = padding_frames;
+        }
         m_queue.push_back(std::move(chunk));
     }
-    (void)discard_padding_ns; // end trimming is the codec's business, not read here
 }
 
 bool MatroskaDemuxer::fillQueue()
@@ -359,18 +381,31 @@ bool MatroskaDemuxer::fillQueue()
             } else if (child.id == Id::SimpleBlock) {
                 takeBlock(child, m_cluster_ticks, 0);
             } else if (child.id == Id::BlockGroup && !child.unknown_size) {
+                // DiscardPadding can come after the Block it applies to, so
+                // the whole group is read before the Block is queued. A group
+                // holds one Block (RFC 9559 5.1.3.5.1); any further one is
+                // ignored rather than given the first one's padding.
                 const uint64_t group_end = child.end();
                 uint64_t cursor = child.data_offset;
+                EBMLElement block;
+                bool have_block = false;
+                int64_t discard_padding_ns = 0;
                 while (cursor < group_end) {
                     m_reader.seek(cursor);
                     EBMLElement inner;
                     if (!m_reader.readElementHeader(inner)) {
                         break;
                     }
-                    if (inner.id == Id::Block) {
-                        takeBlock(inner, m_cluster_ticks, 0);
+                    if (inner.id == Id::Block && !have_block) {
+                        block = inner;
+                        have_block = true;
+                    } else if (inner.id == Id::DiscardPadding && !inner.unknown_size) {
+                        discard_padding_ns = m_reader.readInt(inner);
                     }
                     cursor = inner.unknown_size ? group_end : inner.end();
+                }
+                if (have_block) {
+                    takeBlock(block, m_cluster_ticks, discard_padding_ns);
                 }
             }
             m_read_offset = next;
