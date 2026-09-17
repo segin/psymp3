@@ -199,8 +199,8 @@ bool parseAC3(AC3BitReader& reader, AC3FrameHeader& header)
     return !reader.overrun();
 }
 
-/// E-AC-3: a different bsi() entirely, A/52 Table E1.2. Parsed to describe the
-/// stream, not to decode it -- Annex E is a separate decoder.
+/// E-AC-3: a different bsi() entirely, A/52 Table E1.2. Only the fields up to
+/// dialnorm are read here; eac3ParseFrame() walks the rest for the decoder.
 bool parseEAC3(AC3BitReader& reader, AC3FrameHeader& header)
 {
     header.strmtyp = static_cast<uint8_t>(reader.read(2));
@@ -219,7 +219,7 @@ bool parseEAC3(AC3BitReader& reader, AC3FrameHeader& header)
         header.blocks = 6;
     } else {
         header.sample_rate = ac3SampleRate(header.fscod);
-        // Table E1.3: numblkscod 0..3 is 1, 2, 3 or 6 blocks.
+        // Table E2.4 (§E2.3.1.5): numblkscod 0..3 is 1, 2, 3 or 6 blocks.
         static constexpr uint8_t kBlocksForCode[4] = { 1, 2, 3, 6 };
         header.blocks = kBlocksForCode[reader.read(2)];
     }
@@ -253,8 +253,9 @@ bool ac3ParseFrameHeader(AC3BitReader& reader, AC3FrameHeader& header)
 
     // bsid decides which bit stream follows, and it sits at bit 40 in both --
     // after crc1, fscod and frmsizecod in AC-3, and after strmtyp,
-    // substreamid, frmsiz, fscod and acmod in E-AC-3. Reading it first is the
-    // only way to know which layout the rest of the frame is in.
+    // substreamid, frmsiz, fscod, fscod2 or numblkscod, acmod and lfeon in
+    // E-AC-3 (§E2.1). Reading it first is the only way to know which layout
+    // the rest of the frame is in.
     const size_t after_sync = reader.tell();
     reader.seek(after_sync - 16 + 40);
     const auto bsid = static_cast<uint8_t>(reader.read(5));

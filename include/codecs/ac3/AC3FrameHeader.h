@@ -33,7 +33,7 @@ namespace AC3 {
 /// The AC-3 sync word, A/52 §5.4.1.1. Every syncframe opens with it.
 constexpr uint16_t kSyncWord = 0x0B77;
 
-/// Samples produced per syncframe: six audio blocks of 256, A/52 §6.1.
+/// Samples produced per AC-3 syncframe: six audio blocks of 256, A/52 §5.1.
 constexpr unsigned kSamplesPerFrame = 1536;
 constexpr unsigned kBlocksPerFrame = 6;
 constexpr unsigned kSamplesPerBlock = 256;
@@ -99,7 +99,7 @@ inline unsigned ac3OutputChannels(AudioCodingMode acmod, bool lfeon)
     return 2;
 }
 
-/// syncinfo() and bsi(), A/52 Tables 5.1 and 5.2.
+/// syncinfo() and bsi(), A/52 Tables 5.1 and 5.2 (E-AC-3: E1.1 and E1.2).
 ///
 /// Only the fields a caller outside the decoder needs are kept: enough to
 /// frame the stream, describe it, and decide whether it can be played.
@@ -130,15 +130,19 @@ struct AC3FrameHeader {
     uint16_t frame_size = 0;      ///< bytes in this syncframe, including header
     uint8_t channels = 0;         ///< full-bandwidth channels, excluding LFE
     /// Audio blocks in the frame. Always six for AC-3; E-AC-3 codes 1, 2, 3
-    /// or 6 in numblkscod (Table E1.3), so samples per frame vary with it.
+    /// or 6 in numblkscod (§E2.3.1.5, Table E2.4), so samples per frame vary
+    /// with it.
     uint8_t blocks = kBlocksPerFrame;
     /// E-AC-3 stream type, §E2.3.1.1: 0 independent, 1 dependent (extends
     /// the independent frame before it), 2 independent converted from AC-3,
     /// 3 reserved. Always 0 for AC-3.
     uint8_t strmtyp = 0;
-    /// E-AC-3 substream identification, §E2.3.1.2: which program an
-    /// independent substream carries, or which program a dependent one
-    /// extends. Always 0 for AC-3.
+    /// E-AC-3 substream identification, §E2.3.1.2. For an independent
+    /// substream, the program it carries: 0 is the first, and always
+    /// present. For a dependent substream, its place 0..7 among the
+    /// dependents that follow its independent substream. The program it
+    /// extends is the one that independent substream carries, which this
+    /// field does not name. Always 0 for AC-3.
     uint8_t substreamid = 0;
 
     /// True for every frame except program 1's independent frames: a
