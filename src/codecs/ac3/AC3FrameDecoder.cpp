@@ -98,11 +98,12 @@ void AC3FrameDecoder::finishBlock(Frame& frame, unsigned index, const AC3Block* 
     }
 
     // --- dynamic range control and the inverse transform ---
-    // §7.7.1: the gain scales the block before it is transformed, which is
-    // the same as scaling its output and keeps the overlap with neighbouring
-    // blocks consistent. In 1+1 mode channel 2 has its own. Every line grows
-    // by a block, silent where the frame has no such channel, so they stay
-    // aligned with each other.
+    // §6.1.9: the gain alters the coefficients, so it scales the block
+    // before it is transformed (§7.7.1 gives its value). That is the same as
+    // scaling the block's output, and keeps the overlap with neighbouring
+    // blocks consistent. In 1+1 mode channel 2 has its own, dynrng2
+    // (§7.7.1.2). Every line grows by a block, silent where the frame has no
+    // such channel, so they stay aligned with each other.
     float samples[kBlockSamples];
     for (unsigned ch = 0; ch < kMaxFullBandwidthChannels; ++ch) {
         std::vector<float>& line = m_line[ch];
@@ -122,8 +123,9 @@ void AC3FrameDecoder::finishBlock(Frame& frame, unsigned index, const AC3Block* 
     }
     std::vector<float>& lfe = m_line[kLfeLine];
     if (frame.lfeon) {
-        // The LFE is never block-switched: A/52 §5.4.2.1 gives blksw only to
-        // the full-bandwidth channels.
+        // The LFE is never block-switched: A/52 Table 5.3 sends blksw[ch]
+        // only for the full-bandwidth channels (§5.4.3.1), and Table E1.4
+        // does the same.
         if (block.dynamic_range != 1.0f) {
             for (unsigned bin = 0; bin < kBlockSamples; ++bin) {
                 block.coefficients[kLfeSlot][bin] *= block.dynamic_range;
