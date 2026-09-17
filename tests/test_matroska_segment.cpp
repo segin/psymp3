@@ -678,6 +678,76 @@ protected:
     }
 };
 
+class AcmTest : public TestCase {
+public:
+    AcmTest() : TestCase("A_MS/ACM tracks are decoded by the format their WAVEFORMATEX names") {}
+
+protected:
+    void runTest() override
+    {
+        // A WAVEFORMATEX with cbSize and @p extra after it.
+        auto waveFormat = [](uint16_t tag, uint16_t bits, std::vector<uint8_t> extra) {
+            std::vector<uint8_t> out;
+            auto le = [&out](uint32_t value, int bytes) {
+                for (int i = 0; i < bytes; ++i) {
+                    out.push_back(static_cast<uint8_t>(value >> (8 * i)));
+                }
+            };
+            le(tag, 2);
+            le(2, 2);                          // channels
+            le(48000, 4);                      // rate
+            le(48000 * 2 * bits / 8, 4);       // byte rate
+            le(2 * bits / 8, 2);               // block align
+            le(bits, 2);
+            le(static_cast<uint32_t>(extra.size()), 2);
+            out.insert(out.end(), extra.begin(), extra.end());
+            return out;
+        };
+        auto streamFor = [](const std::vector<uint8_t>& codec_private, bool& chosen) {
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_MS/ACM")
+                                      + element(Id::CodecPrivate, codec_private)
+                                      + element(Id::Audio, floatEl(Id::SamplingFrequency, 48000.0)
+                                                         + uintEl(Id::Channels, 2)));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            chosen = parsed.parser().preferredAudioTrack() != nullptr;
+            return parsed.parser().toStreamInfo(parsed.parser().tracks().front());
+        };
+
+        bool chosen = false;
+        StreamInfo info = streamFor(waveFormat(0x0001, 16, {}), chosen);
+        ASSERT_TRUE(chosen && info.codec_name == "pcm", "16-bit PCM plays");
+        ASSERT_TRUE(info.bits_per_sample == 16 && info.codec_tag == 0x0001, "with its depth and tag");
+        ASSERT_TRUE(info.codec_data.empty(), "and no codec data");
+
+        info = streamFor(waveFormat(0x0003, 32, {}), chosen);
+        ASSERT_TRUE(chosen && info.codec_name == "pcm" && info.codec_tag == 0x0003,
+                    "float keeps its tag, which is what selects the float decoder");
+
+        // WAVE_FORMAT_EXTENSIBLE: valid bits, channel mask, then the SubFormat.
+        const std::vector<uint8_t> extensible{16, 0, 0x03, 0, 0, 0,
+                                              0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+                                              0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71};
+        info = streamFor(waveFormat(0xFFFE, 32, extensible), chosen);
+        ASSERT_TRUE(chosen && info.codec_tag == 0x0003, "an extensible file's SubFormat is the format");
+
+        info = streamFor(waveFormat(0x0055, 0, {1, 2, 3}), chosen);
+        ASSERT_TRUE(chosen && info.codec_name == "mp3", "MP3 goes to the MP3 decoder");
+        ASSERT_TRUE(info.codec_data == (std::vector<uint8_t>{1, 2, 3}), "with the bytes after cbSize");
+
+        info = streamFor(waveFormat(0x1234, 16, {}), chosen);
+        ASSERT_TRUE(!chosen && info.codec_name.empty(), "an unknown format is not played");
+
+        info = streamFor({0x01, 0x00}, chosen);
+        ASSERT_TRUE(!chosen && info.codec_name.empty(), "nor is a truncated WAVEFORMATEX");
+    }
+};
+
 class LanguageTest : public TestCase {
 public:
     LanguageTest() : TestCase("LanguageBCP47 wins over Language, and Language defaults to eng") {}
@@ -964,6 +1034,7 @@ int main()
     suite.addTest(std::make_unique<LegacyAacTest>());
     suite.addTest(std::make_unique<InfoAfterClustersTest>());
     suite.addTest(std::make_unique<LanguageTest>());
+    suite.addTest(std::make_unique<AcmTest>());
     suite.addTest(std::make_unique<ContentEncodingTest>());
 
     auto results = suite.runAll();

@@ -550,54 +550,12 @@ bool ChunkDemuxer::isG722(const AudioStreamData& stream) {
 }
 
 std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
-    switch (format_tag) {
-        case WAVE_FORMAT_PCM:
-            return "pcm";
-        case WAVE_FORMAT_IEEE_FLOAT:
-            return "pcm"; // PCM codec handles float
-        case WAVE_FORMAT_ALAW:
-            return "alaw";
-        case WAVE_FORMAT_MULAW:
-            return "mulaw";
-        case WAVE_FORMAT_MPEGLAYER3:
-            return "mp3";
-        case WAVE_FORMAT_EXTENSIBLE:
-            return "pcm"; // Usually PCM in extensible format
-        case 0x0050: // WAVE_FORMAT_MPEG
-            return "mp2";
-        case 0x0160: // WAVE_FORMAT_WMA1
-        case 0x0161: // WAVE_FORMAT_WMA2
-        case 0x0162: // WAVE_FORMAT_WMA3
-            return "wma";
-        case 0x0011: // WAVE_FORMAT_DVI_ADPCM
-        case 0x0002: // WAVE_FORMAT_ADPCM
-            return "adpcm";
-        case 0x0031: // WAVE_FORMAT_GSM610
-            return "gsm";
-        case 0x0040: // WAVE_FORMAT_G721_ADPCM
-            return "g721";
-        case 0x0041: // WAVE_FORMAT_G728_CELP (0x0042 is WAVE_FORMAT_MSG723)
-            return "g728";
-        case WAVE_FORMAT_G722:
-        // WAVE_FORMAT_G722_ADPCM is the registered tag. No file carrying it
-        // has been seen here, so its octets are taken to be laid out as Rec.
-        // G.722 §1.4.4 has them, as under 0x028F. FFmpeg reads it as G.726.
-        case WAVE_FORMAT_G722_ADPCM:
-            return "g722";
-        case 0x2000: // WAVE_FORMAT_DVM (FAST Multimedia)
-            // The tag AC-3 in WAV uses in practice, and what FFmpeg writes:
-            // plain syncframes in the data chunk. E-AC-3 has no tag of its
-            // own and is not mapped.
-            //
-            // WAVE_FORMAT_DOLBY_AC3_SPDIF (0x0092) is left unmapped. Its data
-            // may be IEC 61937 bursts, byte-swapped AC-3 behind a preamble,
-            // which the AC-3 codec cannot find a sync word in, and no such
-            // file has been seen to settle it.
-            return "ac3";
-        default:
-            Debug::log("chunk", "ChunkDemuxer: Unknown WAV format tag: 0x", std::hex, format_tag);
-            return "unknown";
+    std::string name = waveFormatCodecName(format_tag);
+    if (name.empty()) {
+        Debug::log("chunk", "ChunkDemuxer: Unknown WAV format tag: 0x", std::hex, format_tag);
+        name = "unknown";
     }
+    return name;
 }
 
 bool ChunkDemuxer::usesBigEndianSamples(const AudioStreamData& stream) const {

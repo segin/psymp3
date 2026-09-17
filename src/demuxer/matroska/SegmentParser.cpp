@@ -36,8 +36,8 @@ namespace {
 /// A CodecID missing from here maps to nothing, so the demuxer can say which
 /// codec a file needs rather than open it and fail at the first packet. DTS is
 /// the notable absence: nothing in the tree decodes it, and it is common in
-/// .mkv. A_MS/ACM is missing too, although PsyMP3 has decoders for what it
-/// usually carries.
+/// .mkv. A_MS/ACM is not in the table because the codec it needs is named in
+/// its CodecPrivate, which acmCodecName reads.
 struct CodecMapping {
     const char* codec_id;
     const char* codec_name;
@@ -151,6 +151,53 @@ bool opusHeadUsable(const std::vector<uint8_t>& cp)
            cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd' &&
            cp[8] == 1 && cp[9] != 0 &&
            (cp[18] == 0 || cp[18] == 1 || cp[18] == 255);
+}
+
+/// A_MS/ACM's CodecPrivate is a WAVEFORMATEX, little-endian (cellar-codec
+/// 3.4.25): the format tag, channels, rate, byte rate, block align and bit
+/// depth, then cbSize and that many extra bytes. For WAVE_FORMAT_EXTENSIBLE
+/// the real format is the tag inside the SubFormat GUID, 24 bytes in.
+struct AcmFormat {
+    bool valid = false;
+    uint16_t tag = 0;
+    uint16_t channels = 0;
+    uint32_t sample_rate = 0;
+    uint16_t bits_per_sample = 0;
+    std::vector<uint8_t> extra;   ///< the bytes after cbSize
+};
+
+AcmFormat acmFormat(const std::vector<uint8_t>& cp)
+{
+    AcmFormat format;
+    if (cp.size() < 16) {
+        return format;
+    }
+    const auto u16 = [&cp](size_t at) {
+        return static_cast<uint16_t>(cp[at] | (cp[at + 1] << 8));
+    };
+    format.tag = u16(0);
+    format.channels = u16(2);
+    format.sample_rate = static_cast<uint32_t>(u16(4)) | (static_cast<uint32_t>(u16(6)) << 16);
+    format.bits_per_sample = u16(14);
+    if (cp.size() >= 18) {
+        const size_t size = std::min<size_t>(u16(16), cp.size() - 18);
+        format.extra.assign(cp.begin() + 18, cp.begin() + 18 + static_cast<std::ptrdiff_t>(size));
+    }
+    if (format.tag == 0xFFFE && format.extra.size() >= 22) {
+        const uint16_t sub_format = static_cast<uint16_t>(format.extra[6] | (format.extra[7] << 8));
+        if (sub_format != 0xFFFE) {
+            format.tag = sub_format;
+        }
+    }
+    format.valid = true;
+    return format;
+}
+
+/// The codec an A_MS/ACM track needs, or "" when its format has no decoder.
+std::string acmCodecName(const std::vector<uint8_t>& cp)
+{
+    const AcmFormat format = acmFormat(cp);
+    return format.valid ? waveFormatCodecName(format.tag) : std::string();
 }
 
 /// CodecPrivate as the decoder receives it, header stripping undone.
@@ -614,7 +661,10 @@ const TrackEntry* SegmentParser::preferredAudioTrack() const
         if (!track.isAudio() || !track.enabled) {
             continue;
         }
-        if (codecNameForId(track.codec_id).empty()) {
+        const std::string codec = track.codec_id == "A_MS/ACM"
+                                ? acmCodecName(codecPrivateOf(track))
+                                : codecNameForId(track.codec_id);
+        if (codec.empty()) {
             continue; // nothing here decodes it; keep looking
         }
         if (track.unsupported_encoding) {
@@ -688,6 +738,22 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     info.channels = track.channels;
     info.bits_per_sample = track.bit_depth;
     info.codec_data = codecPrivateOf(track);
+    // A_MS/ACM describes itself with the WAVEFORMATEX it carries, the same
+    // one a WAV's fmt chunk holds, and the decoder gets what follows cbSize,
+    // as ChunkDemuxer hands on.
+    if (track.codec_id == "A_MS/ACM") {
+        const AcmFormat format = acmFormat(info.codec_data);
+        info.codec_name = format.valid ? waveFormatCodecName(format.tag) : std::string();
+        info.codec_tag = format.tag;
+        info.bits_per_sample = format.bits_per_sample;
+        if (format.channels != 0) {
+            info.channels = format.channels;
+        }
+        if (format.sample_rate != 0) {
+            info.sample_rate = format.sample_rate;
+        }
+        info.codec_data = format.extra;
+    }
     // An Opus track needs an OpusHead the decoder accepts. Without one,
     // OpusCodec takes the first audio packets for headers and plays nothing,
     // so such a track is given no codec and refused by name instead. That
