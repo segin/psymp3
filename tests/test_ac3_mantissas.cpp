@@ -198,14 +198,16 @@ protected:
 
 class ResetTest : public TestCase {
 public:
-    ResetTest() : TestCase("A part-used group does not survive into the next exponent set") {}
+    ResetTest() : TestCase("reset() starts a new block with no part-used group") {}
 
 protected:
     void runTest() override
     {
-        // Grouping state is per exponent set. Carrying a half-consumed group
-        // into the next channel would hand it that channel's first mantissa
-        // from the previous one's codeword.
+        // A/52 §7.3.5 shares a part-used group across the exponent sets of a
+        // block: the reader carries it from one channel to the next and is
+        // never reset between them. Only a block's final groups are padded
+        // with dummy mantissas, so a reset belongs at a block boundary, where
+        // whatever is left of a group is padding to be thrown away.
         BitWriter w;
         w.put(0 * 9 + 1 * 3 + 2, 5);
         w.put(2 * 9 + 1 * 3 + 0, 5);
