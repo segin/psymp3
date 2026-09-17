@@ -97,7 +97,12 @@ bool eac3ParseFrame(AC3BitReader& reader, AC3FrameHeader& header,
             reader.skip(3);                               // ltrtsurmixlev
             frame.lorosurmixlev = static_cast<uint8_t>(reader.read(3));
         }
-        if (lfeon && reader.readBit()) { reader.skip(5); } // lfemixlevcode / lfemixlevcod
+        if (lfeon) {
+            frame.lfemixlevcode = reader.readBit() != 0;
+            if (frame.lfemixlevcode) {
+                frame.lfemixlevcod = static_cast<uint8_t>(reader.read(5));
+            }
+        }
         if (strmtyp == 0x0) {
             if (reader.readBit()) { reader.skip(6); }     // pgmscle / pgmscl
             if (acmod == 0x0 && reader.readBit()) { reader.skip(6); } // pgmscl2

@@ -76,7 +76,8 @@ AC3MixLevels ac3MixLevels(unsigned cmixlev, unsigned surmixlev)
     return levels;
 }
 
-AC3MixLevels eac3MixLevels(unsigned lorocmixlev, unsigned lorosurmixlev)
+AC3MixLevels eac3MixLevels(unsigned lorocmixlev, unsigned lorosurmixlev,
+                           bool lfemixlevcode, unsigned lfemixlevcod)
 {
     static constexpr float kCentreLevels[8] = {
         1.414f, 1.189f, 1.000f, 0.841f, 0.707f, 0.595f, 0.500f, 0.0f };
@@ -85,6 +86,10 @@ AC3MixLevels eac3MixLevels(unsigned lorocmixlev, unsigned lorosurmixlev)
     AC3MixLevels levels;
     levels.center = kCentreLevels[lorocmixlev & 0x7u];
     levels.surround = kSurroundLevels[lorosurmixlev & 0x7u];
+    if (lfemixlevcode) {
+        const float db = 10.0f - static_cast<float>(lfemixlevcod & 0x1Fu) - 4.5f;
+        levels.lfe = std::pow(10.0f, db / 20.0f);
+    }
     return levels;
 }
 
@@ -180,6 +185,18 @@ AC3OutputMatrix ac3OutputMatrix(AudioCodingMode acmod, bool lfeon, unsigned outp
             for (unsigned in = 0; in < kMixInputs; ++in) {
                 m.gain[out][in] /= peak;
             }
+        }
+    }
+
+    // §E3.9: E-AC-3's LFE into left and right, and so into a single speaker
+    // at the same gain, since §E3.9 sums left and right into it at -6 dB
+    // each. After the normalisation, as the header explains.
+    if (lfeon && slot[kLfe] < 0 && m.outputs <= 2 && levels.lfe > 0.0f) {
+        if (one_speaker) {
+            mix(kCentre, kMixLfeInput, levels.lfe);
+        } else {
+            mix(kLeft, kMixLfeInput, levels.lfe);
+            mix(kRight, kMixLfeInput, levels.lfe);
         }
     }
     return m;

@@ -172,6 +172,45 @@ protected:
     }
 };
 
+class LfeMixTest : public TestCase {
+public:
+    LfeMixTest() : TestCase("E-AC-3's LFE mix level puts the LFE into stereo and mono output (§E3.9)") {}
+
+protected:
+    void runTest() override
+    {
+        // lfemixlevcod 10 is a 0 dB LFE mix level, mixed in at -4.5 dB.
+        const AC3MixLevels levels = eac3MixLevels(4, 4, true, 10);
+        const double g = std::pow(10.0, -4.5 / 20.0);
+        ASSERT_TRUE(near(levels.lfe, g), "10 - 10 - 4.5 dB");
+        ASSERT_TRUE(near(eac3MixLevels(4, 4, true, 0).lfe, std::pow(10.0, 5.5 / 20.0)), "code 0 is +5.5 dB");
+        ASSERT_TRUE(eac3MixLevels(4, 4).lfe == 0.0f, "no code, no LFE mixing");
+        ASSERT_TRUE(ac3MixLevels(0, 0).lfe == 0.0f, "and AC-3 has none");
+
+        const AC3MixLevels plain = eac3MixLevels(4, 4);
+        for (unsigned outputs : { 1u, 2u }) {
+            const auto with = ac3OutputMatrix(Mode::ThreeTwo, true, outputs, levels);
+            const auto without = ac3OutputMatrix(Mode::ThreeTwo, true, outputs, plain);
+            const std::string where = std::to_string(outputs) + " channel(s)";
+            for (unsigned out = 0; out < outputs; ++out) {
+                ASSERT_TRUE(near(with.gain[out][kMixLfeInput], g), where + ": the LFE is mixed in");
+                ASSERT_TRUE(without.gain[out][kMixLfeInput] == 0.0f, where + ": and not without the code");
+                for (unsigned in = 0; in < kMixLfeInput; ++in) {
+                    ASSERT_TRUE(near(with.gain[out][in], without.gain[out][in]),
+                                where + ": the rest of the downmix is unchanged");
+                }
+            }
+        }
+
+        // An LFE speaker takes it as before, and nothing else does.
+        const auto six = ac3OutputMatrix(Mode::ThreeTwo, true, 6, levels);
+        for (unsigned out = 0; out < 6; ++out) {
+            ASSERT_TRUE(six.gain[out][kMixLfeInput] == (out == 3 ? 1.0f : 0.0f),
+                        "5.1 output keeps the LFE on its own speaker");
+        }
+    }
+};
+
 class NoOverloadTest : public TestCase {
 public:
     NoOverloadTest() : TestCase("No output channel sums to more than unity, and nothing coded is lost") {}
@@ -218,6 +257,7 @@ int main()
     suite.addTest(std::make_unique<SurroundTest>());
     suite.addTest(std::make_unique<DualMonoTest>());
     suite.addTest(std::make_unique<MixLevelTest>());
+    suite.addTest(std::make_unique<LfeMixTest>());
     suite.addTest(std::make_unique<NoOverloadTest>());
 
     auto results = suite.runAll();

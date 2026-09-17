@@ -370,7 +370,8 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
     }
     frame.valid = true;
     frame.levels = frame.eac3
-        ? eac3MixLevels(frame.params.lorocmixlev, frame.params.lorosurmixlev)
+        ? eac3MixLevels(frame.params.lorocmixlev, frame.params.lorosurmixlev,
+                        frame.params.lfemixlevcode, frame.params.lfemixlevcod)
         : ac3MixLevels(header.cmixlev, header.surmixlev);
 
     // A new channel arrangement -- mode, LFE, rate, or AC-3 against E-AC-3 --

@@ -71,6 +71,9 @@ struct Spec {
     uint8_t frmcsnroffst = 0;
     uint8_t frmfsnroffst = 0;
     bool blkstrtinfoe = false;
+    int lfemixlevcod = -1;                // >= 0: mixing metadata with this LFE mix level
+    uint8_t lorocmixlev = 4;              // written only with mixing metadata
+    uint8_t lorosurmixlev = 4;
 };
 
 unsigned channelsFor(uint8_t acmod)
@@ -110,7 +113,39 @@ std::vector<uint8_t> buildFrame(const Spec& s, size_t& audblk_bit)
             w.put(s.chanmap, 16);
         }
     }
-    w.put(0, 1);                          // mixmdate
+    w.put(s.lfemixlevcod >= 0 ? 1 : 0, 1); // mixmdate
+    if (s.lfemixlevcod >= 0) {
+        if (s.acmod > 2) {
+            w.put(0, 2);                  // dmixmod
+        }
+        if ((s.acmod & 1) && s.acmod > 2) {
+            w.put(4, 3);                  // ltrtcmixlev
+            w.put(s.lorocmixlev, 3);
+        }
+        if (s.acmod & 4) {
+            w.put(4, 3);                  // ltrtsurmixlev
+            w.put(s.lorosurmixlev, 3);
+        }
+        if (s.lfeon) {
+            w.put(1, 1);                  // lfemixlevcode
+            w.put(static_cast<uint32_t>(s.lfemixlevcod), 5);
+        }
+        if (s.strmtyp == 0) {
+            w.put(0, 1);                  // pgmscle
+            if (s.acmod == 0) {
+                w.put(0, 1);              // pgmscl2e
+            }
+            w.put(0, 1);                  // extpgmscle
+            w.put(0, 2);                  // mixdef
+            if (s.acmod < 2) {
+                w.put(0, 1);              // paninfoe
+                if (s.acmod == 0) {
+                    w.put(0, 1);          // paninfo2e
+                }
+            }
+            w.put(0, 1);                  // frmmixcfginfoe
+        }
+    }
     w.put(0, 1);                          // infomdate
     if (s.strmtyp == 0 && s.numblkscod != 3) {
         w.put(0, 1);                      // convsync
@@ -402,6 +437,34 @@ protected:
     }
 };
 
+/// Mixing metadata, including the LFE mix level of §E2.3.1.11.
+class MixingMetadataTest : public TestCase {
+public:
+    MixingMetadataTest() : TestCase("Mixing metadata yields the downmix and LFE mix levels") {}
+
+protected:
+    void runTest() override
+    {
+        Spec s;
+        s.acmod = 7;
+        s.lfeon = true;
+        s.cplinu = { false, false, false, false, false, false };
+        s.frmchexpstr = { 0, 0, 0, 0, 0 };
+        s.lfemixlevcod = 21;
+        s.lorocmixlev = 2;
+        s.lorosurmixlev = 5;
+
+        size_t expected_bit = 0;
+        const auto bytes = buildFrame(s, expected_bit);
+        AC3FrameHeader header; EAC3AudioFrame frame; size_t end_bit = 0; std::string why;
+        ASSERT_TRUE(parse(bytes, header, frame, end_bit, why), "parses: " + why);
+        ASSERT_TRUE(end_bit == expected_bit, "lands on the first audio block");
+        ASSERT_TRUE(frame.mixmdate, "mixing metadata is present");
+        ASSERT_TRUE(frame.lorocmixlev == 2 && frame.lorosurmixlev == 5, "Lo/Ro levels");
+        ASSERT_TRUE(frame.lfemixlevcode && frame.lfemixlevcod == 21, "the LFE mix level code");
+    }
+};
+
 /// The two Annex E tables the block parser leans on.
 class TableShapeTest : public TestCase {
 public:
@@ -444,6 +507,7 @@ int main()
     suite.addTest(std::make_unique<CouplingStrategyTest>());
     suite.addTest(std::make_unique<DependentSubstreamTest>());
     suite.addTest(std::make_unique<ReservedStreamTypeTest>());
+    suite.addTest(std::make_unique<MixingMetadataTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

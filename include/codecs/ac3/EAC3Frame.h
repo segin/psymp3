@@ -40,6 +40,11 @@ struct EAC3AudioFrame {
     bool mixmdate = false;
     uint8_t lorocmixlev = 4;
     uint8_t lorosurmixlev = 4;
+    /// Whether the LFE is mixed into left and right when the output has no
+    /// LFE speaker, and at what level (§E2.3.1.10, §E2.3.1.11). Without the
+    /// code, there is no such mixing.
+    bool lfemixlevcode = false;
+    uint8_t lfemixlevcod = 0;
 
     // --- audfrm: which optional block syntax is present ---
     bool expstre = true;      ///< per-block exponent strategies (else Table E2.10)

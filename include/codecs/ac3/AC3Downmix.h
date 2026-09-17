@@ -26,10 +26,14 @@ constexpr unsigned kMixLfeInput = kMaxFullBandwidthChannels;
 struct AC3MixLevels {
     float center = 0.707f;
     float surround = 0.707f;
+    /// E-AC-3 only: the gain at which the LFE joins left and right in 1- and
+    /// 2-channel output (§E3.9). Zero when the stream sends no LFE mix level,
+    /// which leaves the LFE out of such output.
+    float lfe = 0.0f;
 
     bool operator==(const AC3MixLevels& other) const
     {
-        return center == other.center && surround == other.surround;
+        return center == other.center && surround == other.surround && lfe == other.lfe;
     }
     bool operator!=(const AC3MixLevels& other) const { return !(*this == other); }
 };
@@ -40,7 +44,10 @@ AC3MixLevels ac3MixLevels(unsigned cmixlev, unsigned surmixlev);
 
 /// From E-AC-3's lorocmixlev and lorosurmixlev. Annex E defines these by
 /// Annex D's Tables D2.5 and D2.6, whose reserved surround codes mean 0.841.
-AC3MixLevels eac3MixLevels(unsigned lorocmixlev, unsigned lorosurmixlev);
+/// With @p lfemixlevcode, the LFE's level is 10 - @p lfemixlevcod dB
+/// (§E2.3.1.11), mixed in 4.5 dB below that (§E3.9).
+AC3MixLevels eac3MixLevels(unsigned lorocmixlev, unsigned lorosurmixlev,
+                           bool lfemixlevcode = false, unsigned lfemixlevcod = 0);
 
 /// Gains from each decoded channel to each output channel.
 struct AC3OutputMatrix {
@@ -56,10 +63,18 @@ struct AC3OutputMatrix {
 /// right at clev (-3 dB from 1/0), surrounds with no surround speakers go to
 /// the fronts at slev, a single surround with a pair to play through goes to
 /// both at -3 dB, and one speaker takes the fronts at -3 dB with the
-/// surrounds at slev below that. The LFE is kept only where the layout has
-/// one, which §7.8 allows. If any output then sums to more than unity gain,
-/// every gain is scaled down alike until none does -- the normalisation
-/// §7.8.1 describes -- so a full-scale stream cannot clip in the downmix.
+/// surrounds at slev below that. The LFE goes to the layout's LFE speaker if
+/// it has one, and is otherwise dropped, which §7.8 allows. If any output then
+/// sums to more than unity gain, every gain is scaled down alike until none
+/// does -- the normalisation §7.8.1 describes -- so a full-scale stream cannot
+/// clip in the downmix.
+///
+/// The exception is E-AC-3 that sends an LFE mix level (@p levels.lfe): in 1-
+/// and 2-channel output the LFE then joins left and right, or the single
+/// speaker, at that gain (§E3.9). It is added after the normalisation, whose
+/// §7.8.1 rule is for the full-bandwidth channels; the gain can reach +5.5 dB,
+/// and scaling the whole programme down for it would make a stream quieter
+/// for having sent it.
 ///
 /// @param outputs  1 to kMaxOutputChannels
 AC3OutputMatrix ac3OutputMatrix(AudioCodingMode acmod, bool lfeon, unsigned outputs,
