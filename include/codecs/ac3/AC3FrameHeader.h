@@ -38,6 +38,11 @@ constexpr unsigned kSamplesPerFrame = 1536;
 constexpr unsigned kBlocksPerFrame = 6;
 constexpr unsigned kSamplesPerBlock = 256;
 
+/// The most bytes parseAC3FrameHeader() can read. AC-3's bsi grows with its
+/// optional fields, and in 1+1 mode with every one present the fields read
+/// span 153 bits (A/52 Table 5.2). E-AC-3's header parse stops far sooner.
+constexpr size_t kMaxHeaderParseBytes = 20;
+
 /// Which bit stream a syncframe holds, decided by bsid: A/52 §E2.3.1.6 has a
 /// decoder play 0..8 as AC-3 and 11..16 as E-AC-3, and mute 9, 10 and
 /// anything above 16.
@@ -203,8 +208,7 @@ bool parseAC3FrameHeader(const uint8_t* data, size_t size, AC3FrameHeader& heade
 bool ac3ParseFrameHeader(AC3BitReader& reader, AC3FrameHeader& header);
 
 /// Frame length in bytes for a sample rate and frame size code, or 0 if either
-/// is out of range. Exposed because a demuxer wants to walk frames without
-/// decoding their bsi.
+/// is out of range: A/52 Table 5.18, which parseAC3FrameHeader() looks up.
 uint16_t ac3FrameSize(uint8_t fscod, uint8_t frmsizecod);
 
 /// Sample rate in Hz for @p fscod, or 0 for the reserved code.

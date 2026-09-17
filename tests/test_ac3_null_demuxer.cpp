@@ -1,0 +1,114 @@
+/*
+ * test_ac3_null_demuxer.cpp - AC3NullDemuxer's frame walk
+ * This file is part of PsyMP3.
+ * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * The demuxer reads syncframe headers and nothing else, so the frames here are
+ * headers padded out to their stated length.
+ */
+
+#include "psymp3.h"
+#include "test_framework.h"
+#include "io/MemoryIOHandler.h"
+
+using namespace TestFramework;
+using PsyMP3::Demuxer::AC3::AC3NullDemuxer;
+using PsyMP3::IO::MemoryIOHandler;
+
+namespace {
+
+class BitWriter {
+public:
+    void put(uint32_t value, unsigned bits)
+    {
+        for (unsigned i = bits; i-- > 0;) {
+            if (m_count % 8 == 0) {
+                m_data.push_back(0);
+            }
+            if ((value >> i) & 1) {
+                m_data.back() |= static_cast<uint8_t>(0x80 >> (m_count % 8));
+            }
+            ++m_count;
+        }
+    }
+    std::vector<uint8_t> finish(size_t size)
+    {
+        m_data.resize(size, 0);
+        return m_data;
+    }
+
+private:
+    std::vector<uint8_t> m_data;
+    size_t m_count = 0;
+};
+
+constexpr size_t kFrameBytes = 128; // fscod 0 (48 kHz), frmsizecod 0 (32 kbit/s)
+
+/// An AC-3 frame in 1+1 mode with every optional bsi field present, which is
+/// the longest header A/52 Table 5.2 allows, 153 bits before addbsi.
+std::vector<uint8_t> richDualMonoFrame()
+{
+    BitWriter w;
+    w.put(0x0B77, 16);  // syncword
+    w.put(0, 16);       // crc1
+    w.put(0, 2);        // fscod
+    w.put(0, 6);        // frmsizecod
+    w.put(8, 5);        // bsid
+    w.put(0, 3);        // bsmod
+    w.put(0, 3);        // acmod: 1+1
+    w.put(0, 1);        // lfeon
+    w.put(27, 5);       // dialnorm
+    w.put(1, 1); w.put(0x55, 8);            // compre, compr
+    w.put(1, 1); w.put(0x09, 8);            // langcode, langcod
+    w.put(1, 1); w.put(10, 5); w.put(1, 2); // audprodie, mixlevel, roomtyp
+    w.put(27, 5);                           // dialnorm2
+    w.put(1, 1); w.put(0x55, 8);            // compr2e, compr2
+    w.put(1, 1); w.put(0x09, 8);            // langcod2e, langcod2
+    w.put(1, 1); w.put(10, 5); w.put(1, 2); // audprodi2e, mixlevel2, roomtyp2
+    w.put(1, 1);        // copyrightb
+    w.put(1, 1);        // origbs
+    w.put(1, 1); w.put(0x1234, 14);         // timecod1e, timecod1
+    w.put(1, 1); w.put(0x0567, 14);         // timecod2e, timecod2
+    w.put(1, 1); w.put(0, 6);               // addbsie, addbsil (one byte follows)
+    return w.finish(kFrameBytes);
+}
+
+class RichDualMonoTest : public TestCase {
+public:
+    RichDualMonoTest() : TestCase("Dual-mono frames with every bsi field present are walked") {}
+
+protected:
+    void runTest() override
+    {
+        constexpr int kFrames = 3;
+        std::vector<uint8_t> file;
+        for (int i = 0; i < kFrames; ++i) {
+            const std::vector<uint8_t> frame = richDualMonoFrame();
+            file.insert(file.end(), frame.begin(), frame.end());
+        }
+
+        AC3NullDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "the stream opens");
+        ASSERT_EQUALS(uint64_t{kFrames * 1536}, demuxer.getStreams().at(0).duration_samples,
+                      "every frame is counted");
+        for (int i = 0; i < kFrames; ++i) {
+            const MediaChunk chunk = demuxer.readChunk();
+            ASSERT_EQUALS(kFrameBytes, chunk.data.size(), "frame " + std::to_string(i) + " is read");
+        }
+        ASSERT_TRUE(demuxer.readChunk().data.empty(), "and then the stream ends");
+    }
+};
+
+} // namespace
+
+int main()
+{
+    TestSuite suite("AC-3 Null Demuxer");
+    suite.addTest(std::make_unique<RichDualMonoTest>());
+    auto results = suite.runAll();
+    suite.printResults(results);
+    return static_cast<int>(results.size()) - suite.getPassedCount(results);
+}

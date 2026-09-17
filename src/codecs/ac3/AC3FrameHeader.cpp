@@ -272,8 +272,9 @@ bool ac3ParseFrameHeader(AC3BitReader& reader, AC3FrameHeader& header)
 
 bool parseAC3FrameHeader(const uint8_t* data, size_t size, AC3FrameHeader& header)
 {
-    // syncinfo is 5 bytes and the longest fixed run of bsi another handful;
-    // 8 bytes covers everything read below without a length check per field.
+    // A header takes 7 bytes (E-AC-3) to kMaxHeaderParseBytes (AC-3 with every
+    // optional field). The reader flags any read past the end of the buffer,
+    // so a header cut short fails here instead of being read out of bounds.
     if (!data || size < 8) {
         return false;
     }

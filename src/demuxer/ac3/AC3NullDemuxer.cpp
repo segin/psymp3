@@ -20,10 +20,11 @@ using PsyMP3::Codec::AC3::kSyncWord;
 
 namespace {
 
-/// Bytes a header parse needs. AC-3's bsi is variable-length, but everything
-/// the demuxer reads -- rate, size, channel mode, bsid, E-AC-3's block count
-/// -- sits within the first few bytes.
-constexpr size_t kHeaderProbeBytes = 16;
+/// Bytes read for a header parse. The parse reads the whole bsi, which runs to
+/// 20 bytes in 1+1 mode with every optional field present. A 16-byte probe
+/// refused such frames as damaged, so the file did not open, or stopped at the
+/// first of them.
+constexpr size_t kHeaderProbeBytes = PsyMP3::Codec::AC3::kMaxHeaderParseBytes;
 
 /// How far into the file to look for the first syncframe. A raw stream starts
 /// on one; this only covers a file with junk or a tag in front.

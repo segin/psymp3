@@ -484,6 +484,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_ac3_drc \
 	test_ac3_downmix \
 	test_ac3_oracle \
+	test_ac3_null_demuxer \
 	test_mp2_codec \
 	test_demuxed_stream_seek \
 	test_http_client_parse_url \
@@ -585,6 +586,9 @@ test_mp2_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
 
 test_ac3_oracle_SOURCES = test_ac3_oracle.cpp
 test_ac3_oracle_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
+
+test_ac3_null_demuxer_SOURCES = test_ac3_null_demuxer.cpp
+test_ac3_null_demuxer_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
 
 generate_matroska_corpus_SOURCES = generate_matroska_corpus.cpp
 generate_matroska_corpus_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
