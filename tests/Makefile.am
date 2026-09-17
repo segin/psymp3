@@ -1569,6 +1569,18 @@ test_vorbis_codec_private_LDADD = \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+
+check_PROGRAMS += test_ogg_seek_landing
+test_ogg_seek_landing_SOURCES = test_ogg_seek_landing.cpp
+test_ogg_seek_landing_CPPFLAGS = $(AM_CPPFLAGS) $(VORBISENC_CFLAGS)
+test_ogg_seek_landing_LDADD = \
+	libtest_utilities.a \
+	$(FULL_CODEC_LIBS) \
+	$(OGG_LIBS) \
+	$(VORBISENC_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
 endif
 endif
 

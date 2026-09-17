@@ -62,6 +62,7 @@ public:
     uint64_t getPosition() const override;
     uint64_t getGranulePosition(uint32_t stream_id) const override;
   bool providesGranulePositions() const override { return true; }
+  bool granulesArePageEnds() const override { return true; }
 
     // Registration
     static bool registerDemuxer();

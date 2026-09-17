@@ -484,6 +484,11 @@ public:
     /// than from the landing, since a codec can drop audio first.
     virtual bool chunkTimesAreExact() const { return false; }
 
+    /// True when only some chunks carry a granule position, as in Ogg, where
+    /// it rides on the packet that ends a page. After a seek, DemuxedStream
+    /// holds the audio back until such a chunk says where it is.
+    virtual bool granulesArePageEnds() const { return false; }
+
     virtual uint64_t getGranulePosition(uint32_t stream_id) const {
         return 0; // Default implementation for non-Ogg formats
     }

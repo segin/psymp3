@@ -194,6 +194,11 @@ private:
     int64_t m_anchor_swallow = 0;
     /// Sets the count from the first audio after a seek; see above.
     void reanchorAfterSeek(const AudioFrame& frame);
+    /// After a seek on a demuxer whose granules come at page ends, the audio
+    /// decoded is held here until a chunk with a granule arrives, which is the
+    /// first exact word on where that audio is.
+    bool m_granule_hold_pending = false;
+    AudioFrame m_granule_hold;
     /// Moves the demuxer to @p start_ms and resets everything for playback
     /// from there, counting towards @p target_ms. False if the demuxer
     /// refused, which leaves the stream as it was.

@@ -159,6 +159,8 @@ void DemuxedStream::updateStreamProperties() {
     m_output_format_pending = m_codec && !m_codec->outputFormatKnown();
     m_codec_delay = stream_info.codec_delay;
     m_reanchor_pending = false;
+    m_granule_hold_pending = false;
+    m_granule_hold = AudioFrame{};
     m_bitrate = stream_info.bitrate;
     // Opus states no bitrate at all, and ALAC/Vorbis encoders often leave
     // theirs at zero, so derive the average the way every other player does:
@@ -655,6 +657,37 @@ AudioFrame DemuxedStream::getNextFrame() {
             // Entirely priming, or entirely past the last real sample.
             return AudioFrame{};
         }
+        if (m_granule_hold_pending) {
+            // Counted from the page a seek landed on, the audio would be off
+            // by whatever the codec dropped first -- a Vorbis packet that only
+            // primes the overlap -- and the trim to the target with it. So it
+            // is held until a chunk with a granule arrives, and then timed
+            // backwards from there.
+            const bool has_granule = chunk.granule_position != 0
+                                  && chunk.granule_position != static_cast<uint64_t>(-1);
+            constexpr uint64_t kMaxHoldSeconds = 10;
+            if (!has_granule) {
+                if (!frame.samples.empty()) {
+                    m_granule_hold = joinFrames(std::move(m_granule_hold), std::move(frame));
+                }
+                if (m_granule_hold.getSampleFrameCount() < kMaxHoldSeconds * static_cast<uint64_t>(m_rate)) {
+                    return AudioFrame{};
+                }
+                // No page end in reach: count from the landing after all.
+                m_granule_hold_pending = false;
+                frame = std::move(m_granule_hold);
+                m_granule_hold = AudioFrame{};
+                return stampFrame(frame, nullptr) ? frame : AudioFrame{};
+            }
+            m_granule_hold_pending = false;
+            frame = joinFrames(std::move(m_granule_hold), std::move(frame));
+            m_granule_hold = AudioFrame{};
+            if (frame.samples.empty()) {
+                // Nothing decoded yet, but from here the count is exact.
+                m_samples_consumed = toOutputFrames(chunk.granule_position);
+                m_frames_emitted = m_samples_consumed;
+            }
+        }
         if (!frame.samples.empty()) {
             if (!stampFrame(frame, &chunk)) {
                 return AudioFrame{}; // Entirely before the requested sample.
@@ -685,6 +718,12 @@ AudioFrame DemuxedStream::getNextFrame() {
             m_codec_drained = true;
         }
         adoptOutputFormat(frame);
+        if (m_granule_hold_pending) {
+            // The stream ended before a page did: what was held goes first.
+            m_granule_hold_pending = false;
+            frame = joinFrames(std::move(m_granule_hold), std::move(frame));
+            m_granule_hold = AudioFrame{};
+        }
         if (m_padded_tail_frames > 0) {
             // The stream ended on a padded block, so its padding is the end of
             // everything the codec has returned since.
@@ -922,6 +961,10 @@ bool DemuxedStream::restartAt_unlocked(unsigned long start_ms, unsigned long tar
     m_reanchor_pending = granular && m_demuxer->chunkTimesAreExact();
     m_seek_base_set = false;
     m_seek_landing = landing;
+    // Opus stamps its own output from the granules, so it needs no holding.
+    m_granule_hold_pending = granular && m_demuxer->granulesArePageEnds() && m_codec
+                          && m_codec->getCodecName() != "opus";
+    m_granule_hold = AudioFrame{};
 
     // The priming sits at the very start of the file, so anywhere a seek lands
     // is already past it -- re-dropping it would eat real audio. The tail trim
