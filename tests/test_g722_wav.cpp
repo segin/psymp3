@@ -141,6 +141,33 @@ protected:
     }
 };
 
+class HeaderRate8000Test : public TestCase {
+public:
+    HeaderRate8000Test() : TestCase("A G.722 WAV that declares 8000 Hz still plays at 16 kHz") {}
+
+protected:
+    void runTest() override
+    {
+        WavFormat format;
+        format.rate = 8000;
+        checkG722(format, "8000 Hz header");
+
+        auto demuxer = open(format);
+        ASSERT_TRUE(demuxer != nullptr, "parses");
+        const StreamInfo stream = demuxer->getStreams().at(0);
+        ASSERT_EQUALS(uint32_t{16000}, stream.sample_rate, "the stream is 16 kHz");
+        ASSERT_EQUALS(uint64_t{kOctets / 8}, demuxer->getDuration(), "and so is its duration");
+
+        G722Codec codec(stream);
+        ASSERT_TRUE(codec.initialize(), "the codec takes it");
+        const MediaChunk chunk = demuxer->readChunk();
+        const AudioFrame frame = codec.decode(chunk);
+        ASSERT_EQUALS(uint32_t{16000}, frame.sample_rate, "decoded at 16 kHz");
+        ASSERT_EQUALS(2 * chunk.data.size(), frame.samples.size(),
+                      "both sub-bands, two samples an octet");
+    }
+};
+
 } // namespace
 
 int main()
@@ -148,6 +175,7 @@ int main()
     TestSuite suite("G.722 in WAVE");
     suite.addTest(std::make_unique<TagsTest>());
     suite.addTest(std::make_unique<ExtensibleTest>());
+    suite.addTest(std::make_unique<HeaderRate8000Test>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

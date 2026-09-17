@@ -59,9 +59,9 @@ bool G722Codec::initialize()
         return false;
     }
 
-    if (m_stream_info.sample_rate == 0) {
-        m_stream_info.sample_rate = 16000;
-    }
+    // The output is 16 kHz whatever the container said (Rec. G.722 §1.1).
+    // canDecode accepts a declared 8000, which is the octet rate.
+    m_stream_info.sample_rate = 16000;
 
     if (m_stream_info.channels == 0) {
         m_stream_info.channels = 1;
@@ -71,10 +71,7 @@ bool G722Codec::initialize()
         m_stream_info.bits_per_sample = 8;
     }
 
-    // The 8 kHz mode decodes only the lower sub-band, so it yields one sample
-    // per octet instead of two.
-    m_decoder = std::make_unique<G722Decoder>(selectBitrate(),
-                                              m_stream_info.sample_rate != 8000);
+    m_decoder = std::make_unique<G722Decoder>(selectBitrate(), /*wideband_out=*/true);
     m_initialized = true;
     return true;
 }

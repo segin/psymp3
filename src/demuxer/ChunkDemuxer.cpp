@@ -448,7 +448,15 @@ bool ChunkDemuxer::parseWaveFormat(const Chunk& chunk) {
             m_handler->read(stream_data.extra_data.data(), 1, extra_size);
         }
     }
-    
+
+    // G.722 always decodes to 16 kHz (Rec. G.722 §1.1). A header saying 8000
+    // is describing the 8000 octets a second, not the audio: taken at its
+    // word, the file played in a narrowband mode that drops everything above
+    // 4 kHz, and every duration and seek was off by a factor of two.
+    if (isG722(stream_data)) {
+        stream_data.sample_rate = 16000;
+    }
+
     m_audio_streams[stream_data.stream_id] = stream_data;
     
     // Skip to end of chunk
@@ -478,7 +486,10 @@ bool ChunkDemuxer::parseWaveData(const Chunk& chunk) {
     }
 
     // Calculate duration
-    if (stream_data.bytes_per_frame > 0) {
+    if (isG722(stream_data)) {
+        const uint64_t ch = std::max<uint64_t>(1, stream_data.channels);
+        m_duration_ms = ((stream_data.data_size * 2 / ch) * 1000ULL) / stream_data.sample_rate;
+    } else if (stream_data.bytes_per_frame > 0) {
         uint64_t total_samples = stream_data.data_size / stream_data.bytes_per_frame;
         m_duration_ms = (total_samples * 1000ULL) / stream_data.sample_rate;
     }
