@@ -76,6 +76,16 @@ private:
     /// ends.
     uint32_t m_flush_remaining = 0;
     bool m_flushing = false;
+    /// Output timing. m_time_base is the time of the first access unit
+    /// decoded since initialisation or the last reset, and m_raw_frames counts
+    /// the decoder's output since then, including what was dropped. Output
+    /// sample r belongs m_output_delay samples before where r puts it.
+    uint64_t m_time_base = 0;
+    bool m_time_base_set = false;
+    uint64_t m_raw_frames = 0;
+    uint32_t m_output_delay = 0;
+    /// The time, in chunk units, of raw output sample @p raw_index.
+    uint64_t timeOfRawFrame_unlocked(uint64_t raw_index) const;
     mutable std::mutex m_mutex;
 };
 

@@ -112,6 +112,8 @@ AudioFrame AACCodec::flush() {
     if (frame_size <= 0 || channels <= 0 || rate <= 0) {
         return AudioFrame();
     }
+    const uint64_t raw_start = m_raw_frames;
+    m_raw_frames += static_cast<uint64_t>(frame_size);
 
     size_t leading_drop = 0;
     if (m_decoder_delay_remaining > 0) {
@@ -144,8 +146,7 @@ AudioFrame AACCodec::flush() {
     }
     frame.sample_rate = static_cast<uint32_t>(rate);
     frame.channels = static_cast<uint16_t>(channels);
-    // No chunk to take a timestamp from; DemuxedStream continues its own
-    // running count for this codec.
+    frame.timestamp_samples = timeOfRawFrame_unlocked(raw_start + leading_drop);
     return frame;
 }
 
@@ -166,13 +167,30 @@ void AACCodec::reset() {
     // which is what the format expects.
     m_priming_frames = 1;
     m_decoder_delay_known = false;
+    m_time_base_set = false;
+    m_raw_frames = 0;
     m_decoder_delay_remaining = 0;
     m_flush_remaining = 0;
     m_flushing = false;
 }
 
+uint64_t AACCodec::timeOfRawFrame_unlocked(uint64_t raw_index) const {
+    // The decoder's output runs m_output_delay samples behind its input, so
+    // raw sample r is the (r - delay)th sample of the audio from m_time_base
+    // on. That is counted at the decoder's rate, and chunk times at the
+    // container's.
+    const uint64_t played = raw_index > m_output_delay ? raw_index - m_output_delay : 0;
+    const uint32_t ts_rate = m_container_sample_rate ? m_container_sample_rate : m_sample_rate;
+    if (m_sample_rate == 0 || ts_rate == m_sample_rate) {
+        return m_time_base + played;
+    }
+    return m_time_base + (played * ts_rate) / m_sample_rate;
+}
+
 bool AACCodec::initialize_unlocked() {
     destroyDecoder_unlocked();
+    m_time_base_set = false;
+    m_raw_frames = 0;
 
     if (!canDecode(m_stream_info)) {
         Debug::log("aac", "AACCodec::initialize: unsupported stream type");
@@ -288,6 +306,14 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
         Debug::log("aac", "AACCodec::decode: frame failed (", chunk.data.size(), " bytes)");
         return AudioFrame();
     }
+    if (!m_time_base_set) {
+        m_time_base = chunk.timestamp_samples;
+        m_time_base_set = true;
+    }
+    // Everything the decoder returns counts, the warm-up frame included: a
+    // frame dropped after a seek is audio the stream has moved past.
+    const uint64_t raw_start = m_raw_frames;
+    m_raw_frames += static_cast<uint64_t>(frame_size);
 
     if (m_priming_frames > 0) {
         // Post-seek warm-up frame: state is now primed, output is not usable.
@@ -311,6 +337,7 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
     if (!m_decoder_delay_known) {
         m_decoder_delay_known = true;
         m_decoder_delay_remaining = (output_delay > 0) ? static_cast<uint32_t>(output_delay) : 0;
+        m_output_delay = m_decoder_delay_remaining;
         // The same figure bounds the end-of-stream drain.
         m_flush_remaining = m_decoder_delay_remaining;
         if (m_decoder_delay_remaining != 0) {
@@ -346,14 +373,16 @@ AudioFrame AACCodec::decode_unlocked(const MediaChunk& chunk) {
 
     frame.sample_rate = m_sample_rate;
     frame.channels = m_channels;
-    frame.timestamp_samples = chunk.timestamp_samples;
+    // The time the first kept sample plays, which is not the chunk's own when
+    // the decoder's delay or a dropped warm-up frame came first.
+    frame.timestamp_samples = timeOfRawFrame_unlocked(raw_start + leading_drop);
     // Convert with the CONTAINER rate: chunk.timestamp_samples is counted in
     // the sample table's units, while m_sample_rate is the decoder's and may
     // have been doubled by SBR -- dividing by that halved the reported time
     // for implicit-SBR files.
     const uint32_t ts_rate = m_container_sample_rate ? m_container_sample_rate : m_sample_rate;
     if (ts_rate != 0) {
-        frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / ts_rate;
+        frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / ts_rate;
     }
 
     return frame;
