@@ -20,9 +20,11 @@ namespace AC3 {
 constexpr unsigned kTransformSize = 512;
 constexpr unsigned kBlockSamples = kTransformSize / 2;   // 256
 
-/// Pi, for the transforms of §7.9, §E3.4.5 and §E3.5 and the cross-fades of
-/// §E3.7. One definition, because the unity build compiles every AC-3 source
-/// into a single translation unit, where file-local copies collide.
+/// Pi, for the transforms of §E3.4.5 and §E3.5 and the cross-fades of §E3.7.
+/// One definition, because the unity build compiles every AC-3 source into a
+/// single translation unit, where file-local copies collide. The §7.9
+/// twiddles in AC3Transform.cpp use a function-local pi of the same value,
+/// which cannot collide.
 constexpr double kA52Pi = 3.14159265358979323846;
 
 /// The half-block each channel carries from one block into the next.
@@ -31,8 +33,11 @@ constexpr double kA52Pi = 3.14159265358979323846;
 /// samples, and a block on its own does not reconstruct anything. Each
 /// inverse transform produces 512 windowed samples whose first half completes
 /// the *previous* block and whose second half waits here for the next one.
-/// That is why a channel cannot be decoded from a single block, and why a
-/// seek has to discard the first block it lands on.
+/// That is why a channel cannot be decoded from a single block. The decoder
+/// discards nothing after a reset: the first block comes out against a
+/// zeroed delay line, only half reconstructed, so a seek has to start at
+/// least a block before its target and drop that pre-roll, as AC3NullDemuxer
+/// does.
 struct AC3TransformState {
     float delay[kBlockSamples] = {};
 };
@@ -47,7 +52,8 @@ struct AC3TransformState {
 /// @param coefficients  256 transform coefficients for this block
 /// @param block_switch  true for the two short transforms (blksw)
 /// @param state         the channel's carry-over, updated in place
-/// @param pcm           256 output samples, in [-1, 1) barring coding error
+/// @param pcm           256 output samples, saturated to [-1, 1] as step 6
+///                      asks (§7.9.4.1)
 void ac3InverseTransform(const float* coefficients, bool block_switch,
                          AC3TransformState& state, float* pcm);
 
