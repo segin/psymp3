@@ -163,9 +163,12 @@ protected:
     }
 };
 
-/// Table 7.33 is transcribed from a printed two-column table, and four of
-/// A/52's other tables turned out to have page furniture in them. These two
-/// properties would not survive a single wrong digit.
+/// Table 7.33 is transcribed from a printed grid of 26 rows by 10 columns
+/// (addr = 10 * A + B), and four of A/52's other tables turned out to have
+/// page furniture in them. These two properties catch an entry out of order
+/// and any wrong digit in the first two decimal places, but not every wrong
+/// digit: of the 13824 single-digit changes to the table, 1199 still pass,
+/// all but one of them in the last two decimal places.
 class WindowTableTest : public TestCase {
 public:
     WindowTableTest() : TestCase("The transform window is monotone and power-complementary") {}
