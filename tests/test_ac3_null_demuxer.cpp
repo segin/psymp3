@@ -147,6 +147,57 @@ protected:
     }
 };
 
+/// A mono AC-3 frame with the shortest bsi, 128 bytes.
+std::vector<uint8_t> plainFrame()
+{
+    BitWriter w;
+    w.put(0x0B77, 16);  // syncword
+    w.put(0, 16);       // crc1
+    w.put(0, 2);        // fscod
+    w.put(0, 6);        // frmsizecod
+    w.put(8, 5);        // bsid
+    w.put(0, 3);        // bsmod
+    w.put(1, 3);        // acmod: 1/0
+    w.put(0, 1);        // lfeon
+    w.put(27, 5);       // dialnorm
+    w.put(0, 8);        // compre, langcode, audprodie, copyrightb, origbs,
+                        // timecod1e, timecod2e, addbsie
+    return w.finish(kFrameBytes);
+}
+
+class DamageMidStreamTest : public TestCase {
+public:
+    DamageMidStreamTest() : TestCase("A damaged stretch mid-stream is stepped over, not taken for the end") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> frame = plainFrame();
+        std::vector<uint8_t> file;
+        std::vector<uint64_t> offsets;
+        for (int i = 0; i < 4; ++i) {
+            if (i == 2) {
+                file.insert(file.end(), 50, 0x00); // a lost stretch where a header should be
+            }
+            offsets.push_back(file.size());
+            file.insert(file.end(), frame.begin(), frame.end());
+        }
+
+        AC3NullDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "the stream opens");
+        ASSERT_EQUALS(uint64_t{4 * 1536}, demuxer.getStreams().at(0).duration_samples,
+                      "the frames after the damage count");
+        for (int i = 0; i < 4; ++i) {
+            const MediaChunk chunk = demuxer.readChunk();
+            ASSERT_EQUALS(kFrameBytes, chunk.data.size(), "frame " + std::to_string(i) + " is read");
+            ASSERT_EQUALS(offsets[static_cast<size_t>(i)], chunk.file_offset, "from where it starts");
+            ASSERT_EQUALS(uint64_t{static_cast<uint64_t>(i) * 1536}, chunk.timestamp_samples,
+                          "and the damage takes up no time");
+        }
+        ASSERT_TRUE(demuxer.readChunk().data.empty(), "and then the stream ends");
+    }
+};
+
 } // namespace
 
 int main()
@@ -154,6 +205,7 @@ int main()
     TestSuite suite("AC-3 Null Demuxer");
     suite.addTest(std::make_unique<RichDualMonoTest>());
     suite.addTest(std::make_unique<ProgramLayoutTest>());
+    suite.addTest(std::make_unique<DamageMidStreamTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

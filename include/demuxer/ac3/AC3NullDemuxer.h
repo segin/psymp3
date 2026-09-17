@@ -60,6 +60,10 @@ private:
     MediaChunk readChunk_unlocked();
     bool seekTo_unlocked(uint64_t timestamp_ms);
     bool readHeaderAt_unlocked(uint64_t offset, PsyMP3::Codec::AC3::AC3FrameHeader& header);
+    /// The first confirmed syncframe at or after @p from, searching at most
+    /// kSyncSearchLimit bytes: where it starts, and its header.
+    bool findSyncframe_unlocked(uint64_t from, uint64_t& found_at,
+                                PsyMP3::Codec::AC3::AC3FrameHeader& found);
 
     StreamInfo m_stream_info;
     bool m_eac3 = false;

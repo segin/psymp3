@@ -74,6 +74,45 @@ bool AC3NullDemuxer::readHeaderAt_unlocked(uint64_t offset, AC3FrameHeader& head
            header.frame_size != 0;
 }
 
+bool AC3NullDemuxer::findSyncframe_unlocked(uint64_t from, uint64_t& found_at,
+                                            AC3FrameHeader& found)
+{
+    // A 16-bit sync word turns up by chance in any binary data, so a candidate
+    // only counts if its header parses *and* the next frame starts exactly
+    // where this one says it ends. Two consecutive frames is a far stronger
+    // test than the sync word alone.
+    if (from >= m_file_size) {
+        return false;
+    }
+    const uint64_t limit = std::min<uint64_t>(m_file_size - from, kSyncSearchLimit);
+    std::vector<uint8_t> window(static_cast<size_t>(limit));
+    if (m_handler->seek(static_cast<off_t>(from), SEEK_SET) != 0) {
+        return false;
+    }
+    const size_t got = m_handler->read(window.data(), 1, window.size());
+
+    for (size_t i = 0; i + 7 <= got; ++i) {
+        if (((window[i] << 8) | window[i + 1]) != kSyncWord) {
+            continue;
+        }
+        AC3FrameHeader candidate;
+        if (!PsyMP3::Codec::AC3::parseAC3FrameHeader(&window[i], got - i, candidate) ||
+            candidate.frame_size == 0) {
+            continue;
+        }
+        const uint64_t at = from + i;
+        const uint64_t next = at + candidate.frame_size;
+        AC3FrameHeader following;
+        // A stream that ends with this frame has nothing to confirm against.
+        if (next >= m_file_size || readHeaderAt_unlocked(next, following)) {
+            found_at = at;
+            found = candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool AC3NullDemuxer::parseContainer_unlocked()
 {
     if (m_parsed) {
@@ -89,38 +128,10 @@ bool AC3NullDemuxer::parseContainer_unlocked()
     m_handler->seek(0, SEEK_SET);
 
     // --- find the first syncframe ---
-    // A 16-bit sync word turns up by chance in any binary data, so a candidate
-    // only counts if its header parses *and* the next frame starts exactly
-    // where this one says it ends. Two consecutive frames is a far stronger
-    // test than the sync word alone.
-    const uint64_t limit = std::min<uint64_t>(m_file_size, kSyncSearchLimit);
-    std::vector<uint8_t> window(static_cast<size_t>(limit));
-    if (m_handler->seek(0, SEEK_SET) != 0) {
-        return false;
-    }
-    const size_t got = m_handler->read(window.data(), 1, window.size());
-
-    bool found = false;
-    for (size_t i = 0; i + 7 <= got; ++i) {
-        if (((window[i] << 8) | window[i + 1]) != kSyncWord) {
-            continue;
-        }
-        AC3FrameHeader candidate;
-        if (!PsyMP3::Codec::AC3::parseAC3FrameHeader(&window[i], got - i, candidate) ||
-            candidate.frame_size == 0) {
-            continue;
-        }
-        const uint64_t next = static_cast<uint64_t>(i) + candidate.frame_size;
-        AC3FrameHeader following;
-        // A file holding exactly one frame has nothing to confirm against.
-        const bool confirmed = next >= m_file_size || readHeaderAt_unlocked(next, following);
-        if (confirmed) {
-            m_data_start_offset = i;
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
+    // A raw stream starts on one; the search only covers a file with junk or a
+    // tag in front.
+    AC3FrameHeader first;
+    if (!findSyncframe_unlocked(0, m_data_start_offset, first)) {
         Debug::log("ac3demux", "AC3NullDemuxer: No syncframe found");
         return false;
     }
@@ -152,11 +163,23 @@ bool AC3NullDemuxer::parseContainer_unlocked()
         }
         const size_t at = static_cast<size_t>(offset - buf_start);
         AC3FrameHeader header;
-        if (!PsyMP3::Codec::AC3::parseAC3FrameHeader(&buf[at], buf_len - at, header) ||
-            header.frame_size == 0 || offset + header.frame_size > m_file_size) {
-            // A short or damaged tail is a truncated frame, not a parse
-            // failure; everything up to here is still playable.
-            break;
+        const bool parsed = PsyMP3::Codec::AC3::parseAC3FrameHeader(&buf[at], buf_len - at, header) &&
+                            header.frame_size != 0;
+        if (parsed && offset + header.frame_size > m_file_size) {
+            break; // a truncated last frame; everything before it plays
+        }
+        if (!parsed) {
+            // A damaged or lost header. The stream goes on at the next
+            // confirmed syncframe, if there is one, rather than ending here;
+            // the bytes in between add no time. At the end of the file this
+            // finds nothing and the walk stops.
+            uint64_t resume = 0;
+            AC3FrameHeader ignored;
+            if (!findSyncframe_unlocked(offset + 1, resume, ignored)) {
+                break;
+            }
+            offset = resume;
+            continue;
         }
         if (!isDependent(header)) {
             if (!have_program) {
@@ -248,8 +271,16 @@ MediaChunk AC3NullDemuxer::readChunk_unlocked()
     }
 
     AC3FrameHeader header;
-    if (!readHeaderAt_unlocked(m_read_offset, header) ||
-        m_read_offset + header.frame_size > m_file_size) {
+    bool parsed = readHeaderAt_unlocked(m_read_offset, header);
+    if (!parsed) {
+        // Damage the frame walk stepped over: resume where it did.
+        uint64_t resume = 0;
+        parsed = findSyncframe_unlocked(m_read_offset + 1, resume, header);
+        if (parsed) {
+            m_read_offset = resume;
+        }
+    }
+    if (!parsed || m_read_offset + header.frame_size > m_file_size) {
         m_eof_flag.store(true);
         MediaChunk eos;
         eos.stream_id = 1;
