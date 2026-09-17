@@ -64,7 +64,9 @@ struct TrackEntry {
     uint64_t type = 0;            ///< see TrackType
     std::string codec_id;         ///< e.g. "A_OPUS"
     std::string codec_name;       ///< the encoder's own description, if given
-    std::string language;         ///< ISO 639-2, or BCP 47 when the file uses it
+    /// LanguageBCP47 when the TrackEntry has it, and otherwise Language,
+    /// whose default is "eng" (RFC 9559 5.1.4.1.19-20).
+    std::string language = "eng";
     std::string name;
     std::vector<uint8_t> codec_private;
     bool lacing_allowed = true;   ///< FlagLacing; blocks may pack several frames

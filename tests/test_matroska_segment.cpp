@@ -677,6 +677,33 @@ protected:
     }
 };
 
+class LanguageTest : public TestCase {
+public:
+    LanguageTest() : TestCase("LanguageBCP47 wins over Language, and Language defaults to eng") {}
+
+protected:
+    void runTest() override
+    {
+        auto languageOf = [](const std::vector<uint8_t>& fields) {
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_FLAC") + fields);
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            return parsed.parser().tracks().front().language;
+        };
+        ASSERT_TRUE(languageOf({}) == "eng", "no language element means English");
+        ASSERT_TRUE(languageOf(strEl(Id::Language, "fra")) == "fra", "Language alone");
+        ASSERT_TRUE(languageOf(strEl(Id::LanguageBCP47, "en-GB") + strEl(Id::Language, "fra")) == "en-GB",
+                    "LanguageBCP47 wins even when Language follows it");
+        ASSERT_TRUE(languageOf(strEl(Id::Language, "fra") + strEl(Id::LanguageBCP47, "de-CH")) == "de-CH",
+                    "and when Language comes first");
+    }
+};
+
 class LegacyAacTest : public TestCase {
 public:
     LegacyAacTest() : TestCase("Legacy AAC CodecIDs get the AudioSpecificConfig they imply") {}
@@ -935,6 +962,7 @@ int main()
     suite.addTest(std::make_unique<VorbisDelayTest>());
     suite.addTest(std::make_unique<LegacyAacTest>());
     suite.addTest(std::make_unique<InfoAfterClustersTest>());
+    suite.addTest(std::make_unique<LanguageTest>());
     suite.addTest(std::make_unique<ContentEncodingTest>());
 
     auto results = suite.runAll();

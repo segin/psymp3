@@ -437,6 +437,7 @@ void SegmentParser::parseTracks(EBMLReader& reader, const EBMLElement& tracks)
 TrackEntry SegmentParser::parseTrackEntry(EBMLReader& reader, const EBMLElement& entry)
 {
     TrackEntry track;
+    std::string bcp47;
     const uint64_t end = entry.end();
     while (reader.tell() < end) {
         EBMLElement child;
@@ -458,8 +459,9 @@ TrackEntry SegmentParser::parseTrackEntry(EBMLReader& reader, const EBMLElement&
         case Id::FlagLacing:      track.lacing_allowed = uintOr(reader, child, 1) != 0; break;
         case Id::FlagDefault:     track.default_track = uintOr(reader, child, 1) != 0; break;
         case Id::FlagEnabled:     track.enabled = uintOr(reader, child, 1) != 0; break;
-        // BCP 47 supersedes the ISO 639-2 field when both are present.
-        case Id::LanguageBCP47:   track.language = reader.readString(child); break;
+        // Where LanguageBCP47 is present, Language is ignored, whichever comes
+        // first, so it is kept apart until the walk is done.
+        case Id::LanguageBCP47:   bcp47 = reader.readString(child); break;
         case Id::Audio:           parseAudio(reader, child, track); break;
         case Id::ContentEncodings:
             if (!child.unknown_size) {
@@ -469,6 +471,9 @@ TrackEntry SegmentParser::parseTrackEntry(EBMLReader& reader, const EBMLElement&
         default: break;
         }
         reader.seek(child.end());
+    }
+    if (!bcp47.empty()) {
+        track.language = bcp47;
     }
     return track;
 }
