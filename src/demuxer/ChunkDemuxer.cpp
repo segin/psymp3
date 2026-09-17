@@ -213,7 +213,7 @@ std::vector<StreamInfo> ChunkDemuxer::getStreams() const {
             // Use fact chunk data for accurate duration
             info.duration_samples = audio_data.total_samples;
             info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
-        } else if (audio_data.format_tag == WAVE_FORMAT_G722) {
+        } else if (isG722(audio_data)) {
             // 2 samples per byte per channel (4-bit codes; bytes_per_frame is 0)
             uint64_t ch = std::max<uint64_t>(1, audio_data.channels);
             info.duration_samples = (audio_data.data_size * 2) / ch;
@@ -334,14 +334,14 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
     
     // Calculate timestamps (G.722's 4-bit samples make bytes_per_frame 0,
     // but its own branch below needs no frame size)
-    if (stream_data.bytes_per_frame > 0 || stream_data.format_tag == WAVE_FORMAT_G722) {
+    if (stream_data.bytes_per_frame > 0 || isG722(stream_data)) {
         chunk.timestamp_samples = m_current_sample;
         
         // Advance sample counter based on actual data read
         if (stream_data.format_tag == WAVE_FORMAT_PCM || stream_data.format_tag == WAVE_FORMAT_IEEE_FLOAT) {
             // For PCM, calculate samples directly from bytes
             m_current_sample += chunk.data.size() / stream_data.bytes_per_frame;
-        } else if (stream_data.format_tag == WAVE_FORMAT_G722) {
+        } else if (isG722(stream_data)) {
             // G.722 codes exactly 2 samples per byte (4 bits/sample); the
             // byte-rate estimate below can't be trusted for it — encoders
             // disagree about whether nAvgBytesPerSec is 8000 or 16000.
@@ -507,6 +507,10 @@ std::string ChunkDemuxer::getCodecName(const AudioStreamData& stream) const {
     if (isAiffFile()) {
         return aiffCompressionToCodecName(stream.compression_type);
     }
+    return formatTagToCodecName(effectiveFormatTag(stream));
+}
+
+uint16_t ChunkDemuxer::effectiveFormatTag(const AudioStreamData& stream) {
     // WAVE_FORMAT_EXTENSIBLE only says "look further": the format proper is
     // the SubFormat GUID in the fmt extension, whose first two bytes are the
     // ordinary format tag (the KSDATAFORMAT_SUBTYPE_* GUIDs are that tag
@@ -519,10 +523,15 @@ std::string ChunkDemuxer::getCodecName(const AudioStreamData& stream) const {
         const uint16_t sub_format = static_cast<uint16_t>(
             stream.extra_data[6] | (stream.extra_data[7] << 8));
         if (sub_format != WAVE_FORMAT_EXTENSIBLE) {
-            return formatTagToCodecName(sub_format);
+            return sub_format;
         }
     }
-    return formatTagToCodecName(stream.format_tag);
+    return stream.format_tag;
+}
+
+bool ChunkDemuxer::isG722(const AudioStreamData& stream) {
+    const uint16_t tag = effectiveFormatTag(stream);
+    return tag == WAVE_FORMAT_G722 || tag == WAVE_FORMAT_G722_ADPCM;
 }
 
 std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
@@ -555,6 +564,10 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
         case 0x0042: // WAVE_FORMAT_G728_CELP
             return "g728";
         case WAVE_FORMAT_G722:
+        // WAVE_FORMAT_G722_ADPCM is the registered tag. No file carrying it
+        // has been seen here, so its octets are taken to be laid out as Rec.
+        // G.722 §1.4.4 has them, as under 0x028F. FFmpeg reads it as G.726.
+        case WAVE_FORMAT_G722_ADPCM:
             return "g722";
         case 0x2000: // WAVE_FORMAT_DOLBY_AC3_SPDIF, in practice plain AC-3
             // The registered name says S/PDIF, but encoders use this tag for
@@ -742,7 +755,7 @@ uint64_t ChunkDemuxer::byteOffsetToMs(uint64_t byte_offset, uint32_t stream_id) 
     }
 
     const auto& stream_data = it->second;
-    if (stream_data.format_tag == WAVE_FORMAT_G722) {
+    if (isG722(stream_data)) {
         // 2 samples per byte per channel; bytes_per_frame is 0 for 4-bit codes
         uint64_t ch = std::max<uint64_t>(1, stream_data.channels);
         uint64_t samples = (byte_offset * 2) / ch;
@@ -763,7 +776,7 @@ uint64_t ChunkDemuxer::msToByteOffset(uint64_t timestamp_ms, uint32_t stream_id)
 
     const auto& stream_data = it->second;
     uint64_t samples = (timestamp_ms * stream_data.sample_rate) / 1000ULL;
-    if (stream_data.format_tag == WAVE_FORMAT_G722) {
+    if (isG722(stream_data)) {
         uint64_t ch = std::max<uint64_t>(1, stream_data.channels);
         return (samples * ch) / 2;
     }

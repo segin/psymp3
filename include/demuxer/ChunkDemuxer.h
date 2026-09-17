@@ -121,7 +121,10 @@ private:
     static constexpr uint16_t WAVE_FORMAT_ALAW = 0x0006;
     static constexpr uint16_t WAVE_FORMAT_MULAW = 0x0007;
     static constexpr uint16_t WAVE_FORMAT_EXTENSIBLE = 0xFFFE;
+    /// G.722 has two tags: 0x028F is what FFmpeg writes, 0x0065 is the one
+    /// registered for it (WAVE_FORMAT_G722_ADPCM, APICOM).
     static constexpr uint16_t WAVE_FORMAT_G722 = 0x028F;
+    static constexpr uint16_t WAVE_FORMAT_G722_ADPCM = 0x0065;
     
     // AIFF compression types
     static constexpr uint32_t AIFF_NONE = 0x4E4F4E45; // "NONE"
@@ -164,6 +167,14 @@ private:
         bool has_fact_chunk = false;   // Whether fact chunk was present
     };
     
+    /// The format a WAVE stream actually holds: its format tag, or for
+    /// WAVE_FORMAT_EXTENSIBLE the tag inside its SubFormat GUID.
+    static uint16_t effectiveFormatTag(const AudioStreamData& stream);
+    /// G.722 under either tag, plain or extensible. Its octets each code two
+    /// samples, whatever the header's bit depth says, so every byte and time
+    /// conversion has to know.
+    static bool isG722(const AudioStreamData& stream);
+
     uint32_t m_container_fourcc = 0;             // FORM or RIFF
     uint32_t m_form_type = 0;                    // AIFF, WAVE, etc.
     bool m_big_endian = false;                   // Endianness of the format

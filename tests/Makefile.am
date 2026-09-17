@@ -670,7 +670,7 @@ check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
 endif
 
 if HAVE_G722
-check_PROGRAMS += test_g722_integration test_g722_conformance
+check_PROGRAMS += test_g722_integration test_g722_conformance test_g722_wav
 endif
 
 check_PROGRAMS += test_raw_audio_stream_integration
@@ -1567,6 +1567,9 @@ test_g722_integration_LDADD = \
 # skips (77) without them.
 test_g722_conformance_SOURCES = test_g722_conformance.cpp
 test_g722_conformance_LDADD = $(FULL_CODEC_LIBS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
+
+test_g722_wav_SOURCES = test_g722_wav.cpp
+test_g722_wav_LDADD = $(FULL_CODEC_LIBS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 test_raw_audio_stream_integration_SOURCES = test_raw_audio_stream_integration.cpp
 test_raw_audio_stream_integration_LDADD = \
