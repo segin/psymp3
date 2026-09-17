@@ -170,7 +170,17 @@ public:
      *        has nothing more specific to say than its name.
      */
     virtual std::string getCodecProfile() const { return {}; }
-    
+
+    /**
+     * @brief Whether getStreamInfo() already gives the sample rate and channel
+     *        count the decoder will output, before anything is decoded.
+     *
+     * A codec that learns them only from the frames it decodes says no, and
+     * DemuxedStream then decodes up to its first audio when the stream opens,
+     * before anything reads the format.
+     */
+    virtual bool outputFormatKnown() const { return true; }
+
 protected:
     StreamInfo m_stream_info;
     bool m_initialized = false;

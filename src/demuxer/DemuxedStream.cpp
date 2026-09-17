@@ -84,6 +84,7 @@ bool DemuxedStream::initialize() {
         
         // Update stream properties
         updateStreamProperties();
+        primeOutputFormat();
         
         Debug::log("demux", "DemuxedStream::initialize() complete - rate=", m_rate, " channels=", m_channels);
         return true;
@@ -137,6 +138,7 @@ void DemuxedStream::updateStreamProperties() {
 
     m_rate = stream_info.sample_rate;
     m_channels = stream_info.channels;
+    m_container_rate = stream_info.sample_rate;
     // The container header describes the ENCODED stream, which is not always
     // the format the decoder actually emits. AAC is the clear case: the decoder
     // up-matrixes mono to stereo (implicit Parametric Stereo) and doubles the
@@ -144,13 +146,17 @@ void DemuxedStream::updateStreamProperties() {
     // channel really decodes to two. Since the audio device is opened from
     // these values and copyFrameData() memcpy's decoded PCM straight into its
     // buffer, believing the container played such files at half speed and an
-    // octave down. A codec that does not adjust anything reports the same
-    // StreamInfo it was constructed with, so this is a no-op for the rest.
+    // octave down. A codec that knows its output format once initialised
+    // reports it here; one that does not (FDK finds SBR and PS only in the
+    // frames) is run up to its first audio by primeOutputFormat(). A codec
+    // that does not adjust anything reports the same StreamInfo it was
+    // constructed with, so this is a no-op for the rest.
     if (m_codec) {
         const StreamInfo& decoded = m_codec->getStreamInfo();
         if (decoded.sample_rate != 0) m_rate = decoded.sample_rate;
         if (decoded.channels != 0) m_channels = decoded.channels;
     }
+    m_output_format_pending = m_codec && !m_codec->outputFormatKnown();
     m_bitrate = stream_info.bitrate;
     // Opus states no bitrate at all, and ALAC/Vorbis encoders often leave
     // theirs at zero, so derive the average the way every other player does:
@@ -167,7 +173,9 @@ void DemuxedStream::updateStreamProperties() {
     }
     Debug::log("demux", "DemuxedStream::updateStreamProperties: duration_ms from demuxer=", stream_info.duration_ms);
     m_length = static_cast<int>(stream_info.duration_ms);
-    m_slength = stream_info.duration_samples;
+    // The demuxer's counts are at its own rate; everything here is kept at
+    // the output rate.
+    m_slength = toOutputFrames(stream_info.duration_samples);
     m_position = 0;
     m_sposition = 0;
     m_samples_consumed = 0;
@@ -175,8 +183,8 @@ void DemuxedStream::updateStreamProperties() {
     // Encoder delay, when the container states it. valid_samples counts only
     // the real audio, so it is the better duration: the sample table spans the
     // priming and padding too.
-    m_encoder_delay_remaining = stream_info.encoder_delay;
-    m_valid_samples = stream_info.valid_samples;
+    m_encoder_delay_remaining = static_cast<uint32_t>(toOutputFrames(stream_info.encoder_delay));
+    m_valid_samples = toOutputFrames(stream_info.valid_samples);
     m_frames_emitted = 0;
     m_padded_output = AudioFrame{};
     m_padded_tail_frames = 0;
@@ -194,6 +202,76 @@ void DemuxedStream::updateStreamProperties() {
 
     m_eof = false;
     m_codec_drained = false;
+}
+
+uint64_t DemuxedStream::toOutputFrames(uint64_t frames) const
+{
+    const uint64_t output = m_rate > 0 ? static_cast<uint64_t>(m_rate) : 0;
+    if (m_container_rate == 0 || output == 0 || output == m_container_rate) {
+        return frames;
+    }
+    // Split so the product cannot overflow for any real duration.
+    return (frames / m_container_rate) * output
+         + ((frames % m_container_rate) * output) / m_container_rate;
+}
+
+void DemuxedStream::adoptOutputFormat(const AudioFrame& frame)
+{
+    if (!m_output_format_pending || frame.samples.empty() || frame.sample_rate == 0
+        || frame.channels == 0) {
+        return;
+    }
+    m_output_format_pending = false;
+    m_channels = frame.channels;
+    const uint64_t from = m_rate > 0 ? static_cast<uint64_t>(m_rate) : 0;
+    const uint64_t to = frame.sample_rate;
+    if (from == to) {
+        return;
+    }
+    Debug::log("demux", "DemuxedStream: decoder outputs ", to, " Hz, ", frame.channels,
+               " channels; the stream said ", from, " Hz");
+    m_rate = static_cast<long>(to);
+    if (from == 0) {
+        return;
+    }
+    // Everything counted so far was at the old rate.
+    const auto rescale = [from, to](uint64_t frames) {
+        return (frames / from) * to + ((frames % from) * to) / from;
+    };
+    m_slength = static_cast<long long>(rescale(static_cast<uint64_t>(m_slength)));
+    m_valid_samples = rescale(m_valid_samples);
+    m_encoder_delay_remaining = static_cast<uint32_t>(rescale(m_encoder_delay_remaining));
+    m_padded_tail_frames = static_cast<uint32_t>(rescale(m_padded_tail_frames));
+    m_frames_emitted = rescale(m_frames_emitted);
+    m_samples_consumed = rescale(m_samples_consumed);
+    m_discard_until_samples = rescale(m_discard_until_samples);
+    m_sposition = static_cast<long long>(rescale(static_cast<uint64_t>(m_sposition)));
+}
+
+void DemuxedStream::primeOutputFormat()
+{
+    // The audio device is opened from getRate() and getChannels() as soon as
+    // the stream exists, so a codec that learns its output format only by
+    // decoding -- AAC, whose SBR and Parametric Stereo are found in the frames
+    // -- is run up to its first audio now. That audio becomes the current
+    // frame, so none of it is lost. A codec that yields nothing within the
+    // usual retry budget keeps the container's format until it does.
+    for (size_t attempt = 0; m_output_format_pending && attempt < MAX_EMPTY_FRAME_RETRIES; ++attempt) {
+        AudioFrame frame = getNextFrame();
+        if (!frame.samples.empty()) {
+            m_current_frame = std::move(frame);
+            m_current_frame_offset = 0;
+            return;
+        }
+        bool drained = false;
+        {
+            std::lock_guard<std::mutex> lock(m_buffer_mutex);
+            drained = m_chunk_buffer.empty();
+        }
+        if (drained && (!m_demuxer || m_demuxer->isEOF())) {
+            return;
+        }
+    }
 }
 
 size_t DemuxedStream::getData(size_t len, void *buf) {
@@ -401,8 +479,9 @@ AudioFrame DemuxedStream::getNextFrame() {
     // codec alike. Returns false when the whole frame lies before a seek
     // target and is to be dropped.
     auto stampFrame = [this](AudioFrame& frame, const MediaChunk* source) -> bool {
-        const uint64_t granule = source ? source->granule_position : 0;
-        const bool has_granule = granule != 0 && granule != static_cast<uint64_t>(-1);
+        const uint64_t raw_granule = source ? source->granule_position : 0;
+        const bool has_granule = raw_granule != 0 && raw_granule != static_cast<uint64_t>(-1);
+        const uint64_t granule = has_granule ? toOutputFrames(raw_granule) : 0;
         if (m_codec->getCodecName() == "opus") {
             if (has_granule) {
                 m_samples_consumed = frame.timestamp_samples + frame.getSampleFrameCount();
@@ -506,11 +585,12 @@ AudioFrame DemuxedStream::getNextFrame() {
         }
         
         AudioFrame frame = m_codec->decode(chunk);
+        adoptOutputFormat(frame);
 
         // Container padding (Matroska's DiscardPadding). Padding at the start
         // of a block goes the way of an encoder's priming: it is the next
         // audio the codec returns.
-        m_encoder_delay_remaining += chunk.padding_head_frames;
+        m_encoder_delay_remaining += static_cast<uint32_t>(toOutputFrames(chunk.padding_head_frames));
         if (m_padded_tail_frames > 0) {
             // A padded block that was not the last one. Its padding comes off
             // the output held back for it, taking the codec to have returned
@@ -526,7 +606,7 @@ AudioFrame DemuxedStream::getNextFrame() {
             // has returned whatever the codec kept, then cut the padding from
             // the end of the lot.
             m_padded_output = std::move(frame);
-            m_padded_tail_frames = chunk.padding_tail_frames;
+            m_padded_tail_frames = static_cast<uint32_t>(toOutputFrames(chunk.padding_tail_frames));
             return AudioFrame{};
         }
 
@@ -563,6 +643,7 @@ AudioFrame DemuxedStream::getNextFrame() {
         if (frame.samples.empty()) {
             m_codec_drained = true;
         }
+        adoptOutputFormat(frame);
         if (m_padded_tail_frames > 0) {
             // The stream ended on a padded block, so its padding is the end of
             // everything the codec has returned since.
@@ -739,7 +820,7 @@ void DemuxedStream::seekTo(unsigned long pos) {
     // not report them is seeking by sample table and is already exact, so its
     // position is the target.
     const bool granular = m_demuxer->providesGranulePositions();
-    const uint64_t granule = m_demuxer->getGranulePosition(m_current_stream_id);
+    const uint64_t granule = toOutputFrames(m_demuxer->getGranulePosition(m_current_stream_id));
     m_samples_consumed = granular ? granule : m_sposition;
 
     // The priming sits at the very start of the file, so anywhere a seek lands
@@ -868,6 +949,7 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
     // Update properties and reset consumption tracking
     updateStreamProperties();
     m_samples_consumed = 0;
+    primeOutputFormat();
     
     return true;
 }
@@ -904,6 +986,7 @@ bool DemuxedStream::initializeWithHandler(std::unique_ptr<IOHandler> handler) {
         
         // Update stream properties
         updateStreamProperties();
+        primeOutputFormat();
         
         return true;
         

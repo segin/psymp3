@@ -507,6 +507,11 @@ if HAVE_AAC
 check_PROGRAMS += test_aac_integration
 test_aac_integration_SOURCES = test_aac_integration.cpp
 test_aac_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+# HE-AAC streams made with FDK's encoder, which is in the decoder's library.
+check_PROGRAMS += test_aac_output_format
+test_aac_output_format_SOURCES = test_aac_output_format.cpp
+test_aac_output_format_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
 test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp

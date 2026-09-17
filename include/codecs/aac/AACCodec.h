@@ -38,6 +38,9 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_profile;
     }
+    /// FDK finds implicit SBR and Parametric Stereo in the frames themselves,
+    /// so the output rate and channel count are known only after a decode.
+    bool outputFormatKnown() const override { return false; }
     bool canDecode(const StreamInfo& stream_info) const override;
 
     /// True when the AudioSpecificConfig describes USAC (object type 42).

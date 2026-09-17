@@ -222,6 +222,23 @@ private:
      * @brief Update Stream base class properties from current stream info
      */
     void updateStreamProperties();
+
+    /// The rate the demuxer counts samples at, its StreamInfo's. The decoder
+    /// can output at another -- SBR doubles AAC's -- and m_rate is that one.
+    uint32_t m_container_rate = 0;
+    /// Set while a codec that cannot state its output format before decoding
+    /// has not yet decoded any audio (AudioCodec::outputFormatKnown).
+    bool m_output_format_pending = false;
+
+    /// A count of sample frames from the demuxer, at m_container_rate, as a
+    /// count at the output rate.
+    uint64_t toOutputFrames(uint64_t container_frames) const;
+    /// Takes the output format from the first audio a codec returns, when it
+    /// could not state it earlier, and rescales every count already kept.
+    void adoptOutputFormat(const AudioFrame& frame);
+    /// Decodes up to the first audio of a codec whose output format is not
+    /// known yet, keeping that audio as the current frame.
+    void primeOutputFormat();
 };
 
 
