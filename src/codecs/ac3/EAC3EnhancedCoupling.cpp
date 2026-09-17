@@ -38,6 +38,28 @@ float uniform(uint32_t& state)
     return static_cast<float>(state) / 2147483648.0f - 1.0f;
 }
 
+/// The DFT's roots of unity, built once. A function-local static is
+/// initialised thread-safely, where filling a plain static array on first use
+/// raced when two decoders met their first enhanced-coupling block at once.
+struct DftTables {
+    double cos[kTransformSize];
+    double sin[kTransformSize];
+
+    DftTables()
+    {
+        for (unsigned i = 0; i < kTransformSize; ++i) {
+            cos[i] = std::cos(2.0 * kA52Pi * i / kTransformSize);
+            sin[i] = std::sin(2.0 * kA52Pi * i / kTransformSize);
+        }
+    }
+};
+
+const DftTables& dftTables()
+{
+    static const DftTables tables;
+    return tables;
+}
+
 } // namespace
 
 float eac3EcplAmplitude(unsigned code)
@@ -110,20 +132,12 @@ void eac3EcplAnalyse(const float previous[512], const float current[512],
     // Step 5: the DFT, Z[k] = 1/N sum (re + j im)(cos - j sin). Only the
     // first half of the spectrum is used. Enhanced coupling is rare enough
     // that the direct sum, over a precomputed table, is the clearer choice.
-    static double cos_table[kTransformSize], sin_table[kTransformSize];
-    static bool ready = false;
-    if (!ready) {
-        for (unsigned i = 0; i < kTransformSize; ++i) {
-            cos_table[i] = std::cos(2.0 * kA52Pi * i / kTransformSize);
-            sin_table[i] = std::sin(2.0 * kA52Pi * i / kTransformSize);
-        }
-        ready = true;
-    }
+    const DftTables& tables = dftTables();
     for (unsigned k = 0; k < kTransformSize / 2; ++k) {
         double sr = 0.0, si = 0.0;
         for (unsigned n = 0; n < kTransformSize; ++n) {
-            const double c = cos_table[(k * n) % kTransformSize];
-            const double s = sin_table[(k * n) % kTransformSize];
+            const double c = tables.cos[(k * n) % kTransformSize];
+            const double s = tables.sin[(k * n) % kTransformSize];
             sr += real[n] * c + imag[n] * s;
             si += imag[n] * c - real[n] * s;
         }
