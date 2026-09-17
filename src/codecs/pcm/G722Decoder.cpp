@@ -209,13 +209,15 @@ void G722Decoder::adapt(Band& band, int dlt)
     wd2 = (band.a[2] * wd2) >> 15;
     band.sp = saturate16(wd1 + wd2);
 
-    // FILTEZ: six-zero section, likewise truncated per term.
+    // FILTEZ: six-zero section, likewise truncated per term, and summed from
+    // the sixth term down with the Recommendation's saturating "+" at every
+    // step (§5.2 notation, §6.2.1.4). Saturating only the finished sum lets an
+    // intermediate overflow cancel out where the Recommendation clips it.
     band.sz = 0;
     for (int i = 6; i > 0; --i) {
         wd1 = saturate16(band.d[i] + band.d[i]);
-        band.sz += (band.b[i] * wd1) >> 15;
+        band.sz = saturate16(band.sz + ((band.b[i] * wd1) >> 15));
     }
-    band.sz = saturate16(band.sz);
 
     // PREDIC.
     band.s = saturate16(band.sp + band.sz);
