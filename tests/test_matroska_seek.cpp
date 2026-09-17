@@ -68,8 +68,9 @@ std::vector<uint8_t> pcmTrack(uint64_t number)
 /// One second of PCM as fifty 20 ms clusters, with no Cues.
 ///
 /// Without Cues the index is built by walking the cluster headers, which is the
-/// fallback a great many real files take. Cues and the scan produce the same
-/// CueEntry, so the landing this pins down is the landing either path yields.
+/// fallback a great many real files take. Either index only picks the cluster
+/// to restart at, and the landing is the first frame read from there, so what
+/// these tests pin down does not depend on which index picked it.
 /// Each block carries a full kFrameBytes of PCM, so the fixture really holds
 /// the duration its timestamps claim.
 std::vector<uint8_t> buildFile()
@@ -151,7 +152,7 @@ protected:
         const uint64_t target  = samplesAt(530);
 
         ASSERT_EQUALS(landing, demuxer->getGranulePosition(1),
-                      "the granule is the landing cluster, in samples");
+                      "the granule is the landing cluster's first frame, in samples");
         ASSERT_TRUE(demuxer->getGranulePosition(1) < target,
                     "the landing precedes the target; the gap is what gets trimmed");
 
@@ -226,12 +227,11 @@ protected:
 // A *cued* fixture, for the path the fixture above cannot reach.
 //
 // buildFile() writes no Cues, so every test above runs through
-// CueIndex::buildByScanning, which records each Cluster's own Timestamp and is
-// therefore self-consistent by construction. The Cues path is not: a CuePoint
-// pairs CueTime -- the timestamp of a Block (RFC 9559 §5.1.5.1.1) -- with the
-// position of the Cluster holding it (§5.1.5.1.2.2), and the block need not be
-// the cluster's first. So CueTime can be strictly greater than the cluster's
-// Timestamp, while reading restarts at the cluster head.
+// CueIndex::buildByScanning, whose entries carry each Cluster's own Timestamp.
+// A CuePoint instead pairs CueTime, the timestamp of a seek point (RFC 9559
+// 5.1.5.1.1), with the position of the Cluster holding its Block (5.1.5.1.2.2),
+// and that Block need not be the cluster's first. So CueTime can be later than
+// the cluster's first frame, while reading restarts at the cluster head.
 // ---------------------------------------------------------------------------
 
 constexpr uint64_t kClusterMs       = 100;  // five 20 ms blocks per cluster
@@ -360,7 +360,7 @@ std::unique_ptr<MatroskaDemuxer> openCuedFixture()
 class SeekLandsOnClusterHeadNotCueTimeTest : public TestCase {
 public:
     SeekLandsOnClusterHeadNotCueTimeTest()
-        : TestCase("A cued seek reports the cluster head, not CueTime") {}
+        : TestCase("A cued seek reports the cluster's first frame, not CueTime") {}
 
 protected:
     void runTest() override
@@ -372,12 +372,13 @@ protected:
         // 250 ms takes the cue at 40, whose cluster starts at 0 ms.
         //
         // Three outcomes separate here, which is the point of the sparse cues:
-        //   samplesAt(0)   - the cue was used and the landing is the cluster head
+        //   samplesAt(0)   - the cue was used and the landing is the cluster's
+        //                    first frame, which sits at its head
         //   samplesAt(40)  - the cue was used but CueTime was reported (the bug)
         //   samplesAt(200) - the cues were ignored and the scan fallback ran
         ASSERT_TRUE(demuxer->seekTo(250), "seek should succeed");
         ASSERT_EQUALS(samplesAt(0), demuxer->getGranulePosition(1),
-                      "landing is the cluster's own Timestamp, not the cued block's");
+                      "landing is the cluster's first frame, not the cued block");
 
         auto chunk = demuxer->readChunk();
         ASSERT_TRUE(chunk.isValid(), "a chunk should follow the seek");
