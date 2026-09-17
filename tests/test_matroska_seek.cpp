@@ -563,6 +563,114 @@ protected:
     }
 };
 
+
+/// A file whose middle is a run of zero bytes that nothing stores. It places a
+/// block beyond the reader's allocation ceiling without holding 64 MiB.
+class GapIOHandler : public PsyMP3::IO::IOHandler {
+public:
+    GapIOHandler(std::vector<uint8_t> head, uint64_t gap, std::vector<uint8_t> tail)
+        : m_head(std::move(head)), m_gap(gap), m_tail(std::move(tail)) {}
+
+    size_t read(void* buffer, size_t size, size_t count) override
+    {
+        if (size == 0 || count == 0) {
+            return 0;
+        }
+        const uint64_t total = m_head.size() + m_gap + m_tail.size();
+        const uint64_t left = total - std::min(total, m_pos);
+        const uint64_t wanted = std::min<uint64_t>(left, static_cast<uint64_t>(size) * count);
+        auto* out = static_cast<uint8_t*>(buffer);
+        for (uint64_t done = 0; done < wanted;) {
+            const uint64_t at = m_pos + done;
+            uint64_t span = wanted - done;
+            if (at < m_head.size()) {
+                span = std::min<uint64_t>(span, m_head.size() - at);
+                std::memcpy(out + done, m_head.data() + at, span);
+            } else if (at < m_head.size() + m_gap) {
+                span = std::min<uint64_t>(span, m_head.size() + m_gap - at);
+                std::memset(out + done, 0, span);
+            } else {
+                std::memcpy(out + done, m_tail.data() + (at - m_head.size() - m_gap), span);
+            }
+            done += span;
+        }
+        m_pos += wanted;
+        return static_cast<size_t>(wanted / size);
+    }
+
+    int seek(PsyMP3::IO::filesize_t offset, int whence) override
+    {
+        const int64_t base = whence == SEEK_CUR ? static_cast<int64_t>(m_pos)
+                           : whence == SEEK_END ? static_cast<int64_t>(getFileSize())
+                           : 0;
+        if (base + offset < 0) {
+            return -1;
+        }
+        m_pos = static_cast<uint64_t>(base + offset);
+        return 0;
+    }
+
+    PsyMP3::IO::filesize_t tell() override { return static_cast<PsyMP3::IO::filesize_t>(m_pos); }
+    int close() override { return 0; }
+    bool eof() override { return m_pos >= static_cast<uint64_t>(getFileSize()); }
+    PsyMP3::IO::filesize_t getFileSize() override
+    {
+        return static_cast<PsyMP3::IO::filesize_t>(m_head.size() + m_gap + m_tail.size());
+    }
+
+private:
+    std::vector<uint8_t> m_head;
+    uint64_t m_gap;
+    std::vector<uint8_t> m_tail;
+    uint64_t m_pos = 0;
+};
+
+class OversizedVideoBlockTest : public TestCase {
+public:
+    OversizedVideoBlockTest()
+        : TestCase("A video block too large to read does not end audio playback") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> info = element(Id::Info, uintEl(Id::TimestampScale, 1000000));
+        const std::vector<uint8_t> video =
+            element(Id::TrackEntry, uintEl(Id::TrackNumber, 2)
+                                  + uintEl(Id::TrackType, TrackType::Video)
+                                  + strEl(Id::CodecID, "V_UNCOMPRESSED"));
+        const std::vector<uint8_t> tracks = element(Id::Tracks, pcmTrack(1) + video);
+        const std::vector<uint8_t> frame(kFrameBytes, 0x5A);
+
+        // Audio at 0 ms, a video frame one byte over the ceiling, audio at
+        // 20 ms. The video block is written by hand: only its first bytes
+        // (track 2, time 0, keyframe) are stored, and the gap supplies the rest.
+        const uint64_t video_size = EBMLReader::kMaxBinarySize + 1;
+        const std::vector<uint8_t> video_lead{0x82, 0x00, 0x00, 0x80};
+        const std::vector<uint8_t> before = uintEl(Id::Timestamp, 0) + simpleBlock(1, 0, frame)
+                                          + idBytes(Id::SimpleBlock) + sizeBytes(video_size)
+                                          + video_lead;
+        const std::vector<uint8_t> after = simpleBlock(1, 20, frame);
+        const uint64_t gap = video_size - video_lead.size();
+
+        const uint64_t cluster_size = before.size() + gap + after.size();
+        const std::vector<uint8_t> cluster_header = idBytes(Id::Cluster) + sizeBytes(cluster_size);
+        const std::vector<uint8_t> in_segment = info + tracks + cluster_header;
+        const uint64_t segment_size = in_segment.size() + cluster_size;
+        const std::vector<uint8_t> head = ebmlHeader("matroska")
+                                        + idBytes(Id::Segment) + sizeBytes(segment_size)
+                                        + in_segment + before;
+
+        MatroskaDemuxer demuxer(std::make_unique<GapIOHandler>(head, gap, after));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+
+        auto first = demuxer.readChunk();
+        ASSERT_TRUE(first.isValid(), "the first audio frame is read");
+        auto second = demuxer.readChunk();
+        ASSERT_TRUE(second.isValid(), "the audio after the oversized video block is still read");
+        ASSERT_EQUALS(samplesAt(20), second.timestamp_samples, "and it is the 20 ms frame");
+    }
+};
+
 } // namespace
 
 int main()
@@ -578,6 +686,7 @@ int main()
     suite.addTest(std::make_unique<SeekBeforeFirstCueTest>());
     suite.addTest(std::make_unique<SeekLandsOnFirstAudioBlockTest>());
     suite.addTest(std::make_unique<HeaderStrippedFramesTest>());
+    suite.addTest(std::make_unique<OversizedVideoBlockTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

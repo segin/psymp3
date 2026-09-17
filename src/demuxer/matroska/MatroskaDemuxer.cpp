@@ -250,6 +250,23 @@ StreamInfo MatroskaDemuxer::getStreamInfo(uint32_t stream_id) const
 void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
                                 uint64_t discard_padding_ns)
 {
+    // The track number leads the payload. Check it before reading the rest:
+    // most of a .mkv's blocks are video, and a video frame larger than the
+    // reader's allocation ceiling used to throw here and end audio playback.
+    {
+        uint8_t lead[8] = {};
+        const size_t want = static_cast<size_t>(std::min<uint64_t>(block.size, sizeof(lead)));
+        m_reader.seek(block.data_offset);
+        if (want == 0 || m_handler->read(lead, 1, want) != want) {
+            return;
+        }
+        uint64_t track = 0;
+        if (EBMLReader::decodeVInt(lead, want, track, /*keep_marker=*/false) == 0
+            || track != m_track_number) {
+            return;
+        }
+    }
+
     std::vector<uint8_t> payload = m_reader.readBinary(block);
     BlockHeader header;
     std::vector<BlockFrame> frames;
