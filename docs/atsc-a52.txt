@@ -1,0 +1,15 @@
+ATSC A/52: Digital Audio Compression (AC-3, E-AC-3)
+===================================================
+
+The AC-3 and E-AC-3 decoder in src/codecs/ac3/ is written from ATSC A/52.
+ATSC standards are not vendored in this directory; download it from ATSC:
+
+    https://www.atsc.org/wp-content/uploads/2021/04/A52-2018.pdf
+
+That is A/52:2018, the current edition. The decoder was written from
+A/52:2012, and the 2018 revision describes itself as errata corrections,
+updated references and editorial changes.
+
+AC-3 is the main body of the document; E-AC-3 is Annex E. Source comments
+cite Annex E sections as "E3.6" and so on, but the annex's own headings
+drop the "E" (it prints "3.6").

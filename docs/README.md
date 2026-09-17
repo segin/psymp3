@@ -57,6 +57,9 @@ This directory contains comprehensive documentation for PsyMP3 development, arch
 - [rfc6716.txt](rfc6716.txt) - Complete Opus codec specification
 - [rfc7845.txt](rfc7845.txt) - Opus in Ogg encapsulation
 
+### AC-3 / E-AC-3 (ATSC A/52)
+- [atsc-a52.txt](atsc-a52.txt) - Where to download A/52, which is not vendored here
+
 ### Vorbis Codec
 - [Vorbis Spec Summary](VORBIS_SPEC_SUMMARY.md) - Vorbis specification summary
 - [vorbis-spec.html](vorbis-spec.html) - Complete Vorbis I specification
