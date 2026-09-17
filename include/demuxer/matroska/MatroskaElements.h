@@ -138,7 +138,7 @@ constexpr uint64_t Metadata = 0x21;
 } // namespace TrackType
 
 /// The codec_name the rest of PsyMP3 dispatches on for a Matroska CodecID, or
-/// an empty string when nothing in the tree decodes it.
+/// an empty string when the CodecID is not mapped to a decoder.
 ///
 /// Returning empty rather than guessing is deliberate: a track PsyMP3 cannot
 /// decode should be reported by name, not opened and then failed at the first

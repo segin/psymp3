@@ -33,10 +33,11 @@ namespace {
 
 /// Matroska CodecID to the codec_name CodecRegistry dispatches on.
 ///
-/// Absent from this table means absent from PsyMP3: DTS is the notable one,
-/// and it is common in .mkv. They map to nothing on
-/// purpose, so the demuxer can say which codec a file needs rather than open it
-/// and fail at the first packet.
+/// A CodecID missing from here maps to nothing, so the demuxer can say which
+/// codec a file needs rather than open it and fail at the first packet. DTS is
+/// the notable absence: nothing in the tree decodes it, and it is common in
+/// .mkv. A_MS/ACM and A_MPEG/L1 are missing too, although PsyMP3 has decoders
+/// for what they usually carry.
 struct CodecMapping {
     const char* codec_id;
     const char* codec_name;
@@ -48,13 +49,15 @@ constexpr CodecMapping kCodecMap[] = {
     {"A_VORBIS",        "vorbis",  false},
     {"A_FLAC",          "flac",    false},
     {"A_ALAC",          "alac",    false},
-    // Layer 3 and layer 2 have decoders; layer 1 does not, and is left out
-    // rather than pointed at a decoder that would mis-handle it.
+    // Layers 3 and 2 go to their own decoders. A_MPEG/L1 is not mapped,
+    // although minimp3, behind "mp3", decodes Layer I as well.
     {"A_MPEG/L3",       "mp3",     false},
     {"A_MPEG/L2",       "mp2",     false},
-    // AAC appears bare and with a profile suffix ("A_AAC/MPEG4/LC/SBR"). One
-    // decoder covers the family, and the profile is read back out of the
-    // AudioSpecificConfig in CodecPrivate anyway.
+    // AAC appears bare and with a profile suffix ("A_AAC/MPEG4/LC/SBR"), and
+    // one decoder covers the family. Only bare A_AAC carries an
+    // AudioSpecificConfig in CodecPrivate, which names the profile; the
+    // suffixed IDs are the legacy form and carry none, and AACCodec will not
+    // start without one.
     {"A_AAC",           "aac",     true},
     {"A_TRUEHD",        "truehd",  false},
     {"A_MLP",           "mlp",     false},
