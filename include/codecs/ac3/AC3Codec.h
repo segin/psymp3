@@ -17,15 +17,19 @@ namespace AC3 {
 /// Adapts AC3FrameDecoder to the pipeline: MediaChunks in, full-scale S32
 /// AudioFrames out.
 ///
-/// A chunk is not assumed to be one syncframe. MP4 and Matroska do deliver
-/// exactly one, but RIFF has no framing of its own: WAVE and AVI hand over
-/// the data chunk in block_align-sized slices, and encoders set block_align
+/// A chunk is not assumed to be one syncframe. An MP4 sample or Matroska
+/// frame holds one AC-3 syncframe, but for E-AC-3 it can hold several:
+/// dependent substreams and further programs are syncframes of their own
+/// (A/52 §E2.3.1.1-§E2.3.1.2). RIFF has no framing of its own: the WAVE
+/// demuxer hands over the data chunk in whole block_align units, 64 of them
+/// or about 4 KB at a time, whichever is larger, and encoders set block_align
 /// to anything from one frame to several. So input is buffered, every
 /// complete syncframe in it is decoded, and a partial frame at the end waits
 /// for the next chunk.
 ///
-/// E-AC-3 goes through the same decoder, whose output runs one syncframe
-/// behind its input; flush() releases the last frame at the end of a stream.
+/// E-AC-3 goes through the same decoder, whose output trails its input by
+/// one block plus EAC3TransientCorrection::kMaxWriteReach samples (see
+/// AC3FrameDecoder); flush() releases the rest at the end of a stream.
 class AC3Codec : public AudioCodec {
 public:
     explicit AC3Codec(const StreamInfo& stream_info);
@@ -50,7 +54,7 @@ private:
     /// Sample position of the next sample handed on. Output is contiguous, so
     /// it is taken from the first chunk after a reset and then advanced by
     /// what is emitted -- which stays exact although E-AC-3 output lags its
-    /// input by a frame.
+    /// input.
     uint64_t m_output_timestamp = 0;
     bool m_output_started = false;
     mutable std::mutex m_mutex;
