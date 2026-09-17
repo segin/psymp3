@@ -1138,28 +1138,11 @@ void ISODemuxer::ProcessCodecSpecificData(MediaChunk& chunk, const AudioTrackInf
         
         // FLAC frames are variable-length, so we rely on the container's sample table
         // for accurate timing information
-        
-        // Add FLAC metadata blocks to the beginning of the first chunk if needed
-        // This ensures the FLACCodec has access to STREAMINFO and other metadata
-        if (track.currentSampleIndex == 0 && !track.codecConfig.empty()) {
-            // Prepend FLAC metadata blocks to the first frame
-            std::vector<uint8_t> frameWithMetadata;
-            frameWithMetadata.reserve(track.codecConfig.size() + chunk.data.size());
-            
-            // Add FLAC signature and metadata blocks
-            const uint8_t flacSignature[] = {'f', 'L', 'a', 'C'};
-            frameWithMetadata.insert(frameWithMetadata.end(), 
-                                   flacSignature, flacSignature + 4);
-            frameWithMetadata.insert(frameWithMetadata.end(), 
-                                   track.codecConfig.begin(), track.codecConfig.end());
-            frameWithMetadata.insert(frameWithMetadata.end(), 
-                                   chunk.data.begin(), chunk.data.end());
-            
-            chunk.data = std::move(frameWithMetadata);
-            
-            Debug::log("iso", "ISODemuxer: Added FLAC metadata to first frame, total size: ", 
-                      chunk.data.size(), " bytes");
-        }
+        //
+        // The decoder takes STREAMINFO from codec_data, the dfLa box's
+        // metadata blocks, so every sample goes to it as it is. Putting "fLaC"
+        // and those blocks in front of the first sample made the decoder take
+        // the whole sample for a header, and the first frame never played.
         
     } else if (track.codecType == "ulaw" || track.codecType == "alaw") {
         // Telephony codecs - samples are raw companded 8-bit data

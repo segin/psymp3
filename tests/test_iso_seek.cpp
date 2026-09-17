@@ -7,7 +7,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  *
  * The files are written here, box by box after ISO/IEC 14496-12 and -14,
- * around AAC made with FDK's encoder.
+ * around AAC made with FDK's encoder and FLAC frames built after RFC 9639.
  */
 
 #include "psymp3.h"
@@ -149,6 +149,59 @@ Bytes m4a(const FdkTestEncoder::Encoded& encoded, uint32_t core_rate, uint16_t c
     return mp4(audioEntry("mp4a", core_rate, channels, esds), core_rate, 1024, encoded.units);
 }
 
+/// RFC 9639's CRC-8 (9.1.8) and CRC-16 (9.3): polynomials 0x07 and 0x8005,
+/// most significant bit first, starting from zero.
+uint32_t flacCrc(const Bytes& data, uint32_t polynomial, int width)
+{
+    const uint32_t top = 1u << (width - 1);
+    const uint32_t mask = (width == 32) ? 0xFFFFFFFFu : ((1u << width) - 1);
+    uint32_t crc = 0;
+    for (uint8_t byte : data) {
+        crc ^= static_cast<uint32_t>(byte) << (width - 8);
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = (crc & top) ? ((crc << 1) ^ polynomial) : (crc << 1);
+        }
+        crc &= mask;
+    }
+    return crc;
+}
+
+constexpr uint32_t kFlacBlock = 4096;
+
+/// FLAC frame @p index (RFC 9639 9): 4096 16-bit samples at 44.1 kHz on two
+/// independent channels, both verbatim, holding a running counter.
+Bytes flacFrame(uint32_t index)
+{
+    // Sync code, fixed block size; 4096 samples, 44.1 kHz; two channels,
+    // 16 bits; the frame number, which fits one byte below 128.
+    Bytes frame{0xFF, 0xF8, 0xC9, 0x18, static_cast<uint8_t>(index)};
+    frame.push_back(static_cast<uint8_t>(flacCrc(frame, 0x07, 8)));
+    for (int channel = 0; channel < 2; ++channel) {
+        frame.push_back(0x02); // verbatim, no wasted bits
+        for (uint32_t i = 0; i < kFlacBlock; ++i) {
+            const auto counter = static_cast<uint16_t>(index * kFlacBlock + i);
+            frame.push_back(static_cast<uint8_t>(counter >> 8));
+            frame.push_back(static_cast<uint8_t>(counter));
+        }
+    }
+    const uint32_t crc = flacCrc(frame, 0x8005, 16);
+    frame.push_back(static_cast<uint8_t>(crc >> 8));
+    frame.push_back(static_cast<uint8_t>(crc));
+    return frame;
+}
+
+/// A STREAMINFO block, marked last, for @p total_samples of the frames above.
+Bytes flacStreamInfo(uint64_t total_samples)
+{
+    Bytes block = Bytes{0x80, 0x00, 0x00, 34} + be16(kFlacBlock) + be16(kFlacBlock) + Bytes(6, 0);
+    const uint64_t packed = (uint64_t{44100} << 44) | (uint64_t{1} << 41) | (uint64_t{15} << 36)
+                          | total_samples;
+    for (int shift = 56; shift >= 0; shift -= 8) {
+        block.push_back(static_cast<uint8_t>(packed >> shift));
+    }
+    return block + Bytes(16, 0); // MD5 unknown
+}
+
 /// Reads @p frames frames and returns the first channel.
 std::vector<AudioSample> readFirstChannel(DemuxedStream& stream, size_t frames)
 {
@@ -223,6 +276,43 @@ protected:
     }
 };
 
+class FlacTest : public TestCase {
+public:
+    FlacTest() : TestCase("FLAC in MP4 plays from its first frame, and seeks to the sample") {}
+
+protected:
+    void runTest() override
+    {
+        constexpr uint32_t kFrames = 20;
+        std::vector<Bytes> frames;
+        for (uint32_t i = 0; i < kFrames; ++i) {
+            frames.push_back(flacFrame(i));
+        }
+        const Bytes entry = audioEntry("fLaC", 44100, 2,
+                                       fullBox("dfLa", 0, flacStreamInfo(kFrames * kFlacBlock)));
+        const Bytes file = mp4(entry, 44100, kFlacBlock, frames);
+
+        DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                             TagLib::String("counter.m4a"));
+        ASSERT_EQUALS(44100u, stream.getRate(), "opened");
+        // Each sample is its counter at full scale, and the counter is a
+        // 16-bit sample, so it wraps past 32767.
+        auto counterAt = [](uint32_t n) { return static_cast<int32_t>(static_cast<int16_t>(n)); };
+        const std::vector<AudioSample> start = readFirstChannel(stream, 2 * kFlacBlock);
+        ASSERT_EQUALS(size_t{2 * kFlacBlock}, start.size(), "audio plays");
+        for (uint32_t i = 0; i < start.size(); ++i) {
+            if ((start[i] >> 16) != counterAt(i)) {
+                ASSERT_EQUALS(counterAt(i), start[i] >> 16,
+                              "sample " + std::to_string(i) + " is the first frame's, in order");
+            }
+        }
+
+        stream.seekTo(1000);
+        const std::vector<AudioSample> after = readFirstChannel(stream, 16);
+        ASSERT_EQUALS(counterAt(44100), after.front() >> 16, "a seek to 1 s plays sample 44100 first");
+    }
+};
+
 } // namespace
 
 int main()
@@ -232,6 +322,7 @@ int main()
 
     TestSuite suite("MP4 seeking");
     suite.addTest(std::make_unique<AacSeekTest>());
+    suite.addTest(std::make_unique<FlacTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);
