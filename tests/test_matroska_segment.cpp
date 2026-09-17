@@ -625,6 +625,48 @@ protected:
     }
 };
 
+class InfoAfterClustersTest : public TestCase {
+public:
+    InfoAfterClustersTest() : TestCase("Info and Tracks after the clusters are found through SeekHead") {}
+
+protected:
+    void runTest() override
+    {
+        // SeekPosition written eight bytes wide, so the SeekHead's size does not
+        // depend on the positions it holds.
+        auto position = [](uint64_t value) {
+            std::vector<uint8_t> bytes(8);
+            for (int i = 7; i >= 0; --i, value >>= 8) {
+                bytes[static_cast<size_t>(i)] = static_cast<uint8_t>(value & 0xFF);
+            }
+            return element(Id::SeekPosition, bytes);
+        };
+        auto seekHead = [&](uint64_t tracks_at, uint64_t info_at) {
+            return element(Id::SeekHead,
+                           element(Id::Seek, element(Id::SeekID, idBytes(Id::Tracks)) + position(tracks_at))
+                         + element(Id::Seek, element(Id::SeekID, idBytes(Id::Info)) + position(info_at)));
+        };
+        const std::vector<uint8_t> cluster =
+            element(Id::Cluster, uintEl(Id::Timestamp, 0));
+        const std::vector<uint8_t> tracks =
+            element(Id::Tracks, element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                                      + strEl(Id::CodecID, "A_FLAC")));
+        const std::vector<uint8_t> info =
+            element(Id::Info, uintEl(Id::TimestampScale, 100000) + floatEl(Id::Duration, 50000.0));
+
+        const size_t head = seekHead(0, 0).size();
+        const std::vector<uint8_t> body = seekHead(head + cluster.size(),
+                                                   head + cluster.size() + tracks.size())
+                                        + cluster + tracks + info;
+        Parsed parsed(ebmlHeader("matroska") + element(Id::Segment, body));
+        ASSERT_EQUALS(uint64_t{100000}, parsed.parser().info().timestamp_scale_ns,
+                      "TimestampScale comes from the Info after the clusters");
+        ASSERT_EQUALS(uint64_t{5000}, parsed.parser().info().durationMs(), "and so does Duration");
+        ASSERT_EQUALS(size_t{1}, parsed.parser().tracks().size(), "the Tracks are found too");
+    }
+};
+
 class LegacyAacTest : public TestCase {
 public:
     LegacyAacTest() : TestCase("Legacy AAC CodecIDs get the AudioSpecificConfig they imply") {}
@@ -869,6 +911,7 @@ int main()
     suite.addTest(std::make_unique<OpusRateTest>());
     suite.addTest(std::make_unique<VorbisDelayTest>());
     suite.addTest(std::make_unique<LegacyAacTest>());
+    suite.addTest(std::make_unique<InfoAfterClustersTest>());
     suite.addTest(std::make_unique<ContentEncodingTest>());
 
     auto results = suite.runAll();

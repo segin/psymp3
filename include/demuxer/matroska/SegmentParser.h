@@ -175,6 +175,9 @@ private:
     std::map<uint32_t, uint64_t> m_seek_positions;
     uint64_t m_segment_data_offset = 0;
     uint64_t m_first_cluster_offset = 0;
+    /// Whether an Info element has been read. Only the first one counts
+    /// (RFC 9559 6.1).
+    bool m_info_seen = false;
 };
 
 } // namespace Matroska

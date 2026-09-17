@@ -268,7 +268,12 @@ void SegmentParser::parseSegment(EBMLReader& reader, const EBMLElement& segment)
         }
 
         switch (element.id) {
-        case Id::Info:     parseInfo(reader, element);            break;
+        case Id::Info:
+            if (!m_info_seen) {
+                parseInfo(reader, element);
+                m_info_seen = true;
+            }
+            break;
         case Id::Tracks:   parseTracks(reader, element);          break;
         case Id::SeekHead: parseSeekHead(reader, element);        break;
         default: break;
@@ -276,10 +281,23 @@ void SegmentParser::parseSegment(EBMLReader& reader, const EBMLElement& segment)
         reader.seek(element.end());
     }
 
-    // A muxer may write Tracks after the clusters, which a walk that stops at
-    // the first one never reaches. SeekHead is the index that says where they
-    // went, and following it is the difference between playing such a file and
-    // reporting that it has no tracks.
+    // A muxer may write Info and Tracks after the clusters, as long as a
+    // SeekHead before them says where (RFC 9559 6.1), and a walk that stops at
+    // the first cluster never reaches them. Following SeekHead is the
+    // difference between playing such a file and reporting that it has no
+    // tracks -- or, for Info, timing every block by the default
+    // TimestampScale and knowing no duration.
+    if (!m_info_seen) {
+        const uint64_t info_at = seekPosition(Id::Info);
+        if (info_at != 0 && info_at > m_segment_data_offset) {
+            reader.seek(info_at);
+            EBMLElement info;
+            if (reader.readElementHeader(info) && info.id == Id::Info && !info.unknown_size) {
+                parseInfo(reader, info);
+                m_info_seen = true;
+            }
+        }
+    }
     if (m_tracks.empty()) {
         const uint64_t tracks_at = seekPosition(Id::Tracks);
         if (tracks_at != 0 && tracks_at > m_segment_data_offset) {
