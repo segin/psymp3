@@ -88,10 +88,10 @@ public:
 protected:
     void runTest() override
     {
-        // Timestamp must precede a cluster's blocks, but it need not be the
-        // first child, and ffmpeg does put a CRC-32 ahead of it. Reading only
-        // the first child leaves the whole index empty -- which is what this
-        // caught on a real file.
+        // Timestamp need not be a cluster's first child: RFC 9559 5.1.3.1 says
+        // only that it SHOULD be, or second after a CRC-32, and ffmpeg does put
+        // a CRC-32 ahead of it. Reading only the first child leaves the whole
+        // index empty -- which is what this caught on a real file.
         std::vector<uint8_t> clusters =
             cluster(0, true) + cluster(500, true) + cluster(1000, true);
         Bytes bytes(clusters);
@@ -151,9 +151,9 @@ public:
 protected:
     void runTest() override
     {
-        // ffmpeg cues only the video track of a .mkv. Trusting those entries
-        // would seek audio by video keyframe positions -- which is not a parse
-        // error, just wrong, and quietly so.
+        // In a file with video, ffmpeg and mkvmerge cue no audio track at all.
+        // Entries for another track are not used for this one, so such a file
+        // is indexed by the cluster scan instead.
         const std::vector<uint8_t> cues =
             element(Id::Cues, cuePoint(0, 1, 100) + cuePoint(1000, 1, 200));
         Bytes bytes(cues);
