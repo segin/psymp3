@@ -528,6 +528,43 @@ protected:
     }
 };
 
+class OpusRateTest : public TestCase {
+public:
+    OpusRateTest() : TestCase("An Opus track plays at 48 kHz whatever its SamplingFrequency says") {}
+
+protected:
+    void runTest() override
+    {
+        // draft-ietf-cellar-codec §3.4.32: SamplingFrequency is OpusHead's
+        // Input Sample Rate, the rate the encoder was fed, and says nothing
+        // about the decoder's output, which is always 48 kHz.
+        const std::vector<uint8_t> track =
+            element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                  + uintEl(Id::TrackType, TrackType::Audio)
+                                  + strEl(Id::CodecID, "A_OPUS")
+                                  + element(Id::CodecPrivate,
+                                            std::vector<uint8_t>{'O','p','u','s','H','e','a','d',
+                                                                 1, 2, 0x38, 0x01,
+                                                                 0x44, 0xAC, 0x00, 0x00,  // 44100
+                                                                 0x00, 0x00, 0x00})
+                                  + uintEl(Id::CodecDelay, 6500000)
+                                  + element(Id::Audio,
+                                            floatEl(Id::SamplingFrequency, 44100.0)
+                                          + uintEl(Id::Channels, 2)));
+        Parsed parsed(ebmlHeader("matroska")
+                      + element(Id::Segment,
+                                element(Id::Info, uintEl(Id::TimestampScale, 1000000)
+                                                + floatEl(Id::Duration, 1000.0))
+                              + element(Id::Tracks, track)));
+        const StreamInfo info =
+            parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack());
+        ASSERT_EQUALS(uint32_t{48000}, info.sample_rate,
+                      "the playback rate is the decoder's 48 kHz, not the input rate");
+        ASSERT_EQUALS(uint64_t{48000}, info.duration_samples,
+                      "one second counts 48000 frames, not 44100");
+    }
+};
+
 class CodecDelayCeilingTest : public TestCase {
 public:
     CodecDelayCeilingTest() : TestCase("An implausible CodecDelay is ignored, not trimmed") {}
@@ -652,6 +689,7 @@ int main()
     suite.addTest(std::make_unique<StreamInfoMappingTest>());
     suite.addTest(std::make_unique<HostileFloatTest>());
     suite.addTest(std::make_unique<CodecDelayCeilingTest>());
+    suite.addTest(std::make_unique<OpusRateTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

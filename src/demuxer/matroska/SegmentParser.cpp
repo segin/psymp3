@@ -431,9 +431,17 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     const auto usable = [](double hz) {
         return std::isfinite(hz) && hz >= 1.0 && hz <= 1048575.0;
     };
-    const double rate = usable(track.output_sampling_frequency) ? track.output_sampling_frequency
-                      : usable(track.sampling_frequency)        ? track.sampling_frequency
-                                                                : 0.0;
+    double rate = usable(track.output_sampling_frequency) ? track.output_sampling_frequency
+                : usable(track.sampling_frequency)        ? track.sampling_frequency
+                                                          : 0.0;
+    // Opus is the exception. The codec mapping (draft-ietf-cellar-codec
+    // §3.4.32) makes an A_OPUS track's SamplingFrequency OpusHead's "Input
+    // Sample Rate", the rate the encoder was fed, while an Opus decoder always
+    // produces 48 kHz. Believing the field played a track muxed from a
+    // 44.1 kHz source about 8% slow.
+    if (track.codec_id == "A_OPUS") {
+        rate = 48000.0;
+    }
     info.sample_rate = static_cast<uint32_t>(rate + 0.5);
     info.channels = track.channels;
     info.bits_per_sample = track.bit_depth;
