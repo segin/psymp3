@@ -27,8 +27,9 @@ constexpr unsigned eac3EcplSubbandStart(unsigned sbnd)
     return sbnd < 4 ? 13 + 6 * sbnd : 37 + 12 * (sbnd - 4);
 }
 
-/// Table E2.13, defecplbndstrc[]: a set entry merges the sub-band into the
-/// band before it. Sub-bands 0 to 8 always stand alone.
+/// A/52 §E2.3.3.18, defecplbndstrc[], captioned Table E2.13 in the body and
+/// numbered E2.14 in the List of Tables: a set entry merges the sub-band into
+/// the band before it. Sub-bands 0 to 8 always stand alone.
 constexpr uint8_t kDefaultEcplBandStructure[kEcplSubbands] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1,
 };

@@ -61,7 +61,10 @@ constexpr ExponentStrategy kFrameExponentStrategies[32][6] = {
     { ExponentStrategy::D45, ExponentStrategy::D45, ExponentStrategy::D45, ExponentStrategy::D45, ExponentStrategy::D45, ExponentStrategy::D45 },  // 31
 };
 
-/// A/52 Table E2.12, defcplbndstrc[], by absolute coupling sub-band number.
+/// A/52 §E2.3.3.15, defcplbndstrc[], by absolute coupling sub-band number.
+/// The body captions it "Table E2.12 Default Coupling Banding Structure"; the
+/// List of Tables numbers it E2.13, and the body gives E2.12 to the Master
+/// Spectral Extension Coordinate table as well.
 ///
 /// An E-AC-3 block may omit the coupling band structure (cplbndstrce = 0).
 /// In the first coupled block of a frame that means this default; in any

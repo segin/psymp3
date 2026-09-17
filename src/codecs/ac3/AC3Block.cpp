@@ -237,8 +237,9 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
                 // Sub-bands may be joined into wider coupling bands; band 0 always
                 // starts one, and each set bit merges the sub-band into it.
                 // AC-3 always sends the structure. E-AC-3 may omit it: the first
-                // coupled block of a frame then takes Table E2.12's default, and a
-                // later block keeps the previous block's (§E2.3.3.15).
+                // coupled block of a frame then takes the default of §E2.3.3.15
+                // (kDefaultCouplingBandStructure), and a later block keeps the
+                // previous block's.
                 const bool cplbndstrce = eac3 ? (reader.readBit() != 0) : true;
                 state.cplbndstrc[0] = 0;
                 if (cplbndstrce) {
