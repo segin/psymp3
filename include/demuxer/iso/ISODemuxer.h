@@ -250,6 +250,14 @@ public:
     bool isEOF() const override;
     uint64_t getDuration() const override;
     uint64_t getPosition() const override;
+    /// A plain (unfragmented) file's sample table gives every sample's time,
+    /// so a seek's landing and each chunk's time are exact. Fragmented files
+    /// keep the old behaviour: the stream counts from the target.
+    bool providesGranulePositions() const override;
+    bool chunkTimesAreExact() const override;
+    /// The time of the next sample to be read, which after a seek is where it
+    /// landed, in samples.
+    uint64_t getGranulePosition(uint32_t stream_id) const override;
     
     // Metadata extraction
     std::map<std::string, std::string> getMetadata() const;
@@ -273,6 +281,10 @@ private:
     std::vector<AudioTrackInfo> audioTracks;
     int selectedTrackIndex = -1;
     uint64_t currentSampleIndex = 0;
+
+    /// Whether @p track's sample times are known exactly; see
+    /// providesGranulePositions().
+    bool hasExactTiming(const AudioTrackInfo& track) const;
     
     // State management is handled by base class
     

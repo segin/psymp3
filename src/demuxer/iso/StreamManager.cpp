@@ -29,6 +29,9 @@ std::vector<StreamInfo> StreamManager::GetStreamInfos() const {
         info.bitrate = track.avgBitrate;
         info.codec_data = track.codecConfig;
         info.encoder_delay = track.encoderDelay;
+        // Sample times count from the first sample, priming included, so
+        // they run that far ahead of the audio each plays.
+        info.codec_delay = track.encoderDelay;
         info.encoder_padding = track.encoderPadding;
         info.valid_samples = track.validSampleCount;
         info.artist = track.artist;

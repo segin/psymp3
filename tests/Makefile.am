@@ -512,6 +512,10 @@ test_aac_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 check_PROGRAMS += test_aac_output_format
 test_aac_output_format_SOURCES = test_aac_output_format.cpp
 test_aac_output_format_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+check_PROGRAMS += test_iso_seek
+test_iso_seek_SOURCES = test_iso_seek.cpp
+test_iso_seek_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
 test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
@@ -3374,6 +3378,7 @@ test_mpris_memory_validation_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 
 # Test scripts for running comprehensive test suites
 EXTRA_DIST = matroska_ebml_builder.h \
+	fdk_aac_test_encoder.h \
 	run_mpris_mock_tests.sh \
 	run_mpris_stress_tests.sh \
 	run_mpris_logging_tests.sh \

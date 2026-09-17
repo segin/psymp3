@@ -852,6 +852,13 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
     bool success = seekingEngine->SeekToTimestamp(timestamp_seconds, track, *sampleTables);
     
     if (success) {
+        // An AC-3 or E-AC-3 frame's first block overlaps the frame before it,
+        // so decoding from the target's frame makes its first samples from
+        // half a transform. Starting a frame earlier rebuilds the overlap, and
+        // DemuxedStream drops that frame's audio, which is before the target.
+        if ((track.codecType == "ac3" || track.codecType == "eac3") && track.currentSampleIndex > 0) {
+            --track.currentSampleIndex;
+        }
         currentSampleIndex = track.currentSampleIndex;
         
         // Update position to actual seek position (may be different due to keyframe alignment)
@@ -870,6 +877,34 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
     }
     
     return success;
+}
+
+bool ISODemuxer::hasExactTiming(const AudioTrackInfo& track) const {
+    return !(fragmentHandler && fragmentHandler->IsFragmented()) && track.timescale > 0 &&
+           track.sampleRate > 0 && !track.sampleTableInfo.sampleTimes.empty();
+}
+
+bool ISODemuxer::providesGranulePositions() const {
+    const int index = selectedTrackIndex >= 0 ? selectedTrackIndex : 0;
+    return index < static_cast<int>(audioTracks.size()) && hasExactTiming(audioTracks[index]);
+}
+
+bool ISODemuxer::chunkTimesAreExact() const {
+    return providesGranulePositions();
+}
+
+uint64_t ISODemuxer::getGranulePosition(uint32_t stream_id) const {
+    const auto it = std::find_if(audioTracks.begin(), audioTracks.end(),
+                                 [stream_id](const AudioTrackInfo& track) {
+                                     return track.trackId == stream_id;
+                                 });
+    if (it == audioTracks.end() || !hasExactTiming(*it)) {
+        return 0;
+    }
+    const std::vector<uint64_t>& times = it->sampleTableInfo.sampleTimes;
+    const uint64_t time = it->currentSampleIndex < times.size() ? times[it->currentSampleIndex]
+                                                                : it->duration;
+    return (time * it->sampleRate) / it->timescale;
 }
 
 AudioTrackInfo* ISODemuxer::findTrackById(uint32_t trackId) {
