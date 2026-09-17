@@ -103,6 +103,16 @@ bool MatroskaDemuxer::parseContainer()
         constexpr uint64_t kMaxFrameNs = 1000000000ULL;
         m_default_duration_ns = chosen->default_duration_ns <= kMaxFrameNs
                               ? chosen->default_duration_ns : 0;
+        // SeekPreRoll's default is 0, but an Opus decoder needs 80 ms to
+        // converge whatever the file says (RFC 7845 4.6). A value over 10 s,
+        // like CodecDelay's, is damage, and would turn every seek into a
+        // decode from far back.
+        constexpr uint64_t kMaxPrerollNs = 10ULL * 1000000000ULL;
+        constexpr uint64_t kOpusPrerollNs = 80ULL * 1000000ULL;
+        m_seek_preroll_ns = chosen->seek_preroll_ns <= kMaxPrerollNs ? chosen->seek_preroll_ns : 0;
+        if (chosen->codec_id == "A_OPUS") {
+            m_seek_preroll_ns = std::max(m_seek_preroll_ns, kOpusPrerollNs);
+        }
     }
 
     m_duration_ms = m_parser.info().durationMs();
@@ -527,9 +537,15 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     // first cluster. That is slow for a late target in a long unindexed file,
     // but it is correct, where refusing left the stream to carry on from
     // wherever it was.
+    //
+    // The decoder has to have run for SeekPreRoll before its output is valid
+    // (RFC 9559 5.1.4.1.26), so the restart is looked up that much before the
+    // target; DemuxedStream drops everything before the target either way.
+    const uint64_t preroll_ticks = scale > 0 ? m_seek_preroll_ns / scale : 0;
+    const uint64_t lookup = ticks > preroll_ticks ? ticks - preroll_ticks : 0;
     uint64_t start = 0;
-    const CueEntry* entry = m_index.entryFor(ticks);
-    if (entry && entry->time_ticks <= ticks) {
+    const CueEntry* entry = m_index.entryFor(lookup);
+    if (entry && entry->time_ticks <= lookup) {
         start = entry->cluster_offset;
     } else {
         start = m_parser.firstClusterOffset();

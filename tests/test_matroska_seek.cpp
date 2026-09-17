@@ -73,12 +73,12 @@ std::vector<uint8_t> pcmTrack(uint64_t number)
 /// these tests pin down does not depend on which index picked it.
 /// Each block carries a full kFrameBytes of PCM, so the fixture really holds
 /// the duration its timestamps claim.
-std::vector<uint8_t> buildFile()
+std::vector<uint8_t> buildFile(const std::vector<uint8_t>& track = pcmTrack(1))
 {
     const std::vector<uint8_t> info =
         element(Id::Info, uintEl(Id::TimestampScale, 1000000)
                         + floatEl(Id::Duration, static_cast<double>(kClusterCount * kBlockMs)));
-    const std::vector<uint8_t> tracks = element(Id::Tracks, pcmTrack(1));
+    const std::vector<uint8_t> tracks = element(Id::Tracks, track);
 
     std::vector<uint8_t> clusters;
     for (int i = 0; i < kClusterCount; ++i) {
@@ -846,6 +846,48 @@ protected:
     }
 };
 
+class SeekPreRollTest : public TestCase {
+public:
+    SeekPreRollTest() : TestCase("A seek starts SeekPreRoll before its target") {}
+
+protected:
+    void runTest() override
+    {
+        auto open = [](const std::vector<uint8_t>& track) {
+            const std::vector<uint8_t> file = buildFile(track);
+            auto demuxer = std::make_unique<MatroskaDemuxer>(
+                std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+            return demuxer->parseContainer() ? std::move(demuxer) : nullptr;
+        };
+        {   // 30 ms of pre-roll before a target on a cluster boundary.
+            auto demuxer = open(element(Id::TrackEntry,
+                                        uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                                      + uintEl(Id::SeekPreRoll, 30000000)
+                                      + element(Id::Audio, floatEl(Id::SamplingFrequency, kSampleRate)
+                                                         + uintEl(Id::Channels, kChannels)
+                                                         + uintEl(Id::BitDepth, kBitDepth))));
+            ASSERT_TRUE(demuxer != nullptr, "fixture should parse");
+            ASSERT_TRUE(demuxer->seekTo(540), "seek should succeed");
+            ASSERT_EQUALS(samplesAt(500), demuxer->getGranulePosition(1),
+                          "the restart is the cluster at or before 510 ms");
+        }
+        {   // Opus gets 80 ms even when the file states none.
+            auto demuxer = open(element(Id::TrackEntry,
+                                        uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_OPUS")
+                                      + element(Id::Audio, floatEl(Id::SamplingFrequency, 48000.0)
+                                                         + uintEl(Id::Channels, 2))));
+            ASSERT_TRUE(demuxer != nullptr, "fixture should parse");
+            ASSERT_TRUE(demuxer->seekTo(540), "seek should succeed");
+            ASSERT_EQUALS(uint64_t{460 * 48}, demuxer->getGranulePosition(1),
+                          "the restart is 80 ms before the target");
+        }
+    }
+};
+
 class HostileClustersTest : public TestCase {
 public:
     HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
@@ -905,6 +947,7 @@ int main()
     suite.addTest(std::make_unique<NegativeTimeTest>());
     suite.addTest(std::make_unique<LacedFrameTimesTest>());
     suite.addTest(std::make_unique<WideTrackNumberTest>());
+    suite.addTest(std::make_unique<SeekPreRollTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

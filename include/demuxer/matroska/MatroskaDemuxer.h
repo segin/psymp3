@@ -102,6 +102,10 @@ private:
     /// The selected track's DefaultDuration, or 0 when it states none (or
     /// states something absurd): the spacing of a laced block's frames.
     uint64_t m_default_duration_ns = 0;
+    /// How far before a seek target decoding has to start for the output at
+    /// the target to be valid: the track's SeekPreRoll, and for Opus at
+    /// least the 80 ms RFC 7845 4.6 asks for.
+    uint64_t m_seek_preroll_ns = 0;
     /// Where playback actually is, in samples -- the landing after a seek, and
     /// the last chunk handed out otherwise. Guarded by the base class's
     /// m_state_mutex alongside m_position_ms, which is always set with it and
