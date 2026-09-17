@@ -57,7 +57,7 @@ void registerAllCodecs();
  * It registers demuxer factory functions based on compile-time configuration:
  * 
  * Always registered:
- * - RIFF demuxer (for WAV, AVI containers) - uses ChunkDemuxer
+ * - RIFF demuxer (for WAV containers) - uses ChunkDemuxer
  * - AIFF demuxer (for AIFF containers) - uses ChunkDemuxer  
  * - MP4/ISO demuxer (for MP4, M4A, MOV containers) - uses ISODemuxer
  * - Raw audio demuxer (for PCM, A-law, μ-law files) - uses RawAudioDemuxer
