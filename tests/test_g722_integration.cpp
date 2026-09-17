@@ -23,16 +23,6 @@ void require(bool condition, const std::string& message)
     }
 }
 
-std::vector<int16_t> makeSinePcm(size_t sample_count)
-{
-    std::vector<int16_t> pcm(sample_count);
-    for (size_t i = 0; i < sample_count; ++i) {
-        double phase = (2.0 * M_PI * 440.0 * static_cast<double>(i)) / 16000.0;
-        pcm[i] = static_cast<int16_t>(std::sin(phase) * 12000.0);
-    }
-    return pcm;
-}
-
 // The bitstream is a captured fixture rather than something encoded here:
 // PsyMP3 decodes G.722 in-tree and ships no encoder. See g722_fixture.h.
 std::vector<uint8_t> encodedG722Sine()
@@ -82,7 +72,9 @@ int main()
     try {
         testQmfOutputIsLimited();
 
-        const std::vector<int16_t> source_pcm = makeSinePcm(1600);
+        // Each octet decodes to two 16 kHz samples (Rec. G.722 §1.5.4), so the
+        // fixture's 800 octets make 1600.
+        const size_t expected_samples = 1600;
         const std::vector<uint8_t> encoded = encodedG722Sine();
         const std::string path = writeTempG722(encoded);
 
@@ -93,7 +85,7 @@ int main()
         StreamInfo stream = demuxer.getStreamInfo(1);
         require(stream.codec_name == "g722", "RawAudioDemuxer should classify .g722 as g722");
         require(stream.sample_rate == 16000, "Raw G.722 should default to 16 kHz PCM output");
-        require(stream.duration_samples == source_pcm.size(), "Duration should use decoded PCM samples");
+        require(stream.duration_samples == expected_samples, "Duration should count decoded samples, two per octet");
 
         require(demuxer.seekTo(50), "Seeking within raw G.722 should succeed");
         MediaChunk seek_chunk = demuxer.readChunk();
@@ -121,7 +113,7 @@ int main()
             }
         }
 
-        require(decoded_samples == source_pcm.size(), "Decoded G.722 sample count should match source PCM length");
+        require(decoded_samples == expected_samples, "Every G.722 octet should decode to two samples");
         require(total_energy > 0, "Decoded G.722 output should contain non-silent audio");
 
         std::remove(path.c_str());

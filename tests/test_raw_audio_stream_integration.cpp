@@ -66,16 +66,6 @@ void testMuLawViaMediaFactory()
 }
 
 #ifdef HAVE_G722
-std::vector<int16_t> makeG722SourcePcm(size_t sample_count)
-{
-    std::vector<int16_t> pcm(sample_count);
-    for (size_t i = 0; i < sample_count; ++i) {
-        double phase = (2.0 * M_PI * 440.0 * static_cast<double>(i)) / 16000.0;
-        pcm[i] = static_cast<int16_t>(std::sin(phase) * 12000.0);
-    }
-    return pcm;
-}
-
 // A captured fixture rather than a fresh encode: PsyMP3 decodes G.722
 // in-tree and ships no encoder. See g722_fixture.h.
 std::vector<uint8_t> encodedG722Sine()
@@ -85,7 +75,6 @@ std::vector<uint8_t> encodedG722Sine()
 
 void testG722ViaMediaFactory()
 {
-    const std::vector<int16_t> source_pcm = makeG722SourcePcm(1600);
     const std::vector<uint8_t> encoded = encodedG722Sine();
     const std::string path = makeTempPath(".g722");
     writeBinaryFile(path, encoded);
