@@ -58,6 +58,9 @@ struct SegmentInfo {
 struct TrackEntry {
     uint64_t number = 0;          ///< what a block's track number refers to
     uint64_t uid = 0;
+    /// Position among the TrackEntry elements, from 1, which is what the
+    /// track's stream id is. TrackNumber itself is 64 bits and would not fit.
+    uint32_t ordinal = 0;
     uint64_t type = 0;            ///< see TrackType
     std::string codec_id;         ///< e.g. "A_OPUS"
     std::string codec_name;       ///< the encoder's own description, if given

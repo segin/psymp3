@@ -95,6 +95,7 @@ bool MatroskaDemuxer::parseContainer()
                    m_parser.tracks().front().codec_id);
     } else {
         m_track_number = chosen->number;
+        m_stream_id = chosen->ordinal;
         m_sample_rate = m_streams.front().sample_rate;
         m_frame_prefix = chosen->stripped_frame_prefix;
         // No real frame lasts a second; anything longer would only overflow
@@ -335,7 +336,7 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
     for (size_t i = 0; i < frames.size(); ++i) {
         const BlockFrame& frame = frames[i];
         MediaChunk chunk;
-        chunk.stream_id = static_cast<uint32_t>(m_track_number);
+        chunk.stream_id = m_stream_id;
         // Header stripping (RFC 9559 5.1.4.1.31.7) removed these bytes from the
         // front of every frame; the decoder needs them back.
         chunk.data.reserve(m_frame_prefix.size() + frame.size);
@@ -494,7 +495,7 @@ MediaChunk MatroskaDemuxer::readChunk(uint32_t stream_id)
 {
     // Only the selected track is ever queued, so a request for another is a
     // request for nothing rather than a reason to go looking.
-    if (stream_id != static_cast<uint32_t>(m_track_number)) {
+    if (stream_id != m_stream_id) {
         return MediaChunk();
     }
     return readChunk();

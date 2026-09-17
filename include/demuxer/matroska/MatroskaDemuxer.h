@@ -90,6 +90,8 @@ private:
 
     /// The track being played. Zero until parseContainer has chosen one.
     uint64_t m_track_number = 0;
+    /// Its stream id (TrackEntry::ordinal), which is what chunks carry.
+    uint32_t m_stream_id = 0;
     uint32_t m_sample_rate = 0;
     /// Bytes header stripping removed from the front of every frame of the
     /// selected track, put back as each frame is queued.

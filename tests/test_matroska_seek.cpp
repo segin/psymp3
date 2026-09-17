@@ -808,6 +808,44 @@ protected:
     }
 };
 
+class WideTrackNumberTest : public TestCase {
+public:
+    WideTrackNumberTest() : TestCase("A TrackNumber beyond 32 bits still plays") {}
+
+protected:
+    void runTest() override
+    {
+        constexpr uint64_t kNumber = 1ULL << 32; // a stream id of 0 if truncated
+        const std::vector<uint8_t> track =
+            element(Id::TrackEntry,
+                    uintEl(Id::TrackNumber, kNumber)
+                  + uintEl(Id::TrackType, TrackType::Audio)
+                  + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                  + element(Id::Audio, floatEl(Id::SamplingFrequency, kSampleRate)
+                                     + uintEl(Id::Channels, kChannels)
+                                     + uintEl(Id::BitDepth, kBitDepth)));
+        // The block's track number as a five-byte VINT.
+        std::vector<uint8_t> body{0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80};
+        body.insert(body.end(), kFrameBytes, 0x5A);
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment,
+                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                  + element(Id::Tracks, track)
+                  + element(Id::Cluster, uintEl(Id::Timestamp, 0)
+                                       + element(Id::SimpleBlock, body)));
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        const std::vector<StreamInfo> streams = demuxer.getStreams();
+        ASSERT_EQUALS(size_t{1}, streams.size(), "one stream");
+        ASSERT_TRUE(streams[0].isValid(), "with a usable stream id");
+        const MediaChunk chunk = demuxer.readChunk(streams[0].stream_id);
+        ASSERT_TRUE(chunk.isValid(), "whose frames are read");
+        ASSERT_EQUALS(streams[0].stream_id, chunk.stream_id, "and labelled with it");
+    }
+};
+
 class HostileClustersTest : public TestCase {
 public:
     HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
@@ -866,6 +904,7 @@ int main()
     suite.addTest(std::make_unique<HostileClustersTest>());
     suite.addTest(std::make_unique<NegativeTimeTest>());
     suite.addTest(std::make_unique<LacedFrameTimesTest>());
+    suite.addTest(std::make_unique<WideTrackNumberTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

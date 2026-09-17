@@ -306,7 +306,9 @@ void SegmentParser::parseTracks(EBMLReader& reader, const EBMLElement& tracks)
             break;
         }
         if (child.id == Id::TrackEntry) {
-            m_tracks.push_back(parseTrackEntry(reader, child));
+            TrackEntry track = parseTrackEntry(reader, child);
+            track.ordinal = static_cast<uint32_t>(m_tracks.size() + 1);
+            m_tracks.push_back(std::move(track));
         }
         reader.seek(child.end());
     }
@@ -496,7 +498,7 @@ const TrackEntry* SegmentParser::preferredAudioTrack() const
 StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
 {
     StreamInfo info;
-    info.stream_id = static_cast<uint32_t>(track.number);
+    info.stream_id = track.ordinal;
     info.codec_type = "audio";
     info.codec_name = codecNameForId(track.codec_id);
     info.big_endian_samples = codecIsBigEndianPCM(track.codec_id);
