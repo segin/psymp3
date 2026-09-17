@@ -94,6 +94,9 @@ private:
     /// Bytes header stripping removed from the front of every frame of the
     /// selected track, put back as each frame is queued.
     std::vector<uint8_t> m_frame_prefix;
+    /// Sample frames before time 0 already announced to the stream as
+    /// leading padding. Reset by a seek, which re-announces what it reads.
+    uint64_t m_frames_before_zero = 0;
     /// Where playback actually is, in samples -- the landing after a seek, and
     /// the last chunk handed out otherwise. Guarded by the base class's
     /// m_state_mutex alongside m_position_ms, which is always set with it and

@@ -61,8 +61,9 @@ constexpr size_t kFramesPerBlock = 882; // 20 ms
 /// One second of 16-bit stereo PCM in fifty clusters. Both channels hold a
 /// running frame counter, so any lost or repeated audio shows as a break in
 /// the count. With @p tail_padding_ns, the last block is a BlockGroup that
-/// says that much of its end is padding.
-std::vector<uint8_t> rampFile(uint32_t tail_padding_ns = 0)
+/// says that much of its end is padding. @p block_offset_ms moves every block
+/// against its cluster, so a negative one starts the audio before time 0.
+std::vector<uint8_t> rampFile(uint32_t tail_padding_ns = 0, int8_t block_offset_ms = 0)
 {
     const std::vector<uint8_t> track =
         element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
@@ -81,7 +82,9 @@ std::vector<uint8_t> rampFile(uint32_t tail_padding_ns = 0)
                 pcm.push_back(static_cast<uint8_t>(counter >> 8));
             }
         }
-        std::vector<uint8_t> block{0x81, 0x00, 0x00, 0x80};
+        const auto offset = static_cast<uint16_t>(static_cast<int16_t>(block_offset_ms));
+        std::vector<uint8_t> block{0x81, static_cast<uint8_t>(offset >> 8),
+                                   static_cast<uint8_t>(offset & 0xFF), 0x80};
         std::vector<uint8_t> stored = element(Id::SimpleBlock, block + pcm);
         if (c == 49 && tail_padding_ns != 0) {
             block[3] = 0x00;
@@ -299,6 +302,25 @@ protected:
     }
 };
 
+class BeforeTimeZeroTest : public TestCase {
+public:
+    BeforeTimeZeroTest() : TestCase("Audio timed before 0 is decoded but not played") {}
+
+protected:
+    void runTest() override
+    {
+        // Every block 20 ms early: the first starts at -20 ms.
+        const std::vector<uint8_t> file = rampFile(0, -20);
+        DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                             TagLib::String("ramp.mka"));
+        ASSERT_EQUALS(uint32_t{kRate}, static_cast<uint32_t>(stream.getRate()), "opened");
+        const std::vector<int32_t> counters = readCounters(stream, 100);
+        ASSERT_EQUALS(size_t{100}, counters.size(), "audio plays");
+        ASSERT_EQUALS(static_cast<int32_t>(kFramesPerBlock), counters.front(),
+                      "starting with the first frame at time 0");
+    }
+};
+
 class LastGranuleTest : public TestCase {
 public:
     LastGranuleTest() : TestCase("Audio past the stream's last granule is not played") {}
@@ -371,6 +393,7 @@ int main()
     suite.addTest(std::make_unique<TailPaddingTest>());
     suite.addTest(std::make_unique<LastGranuleTest>());
     suite.addTest(std::make_unique<BufferBoundTest>());
+    suite.addTest(std::make_unique<BeforeTimeZeroTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

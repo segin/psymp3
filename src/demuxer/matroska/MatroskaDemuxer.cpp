@@ -308,6 +308,25 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
     }
     const int64_t ticks = cluster_ticks + offset;
     const uint64_t milliseconds = ticksToMs(ticks);
+
+    // A frame whose time is negative is decoded but not played (RFC 9559
+    // 11.2). Blocks follow on from each other, so what lies before time 0 is
+    // the earliest negative block's distance from it, and a later negative
+    // block is already inside that span. The difference rides on the chunk as
+    // leading padding.
+    uint32_t before_zero = 0;
+    if (ticks < 0 && m_sample_rate > 0) {
+        // Cluster Timestamps are unsigned, so ticks is at least -32768.
+        constexpr uint64_t kMaxLeadNs = 10ULL * 1000000000ULL;
+        const uint64_t scale = m_parser.info().timestamp_scale_ns;
+        const uint64_t span = static_cast<uint64_t>(-ticks);
+        const uint64_t ns = scale > kMaxLeadNs / span ? kMaxLeadNs : span * scale;
+        const uint64_t needed = (ns * m_sample_rate + 999999999ULL) / 1000000000ULL;
+        if (needed > m_frames_before_zero) {
+            before_zero = static_cast<uint32_t>(needed - m_frames_before_zero);
+            m_frames_before_zero = needed;
+        }
+    }
     for (size_t i = 0; i < frames.size(); ++i) {
         const BlockFrame& frame = frames[i];
         MediaChunk chunk;
@@ -322,9 +341,10 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
                                 : 0;
         chunk.is_keyframe = header.keyframe;
         chunk.file_offset = block.header_offset;
-        if (discard_padding_ns < 0 && i == 0) {
-            chunk.padding_head_frames = padding_frames;
-        } else if (discard_padding_ns > 0 && i + 1 == frames.size()) {
+        if (i == 0) {
+            chunk.padding_head_frames = before_zero + (discard_padding_ns < 0 ? padding_frames : 0);
+        }
+        if (discard_padding_ns > 0 && i + 1 == frames.size()) {
             chunk.padding_tail_frames = padding_frames;
         }
         m_queue.push_back(std::move(chunk));
@@ -503,6 +523,7 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     m_read_offset = start;
     m_cluster_end = 0;
     m_cluster_ticks = 0;
+    m_frames_before_zero = 0;
     m_eof = false;
 
     // What the landing actually is: the time of the first frame that will be

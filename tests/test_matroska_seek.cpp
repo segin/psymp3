@@ -735,6 +735,42 @@ protected:
     }
 };
 
+class NegativeTimeTest : public TestCase {
+public:
+    NegativeTimeTest() : TestCase("Audio before time 0 is marked to be decoded but not played") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> frame(kFrameBytes, 0x5A);
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment,
+                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                  + element(Id::Tracks, pcmTrack(1))
+                  + element(Id::Cluster, uintEl(Id::Timestamp, 0)
+                                       + simpleBlock(1, -40, frame)
+                                       + simpleBlock(1, -20, frame)
+                                       + simpleBlock(1, 0, frame)));
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+
+        // 40 ms at 44.1 kHz lie before time 0, all announced by the first
+        // block; the second is already inside that span.
+        const uint32_t expected[] = {1764, 0, 0};
+        for (uint32_t lead : expected) {
+            const MediaChunk chunk = demuxer.readChunk();
+            ASSERT_TRUE(chunk.isValid(), "each block is read");
+            ASSERT_EQUALS(lead, chunk.padding_head_frames, "and carries what it adds before time 0");
+        }
+
+        ASSERT_TRUE(demuxer.seekTo(0), "a seek back to the start");
+        const MediaChunk again = demuxer.readChunk();
+        ASSERT_EQUALS(uint32_t{1764}, again.padding_head_frames, "announces it again");
+    }
+};
+
 class HostileClustersTest : public TestCase {
 public:
     HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
@@ -791,6 +827,7 @@ int main()
     suite.addTest(std::make_unique<OversizedVideoBlockTest>());
     suite.addTest(std::make_unique<DiscardPaddingTest>());
     suite.addTest(std::make_unique<HostileClustersTest>());
+    suite.addTest(std::make_unique<NegativeTimeTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
