@@ -35,7 +35,10 @@ float uniform(uint32_t& state)
     state ^= state << 13;
     state ^= state >> 17;
     state ^= state << 5;
-    return static_cast<float>(state) / 2147483648.0f - 1.0f;
+    // The 128 states nearest 2^32 round up to exactly 2^32 in a float, which
+    // would make the result 1.0; they are held just below it instead.
+    const float value = static_cast<float>(state) / 2147483648.0f - 1.0f;
+    return value < 1.0f ? value : std::nextafter(1.0f, 0.0f);
 }
 
 /// The DFT's roots of unity, built once. A function-local static is
