@@ -49,9 +49,10 @@ class CueIndex {
 public:
     /// Reads a Cues element that @p cues_offset points at.
     ///
-    /// Only entries for @p track_number are kept. In a file with video,
-    /// ffmpeg and mkvmerge cue no audio track at all, so for such a file this
-    /// finds nothing and MatroskaDemuxer falls back to buildByScanning().
+    /// Entries for @p track_number are kept. When there are none -- in a file
+    /// with video, ffmpeg and mkvmerge cue no audio track at all -- the
+    /// entries for other tracks are used instead, since any cluster is a
+    /// place to restart the audio from.
     ///
     /// @param segment_data_offset  what CueClusterPosition is relative to
     /// @return false when the element is not Cues or yields no usable entry

@@ -123,30 +123,10 @@ bool MatroskaDemuxer::parseContainer()
 
     m_duration_ms = m_parser.info().durationMs();
 
-    // Cues are found only through SeekHead. They usually follow the clusters,
-    // and although RFC 9559 6.4 lets them come first instead, the Segment walk
-    // does not collect them there. Without Cues usable for the track, the
-    // cluster headers are walked instead.
-    if (m_track_number != 0) {
-        // A damaged index costs fast seeking, not playback: with no index, a
-        // seek restarts at the first cluster and decodes forward. Cues are only
-        // SHOULD-be-present (5.1.5) and the clusters behind them are intact, but
-        // both builders throw on a malformed VINT or an integer wider than eight
-        // octets, and an exception escaping here fails parseContainer, which
-        // makes DemuxedStream refuse a file whose audio reads perfectly. Log it
-        // and carry on unindexed, the way parseTags below already does.
-        try {
-            const uint64_t cues_at = m_parser.seekPosition(Id::Cues);
-            if (!m_index.parseCues(m_reader, cues_at, m_parser.segmentDataOffset(),
-                                   m_track_number)) {
-                m_index.buildByScanning(m_reader, m_parser.firstClusterOffset(), m_file_size);
-            }
-        } catch (const std::exception& e) {
-            Debug::log("demux", "MatroskaDemuxer: index unusable, seeks will restart at the first cluster: ",
-                       e.what());
-            m_index = CueIndex();
-        }
-    }
+    // The seek index is built at the first seek (buildIndex), as RFC 9559
+    // 23.1 advises: without usable Cues it means reading every cluster header
+    // in the file, which over HTTP is a request per cluster before the first
+    // sample plays.
 
     const uint64_t tags_at = m_parser.seekPosition(Id::Tags);
     if (tags_at != 0) {
@@ -463,6 +443,35 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
     }
 }
 
+void MatroskaDemuxer::buildIndex()
+{
+    m_index_built = true;
+    // Cues are found through SeekHead. They usually follow the clusters, and
+    // although RFC 9559 6.4 lets them come first instead, the Segment walk
+    // does not collect them there. Without Cues, the cluster headers are
+    // walked instead.
+    //
+    // A damaged index costs fast seeking, not playback: with no index, a seek
+    // restarts at the first cluster and decodes forward. Cues are only
+    // SHOULD-be-present (5.1.5) and the clusters behind them are intact, but
+    // both builders throw on a malformed VINT or an integer wider than eight
+    // octets. That is logged, and the stream carries on unindexed.
+    try {
+        uint64_t cues_at = m_parser.seekPosition(Id::Cues);
+        if (cues_at >= m_file_size) {
+            cues_at = 0; // a truncated file, or a SeekHead that is wrong
+        }
+        if (!m_index.parseCues(m_reader, cues_at, m_parser.segmentDataOffset(),
+                               m_track_number)) {
+            m_index.buildByScanning(m_reader, m_parser.firstClusterOffset(), m_file_size);
+        }
+    } catch (const std::exception& e) {
+        Debug::log("demux", "MatroskaDemuxer: index unusable, seeks will restart at the first cluster: ",
+                   e.what());
+        m_index = CueIndex();
+    }
+}
+
 int64_t MatroskaDemuxer::clusterTimestamp(uint64_t from, uint64_t end)
 {
     // RFC 9559 5.1.3.1 has the Timestamp come first, or after a CRC-32, but
@@ -719,69 +728,89 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     // The decoder has to have run for SeekPreRoll before its output is valid
     // (RFC 9559 5.1.4.1.26), so the restart is looked up that much before the
     // target; DemuxedStream drops everything before the target either way.
-    const uint64_t preroll_ticks = scale > 0 ? m_seek_preroll_ns / scale : 0;
-    const uint64_t lookup = ticks > preroll_ticks ? ticks - preroll_ticks : 0;
-    uint64_t start = 0;
-    const CueEntry* entry = m_index.entryFor(lookup);
-    if (entry && entry->time_ticks <= lookup) {
-        start = entry->cluster_offset;
-    } else {
-        start = m_parser.firstClusterOffset();
+    if (!m_index_built) {
+        buildIndex();
     }
-    // A Cues position is only a claim. One that is stale or damaged, and does
-    // not lead to a Cluster, would end playback at the seek; reading restarts
-    // at the first cluster instead.
-    if (start != m_parser.firstClusterOffset()) {
-        bool at_cluster = false;
-        try {
-            EBMLElement element;
-            m_reader.seek(start);
-            at_cluster = start < m_file_size && m_reader.readElementHeader(element)
-                      && element.id == Id::Cluster;
-        } catch (const std::exception&) {
-            at_cluster = false;
-        }
-        if (!at_cluster) {
-            Debug::log("demux", "MatroskaDemuxer: no Cluster at cued offset ", start);
+    const uint64_t preroll_ticks = scale > 0 ? m_seek_preroll_ns / scale : 0;
+    uint64_t lookup = ticks > preroll_ticks ? ticks - preroll_ticks : 0;
+    const uint64_t target_samples = m_sample_rate > 0 ? (timestamp_ms * m_sample_rate) / 1000 : 0;
+
+    // A cluster's first frame of this track can come after its Timestamp, and
+    // after a cue's time, since audio is interleaved behind video. When it
+    // comes after the target too, the audio from the target on starts in an
+    // earlier cluster, so the lookup steps back an entry and tries again.
+    for (size_t attempt = 0;; ++attempt) {
+        uint64_t start = 0;
+        const CueEntry* entry = m_index.entryFor(lookup);
+        if (entry && entry->time_ticks <= lookup) {
+            start = entry->cluster_offset;
+        } else {
+            entry = nullptr;
             start = m_parser.firstClusterOffset();
         }
-    }
-    if (start == 0 || start >= m_file_size) {
-        return false;
-    }
+        // A Cues position is only a claim. One that is stale or damaged, and
+        // does not lead to a Cluster, would end playback at the seek; reading
+        // restarts at the first cluster instead.
+        if (start != m_parser.firstClusterOffset()) {
+            bool at_cluster = false;
+            try {
+                EBMLElement element;
+                m_reader.seek(start);
+                at_cluster = start < m_file_size && m_reader.readElementHeader(element)
+                          && element.id == Id::Cluster;
+            } catch (const std::exception&) {
+                at_cluster = false;
+            }
+            if (!at_cluster) {
+                Debug::log("demux", "MatroskaDemuxer: no Cluster at cued offset ", start);
+                entry = nullptr;
+                start = m_parser.firstClusterOffset();
+            }
+        }
+        if (start == 0 || start >= m_file_size) {
+            return false;
+        }
 
-    m_queue.clear();
-    m_read_offset = start;
-    m_cluster_end = 0;
-    m_cluster_ticks = 0;
-    m_frames_before_zero = 0;
-    m_eof = false;
+        m_queue.clear();
+        m_read_offset = start;
+        m_cluster_end = 0;
+        m_cluster_ticks = 0;
+        m_frames_before_zero = 0;
+        m_eof = false;
 
-    // What the landing actually is: the time of the first frame that will be
-    // handed out, because DemuxedStream labels frames from a counter anchored
-    // on the value reported here. That is neither a Cues entry's CueTime --
-    // the time of a seek point (RFC 9559 5.1.5.1.1) whose Block the cluster
-    // holds (5.1.5.1.2.2), not necessarily its first -- nor the Cluster's own
-    // Timestamp, since a block's time is that Timestamp plus its own signed
-    // offset (RFC 9559 11.2), and in mkvmerge files a cluster's first audio
-    // block commonly sits behind a video frame, up to about 200 ms in. Reading
-    // ahead to that frame settles it; the frame stays queued for readChunk.
-    uint64_t landing_samples = 0;
-    uint64_t landing_ms = 0;
-    if (fillQueue()) {
-        landing_samples = m_queue.front().timestamp_samples;
-        landing_ms = m_sample_rate > 0 ? (landing_samples * 1000) / m_sample_rate : 0;
-    } else {
-        // Nothing left to play from there: the stream is at its end, and the
-        // target is as good a statement of where as any.
-        landing_ms = timestamp_ms;
-        landing_samples = m_sample_rate > 0 ? (landing_ms * m_sample_rate) / 1000 : 0;
+        // What the landing actually is: the time of the first frame that will
+        // be handed out, because DemuxedStream labels frames from a counter
+        // anchored on the value reported here. That is neither a Cues entry's
+        // CueTime -- the time of a seek point (RFC 9559 5.1.5.1.1) whose Block
+        // the cluster holds (5.1.5.1.2.2), not necessarily its first -- nor the
+        // Cluster's own Timestamp, since a block's time is that Timestamp plus
+        // its own signed offset (RFC 9559 11.2), and in mkvmerge files a
+        // cluster's first audio block commonly sits behind a video frame, up to
+        // about 200 ms in. Reading ahead to that frame settles it; the frame
+        // stays queued for readChunk.
+        uint64_t landing_samples = 0;
+        uint64_t landing_ms = 0;
+        if (fillQueue()) {
+            landing_samples = m_queue.front().timestamp_samples;
+            landing_ms = m_sample_rate > 0 ? (landing_samples * 1000) / m_sample_rate : 0;
+        } else {
+            // Nothing left to play from there: the stream is at its end, and
+            // the target is as good a statement of where as any.
+            landing_ms = timestamp_ms;
+            landing_samples = target_samples;
+        }
+
+        if (landing_samples > target_samples && entry && entry->time_ticks > 0
+            && attempt < m_index.size()) {
+            lookup = entry->time_ticks - 1;
+            continue;
+        }
+
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        m_position_ms = landing_ms;
+        m_granule_samples = landing_samples;
+        return true;
     }
-
-    std::lock_guard<std::mutex> lock(m_state_mutex);
-    m_position_ms = landing_ms;
-    m_granule_samples = landing_samples;
-    return true;
 }
 
 uint64_t MatroskaDemuxer::getGranulePosition(uint32_t stream_id) const

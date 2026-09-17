@@ -146,22 +146,31 @@ protected:
 
 class CuesTrackFilterTest : public TestCase {
 public:
-    CuesTrackFilterTest() : TestCase("Cues for another track are not used to seek this one") {}
+    CuesTrackFilterTest() : TestCase("A track's own cues are used, and other tracks' when it has none") {}
 
 protected:
     void runTest() override
     {
         // In a file with video, ffmpeg and mkvmerge cue no audio track at all.
-        // Entries for another track are not used for this one, so such a file
-        // is indexed by the cluster scan instead.
+        // Any cluster is a place to restart the audio from, so the video's
+        // cues serve, rather than a scan of every cluster.
         const std::vector<uint8_t> cues =
             element(Id::Cues, cuePoint(0, 1, 100) + cuePoint(1000, 1, 200));
         Bytes bytes(cues);
 
         CueIndex index;
-        ASSERT_FALSE(index.parseCues(bytes.reader(), bytes.offset(), 0, /*track=*/3),
-                     "a Cues element naming only track 1 yields nothing for track 3");
-        ASSERT_TRUE(index.empty(), "and leaves no entries behind");
+        ASSERT_TRUE(index.parseCues(bytes.reader(), bytes.offset(), 0, /*track=*/3),
+                     "a Cues element naming only track 1 serves track 3");
+        ASSERT_EQUALS(size_t{2}, index.size(), "with both points");
+
+        // Where the track has cues of its own, only those are used.
+        const std::vector<uint8_t> mixed =
+            element(Id::Cues, cuePoint(0, 1, 100) + cuePoint(500, 3, 150) + cuePoint(1000, 1, 200));
+        Bytes mixed_bytes(mixed);
+        CueIndex own;
+        ASSERT_TRUE(own.parseCues(mixed_bytes.reader(), mixed_bytes.offset(), 0, 3), "parses");
+        ASSERT_EQUALS(size_t{1}, own.size(), "track 3's single point");
+        ASSERT_EQUALS(uint64_t{150}, own.entryFor(2000)->cluster_offset, "is the one used");
 
         // The same element read for the track it does describe.
         Bytes again(cues);

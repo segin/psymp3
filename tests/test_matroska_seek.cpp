@@ -521,6 +521,12 @@ protected:
         ASSERT_TRUE(chunk.isValid(), "the audio frame follows");
         ASSERT_EQUALS(samplesAt(300 + kAudioOffsetMs), chunk.timestamp_samples,
                       "and it is the frame the landing names");
+
+        // 310 ms falls before cluster 3's audio, which starts at 330, so the
+        // seek steps back to cluster 2, whose audio runs from 230.
+        ASSERT_TRUE(demuxer.seekTo(310), "seek should succeed");
+        ASSERT_EQUALS(samplesAt(200 + kAudioOffsetMs), demuxer.getGranulePosition(1),
+                      "the landing is never after the target");
     }
 };
 

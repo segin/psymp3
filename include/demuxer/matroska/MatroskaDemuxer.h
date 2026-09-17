@@ -79,6 +79,8 @@ private:
     /// Handles one SimpleBlock or the Block inside a BlockGroup.
     void takeBlock(const EBMLElement& block, int64_t cluster_ticks,
                    int64_t discard_padding_ns);
+    /// Reads Cues, or scans the cluster headers, on the first seek.
+    void buildIndex();
     /// The Timestamp of the cluster whose children run from @p from to
     /// @p end, wherever among them it is, or 0 if it states none.
     int64_t clusterTimestamp(uint64_t from, uint64_t end);
@@ -116,6 +118,9 @@ private:
     /// the target to be valid: the track's SeekPreRoll, and for Opus at
     /// least the 80 ms RFC 7845 4.6 asks for.
     uint64_t m_seek_preroll_ns = 0;
+    /// Whether buildIndex() has run. The index is only wanted for seeking,
+    /// and building it can mean reading the whole file.
+    bool m_index_built = false;
     /// Where playback actually is, in samples -- the landing after a seek, and
     /// the last chunk handed out otherwise. Guarded by the base class's
     /// m_state_mutex alongside m_position_ms, which is always set with it and

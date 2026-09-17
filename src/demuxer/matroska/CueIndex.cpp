@@ -61,6 +61,7 @@ bool CueIndex::parseCues(EBMLReader& reader, uint64_t cues_offset,
         return false;
     }
 
+    std::vector<CueEntry> others;
     const uint64_t end = cues.end();
     while (reader.tell() < end) {
         EBMLElement point;
@@ -79,6 +80,8 @@ bool CueIndex::parseCues(EBMLReader& reader, uint64_t cues_offset,
         bool have_time = false;
         uint64_t cluster_offset = 0;
         bool have_position = false;
+        uint64_t other_offset = 0;
+        bool have_other = false;
 
         const uint64_t point_end = point.end();
         while (reader.tell() < point_end) {
@@ -114,6 +117,9 @@ bool CueIndex::parseCues(EBMLReader& reader, uint64_t cues_offset,
                 if (position_seen && track == track_number) {
                     cluster_offset = segment_data_offset + position;
                     have_position = true;
+                } else if (position_seen && !have_other) {
+                    other_offset = segment_data_offset + position;
+                    have_other = true;
                 }
             }
             reader.seek(child.end());
@@ -121,10 +127,19 @@ bool CueIndex::parseCues(EBMLReader& reader, uint64_t cues_offset,
 
         if (have_time && have_position) {
             m_entries.push_back(CueEntry{time_ticks, cluster_offset});
+        } else if (have_time && have_other) {
+            others.push_back(CueEntry{time_ticks, other_offset});
         }
         reader.seek(point_end);
     }
 
+    // A file with video usually cues only the video track. Any cluster is a
+    // place the audio can restart from, and the seek works out where in it
+    // the audio begins, so those cues serve too, where the alternative is
+    // reading every cluster header in the file.
+    if (m_entries.empty()) {
+        m_entries = std::move(others);
+    }
     sortAndDedupe();
     return !m_entries.empty();
 }
@@ -137,58 +152,68 @@ bool CueIndex::buildByScanning(EBMLReader& reader, uint64_t first_cluster,
         return false;
     }
 
-    reader.seek(first_cluster);
-    while (reader.tell() < file_size) {
-        EBMLElement cluster;
-        if (!reader.readElementHeader(cluster)) {
-            break;
-        }
-        if (cluster.id != Id::Cluster) {
-            // Cues, Tags and Attachments legitimately sit among or after the
-            // clusters; step over anything that is not one.
+    // A read that fails part way -- a truncated file served over HTTP refuses a
+    // seek past its end -- keeps the entries found up to there.
+    try {
+        reader.seek(first_cluster);
+        while (reader.tell() < file_size) {
+            EBMLElement cluster;
+            if (!reader.readElementHeader(cluster)) {
+                break;
+            }
+            if (cluster.id != Id::Cluster) {
+                // Cues, Tags and Attachments legitimately sit among or after
+                // the clusters; step over anything that is not one.
+                if (cluster.unknown_size) {
+                    break;
+                }
+                reader.seek(cluster.end());
+                continue;
+            }
+
+            // A cluster of unknown size gives no way to find the next one short
+            // of walking the header of every element inside it -- one read per
+            // block rather than one per cluster, which is the cost this scan
+            // avoids. Stop rather than fall back to that.
             if (cluster.unknown_size) {
                 break;
             }
-            reader.seek(cluster.end());
-            continue;
-        }
 
-        // A cluster of unknown size gives no way to find the next one short of
-        // walking the header of every element inside it -- one read per block
-        // rather than one per cluster, which is the cost this scan avoids.
-        // Stop rather than fall back to that.
-        if (cluster.unknown_size) {
-            break;
-        }
+            // Timestamp is not necessarily the first child. RFC 9559 5.1.3.1
+            // says it SHOULD be first, or second after a CRC-32, and ffmpeg
+            // writes exactly that CRC-32 ahead of it; anything else in front is
+            // stepped over too. Reading only the first child finds the CRC and
+            // concludes the cluster has no timestamp, which leaves the whole
+            // scan empty.
+            //
+            // The spec allows it after the blocks as well, so blocks are
+            // stepped over by their sizes: their headers are read, never their
+            // data. A cluster that starts with its Timestamp, as nearly all do,
+            // still costs a header or two.
+            const uint64_t cluster_end = cluster.end();
+            while (reader.tell() < cluster_end) {
+                EBMLElement child;
+                if (!reader.readElementHeader(child)) {
+                    break;
+                }
+                if (child.id == Id::Timestamp) {
+                    m_entries.push_back(CueEntry{reader.readUInt(child),
+                                                 cluster.header_offset});
+                    break;
+                }
+                if (child.unknown_size) {
+                    break; // nothing past it can be found without its size
+                }
+                reader.seek(child.end());
+            }
 
-        // Timestamp is not necessarily the first child. RFC 9559 5.1.3.1 says
-        // it SHOULD be first, or second after a CRC-32, and ffmpeg writes
-        // exactly that CRC-32 ahead of it; anything else in front is stepped
-        // over too. Reading only the first child finds the CRC and concludes
-        // the cluster has no timestamp, which leaves the whole scan empty.
-        //
-        // The spec allows it after the blocks as well, so blocks are stepped
-        // over by their sizes: their headers are read, never their data. A
-        // cluster that starts with its Timestamp, as nearly all do, still
-        // costs a header or two.
-        const uint64_t cluster_end = cluster.end();
-        while (reader.tell() < cluster_end) {
-            EBMLElement child;
-            if (!reader.readElementHeader(child)) {
-                break;
+            if (cluster_end >= file_size) {
+                break; // the last cluster, or one the file was cut short in
             }
-            if (child.id == Id::Timestamp) {
-                m_entries.push_back(CueEntry{reader.readUInt(child),
-                                             cluster.header_offset});
-                break;
-            }
-            if (child.unknown_size) {
-                break; // nothing past it can be found without its size
-            }
-            reader.seek(child.end());
+            reader.seek(cluster_end);
         }
-
-        reader.seek(cluster_end);
+    } catch (const std::exception&) {
+        // Keep what was found.
     }
 
     sortAndDedupe();
