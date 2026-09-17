@@ -110,7 +110,7 @@ const char* AC3FrameHeader::displayName() const
 {
     switch (flavour) {
     case Flavour::AC3:          return "AC-3";
-    case Flavour::AC3Alternate: return "AC-3";  // Annex D differs in syntax, not in name
+    case Flavour::AC3Alternate: return "AC-3";  // bsid 9..10, read as AC-3
     case Flavour::EAC3:         return "E-AC-3";
     case Flavour::Unknown:      break;
     }
@@ -119,8 +119,11 @@ const char* AC3FrameHeader::displayName() const
 
 namespace {
 
-/// A/52 §E2.3.1.6 assigns the ranges: 0..8 is AC-3, 9 and 10 are the Annex D
-/// alternate syntax, and 11..16 is E-AC-3, with 16 being Annex E proper.
+/// A/52 §E2.3.1.6 sets the ranges: 0..8 decode as AC-3 and 11..16 as E-AC-3,
+/// with 16 being Annex E proper; 9, 10 and anything above 16 must be muted.
+/// Annex D's alternate syntax is bsid 6 (§D2.1), so it is AC-3 here, and its
+/// bsi has the same field widths as Table 5.2's. 9 and 10 are parsed with
+/// AC-3's layout as well, but only to name the stream.
 Flavour flavourForBsid(uint8_t bsid)
 {
     if (bsid <= 8) {

@@ -38,16 +38,21 @@ constexpr unsigned kSamplesPerFrame = 1536;
 constexpr unsigned kBlocksPerFrame = 6;
 constexpr unsigned kSamplesPerBlock = 256;
 
-/// Which bit stream a syncframe holds, decided by bsid (A/52 §E2.3.1.6).
+/// Which bit stream a syncframe holds, decided by bsid: A/52 §E2.3.1.6 has a
+/// decoder play 0..8 as AC-3 and 11..16 as E-AC-3, and mute 9, 10 and
+/// anything above 16.
 ///
 /// The two share a sync word and nothing else past it: AC-3 follows the sync
 /// word with crc1 and frmsizecod, E-AC-3 with strmtyp and frmsiz. bsid sits at
 /// the same bit offset in both -- 40 -- precisely so a decoder can read it
-/// first and branch, and that is the only reason a stream can be identified at
-/// all before it is parsed.
+/// first and branch (§E2.1), and that is the only reason a stream can be
+/// identified at all before it is parsed.
 enum class Flavour {
-    AC3,          ///< bsid 0..8, what this decoder implements
-    AC3Alternate, ///< bsid 9..10, the Annex D alternate syntax
+    AC3,          ///< bsid 0..8, Annex D's alternate syntax (bsid 6) among them
+    /// bsid 9..10. A/52 defines no syntax for them, and §5.4.2.1 and
+    /// §E2.3.1.6 have a decoder mute them. Their headers are parsed with
+    /// AC-3's layout, but only to name the stream.
+    AC3Alternate,
     EAC3,         ///< bsid 11..16, Annex E
     Unknown,
 };
