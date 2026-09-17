@@ -66,9 +66,9 @@ struct TrackEntry {
     std::vector<uint8_t> codec_private;
     bool lacing_allowed = true;   ///< FlagLacing; blocks may pack several frames
     /// FlagDefault, whose schema default is 1 (RFC 9559 5.1.4.1.5): a TrackEntry
-    /// that omits the element *is* eligible for automatic selection. libmatroska
-    /// renders with bWithDefault=false, so the default track is written as
-    /// absence while the others carry an explicit 0 -- reading absence as "not
+    /// that omits the element *is* eligible for automatic selection. mkvmerge
+    /// and ffmpeg both write the default track that way, with no FlagDefault,
+    /// and give every other track an explicit 0 -- reading absence as "not
     /// default" therefore picks exactly the track the muxer excluded.
     bool default_track = true;
     bool enabled = true;
@@ -93,8 +93,10 @@ struct TrackEntry {
     // Audio sub-element. These carry the schema's defaults rather than zero:
     // RFC 9559 5.1.4.1.29.1 gives SamplingFrequency 8000 and 5.1.4.1.29.3 gives
     // Channels 1, and RFC 8794 11.1.19 requires a reader to apply the default of
-    // a mandatory element the writer left out. Holding 0 instead let an omitted
-    // element reach StreamInfo as sample_rate 0, which silently disables seek
+    // a mandatory element the writer left out of a parent that is present. For
+    // a TrackEntry with no Audio element at all the spec gives no values, and
+    // the same defaults stand in. Holding 0 instead let an omitted element
+    // reach StreamInfo as sample_rate 0, which silently disables seek
     // trimming, stamps every chunk 0, and makes Audio::setup refuse a track the
     // file listed as playable.
     double sampling_frequency = 8000.0;
@@ -135,10 +137,10 @@ public:
     /// file's SeekHead does not mention it.
     ///
     /// SeekHead is the index of the Segment's own top-level elements. It
-    /// matters because Cues are written after the clusters -- often at the very
-    /// end of a large file -- and because a muxer is allowed to put Tracks
-    /// there too, in which case a parse that stops at the first Cluster finds
-    /// no tracks at all without consulting it.
+    /// matters because Cues are usually written after the clusters -- often at
+    /// the very end of a large file -- and because a muxer is allowed to put
+    /// Tracks there too, in which case a parse that stops at the first Cluster
+    /// finds no tracks at all without consulting it.
     uint64_t seekPosition(uint32_t id) const;
 
     /// The first audio track PsyMP3 can decode, or nullptr.
