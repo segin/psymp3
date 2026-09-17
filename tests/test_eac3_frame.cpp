@@ -421,7 +421,9 @@ protected:
                 ASSERT_TRUE(!same, "no two rows alike");
             }
         }
-        // Table E2.12: sub-bands 8, 10, 11 and 13..17 merge into the band before.
+        // Table E2.12, Default Coupling Banding Structure (§E2.3.3.15; the
+        // List of Tables numbers it E2.13): sub-bands 8, 10, 11 and 13..17
+        // merge into the band before.
         const uint8_t expected[18] = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1 };
         for (unsigned i = 0; i < 18; ++i) {
             ASSERT_TRUE(kDefaultCouplingBandStructure[i] == expected[i],
