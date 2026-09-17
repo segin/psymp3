@@ -272,6 +272,14 @@ protected:
         ASSERT_FALSE(BlockParser::parse(dangling.data(), dangling.size(), header, frames),
                      "A Xiph size run that never terminates is refused");
 
+        // EBML lace sizes run to 56 bits. 2^32 + 10 is 10 once truncated to a
+        // 32-bit size_t, which would fit; the whole value does not.
+        const std::vector<uint8_t> wide =
+            blockHeader(1, 0, Lacing::EBML) + std::vector<uint8_t>{0x01}
+            + std::vector<uint8_t>{0x09, 0x00, 0x00, 0x00, 0x0A} + filled(20, 0xEE);
+        ASSERT_FALSE(BlockParser::parse(wide.data(), wide.size(), header, frames),
+                     "An EBML lace size past the payload is refused whatever size_t's width");
+
         ASSERT_FALSE(BlockParser::parse(nullptr, 0, header, frames), "A null block is refused");
     }
 };

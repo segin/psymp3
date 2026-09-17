@@ -134,6 +134,12 @@ bool BlockParser::parse(const uint8_t* data, size_t size, BlockHeader& header,
                 return false;
             }
             offset += used;
+            // Sizes are up to 56 bits, and size_t can be 32. One that cannot
+            // fit in what is left is refused before the cast could truncate
+            // it into something plausible.
+            if (first > static_cast<uint64_t>(size - offset)) {
+                return false;
+            }
             sizes.push_back(static_cast<size_t>(first));
 
             int64_t previous = static_cast<int64_t>(first);
@@ -145,8 +151,8 @@ bool BlockParser::parse(const uint8_t* data, size_t size, BlockHeader& header,
                 }
                 offset += delta_used;
                 previous += delta;
-                if (previous < 0) {
-                    return false; // a delta that takes a size below zero
+                if (previous < 0 || static_cast<uint64_t>(previous) > static_cast<uint64_t>(size - offset)) {
+                    return false; // below zero, or more than the block holds
                 }
                 sizes.push_back(static_cast<size_t>(previous));
             }
