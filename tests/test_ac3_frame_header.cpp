@@ -239,7 +239,10 @@ protected:
             ASSERT_TRUE(parseAC3FrameHeader(low.data(), low.size(), half), "parses");
             ASSERT_TRUE(half.sample_rate == item.rate,
                         "fscod2 gives the reduced rate an AC-3 stream cannot reach");
+            ASSERT_FALSE(half.isDecodable(),
+                         "but A/52 gives no hearing threshold to allocate its bits with");
         }
+        ASSERT_TRUE(header.isDecodable(), "the full rates decode");
 
         // E-AC-3 states a frame length rather than a bit rate, so none is
         // reported rather than a guess.

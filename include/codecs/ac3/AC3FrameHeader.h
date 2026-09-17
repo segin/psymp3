@@ -101,7 +101,7 @@ inline unsigned ac3OutputChannels(AudioCodingMode acmod, bool lfeon)
 struct AC3FrameHeader {
     // --- syncinfo ---
     uint16_t crc1 = 0;
-    uint8_t fscod = 0;        ///< sample rate code, Table 5.6
+    uint8_t fscod = 0;        ///< sample rate code, Table 5.6 (E-AC-3: Table E2.2)
     uint8_t frmsizecod = 0;   ///< frame size code, Table 5.18
 
     // --- bsi ---
@@ -152,7 +152,17 @@ struct AC3FrameHeader {
     bool isEAC3() const { return flavour == Flavour::EAC3; }
     /// True when this decoder can actually decode the frame, as opposed to
     /// merely having recognised it.
-    bool isDecodable() const { return flavour == Flavour::AC3 || flavour == Flavour::EAC3; }
+    ///
+    /// E-AC-3 at a reduced sample rate (fscod '11': 24, 22.05 or 16 kHz) is
+    /// recognised but not decoded. Bit allocation needs the hearing threshold
+    /// of Table 7.15, which has columns for 48, 44.1 and 32 kHz only, and A/52
+    /// does not say what the reduced rates use. FFmpeg does not decode these
+    /// streams either, so there is nothing to check a guess against, and a
+    /// wrong guess misreads every mantissa after the first difference.
+    bool isDecodable() const
+    {
+        return flavour == Flavour::AC3 || (flavour == Flavour::EAC3 && fscod != 3);
+    }
 
     /// What to call this stream in Media Information. Names the flavour even
     /// when it cannot be decoded, since "E-AC-3" tells a listener why a file

@@ -226,7 +226,9 @@ protected:
                                             AllocationChannel::FullBandwidth,
                                             parameters, {}, bap), "the last band's end is fine");
 
-        parameters.fscod = 3;   // reserved: there is no such hearing threshold column
+        // Table 7.15 has no column for fscod 3, which is reserved in AC-3
+        // and, in E-AC-3, marks the reduced rates this decoder refuses.
+        parameters.fscod = 3;
         ASSERT_FALSE(ac3ComputeBitAllocation(exponents, 0, 253,
                                              AllocationChannel::FullBandwidth,
                                              parameters, {}, bap), "a reserved sample rate");
