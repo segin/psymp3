@@ -69,16 +69,24 @@ class EBMLReader {
 public:
     explicit EBMLReader(PsyMP3::IO::IOHandler* handler);
 
-    /// Default ceilings from the EBML header (EBMLMaxIDLength,
-    /// EBMLMaxSizeLength). A file may declare smaller ones; nothing in
-    /// practice declares larger, and a larger ID would not fit a uint32_t.
+    /// The widest ID and size a Matroska file may use. RFC 9559 4.3 fixes
+    /// EBMLMaxIDLength at 4 and caps EBMLMaxSizeLength at 8. EBML itself lets
+    /// a header declare larger values (RFC 8794 11.2.4, 11.2.5), but Matroska
+    /// does not, and a longer ID would not fit a uint32_t anyway. A file may
+    /// declare a smaller size limit. The header's values are not read, so
+    /// these two apply to every file.
     static constexpr int kMaxIdLength = 4;
     static constexpr int kMaxSizeLength = 8;
 
     /// Refuses to allocate more than this for one element's payload. Sizes
     /// come from the file, an eight-byte VINT reaches 2^56-2, and a truncated
-    /// or hostile file will happily claim it. Anything genuinely this large in
-    /// an audio file is read incrementally, not through readBinary().
+    /// or hostile file will happily claim it. Nothing is read in pieces:
+    /// CodecPrivate, every string and every Block of the track being played
+    /// come through readBinary() or readString(), so a larger one is refused,
+    /// and for a Block that ends playback. A block on another track is never
+    /// read past the few bytes that hold its track number (MatroskaDemuxer
+    /// checks that first), so a video frame past this size does not stop the
+    /// audio.
     static constexpr uint64_t kMaxBinarySize = 64u * 1024 * 1024;
 
     /// Reads the next element header at the current position.
@@ -95,16 +103,22 @@ public:
     /// @{
 
     /// Unsigned integer, big-endian, 0 to 8 bytes wide. A zero-length integer
-    /// is legal EBML and means zero; Matroska relies on that to omit defaults.
+    /// reads as 0. That is its value only when the schema declares no default:
+    /// an empty element that has one takes the default (RFC 8794 6.1), and
+    /// applying it is left to the caller, which knows the schema. RFC 9559 4.4
+    /// forbids Matroska writers to write an element empty when its default is
+    /// not 0, because older readers made exactly this mistake.
     uint64_t readUInt(const EBMLElement& element);
     /// Signed integer, big-endian two's complement, sign-extended from its
     /// encoded width.
     int64_t readInt(const EBMLElement& element);
     /// IEEE 754, big-endian. Only 0, 4 and 8 byte widths exist; zero length
-    /// means 0.0.
+    /// reads as 0.0, and a declared default is again the caller's to apply.
     double readFloat(const EBMLElement& element);
-    /// String payload, with trailing NULs trimmed. EBML permits padding a
-    /// string with them, and a CodecID compared with the padding left on
+    /// String payload, cut at the first NUL. RFC 8794 13 has a NUL and
+    /// everything after it in the element ignored, so "eb\0l" reads as "eb". A
+    /// writer may end a string with NULs, typically to overwrite a value in
+    /// place with a shorter one, and a CodecID compared with them left on
     /// matches nothing.
     std::string readString(const EBMLElement& element);
     /// Raw payload. Refuses anything past kMaxBinarySize.
@@ -128,7 +142,9 @@ public:
     ///                     element header, and getting it backwards yields IDs
     ///                     that match nothing and sizes that are wildly large.
     /// @param unknown      Set when every value bit is 1, which for a size
-    ///                     means "unknown". Never meaningful for an ID.
+    ///                     means "unknown". In an ID the same pattern makes
+    ///                     the ID invalid (RFC 8794 5); readElementHeader
+    ///                     does not ask for the flag there.
     /// @return bytes consumed, or 0 if @p avail is too short or the encoding
     ///         is invalid.
     ///

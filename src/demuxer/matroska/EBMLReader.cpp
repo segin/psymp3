@@ -40,8 +40,10 @@ EBMLReader::EBMLReader(PsyMP3::IO::IOHandler* handler)
 int EBMLReader::vintLength(uint8_t first_byte)
 {
     // The width is the position of the highest set bit: 1xxxxxxx is one byte,
-    // 01xxxxxx two, down to 00000001 at eight. All zeroes would be a ninth
-    // byte or beyond, which EBML does not define.
+    // 01xxxxxx two, down to 00000001 at eight. All zeroes would start a VINT
+    // of nine bytes or more. EBML allows that for an ID or a size only when
+    // the header declares a larger EBMLMaxIDLength or EBMLMaxSizeLength, and
+    // Matroska forbids both (RFC 9559 4.3).
     for (int length = 1; length <= 8; ++length) {
         if (first_byte & (0x80 >> (length - 1))) {
             return length;
@@ -162,7 +164,8 @@ uint64_t EBMLReader::readUInt(const EBMLElement& element)
     uint8_t buffer[8] = {0};
     readPayload(element, buffer, static_cast<size_t>(element.size));
 
-    // A zero-length integer is legal and is zero; the loop yields that.
+    // A zero-length integer reads as 0, which the loop yields. A default
+    // declared for the element is the caller's to apply (RFC 8794 6.1).
     uint64_t value = 0;
     for (uint64_t i = 0; i < element.size; ++i) {
         value = (value << 8) | buffer[i];
@@ -235,8 +238,10 @@ std::string EBMLReader::readString(const EBMLElement& element)
     readPayload(element, reinterpret_cast<uint8_t*>(value.data()),
                 static_cast<size_t>(element.size));
 
-    // EBML allows a string to be padded with NULs to a fixed width. Left on,
-    // they make every comparison against a CodecID fail.
+    // A NUL ends the string, and it and everything after it are ignored
+    // (RFC 8794 13). Writers use that to overwrite a value in place with a
+    // shorter one; left on, the NULs make every comparison against a CodecID
+    // fail.
     const std::size_t end = value.find('\0');
     if (end != std::string::npos) {
         value.resize(end);
