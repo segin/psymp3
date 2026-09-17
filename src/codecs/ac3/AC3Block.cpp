@@ -720,7 +720,10 @@ Debug::log("ac3", "  after deltba: bit ", reader.tell());
         parameters.dbpbcod = state.dbpbcod;
         parameters.floorcod = state.floorcod;
         parameters.fgaincod = state.fgaincod[slot];
-        parameters.snroffset = (((state.csnroffst - 15) << 4) + state.fsnroffst[slot]) << 2;
+        // A/52 §7.2.2.1: (((csnroffst - 15) << 4) + fsnroffst) << 2, written as
+        // multiplication because shifting a negative value left is undefined
+        // before C++20.
+        parameters.snroffset = (((state.csnroffst - 15) * 16) + state.fsnroffst[slot]) * 4;
         parameters.cplfleak = state.cplfleak;
         parameters.cplsleak = state.cplsleak;
         return ac3ComputeBitAllocation(state.exponents[slot], state.strtmant[slot],

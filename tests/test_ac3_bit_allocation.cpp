@@ -25,7 +25,7 @@ AllocationParameters defaultParameters()
     p.dbpbcod = 2;
     p.floorcod = 4;
     p.fgaincod = 4;
-    p.snroffset = ((0 - 15) << 4) << 2;   // csnroffst 0, fsnroffst 0
+    p.snroffset = ((0 - 15) * 16) * 4;   // csnroffst 0, fsnroffst 0
     return p;
 }
 
@@ -138,7 +138,7 @@ protected:
         unsigned previous_total = 0;
         for (int csnroffst = 0; csnroffst <= 15; csnroffst += 5) {
             auto parameters = defaultParameters();
-            parameters.snroffset = ((csnroffst - 15) << 4) << 2;
+            parameters.snroffset = ((csnroffst - 15) * 16) * 4;
             uint8_t bap[kBinCount] = {0};
             ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 0, 253,
                                                 AllocationChannel::FullBandwidth,
@@ -335,7 +335,7 @@ protected:
         }
 
         auto low = defaultParameters();
-        low.snroffset = ((20 - 15) << 4) << 2;
+        low.snroffset = ((20 - 15) * 16) * 4;
         auto high = low;
         low.cplfleak = 0;
         low.cplsleak = 0;

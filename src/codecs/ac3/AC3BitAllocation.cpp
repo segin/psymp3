@@ -216,8 +216,8 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
     for (const DeltaBitAllocation& delta : deltas) {
         band += delta.offset;
         const int adjust = delta.bit_allocation >= 4
-                         ? (static_cast<int>(delta.bit_allocation) - 3) << 7
-                         : (static_cast<int>(delta.bit_allocation) - 4) << 7;
+                         ? (static_cast<int>(delta.bit_allocation) - 3) * 128
+                         : (static_cast<int>(delta.bit_allocation) - 4) * 128;
         for (unsigned i = 0; i < delta.length && band < kBandCount; ++i, ++band) {
             mask[band] += adjust;
         }
