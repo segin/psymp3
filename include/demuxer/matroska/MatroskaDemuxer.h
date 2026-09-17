@@ -79,6 +79,9 @@ private:
     /// Handles one SimpleBlock or the Block inside a BlockGroup.
     void takeBlock(const EBMLElement& block, int64_t cluster_ticks,
                    int64_t discard_padding_ns);
+    /// The Timestamp of the cluster whose children run from @p from to
+    /// @p end, wherever among them it is, or 0 if it states none.
+    int64_t clusterTimestamp(uint64_t from, uint64_t end);
     /// The first Cluster at or after @p from that looks real -- its header
     /// reads and its first child is a Timestamp -- within a bounded window,
     /// or 0 if there is none.

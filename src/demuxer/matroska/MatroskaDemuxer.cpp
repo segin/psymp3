@@ -463,6 +463,32 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
     }
 }
 
+int64_t MatroskaDemuxer::clusterTimestamp(uint64_t from, uint64_t end)
+{
+    // RFC 9559 5.1.3.1 has the Timestamp come first, or after a CRC-32, but
+    // only as a SHOULD: a cluster may state it after its blocks. The blocks
+    // ahead of it still need it, so it is found before any of them is read,
+    // by walking the child headers and never their data. A nested Cluster
+    // ends a cluster of unknown size.
+    m_reader.seek(from);
+    while (m_reader.tell() < end) {
+        EBMLElement child;
+        if (!m_reader.readElementHeader(child) || child.id == Id::Cluster || child.unknown_size) {
+            break;
+        }
+        if (child.id == Id::Timestamp) {
+            // A uinteger; beyond int64 it is held at the limit rather than
+            // wrapped by the conversion.
+            const uint64_t timestamp = m_reader.readUInt(child);
+            return timestamp > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())
+                 ? std::numeric_limits<int64_t>::max()
+                 : static_cast<int64_t>(timestamp);
+        }
+        m_reader.seek(child.end());
+    }
+    return 0;
+}
+
 uint64_t MatroskaDemuxer::findClusterAfter(uint64_t from)
 {
     // The Cluster ID is four bytes precisely so a reader can find its way
@@ -547,7 +573,7 @@ bool MatroskaDemuxer::fillQueue()
                 // A cluster of unknown size runs to the next one; bounding it
                 // by the file lets the walk continue rather than stop.
                 m_cluster_end = element.unknown_size ? m_file_size : element.end();
-                m_cluster_ticks = 0;
+                m_cluster_ticks = clusterTimestamp(element.data_offset, m_cluster_end);
                 m_read_offset = element.data_offset;
             }
 

@@ -167,11 +167,10 @@ bool CueIndex::buildByScanning(EBMLReader& reader, uint64_t first_cluster,
         // over too. Reading only the first child finds the CRC and concludes
         // the cluster has no timestamp, which leaves the whole scan empty.
         //
-        // Walking stops at the first block regardless, so this still reads a
-        // couple of element headers per cluster rather than any block data. It
-        // assumes the Timestamp comes before the blocks, which the spec does
-        // not require: a cluster that states it later is left out of the
-        // index.
+        // The spec allows it after the blocks as well, so blocks are stepped
+        // over by their sizes: their headers are read, never their data. A
+        // cluster that starts with its Timestamp, as nearly all do, still
+        // costs a header or two.
         const uint64_t cluster_end = cluster.end();
         while (reader.tell() < cluster_end) {
             EBMLElement child;
@@ -183,9 +182,8 @@ bool CueIndex::buildByScanning(EBMLReader& reader, uint64_t first_cluster,
                                              cluster.header_offset});
                 break;
             }
-            if (child.id == Id::SimpleBlock || child.id == Id::BlockGroup
-                || child.unknown_size) {
-                break; // reached data: this cluster states no timestamp
+            if (child.unknown_size) {
+                break; // nothing past it can be found without its size
             }
             reader.seek(child.end());
         }

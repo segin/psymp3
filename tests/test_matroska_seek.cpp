@@ -966,6 +966,39 @@ protected:
     }
 };
 
+class LateTimestampTest : public TestCase {
+public:
+    LateTimestampTest() : TestCase("A cluster may state its Timestamp after its blocks") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> frame(kFrameBytes, 0x5A);
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment,
+                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                  + element(Id::Tracks, pcmTrack(1))
+                  + element(Id::Cluster, uintEl(Id::Timestamp, 0) + simpleBlock(1, 0, frame))
+                  + element(Id::Cluster, simpleBlock(1, 5, frame) + uintEl(Id::Timestamp, 100)));
+        {
+            MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+            ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+            ASSERT_TRUE(demuxer.readChunk().isValid(), "the first cluster's block");
+            const MediaChunk late = demuxer.readChunk();
+            ASSERT_TRUE(late.isValid(), "the second cluster's block");
+            ASSERT_EQUALS(samplesAt(105), late.timestamp_samples, "timed by the Timestamp after it");
+        }
+        {   // With no Cues, the scan builds the index, and must include it.
+            MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+            ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+            ASSERT_TRUE(demuxer.seekTo(110), "seek should succeed");
+            ASSERT_EQUALS(samplesAt(105), demuxer.getGranulePosition(1),
+                          "landing in the late-timed cluster, not the first");
+        }
+    }
+};
+
 class ResyncTest : public TestCase {
 public:
     ResyncTest() : TestCase("Playback picks up at the next cluster after damage") {}
@@ -1059,6 +1092,7 @@ int main()
     suite.addTest(std::make_unique<TrackTimestampScaleTest>());
     suite.addTest(std::make_unique<StaleCuesTest>());
     suite.addTest(std::make_unique<ResyncTest>());
+    suite.addTest(std::make_unique<LateTimestampTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
