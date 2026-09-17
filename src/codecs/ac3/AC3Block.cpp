@@ -205,6 +205,13 @@ Debug::log("ac3", "  after dynrng: bit ", reader.tell());
     // --- coupling strategy ---
     // E-AC-3 decides the strategy for every block in audfrm().
     const bool cplstre = eac3 ? eac3->cplstre[blk] : (reader.readBit() != 0);
+    // A/52 §5.4.3.7: block 0 has no earlier strategy to reuse, so it must
+    // send one. The same holds for baie and snroffste below (§5.4.3.30,
+    // §5.4.3.36). A frame that breaks this is damaged, however well the rest
+    // of it parses.
+    if (!eac3 && blk == 0 && !cplstre) {
+        return fail("block 0 sends no coupling strategy");
+    }
     if (cplstre) {
         state.cplinu = eac3 ? eac3->cplinu[blk] : (reader.readBit() != 0);
         if (state.cplinu) {
@@ -607,7 +614,11 @@ Debug::log("ac3", "  after exponents: bit ", reader.tell());
         }
         state.have_allocation = true;
     } else {
-        if (reader.readBit()) { // baie
+        const bool baie = reader.readBit() != 0;
+        if (blk == 0 && !baie) {
+            return fail("block 0 sends no bit allocation parameters");
+        }
+        if (baie) {
             state.sdcycod = static_cast<uint8_t>(reader.read(2));
             state.fdcycod = static_cast<uint8_t>(reader.read(2));
             state.sgaincod = static_cast<uint8_t>(reader.read(2));
@@ -615,7 +626,11 @@ Debug::log("ac3", "  after exponents: bit ", reader.tell());
             state.floorcod = static_cast<uint8_t>(reader.read(3));
             state.have_allocation = true;
         }
-        if (reader.readBit()) { // snroffste
+        const bool snroffste = reader.readBit() != 0;
+        if (blk == 0 && !snroffste) {
+            return fail("block 0 sends no SNR offsets");
+        }
+        if (snroffste) {
             state.csnroffst = static_cast<int>(reader.read(6));
             if (state.cplinu) {
                 state.fsnroffst[kCouplingSlot] = static_cast<int>(reader.read(4));

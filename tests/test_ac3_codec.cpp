@@ -91,6 +91,62 @@ protected:
     }
 };
 
+/// @p frame with bit @p bit taken out and everything after it moved up a bit,
+/// then crc2 rewritten so the frame still passes its check.
+std::vector<uint8_t> withoutBit(std::vector<uint8_t> frame, size_t bit)
+{
+    const auto get = [&frame](size_t at) { return (frame[at / 8] >> (7 - at % 8)) & 1; };
+    const auto set = [&frame](size_t at, int value) {
+        const auto mask = static_cast<uint8_t>(0x80 >> (at % 8));
+        frame[at / 8] = static_cast<uint8_t>(value ? (frame[at / 8] | mask) : (frame[at / 8] & ~mask));
+    };
+    const size_t end = (frame.size() - 2) * 8;
+    for (size_t at = bit; at + 1 < end; ++at) {
+        set(at, get(at + 1));
+    }
+    set(end - 1, 0);
+    uint32_t crc = 0;
+    for (size_t i = 2; i + 2 < frame.size(); ++i) {
+        crc ^= static_cast<uint32_t>(frame[i]) << 8;
+        for (int b = 0; b < 8; ++b) {
+            crc = (crc & 0x8000) ? ((crc << 1) ^ 0x8005) : (crc << 1);
+        }
+        crc &= 0xFFFF;
+    }
+    frame[frame.size() - 2] = static_cast<uint8_t>(crc >> 8);
+    frame[frame.size() - 1] = static_cast<uint8_t>(crc & 0xFF);
+    return frame;
+}
+
+class BlockZeroTest : public TestCase {
+public:
+    BlockZeroTest() : TestCase("A frame whose block 0 reuses a coupling strategy it never had is refused") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> first(kTwoFrames, kTwoFrames + kFrameBytes);
+        std::vector<uint8_t> second(kTwoFrames + kFrameBytes, kTwoFrames + 2 * kFrameBytes);
+        const std::vector<AudioSample> whole = decodeAll({first, second});
+
+        // Block 0 of this frame starts at bit 65: blksw, dithflag, dynrnge,
+        // then cplstre at bit 68 and cplinu at 69. Clearing cplstre and taking
+        // out cplinu leaves a frame that reads cleanly but for §5.4.3.7.
+        second[8] = static_cast<uint8_t>(second[8] & ~0x08);
+        second = withoutBit(second, 69);
+        ASSERT_TRUE(PsyMP3::Codec::AC3::ac3FrameCrcValid(second.data(), second.size()),
+                    "the edited frame still passes its CRC check");
+
+        const std::vector<AudioSample> edited = decodeAll({first, second});
+        ASSERT_EQUALS(whole.size(), edited.size(), "the frame still takes its time");
+        bool silent = true;
+        for (size_t i = 1536 + 256; i < edited.size(); ++i) {
+            silent = silent && edited[i] == 0;
+        }
+        ASSERT_TRUE(silent, "but it is muted rather than decoded");
+    }
+};
+
 class CrcTest : public TestCase {
 public:
     CrcTest() : TestCase("The CRC check passes intact frames and catches any flipped bit") {}
@@ -151,6 +207,7 @@ int main()
     suite.addTest(std::make_unique<SplitHeaderTest>());
     suite.addTest(std::make_unique<CrcTest>());
     suite.addTest(std::make_unique<DamagedFrameTest>());
+    suite.addTest(std::make_unique<BlockZeroTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);
