@@ -15,8 +15,9 @@ using namespace PsyMP3::Codec::AC3;
 
 namespace {
 
-/// Packs three differentials into the 7-bit word A/52 §7.1.3 describes:
-/// gexp = 25*M1 + 5*M2 + M3, where each M is the delta biased by 2.
+/// Packs three differentials into the 7-bit word A/52 §7.1.2 describes:
+/// gexp = 25*M1 + 5*M2 + M3, where each M is the delta biased by 2
+/// (Table 7.1). §7.1.3 gives the inverse.
 uint8_t packGroup(int d0, int d1, int d2)
 {
     return static_cast<uint8_t>(25 * (d0 + 2) + 5 * (d1 + 2) + (d2 + 2));
@@ -49,7 +50,9 @@ public:
 protected:
     void runTest() override
     {
-        // A/52 Table 7.4.
+        // A/52 §7.1.3, grpsize in the list after the decoding pseudo code.
+        // Table 7.4's "Exponents per Group" column (3, 6, 12) is three times
+        // these, since one 7-bit group codes three exponents.
         ASSERT_TRUE(ac3ExponentGroupSize(ExponentStrategy::D15) == 1, "D15: one per mantissa");
         ASSERT_TRUE(ac3ExponentGroupSize(ExponentStrategy::D25) == 2, "D25: one per pair");
         ASSERT_TRUE(ac3ExponentGroupSize(ExponentStrategy::D45) == 4, "D45: one per quad");
@@ -67,9 +70,10 @@ protected:
     {
         // A/52 §7.1.3: endmant = ((chbwcod + 12) * 3) + 37.
         ASSERT_TRUE(ac3ChannelEndMantissa(0) == 73, "chbwcod 0 ends at bin 73");
-        // A/52 §5.4.3.24 caps the code at 60, and 60 lands on bin 253 -- which is
-        // exactly the span the banding tables cover. A larger code is not a wider
-        // channel, it is an invalid stream the decoder must mute on.
+        // A/52 §5.4.3.24 caps the code at 60, and 60 ends the channel at 253,
+        // exclusive, so its last bin is 252 -- exactly the span the banding
+        // tables cover. A larger code is not a wider channel, it is an
+        // invalid stream the decoder must mute on.
         ASSERT_TRUE(ac3ChannelEndMantissa(60) == kMaxEndMantissa, "chbwcod 60 ends at 253");
         ASSERT_TRUE(ac3ChannelEndMantissa(61) == 0, "61 is refused rather than extrapolated");
         ASSERT_TRUE(ac3ChannelEndMantissa(63) == 0, "as is the largest the field can hold");
