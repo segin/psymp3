@@ -771,6 +771,43 @@ protected:
     }
 };
 
+class LacedFrameTimesTest : public TestCase {
+public:
+    LacedFrameTimesTest() : TestCase("Each frame of a lace gets its own time from DefaultDuration") {}
+
+protected:
+    void runTest() override
+    {
+        // Three 20 ms frames in one fixed-size lace.
+        std::vector<uint8_t> body{0x81, 0x00, 0x00, 0x84, 0x02};
+        body.insert(body.end(), 3 * kFrameBytes, 0x5A);
+        const std::vector<uint8_t> track =
+            element(Id::TrackEntry,
+                    uintEl(Id::TrackNumber, 1)
+                  + uintEl(Id::TrackType, TrackType::Audio)
+                  + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                  + uintEl(Id::DefaultDuration, 20000000)
+                  + element(Id::Audio, floatEl(Id::SamplingFrequency, kSampleRate)
+                                     + uintEl(Id::Channels, kChannels)
+                                     + uintEl(Id::BitDepth, kBitDepth)));
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment,
+                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                  + element(Id::Tracks, track)
+                  + element(Id::Cluster, uintEl(Id::Timestamp, 100)
+                                       + element(Id::SimpleBlock, body)));
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        for (uint64_t i = 0; i < 3; ++i) {
+            const MediaChunk chunk = demuxer.readChunk();
+            ASSERT_EQUALS(kFrameBytes, chunk.data.size(), "frame " + std::to_string(i) + " is read");
+            ASSERT_EQUALS(samplesAt(100 + 20 * i), chunk.timestamp_samples, "at its own time");
+        }
+    }
+};
+
 class HostileClustersTest : public TestCase {
 public:
     HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
@@ -828,6 +865,7 @@ int main()
     suite.addTest(std::make_unique<DiscardPaddingTest>());
     suite.addTest(std::make_unique<HostileClustersTest>());
     suite.addTest(std::make_unique<NegativeTimeTest>());
+    suite.addTest(std::make_unique<LacedFrameTimesTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

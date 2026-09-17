@@ -97,6 +97,11 @@ bool MatroskaDemuxer::parseContainer()
         m_track_number = chosen->number;
         m_sample_rate = m_streams.front().sample_rate;
         m_frame_prefix = chosen->stripped_frame_prefix;
+        // No real frame lasts a second; anything longer would only overflow
+        // the lace arithmetic in takeBlock.
+        constexpr uint64_t kMaxFrameNs = 1000000000ULL;
+        m_default_duration_ns = chosen->default_duration_ns <= kMaxFrameNs
+                              ? chosen->default_duration_ns : 0;
     }
 
     m_duration_ms = m_parser.info().durationMs();
@@ -336,8 +341,12 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
         chunk.data.reserve(m_frame_prefix.size() + frame.size);
         chunk.data.assign(m_frame_prefix.begin(), m_frame_prefix.end());
         chunk.data.insert(chunk.data.end(), frame.data, frame.data + frame.size);
+        // The block's time is its first frame's (RFC 9559 10.3.5). The others
+        // follow on, each a DefaultDuration later when the track states one;
+        // otherwise all a lace can say is where it starts.
+        const uint64_t frame_ms = milliseconds + (m_default_duration_ns * i) / 1000000ULL;
         chunk.timestamp_samples = m_sample_rate > 0
-                                ? (milliseconds * m_sample_rate) / 1000
+                                ? (frame_ms * m_sample_rate) / 1000
                                 : 0;
         chunk.is_keyframe = header.keyframe;
         chunk.file_offset = block.header_offset;
