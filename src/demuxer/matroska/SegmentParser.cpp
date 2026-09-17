@@ -41,32 +41,102 @@ namespace {
 struct CodecMapping {
     const char* codec_id;
     const char* codec_name;
-    bool prefix; ///< match "A_AAC/..." as well as "A_AAC"
 };
 
 constexpr CodecMapping kCodecMap[] = {
-    {"A_OPUS",          "opus",    false},
-    {"A_VORBIS",        "vorbis",  false},
-    {"A_FLAC",          "flac",    false},
-    {"A_ALAC",          "alac",    false},
+    {"A_OPUS",          "opus"},
+    {"A_VORBIS",        "vorbis"},
+    {"A_FLAC",          "flac"},
+    {"A_ALAC",          "alac"},
     // Layers 3 and 2 go to their own decoders. A_MPEG/L1 is not mapped,
     // although minimp3, behind "mp3", decodes Layer I as well.
-    {"A_MPEG/L3",       "mp3",     false},
-    {"A_MPEG/L2",       "mp2",     false},
-    // AAC appears bare and with a profile suffix ("A_AAC/MPEG4/LC/SBR"), and
-    // one decoder covers the family. Only bare A_AAC carries an
-    // AudioSpecificConfig in CodecPrivate, which names the profile; the
-    // suffixed IDs are the legacy form and carry none, and AACCodec will not
-    // start without one.
-    {"A_AAC",           "aac",     true},
-    {"A_TRUEHD",        "truehd",  false},
-    {"A_MLP",           "mlp",     false},
-    {"A_AC3",           "ac3",     false},
-    {"A_EAC3",          "eac3",    false},
-    {"A_PCM/INT/LIT",   "pcm",     false},
-    {"A_PCM/INT/BIG",   "pcm",     false},
-    {"A_PCM/FLOAT/IEEE","pcm",     false},
+    {"A_MPEG/L3",       "mp3"},
+    {"A_MPEG/L2",       "mp2"},
+    // Bare A_AAC carries an AudioSpecificConfig in CodecPrivate, which names
+    // the profile. The profile-suffixed IDs are the legacy form and carry
+    // none (cellar-codec 3.4.2-3.4.10); toStreamInfo writes one for the LC
+    // and HE (SBR) ones. Main, SSR and LTP are left out: the AAC decoder has
+    // nothing for them.
+    {"A_AAC",           "aac"},
+    {"A_AAC/MPEG2/LC",  "aac"},
+    {"A_AAC/MPEG2/LC/SBR", "aac"},
+    {"A_AAC/MPEG4/LC",  "aac"},
+    {"A_AAC/MPEG4/LC/SBR", "aac"},
+    {"A_TRUEHD",        "truehd"},
+    {"A_MLP",           "mlp"},
+    {"A_AC3",           "ac3"},
+    {"A_EAC3",          "eac3"},
+    {"A_PCM/INT/LIT",   "pcm"},
+    {"A_PCM/INT/BIG",   "pcm"},
+    {"A_PCM/FLOAT/IEEE","pcm"},
 };
+
+/// The AudioSpecificConfig (ISO/IEC 14496-3 1.6.2.1) a legacy AAC CodecID
+/// implies: AAC LC at the coded rate, and for the /SBR IDs an explicit SBR
+/// extension at the output rate (twice the coded rate when the track does
+/// not say). Empty for any other ID, for a rate that is not a whole number
+/// of hertz, and for a channel count that needs a program config element.
+std::vector<uint8_t> legacyAacConfig(const std::string& codec_id, double coded_hz,
+                                     double output_hz, uint64_t channels)
+{
+    const bool lc = codec_id == "A_AAC/MPEG2/LC" || codec_id == "A_AAC/MPEG4/LC";
+    const bool sbr = codec_id == "A_AAC/MPEG2/LC/SBR" || codec_id == "A_AAC/MPEG4/LC/SBR";
+    const auto whole = [](double hz) {
+        return std::isfinite(hz) && hz >= 1.0 && hz <= 16777215.0 && hz == std::floor(hz);
+    };
+    if ((!lc && !sbr) || !whole(coded_hz)) {
+        return {};
+    }
+    // Channel configurations 1-6 are those counts; 7 is eight channels (7.1).
+    unsigned channel_config = 0;
+    if (channels >= 1 && channels <= 6) {
+        channel_config = static_cast<unsigned>(channels);
+    } else if (channels == 8) {
+        channel_config = 7;
+    } else {
+        return {};
+    }
+    const uint32_t coded = static_cast<uint32_t>(coded_hz);
+    const uint32_t output = whole(output_hz) ? static_cast<uint32_t>(output_hz) : 2 * coded;
+
+    std::vector<uint8_t> out;
+    unsigned used = 0;
+    const auto put = [&](uint32_t value, unsigned bits) {
+        for (unsigned i = bits; i-- > 0;) {
+            if (used % 8 == 0) {
+                out.push_back(0);
+            }
+            if ((value >> i) & 1) {
+                out.back() |= static_cast<uint8_t>(0x80 >> (used % 8));
+            }
+            ++used;
+        }
+    };
+    const auto putRate = [&](uint32_t hz) {
+        static constexpr uint32_t kRates[] = {96000, 88200, 64000, 48000, 44100, 32000, 24000,
+                                              22050, 16000, 12000, 11025, 8000, 7350};
+        for (uint32_t index = 0; index < std::size(kRates); ++index) {
+            if (kRates[index] == hz) {
+                put(index, 4);
+                return;
+            }
+        }
+        put(0xF, 4);   // escape: the rate itself follows
+        put(hz, 24);
+    };
+
+    put(2, 5);                 // audioObjectType: AAC LC
+    putRate(coded);
+    put(channel_config, 4);
+    put(0, 3);                 // frameLengthFlag, dependsOnCoreCoder, extensionFlag
+    if (sbr) {
+        put(0x2B7, 11);        // syncExtensionType
+        put(5, 5);             // extensionAudioObjectType: SBR
+        put(1, 1);             // sbrPresentFlag
+        putRate(output);
+    }
+    return out;
+}
 
 /// An unsigned integer element's value, or @p fallback when the element is
 /// empty. An empty element whose schema declares a default takes that default
@@ -90,11 +160,6 @@ std::string codecNameForId(const std::string& codec_id)
     for (const CodecMapping& mapping : kCodecMap) {
         const std::string id(mapping.codec_id);
         if (codec_id == id) {
-            return mapping.codec_name;
-        }
-        if (mapping.prefix && codec_id.size() > id.size()
-            && codec_id.compare(0, id.size(), id) == 0
-            && codec_id[id.size()] == '/') {
             return mapping.codec_name;
         }
     }
@@ -567,6 +632,10 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     info.codec_data = track.stripped_private_prefix;
     info.codec_data.insert(info.codec_data.end(), track.codec_private.begin(),
                            track.codec_private.end());
+    if (info.codec_data.empty()) {
+        info.codec_data = legacyAacConfig(track.codec_id, track.sampling_frequency,
+                                          track.output_sampling_frequency, track.channels);
+    }
     info.duration_ms = m_info.durationMs();
 
     // CodecDelay is nanoseconds of decoder startup to throw away; PsyMP3 counts

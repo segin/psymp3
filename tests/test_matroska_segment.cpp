@@ -84,16 +84,14 @@ protected:
         ASSERT_TRUE(codecNameForId("A_TRUEHD") == "truehd", "A_TRUEHD");
         ASSERT_TRUE(codecNameForId("A_PCM/INT/LIT") == "pcm", "A_PCM/INT/LIT");
 
-        // AAC is written bare and with a profile suffix; one decoder covers
-        // the family, so both forms have to land on it.
+        // AAC is written bare and with a profile suffix. The LC and HE
+        // profiles decode; Main, SSR and LTP have no decoder here.
         ASSERT_TRUE(codecNameForId("A_AAC") == "aac", "bare A_AAC");
         ASSERT_TRUE(codecNameForId("A_AAC/MPEG4/LC/SBR") == "aac", "A_AAC with a profile");
-        ASSERT_TRUE(codecNameForId("A_AAC/MPEG2/MAIN") == "aac", "A_AAC/MPEG2/MAIN");
-
-        // The prefix rule must not swallow a different codec that merely
-        // starts the same way.
-        ASSERT_TRUE(codecNameForId("A_AACPLUS").empty(),
-                    "A prefix match requires the separator, so A_AACPLUS is not AAC");
+        ASSERT_TRUE(codecNameForId("A_AAC/MPEG2/LC") == "aac", "A_AAC/MPEG2/LC");
+        ASSERT_TRUE(codecNameForId("A_AAC/MPEG2/MAIN").empty(), "A_AAC/MPEG2/MAIN");
+        ASSERT_TRUE(codecNameForId("A_AAC/MPEG4/LTP").empty(), "A_AAC/MPEG4/LTP");
+        ASSERT_TRUE(codecNameForId("A_AACPLUS").empty(), "A_AACPLUS is not AAC");
 
         // AC-3 and E-AC-3 are decoded in tree, and are the commonest audio in .mkv.
         ASSERT_TRUE(codecNameForId("A_AC3") == "ac3", "A_AC3");
@@ -627,6 +625,55 @@ protected:
     }
 };
 
+class LegacyAacTest : public TestCase {
+public:
+    LegacyAacTest() : TestCase("Legacy AAC CodecIDs get the AudioSpecificConfig they imply") {}
+
+protected:
+    void runTest() override
+    {
+        auto configFor = [](const char* codec_id, std::vector<uint8_t> audio) {
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, codec_id)
+                                      + element(Id::Audio, audio));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
+            return chosen ? parsed.parser().toStreamInfo(*chosen).codec_data : std::vector<uint8_t>{};
+        };
+        // AOT 2, 22.05 kHz, stereo, then the SBR extension at 44.1 kHz.
+        ASSERT_TRUE(configFor("A_AAC/MPEG4/LC/SBR",
+                              floatEl(Id::SamplingFrequency, 22050.0)
+                            + floatEl(Id::OutputSamplingFrequency, 44100.0)
+                            + uintEl(Id::Channels, 2))
+                        == (std::vector<uint8_t>{0x13, 0x90, 0x56, 0xE5, 0xA0}),
+                    "HE-AAC at 22.05 kHz playing at 44.1 kHz");
+        // Plain LC: AOT 2, 48 kHz, mono.
+        ASSERT_TRUE(configFor("A_AAC/MPEG2/LC",
+                              floatEl(Id::SamplingFrequency, 48000.0) + uintEl(Id::Channels, 1))
+                        == (std::vector<uint8_t>{0x11, 0x88}),
+                    "LC at 48 kHz, one channel");
+        // SBR with no output rate stated plays at twice the coded rate.
+        ASSERT_TRUE(configFor("A_AAC/MPEG4/LC/SBR",
+                              floatEl(Id::SamplingFrequency, 24000.0) + uintEl(Id::Channels, 2))
+                        == (std::vector<uint8_t>{0x13, 0x10, 0x56, 0xE5, 0x98}),
+                    "HE-AAC at 24 kHz, output 48 kHz by default");
+        // A rate outside the table goes in whole after the escape index.
+        ASSERT_TRUE(configFor("A_AAC/MPEG4/LC",
+                              floatEl(Id::SamplingFrequency, 20000.0) + uintEl(Id::Channels, 2))
+                        == (std::vector<uint8_t>{0x17, 0x80, 0x27, 0x10, 0x10}),
+                    "an escaped rate");
+        // Seven channels need a program config element, which is not written.
+        ASSERT_TRUE(configFor("A_AAC/MPEG4/LC",
+                              floatEl(Id::SamplingFrequency, 48000.0) + uintEl(Id::Channels, 7)).empty(),
+                    "no config for seven channels");
+    }
+};
+
 class VorbisDelayTest : public TestCase {
 public:
     VorbisDelayTest() : TestCase("A Vorbis track's CodecDelay is left to the decoder") {}
@@ -821,6 +868,7 @@ int main()
     suite.addTest(std::make_unique<CodecDelayCeilingTest>());
     suite.addTest(std::make_unique<OpusRateTest>());
     suite.addTest(std::make_unique<VorbisDelayTest>());
+    suite.addTest(std::make_unique<LegacyAacTest>());
     suite.addTest(std::make_unique<ContentEncodingTest>());
 
     auto results = suite.runAll();
