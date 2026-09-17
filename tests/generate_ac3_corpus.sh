@@ -61,10 +61,11 @@ echo "Encoding elementary streams in $OUT/raw"
 encode ac3_stereo ac3 -f lavfi -i "sine=frequency=440:duration=1.5:sample_rate=48000" \
     -ac 2 -b:a 192k
 
-# 5.1 at 44.1 kHz. Exercises coupling, the LFE channel and the widest
-# per-channel bookkeeping the bit allocator has to do. Each channel gets its
-# own tone so a channel-order mistake is audible and measurable, not masked
-# by six copies of the same signal.
+# 5.1 at 44.1 kHz. Exercises the LFE channel and the widest per-channel
+# bookkeeping the bit allocator has to do. Each channel gets its own tone so a
+# channel-order mistake is audible and measurable, not masked by six copies of
+# the same signal. The tones all sit below where coupling starts, so the
+# coupled bands carry no energy here; the oracle streams below cover them.
 encode ac3_51 ac3 -f lavfi -i "aevalsrc=sin(2*PI*220*t)|sin(2*PI*330*t)|sin(2*PI*440*t)|sin(2*PI*55*t)|sin(2*PI*550*t)|sin(2*PI*660*t):s=44100:d=1.5:c=5.1" \
     -b:a 448k
 
@@ -90,8 +91,34 @@ encode eac3_stereo eac3 -f lavfi -i "sine=frequency=440:duration=1.5:sample_rate
 encode eac3_51 eac3 -f lavfi -i "aevalsrc=sin(2*PI*220*t)|sin(2*PI*330*t)|sin(2*PI*440*t)|sin(2*PI*55*t)|sin(2*PI*550*t)|sin(2*PI*660*t):s=48000:d=1.5:c=5.1" \
     -b:a 384k
 
+# Broadband noise, for tools a tone never reaches. test_ac3_oracle compares
+# the decoder's band energies with ffmpeg's decode of these. They are kept
+# out of the container matrix: they check decoding, not demuxing.
+#
+# Coupling forced on from sub-band 1 (about 4.6 kHz), two independent
+# channels: everything above that is rebuilt from the coupling channel, so
+# the decoupling gain of A/52 7.4.3 decides its level.
+NOISE2='anoisesrc=d=2:c=white:r=48000:a=0.3:seed=1[a];anoisesrc=d=2:c=white:r=48000:a=0.3:seed=2[b];[a][b]amerge=inputs=2[out]'
+encode ac3_coupled_noise ac3 -filter_complex "$NOISE2" -map '[out]' \
+    -b:a 96k -channel_coupling 1 -cpl_start_band 1
+encode eac3_coupled_noise eac3 -filter_complex "$NOISE2" -map '[out]' \
+    -b:a 96k -channel_coupling 1 -cpl_start_band 1
+# The right channel is the left 30 dB down, at a rate low enough that many
+# coupled bins get no bits: their dither has to come out at the right
+# channel's level, not the coupling channel's (A/52 7.3.4 with 7.4.3).
+encode ac3_coupled_quiet ac3 \
+    -filter_complex 'anoisesrc=d=2:c=pink:r=48000:a=0.5:seed=31,asplit=2[a][b];[b]volume=-30dB[q];[a][q]amerge=inputs=2[out]' \
+    -map '[out]' -b:a 64k -channel_coupling 1 -cpl_start_band 1
+# Partly correlated stereo with coupling off, so the encoder rematrixes and
+# every one of the four rematrixing bands of A/52 7.5 carries signal.
+encode ac3_rematrix_noise ac3 \
+    -filter_complex 'anoisesrc=d=2:c=white:r=48000:a=0.25:seed=21,asplit=2[s1][s2];anoisesrc=d=2:c=white:r=48000:a=0.08:seed=22[x];anoisesrc=d=2:c=white:r=48000:a=0.08:seed=23[y];[s1][x]amix=inputs=2:normalize=0[l];[s2][y]amix=inputs=2:normalize=0[r];[l][r]amerge=inputs=2[out]' \
+    -map '[out]' -b:a 192k -channel_coupling 0
+
 AC3_STREAMS="ac3_stereo ac3_51 ac3_mono ac3_silence ac3_lowrate"
 EAC3_STREAMS="eac3_stereo eac3_51"
+AC3_ORACLE_STREAMS="ac3_coupled_noise ac3_coupled_quiet ac3_rematrix_noise"
+EAC3_ORACLE_STREAMS="eac3_coupled_noise"
 
 # wrap NAME CODEC DIR EXT MUXER -- stream-copy a raw stream into a container.
 wrap() {
@@ -116,11 +143,11 @@ done
 # Reference PCM, from the raw streams only: the containers carry the same
 # frames, so one reference per stream covers every container it is in.
 echo "Decoding references"
-for s in $AC3_STREAMS; do
+for s in $AC3_STREAMS $AC3_ORACLE_STREAMS; do
     echo "  ref/$s.wav"
     ff -i "$OUT/raw/$s.ac3" -c:a pcm_s16le "$OUT/ref/$s.wav"
 done
-for s in $EAC3_STREAMS; do
+for s in $EAC3_STREAMS $EAC3_ORACLE_STREAMS; do
     echo "  ref/$s.wav"
     ff -i "$OUT/raw/$s.eac3" -c:a pcm_s16le "$OUT/ref/$s.wav"
 done
