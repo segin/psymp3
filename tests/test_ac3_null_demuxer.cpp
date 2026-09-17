@@ -102,12 +102,58 @@ protected:
     }
 };
 
+/// An E-AC-3 frame of 128 bytes: just the header fields the demuxer reads.
+std::vector<uint8_t> eac3Frame(uint8_t strmtyp, uint8_t substreamid, uint8_t acmod, bool lfeon)
+{
+    BitWriter w;
+    w.put(0x0B77, 16);        // syncword
+    w.put(strmtyp, 2);
+    w.put(substreamid, 3);
+    w.put(kFrameBytes / 2 - 1, 11); // frmsiz
+    w.put(0, 2);              // fscod: 48 kHz
+    w.put(3, 2);              // numblkscod: six blocks
+    w.put(acmod, 3);
+    w.put(lfeon ? 1 : 0, 1);
+    w.put(16, 5);             // bsid
+    w.put(27, 5);             // dialnorm
+    return w.finish(kFrameBytes);
+}
+
+class ProgramLayoutTest : public TestCase {
+public:
+    ProgramLayoutTest() : TestCase("The layout comes from program 1, not from the frame the file opens on") {}
+
+protected:
+    void runTest() override
+    {
+        // 5.1 program audio, each frame followed by a dependent substream
+        // carrying two more channels, and the file cut so that a dependent
+        // frame comes first.
+        std::vector<uint8_t> file;
+        for (int i = 0; i < 3; ++i) {
+            const std::vector<uint8_t> dependent = eac3Frame(1, 0, 2, false);
+            const std::vector<uint8_t> independent = eac3Frame(0, 0, 7, true);
+            file.insert(file.end(), dependent.begin(), dependent.end());
+            file.insert(file.end(), independent.begin(), independent.end());
+        }
+
+        AC3NullDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "the stream opens");
+        const StreamInfo stream = demuxer.getStreams().at(0);
+        ASSERT_EQUALS(std::string("eac3"), stream.codec_name, "as E-AC-3");
+        ASSERT_EQUALS(uint16_t{6}, stream.channels, "with program 1's six channels");
+        ASSERT_EQUALS(uint64_t{3 * 1536}, stream.duration_samples,
+                      "and only program 1's frames count towards its length");
+    }
+};
+
 } // namespace
 
 int main()
 {
     TestSuite suite("AC-3 Null Demuxer");
     suite.addTest(std::make_unique<RichDualMonoTest>());
+    suite.addTest(std::make_unique<ProgramLayoutTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

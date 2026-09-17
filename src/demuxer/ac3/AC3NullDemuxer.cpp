@@ -100,7 +100,6 @@ bool AC3NullDemuxer::parseContainer_unlocked()
     }
     const size_t got = m_handler->read(window.data(), 1, window.size());
 
-    AC3FrameHeader first;
     bool found = false;
     for (size_t i = 0; i + 7 <= got; ++i) {
         if (((window[i] << 8) | window[i + 1]) != kSyncWord) {
@@ -117,19 +116,12 @@ bool AC3NullDemuxer::parseContainer_unlocked()
         const bool confirmed = next >= m_file_size || readHeaderAt_unlocked(next, following);
         if (confirmed) {
             m_data_start_offset = i;
-            first = candidate;
             found = true;
             break;
         }
     }
     if (!found) {
         Debug::log("ac3demux", "AC3NullDemuxer: No syncframe found");
-        return false;
-    }
-
-    m_eac3 = first.isEAC3();
-    m_samples_per_frame = static_cast<unsigned>(first.blocks) * PsyMP3::Codec::AC3::kSamplesPerBlock;
-    if (m_samples_per_frame == 0 || first.sample_rate == 0) {
         return false;
     }
 
@@ -141,6 +133,11 @@ bool AC3NullDemuxer::parseContainer_unlocked()
     uint64_t buf_start = 0;
     size_t buf_len = 0;
     uint64_t offset = m_data_start_offset;
+    // The stream is described by program 1's first frame. A file cut from a
+    // broadcast can open on a dependent substream or on another program, and
+    // that frame's channel mode covers only what it carries.
+    AC3FrameHeader program;
+    bool have_program = false;
 
     while (offset + 7 <= m_file_size) {
         if (offset < buf_start || offset + kHeaderProbeBytes > buf_start + buf_len) {
@@ -162,6 +159,10 @@ bool AC3NullDemuxer::parseContainer_unlocked()
             break;
         }
         if (!isDependent(header)) {
+            if (!have_program) {
+                program = header;
+                have_program = true;
+            }
             m_frame_offsets.push_back(offset);
             m_total_samples += static_cast<uint64_t>(header.blocks) *
                                PsyMP3::Codec::AC3::kSamplesPerBlock;
@@ -175,16 +176,22 @@ bool AC3NullDemuxer::parseContainer_unlocked()
         return false;
     }
 
+    m_eac3 = program.isEAC3();
+    m_samples_per_frame = static_cast<unsigned>(program.blocks) * PsyMP3::Codec::AC3::kSamplesPerBlock;
+    if (m_samples_per_frame == 0 || program.sample_rate == 0) {
+        return false;
+    }
+
     m_stream_info.stream_id = 1;
     m_stream_info.codec_type = "audio";
     m_stream_info.codec_name = m_eac3 ? "eac3" : "ac3";
-    m_stream_info.sample_rate = first.sample_rate;
-    m_stream_info.channels = first.outputChannels();
+    m_stream_info.sample_rate = program.sample_rate;
+    m_stream_info.channels = program.outputChannels();
     m_stream_info.duration_samples = m_total_samples;
-    m_duration_ms = (m_total_samples * 1000ULL) / first.sample_rate;
+    m_duration_ms = (m_total_samples * 1000ULL) / program.sample_rate;
     m_stream_info.duration_ms = m_duration_ms;
-    if (first.bitrate != 0) {
-        m_stream_info.bitrate = first.bitrate;
+    if (program.bitrate != 0) {
+        m_stream_info.bitrate = program.bitrate;
     } else if (m_duration_ms != 0) {
         // E-AC-3 states a frame length, not a rate, so average it instead.
         m_stream_info.bitrate = static_cast<uint32_t>(
