@@ -12,6 +12,8 @@
 #ifdef HAVE_G722
 #include "g722_fixture.h"
 
+using PsyMP3::Codec::PCM::G722Decoder;
+
 namespace {
 
 void require(bool condition, const std::string& message)
@@ -48,11 +50,38 @@ std::string writeTempG722(const std::vector<uint8_t>& encoded)
     return path;
 }
 
+// The synthesis QMF's sum can overshoot 16 bits even while both sub-band
+// signals are within their limits. ACCUMC/ACCUMD limit the output, so such a
+// sample sits at full scale; wrapping it turned a loud passage into noise of
+// the opposite polarity.
+void testQmfOutputIsLimited()
+{
+    // A run of 0x04 octets drives the lower band to its limit, and one of the
+    // QMF's two sums then overshoots for nearly every octet.
+    const std::vector<uint8_t> octets(4000, 0x04);
+    std::vector<int16_t> pcm(2 * octets.size());
+    G722Decoder decoder(G722Decoder::Bitrate::Rate64k, true);
+    require(decoder.decode(octets.data(), octets.size(), pcm.data()) == pcm.size(),
+            "every octet decodes to two samples");
+
+    const size_t settled = 1000;
+    size_t at_full_scale = 0;
+    for (size_t i = settled; i < pcm.size(); ++i) {
+        at_full_scale += (pcm[i] == INT16_MAX || pcm[i] == INT16_MIN) ? 1 : 0;
+    }
+    std::cout << "QMF: " << at_full_scale << " of " << pcm.size() - settled
+              << " samples at full scale" << std::endl;
+    require(at_full_scale * 5 >= (pcm.size() - settled) * 2,
+            "an overshooting QMF sum is clipped to full scale, not wrapped");
+}
+
 } // namespace
 
 int main()
 {
     try {
+        testQmfOutputIsLimited();
+
         const std::vector<int16_t> source_pcm = makeSinePcm(1600);
         const std::vector<uint8_t> encoded = encodedG722Sine();
         const std::string path = writeTempG722(encoded);

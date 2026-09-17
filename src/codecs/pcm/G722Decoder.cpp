@@ -98,13 +98,10 @@ inline int clipToQmfRange(int value)
     return value;
 }
 
-/// Narrows a decoder result to the 16-bit output sample. The sub-band signals
-/// are already clipped to the QMF's range, so this only has to convert; it is
-/// written through uint16_t because signed narrowing is otherwise
-/// implementation-defined.
+/// Narrows a decoder result, already limited to 16 bits, to the output sample.
 inline int16_t toPcm(int value)
 {
-    return static_cast<int16_t>(static_cast<uint16_t>(value));
+    return static_cast<int16_t>(value);
 }
 
 /// SCALEL/SCALEH: turn the logarithmic scale factor into the linear one. The
@@ -308,8 +305,12 @@ std::size_t G722Decoder::decode(const uint8_t* data, std::size_t len, int16_t* o
             even += m_qmf[2 * i] * kQmfCoeffs[i];
             odd += m_qmf[2 * i + 1] * kQmfCoeffs[11 - i];
         }
-        out[written++] = toPcm(odd >> 11);
-        out[written++] = toPcm(even >> 11);
+        // ACCUMC/ACCUMD limit XOUT to the Table 9 range (§5.2), so a sum that
+        // overshoots is clipped, not wrapped round to the opposite polarity.
+        // XOUT is half full scale; shifting by 11 rather than 12 doubles it
+        // back and keeps the accumulator's next bit.
+        out[written++] = toPcm(saturate16(odd >> 11));
+        out[written++] = toPcm(saturate16(even >> 11));
     }
 
     return written;
