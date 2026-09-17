@@ -30,12 +30,14 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace Matroska {
 
-/// How a block packs more than one frame into itself.
+/// How a block packs more than one frame into itself (RFC 9559 10.3).
 enum class Lacing {
     None  = 0, ///< one frame, the rest of the block
-    Xiph  = 1, ///< sizes as runs of 255-terminated bytes, as Ogg does it
+    Xiph  = 1, ///< each size a run of 0xFF bytes and one byte below 0xFF,
+               ///< added up, as Ogg does it
     Fixed = 2, ///< every frame the same size; no sizes stored at all
-    EBML  = 3  ///< first size a VINT, the rest signed deltas from it
+    EBML  = 3  ///< first size a VINT, each later one a signed delta from the
+               ///< size before it
 };
 
 /// A block's header, decoded.
@@ -44,9 +46,15 @@ struct BlockHeader {
     /// Ticks relative to the enclosing Cluster's timestamp, and **signed**: a
     /// frame may legitimately precede the cluster it is stored in.
     int16_t timestamp_offset = 0;
-    bool keyframe = false;     ///< SimpleBlock only; a Block never says
+    /// Keyframe, from the SimpleBlock flags. A Block has no such flag: the
+    /// bit is reserved there and must be 0 (RFC 9559 10.1), so a conforming
+    /// Block reads as not a keyframe whether or not its BlockGroup references
+    /// other frames.
+    bool keyframe = false;
     bool invisible = false;
-    bool discardable = false;  ///< SimpleBlock only
+    /// Discardable, from the SimpleBlock flags. In a Block the same bit is
+    /// unused, and parse() reads it all the same.
+    bool discardable = false;
     Lacing lacing = Lacing::None;
 };
 

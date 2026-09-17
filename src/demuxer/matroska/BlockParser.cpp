@@ -124,6 +124,8 @@ bool BlockParser::parse(const uint8_t* data, size_t size, BlockHeader& header,
         // the last deduced. A single frame therefore stores none at all, and
         // reading a size regardless would eat the first byte of the frame --
         // silently, since what is left still adds up to a plausible block.
+        // RFC 9559 10.3 does not allow lacing a single frame, but a block that
+        // does it anyway still yields its frame whole, in every lacing mode.
         if (frame_count > 1) {
             uint64_t first = 0;
             const size_t used = EBMLReader::decodeVInt(data + offset, size - offset,
