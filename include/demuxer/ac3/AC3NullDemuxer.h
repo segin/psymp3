@@ -23,8 +23,12 @@ namespace AC3 {
  *
  * Every syncframe is independently decodable -- exponents and bit allocation
  * restart at each one -- so unlike MLP no sync index is needed: a seek can
- * land on any frame, and since frames of one stream share a length and a
- * sample count, the frame for a given time is found arithmetically.
+ * land on any frame. Frames need not share a length -- an AC-3 stream at
+ * 44.1 kHz can mix the two sizes of a frmsizecod pair (Table 5.18), and
+ * E-AC-3 frames may each state a different frmsiz -- so the frame walk
+ * records where each of program 1's frames starts. The frame for a given
+ * time is then found by dividing by the samples per frame and looking its
+ * offset up.
  *
  * An E-AC-3 stream is reported as "eac3", so Media Information can name it;
  * the same codec decodes both.
@@ -67,9 +71,10 @@ private:
     uint64_t m_frames = 0;
     unsigned m_samples_per_frame = 0;
 
-    /// Byte offset of every syncframe. Streams are normally constant-size,
-    /// but E-AC-3 and some broadcast captures are not, and an offset table is
-    /// cheap next to guessing wrong on a seek.
+    /// Byte offset of every syncframe that adds time: program 1's
+    /// independent frames. Frame sizes vary -- 44.1 kHz AC-3 can mix two,
+    /// and E-AC-3 and some broadcast captures vary more -- and an offset
+    /// table is cheap next to guessing wrong on a seek.
     std::vector<uint64_t> m_frame_offsets;
 
     mutable std::mutex m_mutex;

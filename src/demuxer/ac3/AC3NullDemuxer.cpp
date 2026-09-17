@@ -290,8 +290,12 @@ bool AC3NullDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
     // listening. The transform's overlap, E-AC-3's enhanced coupling and its
     // transient pre-noise corrections all reach across frame boundaries, and
     // the codec's reset() drops them. So the seek lands a frame early, which
-    // rebuilds them, and getGranulePosition() reports where it landed so the
-    // stream discards what lies before the target.
+    // rebuilds the overlap and the enhanced coupling neighbour, and
+    // getGranulePosition() reports where it landed so the stream discards
+    // what lies before the target. A pre-noise correction sent by a frame
+    // before the landing one is still lost -- §E2.3.2.22 lets a frame place
+    // its transient up to 4092 samples ahead -- so a transient just after the
+    // target can keep its pre-noise.
     const uint64_t target = (timestamp_ms * m_stream_info.sample_rate) / 1000;
     uint64_t index = target / m_samples_per_frame;
     if (index >= m_frame_offsets.size()) {
