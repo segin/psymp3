@@ -156,7 +156,7 @@ protected:
             ASSERT_TRUE(info.muxing_app == "PsyMP3 test", "MuxingApp reads back");
         }
         {   // The whole point of reading the scale rather than assuming it. At
-            // 100 microseconds a tick, the same 2008 ticks is a fifth of the
+            // 100 microseconds a tick, the same 2008 ticks is a tenth of the
             // duration -- a file read as if the scale were the default would be
             // wrong by exactly that ratio.
             Parsed parsed(opusFile(100000, 2008.0));
@@ -279,10 +279,9 @@ protected:
         };
 
         {   // What ffmpeg and mkvmerge actually emit: an explicit 0 on every
-            // track that is not default, and nothing at all on the one that is,
-            // because libmatroska renders with bWithDefault=false. Reading the
-            // absence as "not default" picked track 1 -- precisely the track the
-            // muxer marked ineligible.
+            // track that is not default, and nothing at all on the one that is.
+            // Reading the absence as "not default" picked track 1 -- precisely
+            // the track the muxer marked ineligible.
             Parsed parsed(file(audioTrack(1, "A_VORBIS", 0) + audioTrack(2, "A_OPUS", -1)));
             const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
             ASSERT_NOT_NULL(chosen, "A track was chosen");
@@ -290,7 +289,7 @@ protected:
                         "an omitted FlagDefault is default; an explicit 0 is not");
         }
         {   // Neither writes it, so both are eligible and file order decides --
-            // 19.1 prefers the first of an equally preferable group.
+            // RFC 9559 19.1 prefers the first of an equally preferable group.
             Parsed parsed(file(audioTrack(1, "A_VORBIS", -1) + audioTrack(2, "A_OPUS", -1)));
             const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
             ASSERT_NOT_NULL(chosen, "A track was chosen");
@@ -327,8 +326,10 @@ protected:
                          + element(Id::Tracks, track));
         };
 
-        {   // No Audio element at all. RFC 8794 11.1.19: a reader must apply the
-            // declared default of a mandatory element the writer left out.
+        {   // No Audio element at all. RFC 8794 11.1.19 has a reader apply the
+            // declared default of a mandatory element left out of a parent that
+            // is present; with no Audio parent the spec gives no values, and
+            // PsyMP3 falls back to the same defaults rather than 0.
             Parsed parsed(parse(element(Id::TrackEntry,
                                         uintEl(Id::TrackNumber, 1)
                                       + uintEl(Id::TrackType, TrackType::Audio)
@@ -345,7 +346,7 @@ protected:
             ASSERT_TRUE(info.channels == 1, "and one channel, not zero");
         }
         {   // An Audio element that states only the rate still takes the channel
-            // default, and the stated rate still wins.
+            // default, as RFC 8794 11.1.19 requires, and the stated rate wins.
             Parsed parsed(parse(element(Id::TrackEntry,
                                         uintEl(Id::TrackNumber, 1)
                                       + uintEl(Id::TrackType, TrackType::Audio)
