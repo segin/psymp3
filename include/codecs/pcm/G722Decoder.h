@@ -18,8 +18,11 @@ namespace PCM {
  * @brief ITU-T G.722 decoder: 7 kHz wideband speech in 64/56/48 kbit/s.
  *
  * G.722 splits the 16 kHz input into two 8 kHz sub-bands with a quadrature
- * mirror filter and codes each with its own ADPCM loop -- six, five or four
- * bits for the lower band depending on the rate, always two for the upper.
+ * mirror filter and codes each with its own ADPCM loop: six bits for the lower
+ * band and two for the upper, packed into one octet with the upper band's bits
+ * first. At 56 and 48 kbit/s the octet is the same; the decoder only ignores
+ * the lower band's one or two least significant bits, which carry auxiliary
+ * data instead (§1.3).
  * The decoder mirrors that: dequantise both bands, run each through a
  * two-pole/six-zero adaptive predictor, then recombine through the synthesis
  * QMF to get two output samples per octet.
@@ -31,12 +34,12 @@ namespace PCM {
 class G722Decoder {
 public:
     enum class Bitrate {
-        Rate64k, ///< six-bit lower band (the usual case)
-        Rate56k, ///< five-bit lower band
-        Rate48k, ///< four-bit lower band
+        Rate64k, ///< mode 1: all six lower-band bits are audio (the usual case)
+        Rate56k, ///< mode 2: the lowest lower-band bit is auxiliary data
+        Rate48k, ///< mode 3: the two lowest lower-band bits are auxiliary data
     };
 
-    /// @param rate         bits allotted to the lower band
+    /// @param rate         the mode: how many lower-band bits are audio
     /// @param wideband_out true for the normal 16 kHz output; false selects the
     ///                     8 kHz mode, where the upper band is discarded and
     ///                     only the lower band's sample is emitted per octet.

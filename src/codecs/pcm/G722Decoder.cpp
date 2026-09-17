@@ -226,31 +226,29 @@ std::size_t G722Decoder::decode(const uint8_t* data, std::size_t len, int16_t* o
     for (std::size_t n = 0; n < len; ++n) {
         const int code = data[n];
 
-        // Split the octet. The lower band takes the low-order bits, the two
-        // upper-band bits sit directly above them, so where they start depends
-        // on the rate.
-        int ilow = 0;
-        int ihigh = 0;
+        // Split the octet (§1.4.4): the two upper-band bits are the most
+        // significant, the lower band's six-bit ILR the rest -- in every mode.
+        // Modes 2 and 3 repack nothing; they only ignore the one or two least
+        // significant bits of ILR, which carry auxiliary data (§1.3, Table 2).
+        // Reading a right-justified 5- or 4-bit code instead failed every
+        // Appendix II sequence for those modes.
+        const int ihigh = (code >> 6) & 0x03;
+        const int ilr = code & 0x3F;
         int dlow = 0;
         switch (m_rate) {
             case Bitrate::Rate64k:
-                ilow = code & 0x3F;
-                ihigh = (code >> 6) & 0x03;
-                dlow = (m_low.det * kQm6[ilow]) >> 15;
-                ilow >>= 2; // the adaptation path always works in four bits
+                dlow = (m_low.det * kQm6[ilr]) >> 15;
                 break;
-            case Bitrate::Rate56k:
-                ilow = code & 0x1F;
-                ihigh = (code >> 5) & 0x03;
-                dlow = (m_low.det * kQm5[ilow]) >> 15;
-                ilow >>= 1;
+            case Bitrate::Rate56k: // INVQBL mode 2: RIL = IRL >>> 1
+                dlow = (m_low.det * kQm5[ilr >> 1]) >> 15;
                 break;
-            case Bitrate::Rate48k:
-                ilow = code & 0x0F;
-                ihigh = (code >> 4) & 0x03;
-                dlow = (m_low.det * kQm4[ilow]) >> 15;
+            case Bitrate::Rate48k: // INVQBL mode 3: RIL = IRL >>> 2
+                dlow = (m_low.det * kQm4[ilr >> 2]) >> 15;
                 break;
         }
+        // The adaptation path (INVQAL, LOGSCL) always takes ILR's four most
+        // significant bits, whatever the mode.
+        const int ilow = ilr >> 2;
 
         // Lower band: reconstruct, adapt the predictor, then the scale factor.
         const int dlowt = (m_low.det * kQm4[ilow]) >> 15;
