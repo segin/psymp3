@@ -79,6 +79,10 @@ private:
     /// Handles one SimpleBlock or the Block inside a BlockGroup.
     void takeBlock(const EBMLElement& block, int64_t cluster_ticks,
                    int64_t discard_padding_ns);
+    /// The first Cluster at or after @p from that looks real -- its header
+    /// reads and its first child is a Timestamp -- within a bounded window,
+    /// or 0 if there is none.
+    uint64_t findClusterAfter(uint64_t from);
     /// Matroska Tags into the Tag framework, as they apply to the track
     /// whose TrackUID is @p track_uid.
     void parseTags(uint64_t tags_offset, uint64_t track_uid);

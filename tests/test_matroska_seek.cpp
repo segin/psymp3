@@ -966,6 +966,35 @@ protected:
     }
 };
 
+class ResyncTest : public TestCase {
+public:
+    ResyncTest() : TestCase("Playback picks up at the next cluster after damage") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> frame(kFrameBytes, 0x5A);
+        auto cluster = [&frame](uint64_t ms) {
+            return element(Id::Cluster, uintEl(Id::Timestamp, ms) + simpleBlock(1, 0, frame));
+        };
+        // Zero bytes cannot start an element header, so reading them throws.
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment,
+                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                  + element(Id::Tracks, pcmTrack(1))
+                  + cluster(0) + std::vector<uint8_t>(100, 0x00) + cluster(20) + cluster(40));
+        MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        for (uint64_t ms : {0u, 20u, 40u}) {
+            const MediaChunk chunk = demuxer.readChunk();
+            ASSERT_TRUE(chunk.isValid(), "the block at " + std::to_string(ms) + " ms is read");
+            ASSERT_EQUALS(samplesAt(ms), chunk.timestamp_samples, "in order");
+        }
+        ASSERT_FALSE(demuxer.readChunk().isValid(), "and then the file ends");
+    }
+};
+
 class HostileClustersTest : public TestCase {
 public:
     HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
@@ -1029,6 +1058,7 @@ int main()
     suite.addTest(std::make_unique<NothingPlayableTest>());
     suite.addTest(std::make_unique<TrackTimestampScaleTest>());
     suite.addTest(std::make_unique<StaleCuesTest>());
+    suite.addTest(std::make_unique<ResyncTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

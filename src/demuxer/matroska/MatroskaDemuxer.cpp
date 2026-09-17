@@ -463,6 +463,59 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
     }
 }
 
+uint64_t MatroskaDemuxer::findClusterAfter(uint64_t from)
+{
+    // The Cluster ID is four bytes precisely so a reader can find its way
+    // back after damage (RFC 8794 17.1). A chance match is ruled out by reading
+    // the header and the first child, which must be the Timestamp, or a
+    // CRC-32 and then the Timestamp.
+    constexpr uint64_t kWindow = 16ULL * 1024 * 1024;
+    constexpr size_t kPiece = 64 * 1024;
+    constexpr uint8_t kClusterId[4] = {0x1F, 0x43, 0xB6, 0x75};
+    const uint64_t limit = std::min<uint64_t>(m_file_size, from + kWindow);
+    std::vector<uint8_t> buffer(kPiece + 3);
+    for (uint64_t at = from; at + 4 <= limit; at += kPiece) {
+        const size_t want = static_cast<size_t>(std::min<uint64_t>(kPiece + 3, limit - at));
+        size_t got = 0;
+        try {
+            m_reader.seek(at);
+            got = m_handler->read(buffer.data(), 1, want);
+        } catch (const std::exception&) {
+            return 0;
+        }
+        for (size_t i = 0; i + 4 <= got; ++i) {
+            if (std::memcmp(&buffer[i], kClusterId, 4) != 0) {
+                continue;
+            }
+            const uint64_t candidate = at + i;
+            try {
+                m_reader.seek(candidate);
+                EBMLElement cluster;
+                EBMLElement child;
+                if (!m_reader.readElementHeader(cluster) || cluster.id != Id::Cluster
+                    || !m_reader.readElementHeader(child)) {
+                    continue;
+                }
+                if (child.id == Id::CRC32 && !child.unknown_size) {
+                    m_reader.seek(child.end());
+                    if (!m_reader.readElementHeader(child)) {
+                        continue;
+                    }
+                }
+                if (child.id == Id::Timestamp) {
+                    return candidate;
+                }
+            } catch (const std::exception&) {
+                // Not a Cluster after all; keep looking.
+            }
+        }
+        if (got < want) {
+            break;
+        }
+    }
+    return 0;
+}
+
 bool MatroskaDemuxer::fillQueue()
 {
     if (m_track_number == 0) {
@@ -578,9 +631,17 @@ bool MatroskaDemuxer::fillQueue()
             }
             m_read_offset = next;
         } catch (const std::exception& e) {
-            Debug::log("demux", "MatroskaDemuxer: ", e.what());
-            m_eof = true;
-            break;
+            // Damage need not end the file: playback picks up at the next
+            // Cluster, if one follows within reach.
+            const uint64_t resume = findClusterAfter(m_read_offset + 1);
+            Debug::log("demux", "MatroskaDemuxer: ", e.what(),
+                       resume != 0 ? "; resuming at the next cluster" : "; nothing follows");
+            if (resume == 0) {
+                m_eof = true;
+                break;
+            }
+            m_read_offset = resume;
+            m_cluster_end = 0;
         }
     }
     return !m_queue.empty();
