@@ -420,65 +420,30 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     m_cluster_ticks = 0;
     m_eof = false;
 
-    // What the landing actually is, which is not what the index entry says.
-    //
-    // A Cues entry pairs CueTime -- the timestamp of a *Block* (§5.1.5.1.1) --
-    // with the position of the Cluster that holds it (§5.1.5.1.2.2). The block
-    // need not be the cluster's first: CueRelativePosition (§5.1.5.1.2.3)
-    // exists precisely for that case, and nothing here reads it, so reading
-    // restarts at the cluster's first child. ffmpeg cues audio this way as a
-    // matter of course. Reporting CueTime would name a point later than the
-    // audio about to be produced, and since DemuxedStream labels frames from a
-    // counter anchored on this value rather than from the chunk's own stamp,
-    // everything between the cluster head and CueTime would be kept and
-    // mislabelled -- for the rest of the track, because the counter is free
-    // running. So read the cluster's own Timestamp and report that.
-    //
-    // The scan-built index already stores cluster timestamps, so this changes
-    // only the Cues path; the walk is the same one buildByScanning does, and
-    // costs two element headers.
-    int64_t landing_ticks = 0;
-    try {
-        m_reader.seek(start);
-        EBMLElement cluster;
-        if (m_reader.readElementHeader(cluster) && cluster.id == Id::Cluster) {
-            const uint64_t cluster_end = cluster.unknown_size ? m_file_size
-                                                              : cluster.end();
-            while (m_reader.tell() < cluster_end) {
-                EBMLElement child;
-                if (!m_reader.readElementHeader(child)) {
-                    break;
-                }
-                if (child.id == Id::Timestamp) {
-                    landing_ticks = static_cast<int64_t>(m_reader.readUInt(child));
-                    break;
-                }
-                if (child.id == Id::SimpleBlock || child.id == Id::BlockGroup
-                    || child.unknown_size) {
-                    break; // reached data: this cluster states no timestamp
-                }
-                m_reader.seek(child.end());
-            }
-        }
-    } catch (const std::exception& e) {
-        // A damaged cluster header is a reason to report a less exact landing,
-        // not to refuse the seek: the walk below will hit the same bytes and
-        // deal with them.
-        Debug::log("demux", "MatroskaDemuxer: seek landing probe: ", e.what());
+    // What the landing actually is: the time of the first frame that will be
+    // handed out, because DemuxedStream labels frames from a counter anchored
+    // on the value reported here. That is neither a Cues entry's CueTime --
+    // the time of some Block in the cluster (RFC 9559 5.1.5.1.1), not
+    // necessarily its first -- nor the Cluster's own Timestamp, since a
+    // block's time is that Timestamp plus its own signed offset (RFC 9559
+    // 11.2), and in mkvmerge files a cluster's first audio block commonly sits
+    // behind a video frame, up to about 200 ms in. Reading ahead to that frame
+    // settles it; the frame stays queued for readChunk.
+    uint64_t landing_samples = 0;
+    uint64_t landing_ms = 0;
+    if (fillQueue()) {
+        landing_samples = m_queue.front().timestamp_samples;
+        landing_ms = m_sample_rate > 0 ? (landing_samples * 1000) / m_sample_rate : 0;
+    } else {
+        // Nothing left to play from there: the stream is at its end, and the
+        // target is as good a statement of where as any.
+        landing_ms = timestamp_ms;
+        landing_samples = m_sample_rate > 0 ? (landing_ms * m_sample_rate) / 1000 : 0;
     }
 
-    {
-        std::lock_guard<std::mutex> lock(m_state_mutex);
-        m_position_ms = ticksToMs(landing_ticks);
-        // Where the seek actually landed, in samples, derived from the same
-        // tick count the blocks in that cluster stamp themselves with. The
-        // stream reads this to drop the audio between the landing and the
-        // target it asked for; reporting the target here instead would leave
-        // that audio in place and put the position counter ahead of it.
-        m_granule_samples = m_sample_rate > 0
-                          ? (m_position_ms * m_sample_rate) / 1000
-                          : 0;
-    }
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    m_position_ms = landing_ms;
+    m_granule_samples = landing_samples;
     return true;
 }
 

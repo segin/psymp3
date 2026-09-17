@@ -463,6 +463,63 @@ protected:
     }
 };
 
+// ---------------------------------------------------------------------------
+// A cluster's first audio block need not sit at the cluster's Timestamp. In a
+// file with video, the audio of a cluster often starts some way in, behind a
+// video frame; its time is the Timestamp plus the block's own signed offset.
+// ---------------------------------------------------------------------------
+
+constexpr int16_t kAudioOffsetMs = 30;
+
+std::vector<uint8_t> buildOffsetFile()
+{
+    const std::vector<uint8_t> info =
+        element(Id::Info, uintEl(Id::TimestampScale, 1000000)
+                        + floatEl(Id::Duration, 1000.0));
+    const std::vector<uint8_t> video =
+        element(Id::TrackEntry, uintEl(Id::TrackNumber, 2)
+                              + uintEl(Id::TrackUID, 0x2002)
+                              + uintEl(Id::TrackType, TrackType::Video)
+                              + strEl(Id::CodecID, "V_UNCOMPRESSED"));
+    const std::vector<uint8_t> tracks = element(Id::Tracks, pcmTrack(1) + video);
+
+    std::vector<uint8_t> clusters;
+    for (int i = 0; i < 10; ++i) {
+        clusters = clusters
+                 + element(Id::Cluster,
+                           uintEl(Id::Timestamp, static_cast<uint64_t>(i) * 100)
+                         + simpleBlock(2, 0, std::vector<uint8_t>(16, 0x11))
+                         + simpleBlock(1, kAudioOffsetMs, std::vector<uint8_t>(kFrameBytes, 0x5A)));
+    }
+    return ebmlHeader("matroska") + element(Id::Segment, info + tracks + clusters);
+}
+
+class SeekLandsOnFirstAudioBlockTest : public TestCase {
+public:
+    SeekLandsOnFirstAudioBlockTest()
+        : TestCase("A seek reports the first audio block's time, offset included") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> file = buildOffsetFile();
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+
+        // Cluster 3 starts at 300 ms, and its audio 30 ms later. Reporting the
+        // cluster's own Timestamp labelled every frame after the seek 30 ms
+        // early, for the rest of the track.
+        ASSERT_TRUE(demuxer.seekTo(350), "seek should succeed");
+        ASSERT_EQUALS(samplesAt(300 + kAudioOffsetMs), demuxer.getGranulePosition(1),
+                      "landing is the audio block's time, not the cluster's");
+        auto chunk = demuxer.readChunk();
+        ASSERT_TRUE(chunk.isValid(), "the audio frame follows");
+        ASSERT_EQUALS(samplesAt(300 + kAudioOffsetMs), chunk.timestamp_samples,
+                      "and it is the frame the landing names");
+    }
+};
+
 } // namespace
 
 int main()
@@ -476,6 +533,7 @@ int main()
     suite.addTest(std::make_unique<SeekLandsOnClusterHeadNotCueTimeTest>());
     suite.addTest(std::make_unique<DamagedCuesCostSeekingNotPlaybackTest>());
     suite.addTest(std::make_unique<SeekBeforeFirstCueTest>());
+    suite.addTest(std::make_unique<SeekLandsOnFirstAudioBlockTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
