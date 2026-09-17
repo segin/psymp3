@@ -374,6 +374,34 @@ protected:
     }
 };
 
+/// Table E2.1 reserves strmtyp 3. Such a frame is no program's audio, and its
+/// syntax is undefined, so it is skipped before anything past the header is
+/// read.
+class ReservedStreamTypeTest : public TestCase {
+public:
+    ReservedStreamTypeTest() : TestCase("A frame of the reserved stream type 3 is skipped, not decoded") {}
+
+protected:
+    void runTest() override
+    {
+        Spec s;
+        s.strmtyp = 3;
+        s.cplinu = { false, false, false, false, false, false };
+        s.frmchexpstr = { 0, 0 };
+
+        size_t audblk_bit = 0;
+        const auto bytes = buildFrame(s, audblk_bit);
+        AC3FrameHeader header;
+        ASSERT_TRUE(parseAC3FrameHeader(bytes.data(), bytes.size(), header), "its header is recognised");
+        ASSERT_TRUE(header.isAuxiliarySubstream(), "but it is not program 1's audio");
+
+        AC3FrameDecoder decoder;
+        std::vector<float> pcm;
+        ASSERT_TRUE(decoder.decode(bytes.data(), bytes.size(), pcm), "skipping it is not an error");
+        ASSERT_TRUE(pcm.empty(), "and it yields no audio");
+    }
+};
+
 /// The two Annex E tables the block parser leans on.
 class TableShapeTest : public TestCase {
 public:
@@ -413,6 +441,7 @@ int main()
     suite.addTest(std::make_unique<AhtFlagTest>());
     suite.addTest(std::make_unique<CouplingStrategyTest>());
     suite.addTest(std::make_unique<DependentSubstreamTest>());
+    suite.addTest(std::make_unique<ReservedStreamTypeTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

@@ -265,18 +265,20 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
     Frame frame;
     frame.eac3 = header.isEAC3();
     if (frame.eac3) {
-        const char* why = nullptr;
-        if (!eac3ParseFrame(reader, consumed, frame.params, &why)) {
-            Debug::log("ac3", "E-AC-3 frame header failed: ", why ? why : "unknown");
-            return false;
-        }
         if (header.isAuxiliarySubstream()) {
             // §E3.8.1: a reference decoder plays independent substream 0 and
             // skips everything else. A dependent substream carries channels
             // beyond that program's 5.1 -- rendering them is optional and not
             // done here -- and an independent substream with another id is a
             // different program. Either way this program's state is untouched.
+            // The skip comes before the parse, because a reserved-type frame
+            // has no syntax to parse it with.
             return true;
+        }
+        const char* why = nullptr;
+        if (!eac3ParseFrame(reader, consumed, frame.params, &why)) {
+            Debug::log("ac3", "E-AC-3 frame header failed: ", why ? why : "unknown");
+            return false;
         }
     } else if (!ac3ParseFrameHeader(reader, consumed)) {
         return false;

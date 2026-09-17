@@ -128,8 +128,8 @@ struct AC3FrameHeader {
     /// or 6 in numblkscod (Table E1.3), so samples per frame vary with it.
     uint8_t blocks = kBlocksPerFrame;
     /// E-AC-3 stream type, §E2.3.1.1: 0 independent, 1 dependent (extends
-    /// the independent frame before it), 2 independent converted from AC-3.
-    /// Always 0 for AC-3.
+    /// the independent frame before it), 2 independent converted from AC-3,
+    /// 3 reserved. Always 0 for AC-3.
     uint8_t strmtyp = 0;
     /// E-AC-3 substream identification, §E2.3.1.2: which program an
     /// independent substream carries, or which program a dependent one
@@ -137,11 +137,13 @@ struct AC3FrameHeader {
     uint8_t substreamid = 0;
 
     /// True for every frame except program 1's independent frames: a
-    /// dependent substream, or an independent substream of another program.
+    /// dependent substream, an independent substream of another program, or
+    /// a frame of the reserved type 3, whose syntax A/52 does not define.
     /// Such frames add no time to the program being played (§E3.8.1).
     bool isAuxiliarySubstream() const
     {
-        return flavour == Flavour::EAC3 && (strmtyp == 1 || substreamid != 0);
+        const bool independent = strmtyp == 0 || strmtyp == 2;
+        return flavour == Flavour::EAC3 && (!independent || substreamid != 0);
     }
 
     /// Channels the decoder outputs for this arrangement, in the layout
