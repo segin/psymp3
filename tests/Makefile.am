@@ -487,6 +487,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_ac3_null_demuxer \
 	test_ac3_codec \
 	test_mp2_codec \
+	test_pcm_codec \
 	test_demuxed_stream_seek \
 	test_http_client_parse_url \
 	test_http_client_fallback \
@@ -584,6 +585,8 @@ test_demuxed_stream_seek_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
 # MP2Codec's channel handling (kjmp2 always decodes to stereo).
 test_mp2_codec_SOURCES = test_mp2_codec.cpp
 test_mp2_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
+test_pcm_codec_SOURCES = test_pcm_codec.cpp
+test_pcm_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
 
 test_ac3_oracle_SOURCES = test_ac3_oracle.cpp
 test_ac3_oracle_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)

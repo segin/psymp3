@@ -162,6 +162,12 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
                 const uint32_t bits = read32(&input_ptr[i * 4]);
                 float sample_float;
                 std::memcpy(&sample_float, &bits, sizeof(float));
+                // std::clamp hands NaN back unchanged, and converting NaN to
+                // an integer is undefined (a full-scale click on x86-64). A
+                // NaN sample is taken as silence.
+                if (std::isnan(sample_float)) {
+                    sample_float = 0.0f;
+                }
                 sample_float = std::clamp(sample_float, -1.0f, 1.0f);
                 output_samples[i] = static_cast<AudioSample>(sample_float * 2147483520.0f);
             }

@@ -294,7 +294,9 @@ size_t WaveStream::getData(size_t len, void *buf) {
             if (m_bits_per_sample == 32) {
                 const float* float_in_ptr = reinterpret_cast<const float*>(source_buffer.data());
                 for (size_t i = 0; i < samples_to_convert; ++i) {
-                    float sample = std::clamp(*float_in_ptr++, -1.0f, 1.0f);
+                    float sample = *float_in_ptr++;
+                    // NaN would pass the clamp and make the cast undefined.
+                    sample = std::isnan(sample) ? 0.0f : std::clamp(sample, -1.0f, 1.0f);
                     *out_ptr++ = static_cast<int16_t>(sample * 32767.0f);
                 }
             }
