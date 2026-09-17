@@ -214,7 +214,11 @@ std::vector<StreamInfo> ChunkDemuxer::getStreams() const {
             info.duration_samples = audio_data.total_samples;
             info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
         } else if (isG722(audio_data)) {
-            // 2 samples per byte per channel (4-bit codes; bytes_per_frame is 0)
+            // 2 samples per byte per channel: each byte is a whole G.722
+            // octet (2-bit IH, 6-bit IL; Rec. G.722 §1.4.4), which the
+            // receive QMF turns into two 16 kHz samples. bytes_per_frame
+            // comes from wBitsPerSample, is 0 when that says 0 or 4, and is
+            // not used here.
             uint64_t ch = std::max<uint64_t>(1, audio_data.channels);
             info.duration_samples = (audio_data.data_size * 2) / ch;
             if (audio_data.sample_rate > 0) {
@@ -332,8 +336,8 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
         }
     }
     
-    // Calculate timestamps (G.722's 4-bit samples make bytes_per_frame 0,
-    // but its own branch below needs no frame size)
+    // Calculate timestamps (G.722's bytes_per_frame is 0 when wBitsPerSample
+    // says 0 or 4, but its own branch below needs no frame size)
     if (stream_data.bytes_per_frame > 0 || isG722(stream_data)) {
         chunk.timestamp_samples = m_current_sample;
         
@@ -767,7 +771,8 @@ uint64_t ChunkDemuxer::byteOffsetToMs(uint64_t byte_offset, uint32_t stream_id) 
 
     const auto& stream_data = it->second;
     if (isG722(stream_data)) {
-        // 2 samples per byte per channel; bytes_per_frame is 0 for 4-bit codes
+        // 2 samples per byte per channel, as in getStreams. bytes_per_frame
+        // cannot say that: it is 0 when wBitsPerSample says 0 or 4.
         uint64_t ch = std::max<uint64_t>(1, stream_data.channels);
         uint64_t samples = (byte_offset * 2) / ch;
         return stream_data.sample_rate > 0 ? (samples * 1000ULL) / stream_data.sample_rate : 0;
