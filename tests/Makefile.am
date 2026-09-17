@@ -1542,6 +1542,18 @@ test_ogg_demuxer_integration_LDADD = \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+
+check_PROGRAMS += test_vorbis_codec_private
+test_vorbis_codec_private_SOURCES = test_vorbis_codec_private.cpp
+test_vorbis_codec_private_CPPFLAGS = $(AM_CPPFLAGS) $(VORBISENC_CFLAGS)
+test_vorbis_codec_private_LDADD = \
+	libtest_utilities.a \
+	$(FULL_CODEC_LIBS) \
+	$(OGG_LIBS) \
+	$(VORBISENC_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
 endif
 endif
 

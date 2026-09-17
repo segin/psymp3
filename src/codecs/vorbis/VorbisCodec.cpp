@@ -339,8 +339,9 @@ bool VorbisCodec::initialize()
         throw BadFormatException(m_last_error);
     }
     
-    // Headers pre-extracted by the demuxer (OggDemuxer concatenates the three
-    // Vorbis header packets into codec_data). Consuming them HERE rather than
+    // Headers pre-extracted by the demuxer: OggDemuxer concatenates the three
+    // Vorbis header packets into codec_data, and Matroska's CodecPrivate holds
+    // them Xiph-laced. Consuming them HERE rather than
     // waiting for them to arrive as the first three decode() packets is what
     // makes the decoder survive a seek that happens before any audio has been
     // decoded: the headers exist only at the start of the stream, so once the
@@ -539,35 +540,59 @@ void VorbisCodec::reset()
 
 // ========== Private Implementation Methods ==========
 
-// Split the demuxer's concatenated header blob back into the three Vorbis
-// header packets and run them through the normal header path. The blob has no
-// length prefixes, but each Vorbis header begins with its type byte followed
-// by the "vorbis" signature (0x01/0x03/0x05), which delimits them reliably.
+// Split the demuxer's header blob back into the three Vorbis header packets
+// and run them through the normal header path. The blob comes in two shapes.
+// Matroska's CodecPrivate (cellar-codec 3.4.41) starts with the packet count
+// less one, 2, and the first two lengths Xiph-laced, and those lengths are
+// where the packets end. OggDemuxer's is the bare packets end to end, which
+// starts with the identification header's type byte, 1; it has no lengths,
+// so the packets are found by their type byte and "vorbis" signature.
 bool VorbisCodec::initializeFromCodecData_unlocked()
 {
     const std::vector<uint8_t>& blob = m_stream_info.codec_data;
-    static const char kSig[6] = {'v','o','r','b','i','s'};
+    size_t bounds[4] = {0, 0, 0, blob.size()};
 
-    std::vector<size_t> starts;
-    for (size_t i = 0; i + 7 <= blob.size(); ++i) {
-        const uint8_t type = blob[i];
-        if ((type == 0x01 || type == 0x03 || type == 0x05) &&
-            std::memcmp(&blob[i + 1], kSig, 6) == 0) {
-            starts.push_back(i);
+    if (!blob.empty() && blob[0] == 0x02) {
+        size_t at = 1;
+        size_t lengths[2] = {0, 0};
+        for (size_t& length : lengths) {
+            for (;;) {
+                if (at >= blob.size()) {
+                    return false;
+                }
+                const uint8_t byte = blob[at++];
+                length += byte;
+                if (byte != 255) {
+                    break;
+                }
+            }
         }
-    }
-    if (starts.size() < 3) {
-        return false;
-    }
-    // Keep the first three in order; anything after them is not a header.
-    starts.resize(3);
-    if (blob[starts[0]] != 0x01 || blob[starts[1]] != 0x03 || blob[starts[2]] != 0x05) {
-        return false;
+        if (lengths[0] > blob.size() - at || lengths[1] > blob.size() - at - lengths[0]) {
+            return false;
+        }
+        bounds[0] = at;
+        bounds[1] = at + lengths[0];
+        bounds[2] = bounds[1] + lengths[1];
+    } else {
+        static const char kSig[6] = {'v','o','r','b','i','s'};
+        std::vector<size_t> starts;
+        for (size_t i = 0; i + 7 <= blob.size() && starts.size() < 3; ++i) {
+            const uint8_t type = blob[i];
+            if ((type == 0x01 || type == 0x03 || type == 0x05) &&
+                std::memcmp(&blob[i + 1], kSig, 6) == 0) {
+                starts.push_back(i);
+            }
+        }
+        if (starts.size() < 3 ||
+            blob[starts[0]] != 0x01 || blob[starts[1]] != 0x03 || blob[starts[2]] != 0x05) {
+            return false;
+        }
+        std::copy(starts.begin(), starts.end(), bounds);
     }
 
     for (size_t n = 0; n < 3; ++n) {
-        const size_t begin = starts[n];
-        const size_t end = (n + 1 < 3) ? starts[n + 1] : blob.size();
+        const size_t begin = bounds[n];
+        const size_t end = bounds[n + 1];
         std::vector<uint8_t> packet(blob.begin() + static_cast<std::ptrdiff_t>(begin),
                                     blob.begin() + static_cast<std::ptrdiff_t>(end));
         if (!processHeaderPacket_unlocked(packet)) {
