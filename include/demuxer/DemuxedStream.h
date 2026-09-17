@@ -129,11 +129,12 @@ private:
     // Lock ordering: acquire m_decode_mutex before m_buffer_mutex.
     mutable std::mutex m_decode_mutex;
     
-    // Buffer limits to prevent memory exhaustion
+    // Buffer limits to prevent memory exhaustion. fillChunkBuffer stops at
+    // either, though the chunk that takes the bytes over the limit is kept.
     static constexpr size_t MAX_CHUNK_BUFFER_SIZE = 8;      // Max chunks in buffer
-    static constexpr size_t MAX_CHUNK_BUFFER_BYTES = 256 * 1024; // Max 256KB total
-    size_t m_current_buffer_bytes = 0;                      // Current buffer memory usage
-    size_t m_temp_buffer_bytes = 0;
+    static constexpr size_t MAX_CHUNK_BUFFER_BYTES = 256 * 1024; // Max 256KB of payload
+    size_t m_current_buffer_bytes = 0;                      // Payload bytes in m_chunk_buffer
+    size_t m_temp_buffer_bytes = 0;                         // Payload bytes in m_temp_chunk_buffer
     
     // Position tracking based on audio consumption, not packet timestamps
     /// Drops the encoder's priming from the head of a frame and its padding

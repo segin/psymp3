@@ -277,6 +277,28 @@ private:
     bool m_eof = false;
 };
 
+class BufferBoundTest : public TestCase {
+public:
+    BufferBoundTest() : TestCase("The compressed-chunk buffer stays within its bound during playback") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> file = rampFile();
+        DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                             TagLib::String("ramp.mka"));
+        ASSERT_EQUALS(uint32_t{kRate}, static_cast<uint32_t>(stream.getRate()), "opened");
+        size_t most = 0;
+        for (int i = 0; i < 20; ++i) {
+            ASSERT_EQUALS(size_t{882}, readCounters(stream, 882).size(), "a block's worth is read");
+            most = std::max(most, stream.m_chunk_buffer.size());
+        }
+        ASSERT_TRUE(most <= DemuxedStream::MAX_CHUNK_BUFFER_SIZE,
+                    "at most " + std::to_string(DemuxedStream::MAX_CHUNK_BUFFER_SIZE)
+                    + " chunks are held (saw " + std::to_string(most) + ")");
+    }
+};
+
 class LastGranuleTest : public TestCase {
 public:
     LastGranuleTest() : TestCase("Audio past the stream's last granule is not played") {}
@@ -348,6 +370,7 @@ int main()
     suite.addTest(std::make_unique<RefusedSeekKeepsAudioTest>());
     suite.addTest(std::make_unique<TailPaddingTest>());
     suite.addTest(std::make_unique<LastGranuleTest>());
+    suite.addTest(std::make_unique<BufferBoundTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

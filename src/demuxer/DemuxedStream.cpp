@@ -608,15 +608,26 @@ void DemuxedStream::fillChunkBuffer() {
         max_bytes = MAX_CHUNK_BUFFER_BYTES;
     }
     
-    // Fill buffer until full or EOF
-    // IMPORTANT: Check buffer bounds BEFORE reading to avoid dropping chunks
+    // Fill the buffer until it is full or the demuxer runs out. The limits
+    // cover everything buffered, not just what this call reads: they used to
+    // be checked against this call's reads alone, so each decoded frame could
+    // add seven chunks, and by an eighth of the way through a track the rest
+    // of it was in memory. An empty buffer always takes one chunk, however
+    // large. Only the decode path, under m_decode_mutex, adds or removes
+    // chunks, so the counts read here hold for the whole call.
+    size_t buffered_chunks = 0;
+    size_t buffered_bytes = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_buffer_mutex);
+        buffered_chunks = m_chunk_buffer.size();
+        buffered_bytes = m_current_buffer_bytes;
+    }
     while (!m_demuxer->isEOF()) {
-        // Check if we have room for another chunk (estimate size)
-        // Use max_frame_size from FLAC as estimate, or a reasonable default
-        static constexpr size_t ESTIMATED_CHUNK_OVERHEAD = sizeof(MediaChunk) + 8192;
-        if (m_temp_chunk_buffer.size() >= max_chunks || m_temp_buffer_bytes + ESTIMATED_CHUNK_OVERHEAD > max_bytes) {
+        const size_t chunks = buffered_chunks + m_temp_chunk_buffer.size();
+        const size_t bytes = buffered_bytes + m_temp_buffer_bytes;
+        if (chunks >= max_chunks || (chunks > 0 && bytes >= max_bytes)) {
             Debug::log("demux", "DemuxedStream: Bounded buffer full, will refill later");
-            break; // Buffer is full - don't read more, we'll refill when there's space
+            break;
         }
         
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
@@ -626,9 +637,8 @@ void DemuxedStream::fillChunkBuffer() {
             break; // No more data
         }
         
-        // Add chunk to temp buffer - we already checked bounds above
-        size_t chunk_size = sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t);
-        m_temp_buffer_bytes += chunk_size;
+        // Counted as m_current_buffer_bytes counts it: payload bytes.
+        m_temp_buffer_bytes += chunk.data.size();
         m_temp_chunk_buffer.push(std::move(chunk));
         
         // Log buffer stats
@@ -645,7 +655,7 @@ void DemuxedStream::fillChunkBuffer() {
             m_temp_chunk_buffer.pop();
             
             size_t chunk_size = chunk.data.size();
-            m_temp_buffer_bytes -= (sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t));
+            m_temp_buffer_bytes -= chunk_size;
             m_current_buffer_bytes += chunk_size;
             m_chunk_buffer.push(std::move(chunk));
         }
