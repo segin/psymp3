@@ -42,9 +42,18 @@ public:
     };
 
     /// @param rate         the mode: how many lower-band bits are audio
-    /// @param wideband_out true for the normal 16 kHz output; false selects the
-    ///                     8 kHz mode, where the upper band is discarded and
-    ///                     only the lower band's sample is emitted per octet.
+    /// @param wideband_out true for xout, the 16 kHz output of the receive
+    ///                     QMF, which is the output Rec. G.722 specifies
+    ///                     (§1.5.4). false selects an 8 kHz output that is not
+    ///                     part of the Recommendation: RL doubled to full
+    ///                     scale, one sample per octet. The upper band is
+    ///                     still decoded to keep its state in step, but it is
+    ///                     not emitted, and RL keeps the aliasing that the QMF
+    ///                     would cancel. Appendix I (§I.8) derives 8 kHz PCM
+    ///                     by low-pass filtering the 16 kHz output and dropping
+    ///                     every other sample, and leaves deriving it from the
+    ///                     lower sub-band alone for further study. G722Codec
+    ///                     always asks for 16 kHz.
     explicit G722Decoder(Bitrate rate = Bitrate::Rate64k, bool wideband_out = true);
 
     /// Discards all adaptive state, as at the start of a stream.

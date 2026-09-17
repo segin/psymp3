@@ -290,10 +290,11 @@ std::size_t G722Decoder::decode(const uint8_t* data, std::size_t len, int16_t* o
         m_high.det = scaleFactor(nb, 10);
 
         if (!m_wideband) {
-            // 8 kHz mode: the upper band is decoded to keep its adaptive state
-            // in step, but only the lower band is emitted.
-            // rlow is already inside the QMF's range, so doubling it back to
-            // full scale lands exactly inside 16 bits.
+            // 8 kHz mode, which is not part of Rec. G.722 (see the header):
+            // the upper band is decoded to keep its adaptive state in step,
+            // but only the lower band is emitted. rlow is already inside the
+            // QMF's range, so doubling it back to full scale lands exactly
+            // inside 16 bits.
             out[written++] = toPcm(rlow * 2);
             continue;
         }
