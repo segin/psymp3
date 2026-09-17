@@ -57,6 +57,13 @@ public:
     /// entries. Returns the number of samples written.
     std::size_t decode(const uint8_t* data, std::size_t len, int16_t* out);
 
+    /// The two sub-band signals of the octet decoded last, after the LIMIT
+    /// blocks (§6.2.1.6, §6.2.2.5): RL and RH, which is what the Appendix II
+    /// digital test sequences check. The QMF is outside their scope, so the
+    /// decoder's PCM output alone cannot be tested against them.
+    int lastLowBand() const { return m_last_rl; }
+    int lastHighBand() const { return m_last_rh; }
+
 private:
     /// One sub-band's ADPCM state: a two-pole, six-zero adaptive predictor
     /// plus its logarithmic scale factor.
@@ -85,6 +92,8 @@ private:
     Band m_low;
     Band m_high;
     int m_qmf[24] = {};      ///< synthesis QMF delay line, oldest first
+    int m_last_rl = 0;       ///< RL of the last octet, see lastLowBand()
+    int m_last_rh = 0;       ///< RH of the last octet, see lastHighBand()
 };
 
 } // namespace PCM

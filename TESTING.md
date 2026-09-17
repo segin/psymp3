@@ -71,6 +71,19 @@ Ogg/Opus real-file tests have no synthesizable fixture (encoding one needs tools
 - **E-AC-3 is in MP4 and Matroska only.** It has no registered RIFF format tag (ffmpeg writes `0`, `WAVE_FORMAT_UNKNOWN`), and ffmpeg's M4A muxer refuses it.
 - The files are not checked in — `tests/data/` is ignored — so tests that read them must **exit 77** when the directory is absent.
 
+### G.722 Appendix II sequences
+
+`tests/fetch_g722_testvectors.sh` downloads ITU-T's software package for Rec. G.722 (09/2012, about 139 MB) and extracts the Appendix II digital test sequences into `tests/data/g722/`, checking each file against the CRC-32 ITU publishes for it. `test_g722_conformance` runs them, and exits 77 when they are absent.
+
+```bash
+./tests/fetch_g722_testvectors.sh                          # into tests/data/g722
+./tests/fetch_g722_testvectors.sh /tmp/g722 package.zip    # from a package already downloaded
+```
+
+- **The sequences check the ADPCM decoder, not the QMF** (the Recommendation's Configuration 2). The test therefore compares the sub-band signals `rL` and `rH`, which `G722Decoder::lastLowBand()` and `lastHighBand()` expose, in all three modes.
+- **Only the data is used.** The sequences are ITU's and are not checked in. The script extracts nothing else from the package, and the decoder is written from the Recommendation, not from ITU's reference code.
+- ITU's server has been seen to cut the download short near the end. The script copes with that, because the sequences sit well before the end of the zip.
+
 ### Synthetic media data
 
 Hand-built container data must be **structurally valid** — the demuxers verify checksums and reject fiction:

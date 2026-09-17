@@ -135,6 +135,8 @@ void G722Decoder::reset()
     m_low.det = 32;
     m_high.det = 8;
     std::fill(std::begin(m_qmf), std::end(m_qmf), 0);
+    m_last_rl = 0;
+    m_last_rh = 0;
 }
 
 void G722Decoder::adapt(Band& band, int dlt)
@@ -267,6 +269,8 @@ std::size_t G722Decoder::decode(const uint8_t* data, std::size_t len, int16_t* o
         // Upper band.
         const int dhigh = (m_high.det * kQm2[ihigh]) >> 15;
         const int rhigh = clipToQmfRange(m_high.s + dhigh);
+        m_last_rl = rlow;
+        m_last_rh = rhigh;
         adapt(m_high, dhigh);
 
         nb = ((m_high.nb * 127) >> 7) + kWh[kRh2[ihigh]];

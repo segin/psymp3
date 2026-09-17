@@ -670,7 +670,7 @@ check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
 endif
 
 if HAVE_G722
-check_PROGRAMS += test_g722_integration
+check_PROGRAMS += test_g722_integration test_g722_conformance
 endif
 
 check_PROGRAMS += test_raw_audio_stream_integration
@@ -1562,6 +1562,11 @@ test_g722_integration_LDADD = \
 	$(FULL_CODEC_LIBS) \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
+
+# ITU-T G.722 Appendix II sequences, fetched by fetch_g722_testvectors.sh;
+# skips (77) without them.
+test_g722_conformance_SOURCES = test_g722_conformance.cpp
+test_g722_conformance_LDADD = $(FULL_CODEC_LIBS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 test_raw_audio_stream_integration_SOURCES = test_raw_audio_stream_integration.cpp
 test_raw_audio_stream_integration_LDADD = \
@@ -3349,6 +3354,7 @@ endif
 # Additional test scripts and headers to be distributed
 EXTRA_DIST += \
 	generate_ac3_corpus.sh \
+	fetch_g722_testvectors.sh \
 	run_mpris_static_analysis.sh \
 	run_mpris_final_validation.sh \
 	run_mpris_integration_tests.sh \
