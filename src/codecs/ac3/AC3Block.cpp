@@ -854,6 +854,18 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
             block.ecpl[ch] = state.ecpl[ch];
         }
     }
+    // The coupling band a coupled bin belongs to (§7.4.2): a sub-band whose
+    // cplbndstrc bit is set joins the band below it. Dither needs it too.
+    const auto couplingBand = [&state](unsigned bin) {
+        const unsigned target = (bin - state.strtmant[kCouplingSlot]) / 12;
+        unsigned band = 0;
+        for (unsigned sub = 1; sub <= target && sub < state.ncplsubnd; ++sub) {
+            if (!state.cplbndstrc[sub]) {
+                ++band;
+            }
+        }
+        return std::min(band, kMaxCouplingBands - 1);
+    };
     if (state.cplinu && coupling_read && !state.ecplinu) {
         for (unsigned ch = 0; ch < nfchans; ++ch) {
             if (!state.chincpl[ch]) {
@@ -908,12 +920,20 @@ Debug::log("ac3", "  after mantissas: bit ", reader.tell());
             if (bap[slot][bin] != 0 || state.aht[slot] != 0) {
                 continue;
             }
-            const float value =
+            float value =
                 state.dither.next() / static_cast<float>(1u << state.exponents[slot][bin]);
             if (deferred && slot == kCouplingSlot) {
                 block.ecpl_dither[ch][bin] = value;
                 block.ecpl_dithered[ch][bin] = true;
             } else {
+                if (slot == kCouplingSlot) {
+                    // Dither stands in for the coupling mantissa (§7.3.4), so
+                    // it takes this channel's coordinate like every other
+                    // coupled bin (§7.4.3). Left at the coupling channel's
+                    // level, a quiet channel's top end was filled with noise
+                    // far louder than its own signal.
+                    value *= state.cplco[ch][couplingBand(bin)] * kCouplingCoordinateGain;
+                }
                 block.coefficients[ch][bin] = value;
             }
         }
