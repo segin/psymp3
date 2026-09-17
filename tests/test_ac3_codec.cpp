@@ -91,12 +91,66 @@ protected:
     }
 };
 
+class CrcTest : public TestCase {
+public:
+    CrcTest() : TestCase("The CRC check passes intact frames and catches any flipped bit") {}
+
+protected:
+    void runTest() override
+    {
+        for (size_t f = 0; f < 2; ++f) {
+            std::vector<uint8_t> frame(kTwoFrames + f * kFrameBytes, kTwoFrames + (f + 1) * kFrameBytes);
+            ASSERT_TRUE(PsyMP3::Codec::AC3::ac3FrameCrcValid(frame.data(), frame.size()),
+                        "frame " + std::to_string(f) + " is intact");
+            // Everything after the sync word is covered.
+            for (size_t bit = 16; bit < 8 * kFrameBytes; ++bit) {
+                frame[bit / 8] ^= static_cast<uint8_t>(0x80 >> (bit % 8));
+                if (PsyMP3::Codec::AC3::ac3FrameCrcValid(frame.data(), frame.size())) {
+                    ASSERT_TRUE(false, "a flip of bit " + std::to_string(bit) + " goes unnoticed");
+                }
+                frame[bit / 8] ^= static_cast<uint8_t>(0x80 >> (bit % 8));
+            }
+        }
+    }
+};
+
+class DamagedFrameTest : public TestCase {
+public:
+    DamagedFrameTest() : TestCase("A damaged frame is muted in place, not decoded or dropped") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> first(kTwoFrames, kTwoFrames + kFrameBytes);
+        std::vector<uint8_t> second(kTwoFrames + kFrameBytes, kTwoFrames + 2 * kFrameBytes);
+        const std::vector<AudioSample> whole = decodeAll({first, second});
+        second[60] ^= 0x10;
+        const std::vector<AudioSample> damaged = decodeAll({first, second});
+
+        ASSERT_EQUALS(whole.size(), damaged.size(), "the damaged frame still takes its time");
+        ASSERT_TRUE(std::equal(whole.begin(), whole.begin() + 1536, damaged.begin()),
+                    "the frame before it is untouched");
+        // Its first block carries the fade-out of the frame before; the other
+        // five are silent.
+        bool silent = true;
+        bool was_silent = true;
+        for (size_t i = 1536 + 256; i < damaged.size(); ++i) {
+            silent = silent && damaged[i] == 0;
+            was_silent = was_silent && whole[i] == 0;
+        }
+        ASSERT_TRUE(silent, "the damaged frame is muted");
+        ASSERT_FALSE(was_silent, "where the intact frame had sound");
+    }
+};
+
 } // namespace
 
 int main()
 {
     TestSuite suite("AC-3 Codec");
     suite.addTest(std::make_unique<SplitHeaderTest>());
+    suite.addTest(std::make_unique<CrcTest>());
+    suite.addTest(std::make_unique<DamagedFrameTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

@@ -270,6 +270,26 @@ bool ac3ParseFrameHeader(AC3BitReader& reader, AC3FrameHeader& header)
                                     : parseAC3(reader, header);
 }
 
+bool ac3FrameCrcValid(const uint8_t* frame, size_t frame_size)
+{
+    // §7.10.1: the generator is x^16 + x^15 + x^2 + 1, the register starts at
+    // zero, and every bit after the sync word goes in, most significant
+    // first. Checking crc2 alone covers the whole frame, which §7.10.1
+    // allows; crc1's own check at the 5/8 point would only say sooner.
+    if (!frame || frame_size < 4) {
+        return false;
+    }
+    uint32_t crc = 0;
+    for (size_t i = 2; i < frame_size; ++i) {
+        crc ^= static_cast<uint32_t>(frame[i]) << 8;
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = (crc & 0x8000) ? ((crc << 1) ^ 0x8005) : (crc << 1);
+        }
+        crc &= 0xFFFF;
+    }
+    return crc == 0;
+}
+
 bool parseAC3FrameHeader(const uint8_t* data, size_t size, AC3FrameHeader& header)
 {
     // A header takes 7 bytes (E-AC-3) to kMaxHeaderParseBytes (AC-3 with every

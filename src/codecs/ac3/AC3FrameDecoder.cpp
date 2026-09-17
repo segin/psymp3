@@ -226,6 +226,45 @@ void AC3FrameDecoder::drain(std::vector<float>& pcm)
     release(m_decoded, pcm);
 }
 
+void AC3FrameDecoder::conceal(std::vector<float>& pcm)
+{
+    // Before the first good frame there is no layout to be silent in, and
+    // nothing yet whose timing a gap could upset.
+    if (!m_have_layout) {
+        return;
+    }
+
+    // The damaged frame's own header cannot be trusted, so the silence takes
+    // the shape of the frame before it. A/52 §7.10 names muting among the
+    // responses to an error, and §E3.2 asks for "an appropriate error
+    // concealment signal".
+    Frame silent;
+    silent.valid = true;
+    silent.eac3 = m_layout_eac3;
+    silent.blocks = m_pending.valid ? m_pending.blocks : kBlocksPerFrame;
+    silent.fbw = ac3ChannelCount(static_cast<AudioCodingMode>(m_layout_acmod));
+    silent.acmod = m_layout_acmod;
+    silent.lfeon = m_layout_lfeon;
+    silent.sample_rate = m_sample_rate;
+    silent.levels = m_layout_levels;
+    silent.block.reset(new AC3Block[silent.blocks]);
+
+    // A correction still waiting was measured against audio that is now
+    // silence.
+    m_corrections.clear();
+    if (m_pending.valid) {
+        finishBlock(m_pending, m_pending.blocks - 1, &silent.block[0]);
+        m_pending = Frame();
+    }
+    // Blocks of zero coefficients: the transforms' overlap fades out over the
+    // first, the rest are silent, and the next good frame fades in from them.
+    for (unsigned b = 0; b < silent.blocks; ++b) {
+        finishBlock(silent, b, nullptr);
+    }
+    m_next_frame += static_cast<uint64_t>(silent.blocks) * kBlockSamples;
+    release(m_decoded, pcm);
+}
+
 void AC3FrameDecoder::setOutputChannels(unsigned channels)
 {
     m_requested_channels = channels <= kMaxOutputChannels ? channels : 0;
@@ -261,29 +300,44 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
     if (header.frame_size == 0 || header.frame_size > size) {
         return false;
     }
+    if (header.isAuxiliarySubstream()) {
+        // §E3.8.1: a reference decoder plays independent substream 0 and
+        // skips everything else. A dependent substream carries channels
+        // beyond that program's 5.1 -- rendering them is optional and not
+        // done here -- and an independent substream with another id is a
+        // different program. Either way this program's state is untouched.
+        // The skip comes before the parse, because a reserved-type frame has
+        // no syntax to parse it with.
+        return true;
+    }
+
+    // §E3.2: an E-AC-3 decoder must check the CRC before decoding any block,
+    // and replace a frame that fails with concealment. §7.10 leaves checking
+    // to the implementation for AC-3, where a damaged frame decodes to noise
+    // just the same, so AC-3 is checked too. A frame that fails to parse is
+    // concealed in the same way rather than dropped, which would shorten the
+    // timeline and splice the frames either side together.
+    if (!ac3FrameCrcValid(data, header.frame_size)) {
+        Debug::log("ac3", "syncframe failed its CRC check; muted");
+        conceal(pcm);
+        return true;
+    }
 
     AC3BitReader reader(data, header.frame_size);
     AC3FrameHeader consumed;
     Frame frame;
     frame.eac3 = header.isEAC3();
     if (frame.eac3) {
-        if (header.isAuxiliarySubstream()) {
-            // §E3.8.1: a reference decoder plays independent substream 0 and
-            // skips everything else. A dependent substream carries channels
-            // beyond that program's 5.1 -- rendering them is optional and not
-            // done here -- and an independent substream with another id is a
-            // different program. Either way this program's state is untouched.
-            // The skip comes before the parse, because a reserved-type frame
-            // has no syntax to parse it with.
-            return true;
-        }
         const char* why = nullptr;
         if (!eac3ParseFrame(reader, consumed, frame.params, &why)) {
-            Debug::log("ac3", "E-AC-3 frame header failed: ", why ? why : "unknown");
-            return false;
+            Debug::log("ac3", "E-AC-3 frame header failed: ", why ? why : "unknown", "; muted");
+            conceal(pcm);
+            return true;
         }
     } else if (!ac3ParseFrameHeader(reader, consumed)) {
-        return false;
+        Debug::log("ac3", "AC-3 frame header failed; muted");
+        conceal(pcm);
+        return true;
     }
 
     // Each syncframe starts its own bit allocation and exponent history --
@@ -309,8 +363,9 @@ bool AC3FrameDecoder::decode(const uint8_t* data, size_t size, std::vector<float
         const char* reason = nullptr;
         if (!ac3ParseAudioBlock(reader, header, m_state, frame.block[b], &reason,
                                 frame.eac3 ? &frame.params : nullptr)) {
-            Debug::log("ac3", "frame failed at block ", b, ": ", reason ? reason : "unknown");
-            return false;
+            Debug::log("ac3", "frame failed at block ", b, ": ", reason ? reason : "unknown", "; muted");
+            conceal(pcm);
+            return true;
         }
     }
     frame.valid = true;

@@ -211,6 +211,11 @@ bool ac3ParseFrameHeader(AC3BitReader& reader, AC3FrameHeader& header);
 /// is out of range: A/52 Table 5.18, which parseAC3FrameHeader() looks up.
 uint16_t ac3FrameSize(uint8_t fscod, uint8_t frmsizecod);
 
+/// True when the syncframe of @p frame_size bytes at @p frame passes its CRC
+/// check. crc2 is written so that the check over the whole frame, sync word
+/// excluded, comes out zero (A/52 §7.10.1), for AC-3 and E-AC-3 alike.
+bool ac3FrameCrcValid(const uint8_t* frame, size_t frame_size);
+
 /// Sample rate in Hz for @p fscod, or 0 for the reserved code.
 uint32_t ac3SampleRate(uint8_t fscod);
 

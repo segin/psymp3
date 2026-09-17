@@ -57,6 +57,9 @@ private:
     /// input.
     uint64_t m_output_timestamp = 0;
     bool m_output_started = false;
+    /// True while each syncframe starts where the last one ended. A sync
+    /// word found by scanning instead may be a chance match.
+    bool m_synced = false;
     mutable std::mutex m_mutex;
 };
 

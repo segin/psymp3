@@ -101,6 +101,9 @@ private:
     void release(uint64_t end, std::vector<float>& pcm);
     /// Finish and release everything, with no next frame to wait for.
     void drain(std::vector<float>& pcm);
+    /// Stand in for a damaged frame: as many silent blocks as the last good
+    /// frame had, in its layout, so the timeline keeps its length.
+    void conceal(std::vector<float>& pcm);
     /// Start releasing in @p frame's channel arrangement.
     void setLayout(const Frame& frame);
 

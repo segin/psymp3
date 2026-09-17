@@ -45,6 +45,7 @@ bool AC3Codec::initialize()
     m_decoder.setOutputChannels(declared <= kMaxOutputChannels ? declared : 0);
     m_pending.clear();
     m_output_started = false;
+    m_synced = false;
     m_initialized = true;
     Debug::log("ac3", "AC3Codec: Initialized");
     return true;
@@ -117,6 +118,7 @@ AudioFrame AC3Codec::decode_unlocked(const MediaChunk& chunk)
         // over a damaged or truncated frame.
         if (((p[0] << 8) | p[1]) != kSyncWord) {
             ++offset;
+            m_synced = false;
             continue;
         }
         AC3FrameHeader header;
@@ -128,20 +130,32 @@ AudioFrame AC3Codec::decode_unlocked(const MediaChunk& chunk)
                 break;
             }
             ++offset;
+            m_synced = false;
             continue;
         }
         if (header.frame_size > avail) {
             break; // the rest of this frame arrives with the next chunk
         }
 
+        // A sync word found by scanning is believed only if its frame passes
+        // the CRC check; otherwise the scan goes on from the next byte. A
+        // frame that follows its predecessor is decoded whatever its CRC, and
+        // the decoder conceals it if it is damaged.
+        if (!m_synced && !ac3FrameCrcValid(p, header.frame_size)) {
+            ++offset;
+            continue;
+        }
+
         if (m_decoder.decode(p, header.frame_size, m_pcm)) {
             m_out.insert(m_out.end(), m_pcm.begin(), m_pcm.end());
+            m_synced = true;
         } else {
             // A damaged syncframe is recoverable: the next one carries its
             // own header and exponent history. Skip it rather than tear down
             // playback from the decoder thread, as the other codecs do.
             Debug::log("ac3", "AC3Codec: Syncframe failed (", header.frame_size,
                        " bytes) - skipping");
+            m_synced = false;
         }
         offset += header.frame_size;
     }
@@ -167,6 +181,7 @@ void AC3Codec::reset()
     // the output clock.
     m_pending.clear();
     m_output_started = false;
+    m_synced = false;
 }
 
 // --- Support namespace ---
