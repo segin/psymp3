@@ -37,7 +37,9 @@ private:
     // Decode ALL complete frames available, buffering any partial frame at
     // the tail for the next call. Shared by decode (appends chunk data first)
     // and flush (drains what remains at EOF).
-    AudioFrame decodeBuffered_unlocked(uint64_t timestamp_samples, bool flushing);
+    AudioFrame decodeBuffered_unlocked(bool flushing);
+    /// The time of the chunk holding bitstream byte @p offset.
+    uint64_t timeAt_unlocked(uint64_t offset) const;
 
     mp3dec_t m_decoder;
     uint32_t m_sample_rate = 0;
@@ -47,6 +49,13 @@ private:
     // blocks of a WAVE data chunk, cutting frames at the boundary); decoding
     // one frame per chunk and discarding the rest loses almost everything.
     std::vector<uint8_t> m_input;
+    /// Where each buffered chunk begins in the bitstream, with its time. The
+    /// lookahead keeps frames back until later chunks arrive, so the chunk
+    /// whose arrival lets a frame decode is not the one the frame came in.
+    /// Offsets count bytes since the last reset.
+    std::deque<std::pair<uint64_t, uint64_t>> m_chunk_times;
+    /// The bitstream offset of m_input's first byte.
+    uint64_t m_input_offset = 0;
     mutable std::mutex m_mutex;
 };
 

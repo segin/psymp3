@@ -71,14 +71,30 @@ AudioFrame MiniMP3Codec::decode_unlocked(const MediaChunk& chunk) {
     if (!m_initialized || chunk.data.empty()) {
         return AudioFrame();
     }
+    m_chunk_times.emplace_back(m_input_offset + m_input.size(), chunk.timestamp_samples);
     m_input.insert(m_input.end(), chunk.data.begin(), chunk.data.end());
-    return decodeBuffered_unlocked(chunk.timestamp_samples, false);
+    return decodeBuffered_unlocked(false);
 }
 
-AudioFrame MiniMP3Codec::decodeBuffered_unlocked(uint64_t timestamp_samples, bool flushing) {
+uint64_t MiniMP3Codec::timeAt_unlocked(uint64_t offset) const {
+    uint64_t time = m_chunk_times.empty() ? 0 : m_chunk_times.front().second;
+    for (const auto& [start, chunk_time] : m_chunk_times) {
+        if (start > offset) {
+            break;
+        }
+        time = chunk_time;
+    }
+    return time;
+}
+
+AudioFrame MiniMP3Codec::decodeBuffered_unlocked(bool flushing) {
     AudioFrame frame;
     mp3d_sample_t pcm[MINIMP3_MAX_SAMPLES_PER_FRAME];
     size_t pos = 0;
+    // The frame's time is that of its first decoded frame's chunk. A frame
+    // skipped for want of bit reservoir takes its time with it.
+    uint64_t timestamp_samples = 0;
+    bool stamped = false;
 
     while (pos < m_input.size()) {
         // Lookahead margin: minimp3 confirms a frame by peeking the NEXT
@@ -100,9 +116,14 @@ AudioFrame MiniMP3Codec::decodeBuffered_unlocked(uint64_t timestamp_samples, boo
         if (frame_info.frame_bytes <= 0) {
             break; // no complete frame in the remaining bytes: keep the tail
         }
+        const size_t frame_start = pos;
         pos += static_cast<size_t>(frame_info.frame_bytes);
 
         if (samples > 0 && frame_info.channels > 0 && frame_info.hz > 0) {
+            if (!stamped) {
+                timestamp_samples = timeAt_unlocked(m_input_offset + frame_start);
+                stamped = true;
+            }
             m_sample_rate = static_cast<uint32_t>(frame_info.hz);
             m_channels = static_cast<uint16_t>(frame_info.channels);
             const size_t total = static_cast<size_t>(samples) * frame_info.channels;
@@ -120,10 +141,17 @@ AudioFrame MiniMP3Codec::decodeBuffered_unlocked(uint64_t timestamp_samples, boo
 
     if (pos > 0) {
         m_input.erase(m_input.begin(), m_input.begin() + static_cast<std::ptrdiff_t>(pos));
+        m_input_offset += pos;
     } else if (m_input.size() > kMaxPendingInput) {
         // A pathological stream that never yields a frame must not grow the
         // buffer without bound.
+        m_input_offset += m_input.size();
         m_input.clear();
+    }
+    // Only the chunk holding the first buffered byte, and those after it,
+    // can still time a frame.
+    while (m_chunk_times.size() > 1 && m_chunk_times[1].first <= m_input_offset) {
+        m_chunk_times.pop_front();
     }
 
     if (frame.samples.empty()) {
@@ -143,12 +171,14 @@ AudioFrame MiniMP3Codec::flush_unlocked() {
         return AudioFrame();
     }
     // Drain whatever complete frames remain buffered at end of stream.
-    return decodeBuffered_unlocked(0, true);
+    return decodeBuffered_unlocked(true);
 }
 
 void MiniMP3Codec::reset_unlocked() {
     mp3dec_init(&m_decoder);
     m_input.clear(); // seek: buffered bitstream is from the old position
+    m_chunk_times.clear();
+    m_input_offset = 0;
 }
 
 // --- Support namespace ---
