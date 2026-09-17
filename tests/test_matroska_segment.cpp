@@ -528,6 +528,84 @@ protected:
     }
 };
 
+class ContentEncodingTest : public TestCase {
+public:
+    ContentEncodingTest() : TestCase("Header stripping is undone and other content encodings are refused") {}
+
+protected:
+    void runTest() override
+    {
+        struct Result {
+            bool chosen = false;
+            std::vector<uint8_t> frame_prefix;
+            std::vector<uint8_t> codec_data;
+        };
+        auto open = [](const std::vector<uint8_t>& encodings) {
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_MPEG/L3")
+                                      + element(Id::CodecPrivate, std::vector<uint8_t>{0x01, 0x02})
+                                      + element(Id::ContentEncodings, encodings)
+                                      + element(Id::Audio, floatEl(Id::SamplingFrequency, 44100.0)
+                                                         + uintEl(Id::Channels, 2)));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            Result result;
+            const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
+            result.chosen = chosen != nullptr;
+            if (chosen) {
+                result.frame_prefix = chosen->stripped_frame_prefix;
+                result.codec_data = parsed.parser().toStreamInfo(*chosen).codec_data;
+            }
+            return result;
+        };
+        auto stripping = [](const std::vector<uint8_t>& bytes, std::vector<uint8_t> fields) {
+            return element(Id::ContentEncoding,
+                           fields + element(Id::ContentCompression,
+                                            uintEl(Id::ContentCompAlgo, 3)
+                                          + element(Id::ContentCompSettings, bytes)));
+        };
+
+        {   // The common case: mkvmerge strips an MP3 frame's sync bytes.
+            const Result r = open(stripping({0xFF, 0xFB}, {}));
+            ASSERT_TRUE(r.chosen, "a header-stripped track is playable");
+            ASSERT_TRUE(r.frame_prefix == (std::vector<uint8_t>{0xFF, 0xFB}),
+                        "the stripped bytes go back in front of every frame");
+            ASSERT_TRUE(r.codec_data == (std::vector<uint8_t>{0x01, 0x02}),
+                        "the default scope (frames) leaves CodecPrivate alone");
+        }
+        {   // Scope 3: frames and CodecPrivate.
+            const Result r = open(stripping({0xAB}, uintEl(Id::ContentEncodingScope, 3)));
+            ASSERT_TRUE(r.codec_data == (std::vector<uint8_t>{0xAB, 0x01, 0x02}),
+                        "with the Private bit set, CodecPrivate gets the bytes too");
+        }
+        {   // Two steps: the lowest order's bytes end up first (5.1.4.1.31.2).
+            const Result r = open(stripping({0xBB}, uintEl(Id::ContentEncodingOrder, 1))
+                                + stripping({0xAA}, uintEl(Id::ContentEncodingOrder, 0)));
+            ASSERT_TRUE(r.frame_prefix == (std::vector<uint8_t>{0xAA, 0xBB}),
+                        "stacked strippings are undone from the highest order down");
+        }
+        {   // Encryption cannot be undone here.
+            const Result r = open(element(Id::ContentEncoding,
+                                          uintEl(Id::ContentEncodingType, 1)
+                                        + element(Id::ContentEncryption, {})));
+            ASSERT_FALSE(r.chosen, "an encrypted track is never handed to a decoder");
+        }
+        {   // ContentCompAlgo's default is zlib, which is not supported.
+            const Result r = open(element(Id::ContentEncoding,
+                                          element(Id::ContentCompression, {})));
+            ASSERT_FALSE(r.chosen, "a zlib-compressed track is refused, not fed to the decoder");
+        }
+        {   // The Next scope (0x4) is one players are not expected to support.
+            const Result r = open(stripping({0x01}, uintEl(Id::ContentEncodingScope, 4)));
+            ASSERT_FALSE(r.chosen, "an encoding of another encoding is refused");
+        }
+    }
+};
+
 class VorbisDelayTest : public TestCase {
 public:
     VorbisDelayTest() : TestCase("A Vorbis track's CodecDelay is left to the decoder") {}
@@ -722,6 +800,7 @@ int main()
     suite.addTest(std::make_unique<CodecDelayCeilingTest>());
     suite.addTest(std::make_unique<OpusRateTest>());
     suite.addTest(std::make_unique<VorbisDelayTest>());
+    suite.addTest(std::make_unique<ContentEncodingTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

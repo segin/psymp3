@@ -88,6 +88,9 @@ private:
     /// The track being played. Zero until parseContainer has chosen one.
     uint64_t m_track_number = 0;
     uint32_t m_sample_rate = 0;
+    /// Bytes header stripping removed from the front of every frame of the
+    /// selected track, put back as each frame is queued.
+    std::vector<uint8_t> m_frame_prefix;
     /// Where playback actually is, in samples -- the landing after a seek, and
     /// the last chunk handed out otherwise. Guarded by the base class's
     /// m_state_mutex alongside m_position_ms, which it is derived from the

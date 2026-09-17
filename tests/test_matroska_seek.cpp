@@ -520,6 +520,49 @@ protected:
     }
 };
 
+class HeaderStrippedFramesTest : public TestCase {
+public:
+    HeaderStrippedFramesTest()
+        : TestCase("Frames of a header-stripped track come out with their header back") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> prefix{0xDE, 0xAD};
+        const std::vector<uint8_t> track =
+            element(Id::TrackEntry,
+                    uintEl(Id::TrackNumber, 1)
+                  + uintEl(Id::TrackType, TrackType::Audio)
+                  + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                  + element(Id::ContentEncodings,
+                            element(Id::ContentEncoding,
+                                    element(Id::ContentCompression,
+                                            uintEl(Id::ContentCompAlgo, 3)
+                                          + element(Id::ContentCompSettings, prefix))))
+                  + element(Id::Audio, floatEl(Id::SamplingFrequency, kSampleRate)
+                                     + uintEl(Id::Channels, kChannels)
+                                     + uintEl(Id::BitDepth, kBitDepth)));
+        const std::vector<uint8_t> stored(kFrameBytes - prefix.size(), 0x5A);
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment,
+                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                  + element(Id::Tracks, track)
+                  + element(Id::Cluster, uintEl(Id::Timestamp, 0)
+                                       + simpleBlock(1, 0, stored)));
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+
+        auto chunk = demuxer.readChunk();
+        ASSERT_TRUE(chunk.isValid(), "the frame is read");
+        ASSERT_EQUALS(kFrameBytes, chunk.data.size(), "stored bytes plus the stripped header");
+        ASSERT_TRUE(chunk.data[0] == 0xDE && chunk.data[1] == 0xAD,
+                    "the stripped header comes first");
+        ASSERT_TRUE(chunk.data[2] == 0x5A, "followed by the stored frame");
+    }
+};
+
 } // namespace
 
 int main()
@@ -534,6 +577,7 @@ int main()
     suite.addTest(std::make_unique<DamagedCuesCostSeekingNotPlaybackTest>());
     suite.addTest(std::make_unique<SeekBeforeFirstCueTest>());
     suite.addTest(std::make_unique<SeekLandsOnFirstAudioBlockTest>());
+    suite.addTest(std::make_unique<HeaderStrippedFramesTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

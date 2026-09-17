@@ -74,6 +74,17 @@ constexpr uint32_t CodecName       = 0x258688;
 constexpr uint32_t CodecDelay      = 0x56AA;
 constexpr uint32_t SeekPreRoll     = 0x56BB;
 
+// ContentEncodings, RFC 9559 5.1.4.1.31.
+constexpr uint32_t ContentEncodings     = 0x6D80;
+constexpr uint32_t ContentEncoding      = 0x6240;
+constexpr uint32_t ContentEncodingOrder = 0x5031;
+constexpr uint32_t ContentEncodingScope = 0x5032;
+constexpr uint32_t ContentEncodingType  = 0x5033;
+constexpr uint32_t ContentCompression   = 0x5034;
+constexpr uint32_t ContentCompAlgo      = 0x4254;
+constexpr uint32_t ContentCompSettings  = 0x4255;
+constexpr uint32_t ContentEncryption    = 0x5035;
+
 constexpr uint32_t Audio                   = 0xE1;
 constexpr uint32_t SamplingFrequency       = 0xB5;
 constexpr uint32_t OutputSamplingFrequency = 0x78B5;

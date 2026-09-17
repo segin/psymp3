@@ -78,6 +78,18 @@ struct TrackEntry {
     uint64_t codec_delay_ns = 0;
     uint64_t seek_preroll_ns = 0;
 
+    /// ContentEncodings (RFC 9559 5.1.4.1.31), reduced to what PsyMP3 undoes.
+    /// Header stripping is the encoding in common use: mkvmerge removes the
+    /// bytes every frame of a track begins with (an MP3 or AC-3 sync word, for
+    /// instance) and stores them once, here. They go back in front of every
+    /// frame, and in front of CodecPrivate when the encoding's scope says so.
+    std::vector<uint8_t> stripped_frame_prefix;
+    std::vector<uint8_t> stripped_private_prefix;
+    /// An encoding PsyMP3 cannot undo: zlib, bzlib or lzo compression,
+    /// encryption, or a scope beyond frames and CodecPrivate. Such a track is
+    /// never chosen, since its frames would reach the decoder still encoded.
+    bool unsupported_encoding = false;
+
     // Audio sub-element. These carry the schema's defaults rather than zero:
     // RFC 9559 5.1.4.1.29.1 gives SamplingFrequency 8000 and 5.1.4.1.29.3 gives
     // Channels 1, and RFC 8794 11.1.19 requires a reader to apply the default of
@@ -147,6 +159,8 @@ private:
     void parseInfo(EBMLReader& reader, const EBMLElement& info);
     void parseTracks(EBMLReader& reader, const EBMLElement& tracks);
     TrackEntry parseTrackEntry(EBMLReader& reader, const EBMLElement& entry);
+    void parseContentEncodings(EBMLReader& reader, const EBMLElement& encodings,
+                               TrackEntry& track);
     void parseAudio(EBMLReader& reader, const EBMLElement& audio, TrackEntry& track);
 
     SegmentInfo m_info;

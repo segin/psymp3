@@ -336,11 +336,107 @@ TrackEntry SegmentParser::parseTrackEntry(EBMLReader& reader, const EBMLElement&
         // BCP 47 supersedes the ISO 639-2 field when both are present.
         case Id::LanguageBCP47:   track.language = reader.readString(child); break;
         case Id::Audio:           parseAudio(reader, child, track); break;
+        case Id::ContentEncodings:
+            if (!child.unknown_size) {
+                parseContentEncodings(reader, child, track);
+            }
+            break;
         default: break;
         }
         reader.seek(child.end());
     }
     return track;
+}
+
+void SegmentParser::parseContentEncodings(EBMLReader& reader, const EBMLElement& encodings,
+                                          TrackEntry& track)
+{
+    struct Encoding {
+        uint64_t order = 0;
+        uint64_t scope = 1;   // schema default: frame contents
+        uint64_t type = 0;    // schema default: compression
+        bool compression = false;
+        uint64_t algo = 0;    // schema default: zlib
+        std::vector<uint8_t> settings;
+    };
+    std::vector<Encoding> list;
+
+    const uint64_t end = encodings.end();
+    while (reader.tell() < end) {
+        EBMLElement child;
+        if (!reader.readElementHeader(child) || child.unknown_size) {
+            track.unsupported_encoding = true;
+            return;
+        }
+        if (child.id == Id::ContentEncoding) {
+            Encoding encoding;
+            const uint64_t encoding_end = child.end();
+            while (reader.tell() < encoding_end) {
+                EBMLElement field;
+                if (!reader.readElementHeader(field) || field.unknown_size) {
+                    track.unsupported_encoding = true;
+                    return;
+                }
+                switch (field.id) {
+                case Id::ContentEncodingOrder: encoding.order = reader.readUInt(field); break;
+                case Id::ContentEncodingScope: encoding.scope = reader.readUInt(field); break;
+                case Id::ContentEncodingType:  encoding.type = reader.readUInt(field);  break;
+                case Id::ContentCompression: {
+                    encoding.compression = true;
+                    const uint64_t compression_end = field.end();
+                    while (reader.tell() < compression_end) {
+                        EBMLElement setting;
+                        if (!reader.readElementHeader(setting) || setting.unknown_size) {
+                            track.unsupported_encoding = true;
+                            return;
+                        }
+                        if (setting.id == Id::ContentCompAlgo) {
+                            encoding.algo = reader.readUInt(setting);
+                        } else if (setting.id == Id::ContentCompSettings) {
+                            encoding.settings = reader.readBinary(setting);
+                        }
+                        reader.seek(setting.end());
+                    }
+                    break;
+                }
+                default: break;
+                }
+                reader.seek(field.end());
+            }
+            list.push_back(std::move(encoding));
+        }
+        reader.seek(child.end());
+    }
+
+    // Decoding starts at the highest ContentEncodingOrder and works down
+    // (5.1.4.1.31.2). Each header-stripping step puts its own bytes in front,
+    // so the bytes that end up first belong to the lowest order.
+    std::stable_sort(list.begin(), list.end(),
+                     [](const Encoding& a, const Encoding& b) { return a.order < b.order; });
+    // Stripped headers are a few bytes. A megabyte bounds what a hostile file
+    // could make every frame grow by.
+    constexpr size_t kMaxPrefix = 1u << 20;
+    for (const Encoding& encoding : list) {
+        const bool header_stripping = encoding.type == 0 && encoding.compression
+                                   && encoding.algo == 3;
+        const bool known_scope = encoding.scope != 0 && (encoding.scope & ~uint64_t{3}) == 0;
+        if (!header_stripping || !known_scope) {
+            track.unsupported_encoding = true;
+            continue;
+        }
+        if (encoding.scope & 1) {
+            track.stripped_frame_prefix.insert(track.stripped_frame_prefix.end(),
+                                               encoding.settings.begin(), encoding.settings.end());
+        }
+        if (encoding.scope & 2) {
+            track.stripped_private_prefix.insert(track.stripped_private_prefix.end(),
+                                                 encoding.settings.begin(), encoding.settings.end());
+        }
+    }
+    if (track.stripped_frame_prefix.size() > kMaxPrefix
+        || track.stripped_private_prefix.size() > kMaxPrefix) {
+        track.unsupported_encoding = true;
+    }
 }
 
 void SegmentParser::parseAudio(EBMLReader& reader, const EBMLElement& audio,
@@ -380,6 +476,9 @@ const TrackEntry* SegmentParser::preferredAudioTrack() const
         }
         if (codecNameForId(track.codec_id).empty()) {
             continue; // nothing here decodes it; keep looking
+        }
+        if (track.unsupported_encoding) {
+            continue; // its frames would reach the decoder still encoded
         }
         if (track.default_track) {
             return &track;
@@ -445,7 +544,9 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     info.sample_rate = static_cast<uint32_t>(rate + 0.5);
     info.channels = track.channels;
     info.bits_per_sample = track.bit_depth;
-    info.codec_data = track.codec_private;
+    info.codec_data = track.stripped_private_prefix;
+    info.codec_data.insert(info.codec_data.end(), track.codec_private.begin(),
+                           track.codec_private.end());
     info.duration_ms = m_info.durationMs();
 
     // CodecDelay is nanoseconds of decoder startup to throw away; PsyMP3 counts
