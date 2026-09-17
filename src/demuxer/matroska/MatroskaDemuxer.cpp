@@ -88,11 +88,16 @@ bool MatroskaDemuxer::parseContainer()
     }
 
     if (!chosen) {
-        // Audio exists but nothing here decodes it. Reported rather than
-        // refused, so the failure names the codec at the point a codec is
-        // asked for instead of here.
-        Debug::log("demux", "MatroskaDemuxer: no decodable audio track; first is ",
-                   m_parser.tracks().front().codec_id);
+        // Audio exists but none of it can be played: no decoder for it, or
+        // the track is disabled, encoded in a way this cannot undo, or an
+        // Opus track without a usable OpusHead. The streams stay listed for
+        // Media Information, and where the first one names no codec the
+        // failure is reported when a codec is asked for. But a disabled track
+        // can name a codec that exists, and that codec would then wait for
+        // chunks that never come; the stream is ended here instead.
+        Debug::log("demux", "MatroskaDemuxer: no playable audio track; first is ",
+                   m_streams.front().codec_name.empty() ? "undecodable" : "disabled or unusable");
+        m_eof = true;
     } else {
         m_track_number = chosen->number;
         m_stream_id = chosen->ordinal;
@@ -148,7 +153,7 @@ bool MatroskaDemuxer::parseContainer()
 
     m_read_offset = m_parser.firstClusterOffset();
     m_cluster_end = 0;
-    m_eof = m_read_offset == 0 || m_read_offset >= m_file_size;
+    m_eof = m_eof || m_read_offset == 0 || m_read_offset >= m_file_size;
     m_parsed = true;
     return true;
 }

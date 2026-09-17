@@ -846,6 +846,30 @@ protected:
     }
 };
 
+class NothingPlayableTest : public TestCase {
+public:
+    NothingPlayableTest() : TestCase("A file whose only audio track is disabled ends at once") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> track =
+            element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                  + uintEl(Id::TrackType, TrackType::Audio)
+                                  + strEl(Id::CodecID, "A_PCM/INT/LIT")
+                                  + uintEl(Id::FlagEnabled, 0)
+                                  + element(Id::Audio, floatEl(Id::SamplingFrequency, kSampleRate)
+                                                     + uintEl(Id::Channels, kChannels)
+                                                     + uintEl(Id::BitDepth, kBitDepth)));
+        const std::vector<uint8_t> file = buildFile(track);
+        MatroskaDemuxer demuxer(std::make_unique<MemoryIOHandler>(file.data(), file.size()));
+        ASSERT_TRUE(demuxer.parseContainer(), "the file still parses");
+        ASSERT_EQUALS(size_t{1}, demuxer.getStreams().size(), "and lists its track");
+        ASSERT_TRUE(demuxer.isEOF(), "but has nothing to play");
+        ASSERT_FALSE(demuxer.readChunk().isValid(), "so no chunk comes out");
+    }
+};
+
 class SeekPreRollTest : public TestCase {
 public:
     SeekPreRollTest() : TestCase("A seek starts SeekPreRoll before its target") {}
@@ -952,6 +976,7 @@ int main()
     suite.addTest(std::make_unique<LacedFrameTimesTest>());
     suite.addTest(std::make_unique<WideTrackNumberTest>());
     suite.addTest(std::make_unique<SeekPreRollTest>());
+    suite.addTest(std::make_unique<NothingPlayableTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
