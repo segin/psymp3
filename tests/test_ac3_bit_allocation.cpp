@@ -290,8 +290,9 @@ protected:
         }
         const auto parameters = defaultParameters();
 
-        // Two segments: bands 2..5, then four bands on from there, which is
-        // 9..12 -- not 4..7, which is where an absolute reading would put it.
+        // Two segments: bands 2..5, then a segment whose offset of 3 counts
+        // on from band 6, where the first one stopped, giving 9..12. Read as
+        // an absolute band number, the same offset would give 3..6.
         std::vector<DeltaBitAllocation> split{{2, 4, 0}, {3, 4, 0}};
         uint8_t got[kBinCount] = {0};
         ASSERT_TRUE(ac3ComputeBitAllocation(exponents, 0, 253,
