@@ -65,12 +65,41 @@ void testQmfOutputIsLimited()
             "an overshooting QMF sum is clipped to full scale, not wrapped");
 }
 
+// The decoder carries all of its state from one call to the next, so a stream
+// decodes the same whether it arrives whole or in pieces, and reset() returns
+// it to the state it was constructed in, which is what a seek relies on.
+void testChunkingAndReset()
+{
+    const size_t octets = sizeof(kG722Sine1600);
+    G722Decoder decoder(G722Decoder::Bitrate::Rate64k, true);
+    std::vector<int16_t> whole(decoder.maxSamples(octets));
+    require(decoder.decode(kG722Sine1600, octets, whole.data()) == whole.size(),
+            "every octet decodes to two samples");
+
+    G722Decoder chunked(G722Decoder::Bitrate::Rate64k, true);
+    std::vector<int16_t> pieces(whole.size());
+    size_t written = 0;
+    for (size_t at = 0; at < octets; at += 333) {
+        const size_t len = std::min<size_t>(333, octets - at);
+        written += chunked.decode(kG722Sine1600 + at, len, pieces.data() + written);
+    }
+    require(written == whole.size() && pieces == whole,
+            "decoding in pieces matches decoding in one call");
+
+    decoder.reset();
+    std::vector<int16_t> again(whole.size());
+    written = decoder.decode(kG722Sine1600, octets, again.data());
+    require(written == whole.size() && again == whole,
+            "after reset() the decoder starts over");
+}
+
 } // namespace
 
 int main()
 {
     try {
         testQmfOutputIsLimited();
+        testChunkingAndReset();
 
         // Each octet decodes to two 16 kHz samples (Rec. G.722 §1.5.4), so the
         // fixture's 800 octets make 1600.
