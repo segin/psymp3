@@ -394,13 +394,28 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     const uint64_t scale = m_parser.info().timestamp_scale_ns;
     const uint64_t ticks = scale > 0 ? (timestamp_ms * 1000000ULL) / scale : timestamp_ms;
 
+    // Where to start reading. A seek has to land at or before the target:
+    // DemuxedStream decodes forward from the landing and drops everything
+    // before the target, whereas landing after it would skip audio outright.
+    // So when the index has nothing at or before the target -- the target is
+    // earlier than the first cue, or there is no usable index at all (damaged
+    // Cues, or live-muxed clusters of unknown size) -- reading restarts at the
+    // first cluster. That is slow for a late target in a long unindexed file,
+    // but it is correct, where refusing left the stream to carry on from
+    // wherever it was.
+    uint64_t start = 0;
     const CueEntry* entry = m_index.entryFor(ticks);
-    if (!entry) {
+    if (entry && entry->time_ticks <= ticks) {
+        start = entry->cluster_offset;
+    } else {
+        start = m_parser.firstClusterOffset();
+    }
+    if (start == 0 || start >= m_file_size) {
         return false;
     }
 
     m_queue.clear();
-    m_read_offset = entry->cluster_offset;
+    m_read_offset = start;
     m_cluster_end = 0;
     m_cluster_ticks = 0;
     m_eof = false;
@@ -422,9 +437,9 @@ bool MatroskaDemuxer::seekTo(uint64_t timestamp_ms)
     // The scan-built index already stores cluster timestamps, so this changes
     // only the Cues path; the walk is the same one buildByScanning does, and
     // costs two element headers.
-    int64_t landing_ticks = static_cast<int64_t>(entry->time_ticks);
+    int64_t landing_ticks = 0;
     try {
-        m_reader.seek(entry->cluster_offset);
+        m_reader.seek(start);
         EBMLElement cluster;
         if (m_reader.readElementHeader(cluster) && cluster.id == Id::Cluster) {
             const uint64_t cluster_end = cluster.unknown_size ? m_file_size

@@ -280,12 +280,13 @@ std::vector<uint8_t> seekHeadFor(const std::vector<std::pair<uint32_t, uint64_t>
 /// scan fallback ran instead, its entries would land on a different cluster and
 /// the assertions below would fail rather than quietly still passing.
 std::vector<uint8_t> sparseCues(const std::vector<std::vector<uint8_t>>& cluster_bytes,
-                                uint64_t track, uint64_t first_cluster_relative)
+                                uint64_t track, uint64_t first_cluster_relative,
+                                size_t first_cued = 0)
 {
     std::vector<uint8_t> points;
     uint64_t position = first_cluster_relative;
     for (size_t i = 0; i < cluster_bytes.size(); ++i) {
-        if (i % kCueEveryN == 0) {
+        if (i % kCueEveryN == 0 && i >= first_cued) {
             points = points + element(Id::CuePoint,
                           uintEl(Id::CueTime, i * kClusterMs + kCueOffsetMs)
                         + element(Id::CueTrackPositions,
@@ -313,7 +314,7 @@ std::vector<uint8_t> damagedCues(uint64_t first_cluster_relative)
                                  + uintEl(Id::CueClusterPosition, first_cluster_relative))));
 }
 
-std::vector<uint8_t> buildCuedFile(bool damaged_cues = false)
+std::vector<uint8_t> buildCuedFile(bool damaged_cues = false, size_t first_cued = 0)
 {
     const std::vector<uint8_t> info =
         element(Id::Info, uintEl(Id::TimestampScale, 1000000)
@@ -339,7 +340,7 @@ std::vector<uint8_t> buildCuedFile(bool damaged_cues = false)
     const uint64_t first_cluster_at = head.size() + info.size() + tracks.size();
     const std::vector<uint8_t> cues =
         damaged_cues ? damagedCues(first_cluster_at)
-                     : sparseCues(cluster_bytes, 1, first_cluster_at);
+                     : sparseCues(cluster_bytes, 1, first_cluster_at, first_cued);
 
     return ebmlHeader("matroska")
          + element(Id::Segment, head + info + tracks + clusters_flat + cues);
@@ -427,8 +428,38 @@ protected:
         ASSERT_TRUE(chunk.isValid(), "the clusters are intact, so playback continues");
         ASSERT_EQUALS(samplesAt(0), chunk.timestamp_samples, "starting at the first cluster");
 
-        // What was actually lost: with no index there is nothing to seek by.
-        ASSERT_FALSE(demuxer.seekTo(250), "seeking is the part that degrades");
+        // What degrades: with no index a seek restarts at the first cluster and
+        // the stream decodes forward to the target. Refusing instead left
+        // DemuxedStream carrying on from wherever it was.
+        ASSERT_TRUE(demuxer.seekTo(250), "an unindexed seek restarts from the first cluster");
+        ASSERT_EQUALS(samplesAt(0), demuxer.getGranulePosition(1),
+                      "and reports the head of the file as its landing");
+        chunk = demuxer.readChunk();
+        ASSERT_TRUE(chunk.isValid(), "reading continues from the first cluster");
+        ASSERT_EQUALS(samplesAt(0), chunk.timestamp_samples, "with the first frame");
+    }
+};
+
+class SeekBeforeFirstCueTest : public TestCase {
+public:
+    SeekBeforeFirstCueTest()
+        : TestCase("A target before the first cue lands at the head, not at that cue") {}
+
+protected:
+    void runTest() override
+    {
+        // Cues only from cluster 4 (400 ms) on. A seek to 150 ms has no cue at or
+        // before it; taking the first cue anyway landed at 400 ms and skipped
+        // 250 ms of audio. Restarting at the first cluster lands before it.
+        const std::vector<uint8_t> file = buildCuedFile(false, 4);
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+        ASSERT_TRUE(demuxer.seekTo(150), "seek should succeed");
+        ASSERT_EQUALS(samplesAt(0), demuxer.getGranulePosition(1),
+                      "landing is the head of the file, before the target");
+        ASSERT_TRUE(demuxer.seekTo(450), "a cued target still uses its cue");
+        ASSERT_EQUALS(samplesAt(400), demuxer.getGranulePosition(1), "cluster 4's head");
     }
 };
 
@@ -444,8 +475,11 @@ int main()
     suite.addTest(std::make_unique<SeekBackwardsTest>());
     suite.addTest(std::make_unique<SeekLandsOnClusterHeadNotCueTimeTest>());
     suite.addTest(std::make_unique<DamagedCuesCostSeekingNotPlaybackTest>());
+    suite.addTest(std::make_unique<SeekBeforeFirstCueTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
-    return suite.getFailureCount(results);
+    // Every test that did not pass counts: getFailureCount() skips a test that
+    // ended in an exception.
+    return static_cast<int>(results.size()) - suite.getPassedCount(results);
 }
