@@ -22,7 +22,8 @@ std::vector<uint8_t> operator+(std::vector<uint8_t> a, const std::vector<uint8_t
 }
 
 /// Block header bytes: a one-byte track number, a signed 16-bit timestamp and
-/// the flags. Lacing lives in bits 1-2 of the flags.
+/// the flags. Lacing is the flags' 0x06 mask, which RFC 9559 calls bits 5 and 6
+/// because it numbers bits from the most significant.
 std::vector<uint8_t> blockHeader(uint8_t track, int16_t timestamp, Lacing lacing,
                                  bool keyframe = true)
 {
@@ -194,7 +195,8 @@ protected:
         ASSERT_EQUALS(size_t{100}, frames[0].size, "The first size is stored outright");
         ASSERT_EQUALS(size_t{120}, frames[1].size, "A delta of +20");
         ASSERT_EQUALS(size_t{118}, frames[2].size,
-                      "A delta of -2, which reading the VINT unsigned would make 8189");
+                      "A delta of -2; read without its bias the VINT is +61, "
+                      "which would make the size 181");
         ASSERT_EQUALS(size_t{62}, frames[3].size, "The last frame is the remainder");
         ASSERT_TRUE(frames[0].data[0] == 0x01 && frames[1].data[0] == 0x02
                         && frames[2].data[0] == 0x03 && frames[3].data[0] == 0x04,
@@ -223,7 +225,7 @@ protected:
 
         const uint8_t one_pos[] = {0xFE};               // 126 - 63
         BlockParser::decodeSignedVInt(one_pos, 1, value);
-        ASSERT_TRUE(value == 63, "The most positive one-byte delta");
+        ASSERT_TRUE(value == 63, "0xFE is +63; the one-byte range runs on to +64 at 0xFF");
 
         const uint8_t two_zero[] = {0x5F, 0xFF};        // 8191 - 8191
         ASSERT_EQUALS(size_t{2}, BlockParser::decodeSignedVInt(two_zero, 2, value), "two bytes");
@@ -276,7 +278,7 @@ protected:
 
 class LacingFlagsTest : public TestCase {
 public:
-    LacingFlagsTest() : TestCase("The lacing mode comes from bits 1 and 2 of the flags") {}
+    LacingFlagsTest() : TestCase("The lacing mode comes from the flags' 0x06 bits") {}
 
 protected:
     void runTest() override
@@ -284,6 +286,10 @@ protected:
         // Fixed is 0b10 and EBML is 0b11, which is the pair most easily
         // swapped: reading them the other way round splits a fixed block by
         // deltas that are not there.
+        //
+        // Every block here holds one frame. RFC 9559 10.3 does not allow
+        // lacing a single frame, so the laced ones are non-conforming input,
+        // and the parser still has to give their frame back whole.
         struct { Lacing lacing; uint8_t bits; } cases[] = {
             {Lacing::None,  0x00}, {Lacing::Xiph, 0x02},
             {Lacing::Fixed, 0x04}, {Lacing::EBML, 0x06},
