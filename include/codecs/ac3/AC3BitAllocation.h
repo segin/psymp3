@@ -31,11 +31,15 @@ namespace Codec {
 namespace AC3 {
 
 /// Which kind of channel is being allocated. The excitation function starts
-/// differently for each, A/52 §7.2.2.4.
+/// differently for the coupling channel, A/52 §7.2.2.4.
+///
+/// The LFE takes the full-bandwidth path. Like the spec, the routine knows it
+/// by its end band (bndend 7) rather than by this tag, so LFE and
+/// FullBandwidth give the same result.
 enum class AllocationChannel {
     FullBandwidth, ///< an ordinary channel: the low-frequency compensation runs
     Coupling,      ///< the coupling channel: no compensation, starts at its own band
-    LFE,           ///< as full-bandwidth, but band 6 is skipped and it ends at bin 7
+    LFE,           ///< bins 0 to 6; band 6 skips the calc_lowcomp() update
 };
 
 /// Everything the routine takes from the bit stream, A/52 §7.2.2.1.
@@ -72,8 +76,9 @@ struct DeltaBitAllocation {
 };
 
 /// Runs the seven-step parametric bit allocation of A/52 §7.2.2 and fills
-/// @p bap with one 4-bit pointer per bin, saying how many bits that mantissa
-/// was given.
+/// @p bap with one pointer per bin, saying how many bits that mantissa was
+/// given: a 4-bit bap (Table 7.17), or for an AHT channel a 5-bit hebap
+/// (§E3.4.3.1, Table E3.2).
 ///
 /// This is the routine the whole format turns on. The encoder ran the same
 /// computation to decide how many bits to spend on each mantissa and wrote the
@@ -87,8 +92,14 @@ struct DeltaBitAllocation {
 /// @param exponents  decoded exponents, one per bin, from §7.1
 /// @param start      first bin, inclusive
 /// @param end        last bin, exclusive
+/// @param channel    which kind of channel this is; only Coupling changes the
+///                   computation
+/// @param parameters the stream's codes for this channel, §7.2.2.1
 /// @param deltas     delta bit allocation segments, or none
 /// @param bap        output, at least @p end entries
+/// @param pointer_table  where step 7 looks the pointer up: null for baptab
+///                       (Table 7.16), or kHebapTable for hebaptab (Table
+///                       E3.1), whose values run 0..19
 /// @return false if the arguments are inconsistent, in which case bap is
 ///         untouched.
 bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned end,

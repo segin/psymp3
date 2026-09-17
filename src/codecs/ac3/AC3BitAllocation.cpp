@@ -158,8 +158,9 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
 
         begin = 7;
         for (unsigned band = 2; band < 7; ++band) {
-            // The LFE channel stops at band 6 and must not have the
-            // compensation applied to its last band.
+            // The LFE channel ends with band 6 (bndend 7). There the spec
+            // skips the calc_lowcomp() update and the early-exit test, but
+            // the band still subtracts the lowcomp carried from band 5.
             const bool skip = (band_end == 7) && (band == 6);
             if (!skip) {
                 lowcomp = ac3CalcLowComp(lowcomp, band_psd[band], band_psd[band + 1], band);
@@ -209,8 +210,9 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
 
     // --- §7.2.2.6: delta bit allocation ---
     // The encoder's override, where the parametric model alone misjudges a
-    // block. Adjustments are in multiples of 6 dB, with 4 and above meaning a
-    // reduction rather than an increase.
+    // block. Adjustments are in steps of 6 dB (Table 5.17): codes 0-3 lower
+    // the masking curve by 24..6 dB, giving the band more bits, and codes 4-7
+    // raise it by 6..24 dB, giving it fewer.
     // The first segment's offset is an absolute band number; every one after
     // it is measured from where the previous segment stopped (§5.4.3.55), so
     // the cursor runs on rather than being reseated.
