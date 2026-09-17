@@ -166,6 +166,9 @@ private:
                   bool* unknown, int& consumed);
     /// Reads exactly @p length payload bytes into @p out.
     void readPayload(const EBMLElement& element, uint8_t* out, size_t length);
+    /// Reads a whole payload, refusing one the file cannot hold before
+    /// allocating anything for it.
+    std::vector<uint8_t> readBounded(const EBMLElement& element);
 
     PsyMP3::IO::IOHandler* m_handler;
 };

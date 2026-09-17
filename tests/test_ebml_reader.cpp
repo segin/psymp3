@@ -339,6 +339,51 @@ protected:
     }
 };
 
+/// Counts reads, to show a payload is refused before it is read.
+class CountingHandler : public MemoryIOHandler {
+public:
+    CountingHandler(const uint8_t* data, size_t size) : MemoryIOHandler(data, size, false) {}
+    size_t read(void* buffer, size_t size, size_t count) override
+    {
+        ++reads;
+        return MemoryIOHandler::read(buffer, size, count);
+    }
+    int reads = 0;
+};
+
+class ShortFileTest : public TestCase {
+public:
+    ShortFileTest() : TestCase("A payload the file cannot hold is refused before it is read") {}
+
+protected:
+    void runTest() override
+    {
+        // A 1 MiB payload, within kMaxBinarySize, in a 13-byte file.
+        const std::vector<uint8_t> data{0x81, 0x30, 0x00, 0x00, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        for (bool as_string : {false, true}) {
+            CountingHandler handler(data.data(), data.size());
+            EBMLReader reader(&handler);
+            EBMLElement element;
+            ASSERT_TRUE(reader.readElementHeader(element), "The header reads");
+            ASSERT_EQUALS(uint64_t{1} << 20, element.size, "The claimed size");
+            handler.reads = 0;
+            bool threw = false;
+            try {
+                if (as_string) {
+                    reader.readString(element);
+                } else {
+                    reader.readBinary(element);
+                }
+            } catch (const std::exception&) {
+                threw = true;
+            }
+            const std::string what = as_string ? "string" : "binary";
+            ASSERT_TRUE(threw, what + ": the payload is refused");
+            ASSERT_EQUALS(0, handler.reads, what + ": without reading, or allocating, any of it");
+        }
+    }
+};
+
 class NestedElementTest : public TestCase {
 public:
     NestedElementTest() : TestCase("Master elements can be walked child by child") {}
@@ -391,6 +436,7 @@ int main()
     suite.addTest(std::make_unique<StringPaddingTest>());
     suite.addTest(std::make_unique<UnknownSizeElementTest>());
     suite.addTest(std::make_unique<HostileSizeTest>());
+    suite.addTest(std::make_unique<ShortFileTest>());
     suite.addTest(std::make_unique<NestedElementTest>());
 
     auto results = suite.runAll();

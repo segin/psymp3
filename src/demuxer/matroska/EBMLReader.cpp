@@ -29,6 +29,15 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace Matroska {
 
+namespace {
+
+/// How much of a string or binary payload is read at a time. The buffer grows
+/// only as the bytes arrive, so a size the file does not back costs no more
+/// memory than the bytes it does hold.
+constexpr size_t kReadPiece = 1024 * 1024;
+
+} // namespace
+
 EBMLReader::EBMLReader(PsyMP3::IO::IOHandler* handler)
     : m_handler(handler)
 {
@@ -234,9 +243,8 @@ std::string EBMLReader::readString(const EBMLElement& element)
     if (element.size > kMaxBinarySize) {
         throw std::runtime_error("EBML: implausible string length");
     }
-    std::string value(static_cast<size_t>(element.size), '\0');
-    readPayload(element, reinterpret_cast<uint8_t*>(value.data()),
-                static_cast<size_t>(element.size));
+    const std::vector<uint8_t> bytes = readBounded(element);
+    std::string value(bytes.begin(), bytes.end());
 
     // A NUL ends the string, and it and everything after it are ignored
     // (RFC 8794 13). Writers use that to overwrite a value in place with a
@@ -257,8 +265,32 @@ std::vector<uint8_t> EBMLReader::readBinary(const EBMLElement& element)
         // enough to produce one by accident.
         throw std::runtime_error("EBML: element payload too large to read");
     }
-    std::vector<uint8_t> data(static_cast<size_t>(element.size));
-    readPayload(element, data.data(), data.size());
+    return readBounded(element);
+}
+
+std::vector<uint8_t> EBMLReader::readBounded(const EBMLElement& element)
+{
+    // Sizes come from the file. A payload that would run past its end is
+    // refused before anything is allocated; zero-filling up to kMaxBinarySize
+    // only to find the file short was what happened before. A handler that
+    // cannot say how long it is gets the piecewise read, which stops at the
+    // first short piece.
+    const PsyMP3::IO::filesize_t file_size = m_handler->getFileSize();
+    if (file_size >= 0 && element.end() > static_cast<uint64_t>(file_size)) {
+        throw std::runtime_error("EBML: truncated element payload");
+    }
+    seek(element.data_offset);
+    std::vector<uint8_t> data;
+    uint64_t remaining = element.size;
+    while (remaining > 0) {
+        const size_t piece = static_cast<size_t>(std::min<uint64_t>(remaining, kReadPiece));
+        const size_t filled = data.size();
+        data.resize(filled + piece);
+        if (m_handler->read(data.data() + filled, 1, piece) != piece) {
+            throw std::runtime_error("EBML: truncated element payload");
+        }
+        remaining -= piece;
+    }
     return data;
 }
 
