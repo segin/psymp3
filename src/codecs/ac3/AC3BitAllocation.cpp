@@ -88,8 +88,9 @@ bool ac3ComputeBitAllocation(const uint8_t* exponents, unsigned start, unsigned 
                              const std::vector<DeltaBitAllocation>& deltas,
                              uint8_t* bap, const uint8_t* pointer_table)
 {
-    // The banding tables stop at bin 253 (bndtab[49] + bndsz[49]). An end past
-    // that would walk the band loops beyond band 49 and write past band_psd.
+    // The banding tables cover bins 0..252: bndtab[49] + bndsz[49] is 253,
+    // the largest exclusive end they allow. An end past that would walk the
+    // band loops beyond band 49 and write past band_psd.
     if (!exponents || !bap || end <= start || end > kMaxEndMantissa
         || parameters.fscod > 2 || parameters.sdcycod > 3 || parameters.fdcycod > 3
         || parameters.sgaincod > 3 || parameters.dbpbcod > 3

@@ -47,9 +47,9 @@ unsigned ac3ChannelEndMantissa(uint8_t chbwcod)
 {
     // A/52 §5.4.3.24: the field is six bits but only 0..60 are valid, and a
     // larger value makes the stream invalid outright -- the standard says the
-    // decoder shall mute. It is not merely out of taste: 60 puts the last bin
-    // at 253, which is exactly what the banding tables cover, so 61 would
-    // index past them.
+    // decoder shall mute. It is not merely out of taste: 60 gives an end of
+    // 253, exclusive, so the last bin is 252 and the banding tables cover it
+    // exactly; 61 would index past them.
     if (chbwcod > kMaxChannelBandwidthCode) {
         return 0;
     }

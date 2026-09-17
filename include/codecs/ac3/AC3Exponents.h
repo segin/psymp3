@@ -61,11 +61,13 @@ unsigned ac3CouplingExponentGroups(ExponentStrategy strategy,
 /// The field is six bits but only 0..60 are valid, and the standard is
 /// unusually firm about the rest: "If a value greater than 60 is received, the
 /// bit stream is invalid and the decoder shall cease decoding audio and mute."
-/// 60 puts the last bin at 253, which is exactly the span the banding tables
-/// cover -- a larger code would index past them.
+/// 60 gives an end bin of 253 (§7.1.3), which is exclusive, so the last bin
+/// is 252 and the banding tables cover exactly that span -- a larger code
+/// would index past them.
 constexpr uint8_t kMaxChannelBandwidthCode = 60;
 
 /// Largest end bin any channel can reach, from kMaxChannelBandwidthCode.
+/// Exclusive, like every endmant.
 constexpr unsigned kMaxEndMantissa = 253;
 
 /// End mantissa bin for an independent channel from its bandwidth code,

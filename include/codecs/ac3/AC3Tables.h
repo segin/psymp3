@@ -40,8 +40,11 @@ namespace AC3 {
 
 /// 1/6-octave bands the bit allocation works in, A/52 Table 7.12.
 constexpr unsigned kBandCount = 50;
-/// Transform coefficients per block. Only 0..252 are ever addressed, since
-/// A/52 §5.4.3.24 caps a channel's last bin at 253.
+/// Transform coefficients per block. Only 0..252 are ever addressed: A/52
+/// §5.4.3.24 caps chbwcod at 60, and §7.1.3's endmant formula turns that into
+/// an end bin of 253, which is exclusive (§7.2.2.2 loops bin < end). The
+/// coupling channel's end is at most 253 as well, since cplendf is four bits
+/// (§5.4.3.12).
 constexpr unsigned kBinCount = 256;
 
 /// A/52 Table 7.6, slowdec[].
@@ -79,7 +82,7 @@ constexpr uint8_t kBandSize[kBandCount] = {
 /// A/52 Table 7.13, masktab[]: which band a bin belongs to.
 ///
 /// The last three entries are zero, exactly as the standard prints them. Bins
-/// 253 to 255 cannot be addressed -- a channel's last bin stops at 253 -- so
+/// 253 to 255 cannot be addressed -- a channel's bins end before 253 -- so
 /// they are padding rather than a band 0 mapping, and the array is never read
 /// there.
 constexpr uint8_t kBinToBand[kBinCount] = {
