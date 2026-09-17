@@ -58,16 +58,19 @@ class AC3MantissaReader {
 public:
     /// One dequantized coefficient, already scaled by its exponent.
     ///
-    /// Returns the transform coefficient of A/52 §7.3.2:
-    /// quantization_table[code] >> exponent, expressed as a float in
-    /// [-1, 1) rather than a fixed-point word, since the inverse transform
-    /// works in floating point regardless.
+    /// Returns the transform coefficient of A/52 §7.3.3 for bap 1..5,
+    /// quantization_table[code] >> exponent, or of §7.3.2 for bap 6..15,
+    /// mantissa >> exponent, and 0 for bap 0, which codes nothing. The value
+    /// is a float in [-1, 1) rather than a fixed-point word, since the
+    /// inverse transform works in floating point regardless.
     ///
     /// @param bap       allocation pointer for this bin
     /// @param exponent  its exponent, 0..24
     float next(AC3BitReader& reader, uint8_t bap, uint8_t exponent);
 
-    /// Forgets any part-used group. Called between exponent sets.
+    /// Forgets any part-used group, as a new block needs. Never call it
+    /// between exponent sets: §7.3.5 carries a part-used group into the next
+    /// exponent set of the same block.
     void reset();
 
 private:

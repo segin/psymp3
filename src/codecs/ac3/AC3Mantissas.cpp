@@ -88,9 +88,10 @@ void AC3MantissaReader::reset()
 float AC3MantissaReader::next(AC3BitReader& reader, uint8_t bap, uint8_t exponent)
 {
     if (bap == 0) {
-        // A/52 §7.3.4 fills these with dither. Until the dither generator is
-        // wired to the block's dithflag, silence is the honest placeholder --
-        // it is quiet rather than wrong in a way that hides other faults.
+        // Nothing is coded, so nothing is read. A/52 §7.3.4 applies dither
+        // after decoupling, so AC3Block fills a full-bandwidth channel's
+        // zero-bit bins afterwards when its dithflag is set; otherwise they
+        // stay a true zero.
         return 0.0f;
     }
     if (bap > 15) {
@@ -138,8 +139,8 @@ float AC3MantissaReader::next(AC3BitReader& reader, uint8_t bap, uint8_t exponen
         value = static_cast<float>(signed_value) / static_cast<float>(sign);
     }
 
-    // The exponent is a right shift, A/52 §7.3.2. In floating point that is a
-    // division by a power of two, which is exact.
+    // The exponent is a right shift, A/52 §7.3.2 and §7.3.3. In floating
+    // point that is a division by a power of two, which is exact.
     return value / static_cast<float>(1u << std::min<uint8_t>(exponent, 24));
 }
 
