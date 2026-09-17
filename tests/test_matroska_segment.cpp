@@ -39,6 +39,12 @@ private:
     SegmentParser m_parser;
 };
 
+/// An OpusHead as ffmpeg writes it: magic, version 1, two channels, pre_skip
+/// 312 little-endian, 48 kHz input, gain 0, mapping family 0.
+const std::vector<uint8_t> kOpusHead{'O','p','u','s','H','e','a','d',
+                                     1, 2, 0x38, 0x01, 0x80, 0xBB, 0x00, 0x00,
+                                     0x00, 0x00, 0x00};
+
 /// A complete single-track file, as the other cases keep needing one.
 std::vector<uint8_t> opusFile(uint64_t timestamp_scale = 1000000,
                               double duration_ticks = 2008.0,
@@ -53,8 +59,7 @@ std::vector<uint8_t> opusFile(uint64_t timestamp_scale = 1000000,
                               + uintEl(Id::TrackUID, 0xDEADBEEF)
                               + uintEl(Id::TrackType, TrackType::Audio)
                               + strEl(Id::CodecID, "A_OPUS")
-                              + element(Id::CodecPrivate,
-                                        std::vector<uint8_t>{'O','p','u','s','H','e','a','d'})
+                              + element(Id::CodecPrivate, kOpusHead)
                               + uintEl(Id::CodecDelay, codec_delay_ns)
                               + uintEl(Id::SeekPreRoll, 80000000)
                               + strEl(Id::Language, "und")
@@ -189,7 +194,7 @@ protected:
         ASSERT_TRUE(track.language == "und", "Language");
         ASSERT_TRUE(track.codec_delay_ns == 6500000, "CodecDelay in nanoseconds");
         ASSERT_TRUE(track.seek_preroll_ns == 80000000, "SeekPreRoll in nanoseconds");
-        ASSERT_EQUALS(size_t{8}, track.codec_private.size(), "CodecPrivate survives");
+        ASSERT_EQUALS(size_t{19}, track.codec_private.size(), "CodecPrivate survives");
         ASSERT_TRUE(track.codec_private[0] == 'O', "CodecPrivate is the bytes written");
         // The Audio sub-element is nested a level deeper than the rest.
         ASSERT_TRUE(track.sampling_frequency == 48000.0, "SamplingFrequency");
@@ -280,7 +285,7 @@ protected:
             // track that is not default, and nothing at all on the one that is.
             // Reading the absence as "not default" picked track 1 -- precisely
             // the track the muxer marked ineligible.
-            Parsed parsed(file(audioTrack(1, "A_VORBIS", 0) + audioTrack(2, "A_OPUS", -1)));
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", 0) + audioTrack(2, "A_FLAC", -1)));
             const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
             ASSERT_NOT_NULL(chosen, "A track was chosen");
             ASSERT_TRUE(chosen->number == 2,
@@ -288,21 +293,21 @@ protected:
         }
         {   // Neither writes it, so both are eligible and file order decides --
             // RFC 9559 19.1 prefers the first of an equally preferable group.
-            Parsed parsed(file(audioTrack(1, "A_VORBIS", -1) + audioTrack(2, "A_OPUS", -1)));
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", -1) + audioTrack(2, "A_FLAC", -1)));
             const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
             ASSERT_NOT_NULL(chosen, "A track was chosen");
             ASSERT_TRUE(chosen->number == 1, "equally default, so the first wins");
         }
         {   // An explicit 1 on the first track keeps it, though the second is
             // default by omission too.
-            Parsed parsed(file(audioTrack(1, "A_VORBIS", 1) + audioTrack(2, "A_OPUS", -1)));
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", 1) + audioTrack(2, "A_FLAC", -1)));
             const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
             ASSERT_NOT_NULL(chosen, "A track was chosen");
             ASSERT_TRUE(chosen->number == 1, "explicit default on the first track");
         }
         {   // Nothing is eligible. A playable track is still better than none,
             // so the first decodable one stands in.
-            Parsed parsed(file(audioTrack(1, "A_VORBIS", 0) + audioTrack(2, "A_OPUS", 0)));
+            Parsed parsed(file(audioTrack(1, "A_VORBIS", 0) + audioTrack(2, "A_FLAC", 0)));
             const TrackEntry* chosen = parsed.parser().preferredAudioTrack();
             ASSERT_NOT_NULL(chosen, "A playable track is still offered");
             ASSERT_TRUE(chosen->number == 1, "no eligible track, so first decodable");
@@ -452,23 +457,32 @@ protected:
         ASSERT_EQUALS(uint32_t{0}, delayFor(head),
                       "the decoder applies its own pre-skip, so the container's is dropped");
 
-        // Too short for OpusCodec to parse, so it will not skip anything. The
-        // container's value has to survive or the priming is never trimmed.
-        const std::vector<uint8_t> stub{'O','p','u','s','H','e','a','d'};
-        ASSERT_EQUALS(uint32_t{312}, delayFor(stub),
-                      "an unusable header falls back to CodecDelay in frames");
-
-        // Full-length headers that OpusHeader::isValid() still rejects. The
-        // decoder skips nothing for them either, so the container must trim.
+        // Headers the decoder refuses: too short, no channels, or a mapping
+        // family it does not decode. OpusCodec would play such a track as
+        // silence, so it is neither chosen nor given a codec.
+        auto refused = [](const std::vector<uint8_t>& codec_private) {
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_OPUS")
+                                      + element(Id::CodecPrivate, codec_private)
+                                      + element(Id::Audio, floatEl(Id::SamplingFrequency, 48000.0)
+                                                         + uintEl(Id::Channels, 2)));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
+            return parsed.parser().preferredAudioTrack() == nullptr
+                && parsed.parser().toStreamInfo(parsed.parser().tracks().front()).codec_name.empty();
+        };
+        ASSERT_TRUE(refused({'O','p','u','s','H','e','a','d'}), "a truncated OpusHead is refused");
         std::vector<uint8_t> no_channels = head;
         no_channels[9] = 0;
-        ASSERT_EQUALS(uint32_t{312}, delayFor(no_channels),
-                      "a zero channel count is rejected by the decoder, so CodecDelay applies");
-
+        ASSERT_TRUE(refused(no_channels), "a zero channel count is refused");
         std::vector<uint8_t> family2 = head;
         family2[18] = 2;
-        ASSERT_EQUALS(uint32_t{312}, delayFor(family2),
-                      "mapping family 2 is rejected by the decoder, so CodecDelay applies");
+        ASSERT_TRUE(refused(family2), "mapping family 2 is refused");
+        ASSERT_TRUE(refused({}), "no CodecPrivate at all is refused");
 
         // Families 1 and 255 are ones the decoder accepts, so it trims them.
         for (uint8_t family : {uint8_t{1}, uint8_t{255}}) {
@@ -497,13 +511,9 @@ protected:
             ASSERT_TRUE(info.sample_rate == 48000, "Sample rate");
             ASSERT_TRUE(info.channels == 2, "Channels");
             ASSERT_TRUE(info.duration_ms == 2008, "Duration in milliseconds");
-            ASSERT_EQUALS(size_t{8}, info.codec_data.size(), "CodecPrivate becomes codec_data");
-
-            // 6,500,000 ns at 48 kHz is 312 sample frames, which is what
-            // ffprobe calls initial_padding on the same file. Nanoseconds are
-            // no use to a decoder that trims in frames.
-            ASSERT_TRUE(info.encoder_delay == 312,
-                        "CodecDelay converts from nanoseconds to sample frames");
+            ASSERT_EQUALS(size_t{19}, info.codec_data.size(), "CodecPrivate becomes codec_data");
+            ASSERT_TRUE(info.encoder_delay == 0,
+                        "Opus trims its own pre-skip, so the stream is not told to");
         }
         {   // SBR: the stream is coded at half the rate it plays at, and
             // Matroska says so with OutputSamplingFrequency. Taking the coded
@@ -791,13 +801,26 @@ public:
 protected:
     void runTest() override
     {
-        // opusFile() carries a stub OpusHead the decoder cannot use, so the
-        // container's CodecDelay is what gets applied, at 48 kHz.
+        // A FLAC track, whose CodecDelay the stream trims, at 48 kHz.
         auto delayFor = [](uint64_t codec_delay_ns) {
-            Parsed parsed(opusFile(1000000, 2008.0, codec_delay_ns));
+            const std::vector<uint8_t> track =
+                element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_FLAC")
+                                      + uintEl(Id::CodecDelay, codec_delay_ns)
+                                      + element(Id::Audio, floatEl(Id::SamplingFrequency, 48000.0)
+                                                         + uintEl(Id::Channels, 2)));
+            Parsed parsed(ebmlHeader("matroska")
+                          + element(Id::Segment,
+                                    element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                                  + element(Id::Tracks, track)));
             return parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack())
                        .encoder_delay;
         };
+
+        // 6,500,000 ns at 48 kHz is 312 sample frames. Nanoseconds are no use
+        // to a trim counted in frames.
+        ASSERT_EQUALS(uint32_t{312}, delayFor(6500000), "CodecDelay converts to sample frames");
 
         ASSERT_EQUALS(uint32_t{480000}, delayFor(10ULL * 1000000000ULL),
                       "10 s is the largest delay still honoured");

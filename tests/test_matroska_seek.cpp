@@ -878,6 +878,10 @@ protected:
                                         uintEl(Id::TrackNumber, 1)
                                       + uintEl(Id::TrackType, TrackType::Audio)
                                       + strEl(Id::CodecID, "A_OPUS")
+                                      + element(Id::CodecPrivate,
+                                                std::vector<uint8_t>{'O','p','u','s','H','e','a','d',
+                                                                     1, 2, 0x38, 0x01, 0x80, 0xBB,
+                                                                     0, 0, 0, 0, 0})
                                       + element(Id::Audio, floatEl(Id::SamplingFrequency, 48000.0)
                                                          + uintEl(Id::Channels, 2))));
             ASSERT_TRUE(demuxer != nullptr, "fixture should parse");

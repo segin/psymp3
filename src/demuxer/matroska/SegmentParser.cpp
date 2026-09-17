@@ -138,6 +138,28 @@ std::vector<uint8_t> legacyAacConfig(const std::string& codec_id, double coded_h
     return out;
 }
 
+/// Whether OpusCodec will start from this CodecPrivate. The checks mirror
+/// OpusHeader::parseFromPacket() and isValid() field for field: 19 bytes, the
+/// magic, version 1, a non-zero channel count, and mapping family 0, 1 or
+/// 255. They are restated here because Opus support is optional and the
+/// demuxer is built without it.
+bool opusHeadUsable(const std::vector<uint8_t>& cp)
+{
+    return cp.size() >= 19 &&
+           cp[0] == 'O' && cp[1] == 'p' && cp[2] == 'u' && cp[3] == 's' &&
+           cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd' &&
+           cp[8] == 1 && cp[9] != 0 &&
+           (cp[18] == 0 || cp[18] == 1 || cp[18] == 255);
+}
+
+/// CodecPrivate as the decoder receives it, header stripping undone.
+std::vector<uint8_t> codecPrivateOf(const TrackEntry& track)
+{
+    std::vector<uint8_t> data = track.stripped_private_prefix;
+    data.insert(data.end(), track.codec_private.begin(), track.codec_private.end());
+    return data;
+}
+
 /// An unsigned integer element's value, or @p fallback when the element is
 /// empty. An empty element whose schema declares a default takes that default
 /// (RFC 8794 6.1); EBMLReader reads it as 0, which is right only when there is
@@ -583,6 +605,9 @@ const TrackEntry* SegmentParser::preferredAudioTrack() const
         if (track.unsupported_encoding) {
             continue; // its frames would reach the decoder still encoded
         }
+        if (track.codec_id == "A_OPUS" && !opusHeadUsable(codecPrivateOf(track))) {
+            continue; // the decoder has no OpusHead to start from
+        }
         if (track.default_track) {
             return &track;
         }
@@ -647,9 +672,14 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     info.sample_rate = static_cast<uint32_t>(rate + 0.5);
     info.channels = track.channels;
     info.bits_per_sample = track.bit_depth;
-    info.codec_data = track.stripped_private_prefix;
-    info.codec_data.insert(info.codec_data.end(), track.codec_private.begin(),
-                           track.codec_private.end());
+    info.codec_data = codecPrivateOf(track);
+    // An Opus track needs an OpusHead the decoder accepts. Without one,
+    // OpusCodec takes the first audio packets for headers and plays nothing,
+    // so such a track is given no codec and refused by name instead. That
+    // covers mapping families 2 and 3 (ambisonics) too.
+    if (track.codec_id == "A_OPUS" && !opusHeadUsable(info.codec_data)) {
+        info.codec_name.clear();
+    }
     if (info.codec_data.empty()) {
         info.codec_data = legacyAacConfig(track.codec_id, track.sampling_frequency,
                                           track.output_sampling_frequency, track.channels);
@@ -664,28 +694,16 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     // frames again: a stock 48 kHz Opus track states pre_skip 312 in OpusHead
     // and CodecDelay 6,500,000 ns, and 624 frames of real audio went missing.
     //
-    // So leave the trim to the decoder whenever the header it reads is one it
-    // will actually accept -- the same test OpusCodec applies before seeding
-    // m_pre_skip -- and keep the container's value otherwise, so a truncated,
-    // absent or rejected OpusHead does not end up with no trim at all. The
-    // checks mirror OpusHeader::parseFromPacket() and isValid() field for field
-    // (19 bytes, magic, version 1, a non-zero channel count, mapping family 0, 1
-    // or 255). They are restated here because Opus support is optional and the
-    // demuxer is built without it.
+    // So Opus leaves the trim to the decoder. An Opus track the decoder cannot
+    // start is refused above, so there is no case where the container's value
+    // would have to stand in.
     //
     // Vorbis needs no header test. A Vorbis decoder's output already starts at
     // the stream's first sample, because the first packet only primes the
     // overlap and yields nothing, and the CodecDelay muxers write for Vorbis
     // (ffmpeg's 2,666,667 ns, 128 frames at 48 kHz) describes that same
     // overlap. Trimming it again cut 128 real frames off every such track.
-    const std::vector<uint8_t>& cp = track.codec_private;
-    const bool opus_head_usable =
-        track.codec_id == "A_OPUS" && cp.size() >= 19 &&
-        cp[0] == 'O' && cp[1] == 'p' && cp[2] == 'u' && cp[3] == 's' &&
-        cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd' &&
-        cp[8] == 1 && cp[9] != 0 &&
-        (cp[18] == 0 || cp[18] == 1 || cp[18] == 255);
-    const bool decoder_trims_its_own_delay = opus_head_usable || track.codec_id == "A_VORBIS";
+    const bool decoder_trims_its_own_delay = track.codec_id == "A_OPUS" || track.codec_id == "A_VORBIS";
 
     // RFC 9559 sets no upper bound on CodecDelay, but no codec primes for
     // anything like 10 s (Opus states 6.5 ms). A larger value comes from a
