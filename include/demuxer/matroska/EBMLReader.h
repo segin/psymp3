@@ -48,6 +48,11 @@ struct EBMLElement {
     /// else ends it. Live-muxed WebM writes its Segment and Clusters this way,
     /// because a muxer streaming to a socket cannot know the length in advance.
     bool unknown_size = false;
+    /// The ID is one EBML forbids: its value bits are all ones, or all zeros
+    /// at two bytes or more (RFC 8794 5). Only damage produces one, so the
+    /// size after it is not to be trusted either. The one-byte 0x80 is legal
+    /// (RFC 9559 4.2).
+    bool invalid_id = false;
     /// Offset of the first byte of the ID.
     uint64_t header_offset = 0;
     /// Offset of the first byte of the payload.
@@ -121,6 +126,11 @@ public:
     /// place with a shorter one, and a CodecID compared with them left on
     /// matches nothing.
     std::string readString(const EBMLElement& element);
+    /// UTF-8 payload, cut at the first NUL as readString does, with invalid
+    /// sequences repaired. For the elements RFC 9559 types utf-8 -- titles,
+    /// names, tag names and values -- where readString is for the ASCII
+    /// string elements such as CodecID.
+    std::string readUTF8(const EBMLElement& element);
     /// Raw payload. Refuses anything past kMaxBinarySize.
     std::vector<uint8_t> readBinary(const EBMLElement& element);
     /// Nanoseconds since 2001-01-01T00:00:00 UTC -- the EBML epoch, which is

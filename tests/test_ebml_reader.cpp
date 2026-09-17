@@ -384,6 +384,56 @@ protected:
     }
 };
 
+class InvalidIdTest : public TestCase {
+public:
+    InvalidIdTest() : TestCase("IDs with all-ones or wide all-zeros value bits are flagged") {}
+
+protected:
+    void runTest() override
+    {
+        struct Case { std::vector<uint8_t> bytes; bool invalid; const char* what; };
+        const Case cases[] = {
+            {{0xFF, 0x81, 0x00}, true, "0xFF, all ones at one byte"},
+            {{0x7F, 0xFF, 0x81, 0x00}, true, "0x7FFF, all ones at two bytes"},
+            {{0x40, 0x00, 0x81, 0x00}, true, "0x4000, all zeros at two bytes"},
+            {{0x10, 0x00, 0x00, 0x00, 0x81, 0x00}, true, "0x10000000, all zeros at four"},
+            {{0x80, 0x81, 0x00}, false, "0x80, which RFC 9559 makes legal"},
+            {{0x1A, 0x45, 0xDF, 0xA3, 0x81, 0x00}, false, "the EBML header's ID"},
+        };
+        for (const Case& c : cases) {
+            Bytes bytes(c.bytes);
+            EBMLElement element;
+            ASSERT_TRUE(bytes.reader().readElementHeader(element), std::string(c.what) + ": reads");
+            ASSERT_EQUALS(c.invalid, element.invalid_id, c.what);
+        }
+    }
+};
+
+class Utf8Test : public TestCase {
+public:
+    Utf8Test() : TestCase("UTF-8 elements come back as valid UTF-8") {}
+
+protected:
+    void runTest() override
+    {
+        using PsyMP3::Core::Utility::UTF8Util;
+        {   // Valid text is untouched, and NUL padding goes as for strings.
+            Bytes bytes({0x81, 0x87, 'C', 'a', 'f', 0xC3, 0xA9, 0x00, 0x00});
+            EBMLElement element;
+            bytes.reader().readElementHeader(element);
+            ASSERT_TRUE(bytes.reader().readUTF8(element) == "Caf\xC3\xA9", "valid UTF-8 is kept");
+        }
+        {   // A Latin-1 byte is not UTF-8, and is repaired rather than passed on.
+            Bytes bytes({0x81, 0x84, 'C', 'a', 'f', 0xE9});
+            EBMLElement element;
+            bytes.reader().readElementHeader(element);
+            const std::string text = bytes.reader().readUTF8(element);
+            ASSERT_TRUE(UTF8Util::isValid(text), "the result is valid UTF-8");
+            ASSERT_TRUE(text.compare(0, 3, "Caf") == 0, "and keeps what was valid");
+        }
+    }
+};
+
 class NestedElementTest : public TestCase {
 public:
     NestedElementTest() : TestCase("Master elements can be walked child by child") {}
@@ -437,6 +487,8 @@ int main()
     suite.addTest(std::make_unique<UnknownSizeElementTest>());
     suite.addTest(std::make_unique<HostileSizeTest>());
     suite.addTest(std::make_unique<ShortFileTest>());
+    suite.addTest(std::make_unique<InvalidIdTest>());
+    suite.addTest(std::make_unique<Utf8Test>());
     suite.addTest(std::make_unique<NestedElementTest>());
 
     auto results = suite.runAll();

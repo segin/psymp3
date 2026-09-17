@@ -297,9 +297,9 @@ void SegmentParser::parseInfo(EBMLReader& reader, const EBMLElement& info)
         switch (child.id) {
         case Id::TimestampScale: m_info.timestamp_scale_ns = uintOr(reader, child, 1000000); break;
         case Id::Duration:       m_info.duration_ticks = reader.readFloat(child);    break;
-        case Id::MuxingApp:      m_info.muxing_app = reader.readString(child);       break;
-        case Id::WritingApp:     m_info.writing_app = reader.readString(child);      break;
-        case Id::Title:          m_info.title = reader.readString(child);            break;
+        case Id::MuxingApp:      m_info.muxing_app = reader.readUTF8(child);         break;
+        case Id::WritingApp:     m_info.writing_app = reader.readUTF8(child);        break;
+        case Id::Title:          m_info.title = reader.readUTF8(child);              break;
         default: break;
         }
         reader.seek(child.end());
@@ -343,9 +343,9 @@ TrackEntry SegmentParser::parseTrackEntry(EBMLReader& reader, const EBMLElement&
         case Id::TrackUID:        track.uid = reader.readUInt(child); break;
         case Id::TrackType:       track.type = reader.readUInt(child); break;
         case Id::CodecID:         track.codec_id = reader.readString(child); break;
-        case Id::CodecName:       track.codec_name = reader.readString(child); break;
+        case Id::CodecName:       track.codec_name = reader.readUTF8(child); break;
         case Id::CodecPrivate:    track.codec_private = reader.readBinary(child); break;
-        case Id::TrackName:       track.name = reader.readString(child); break;
+        case Id::TrackName:       track.name = reader.readUTF8(child); break;
         case Id::Language:        track.language = reader.readString(child); break;
         case Id::DefaultDuration: track.default_duration_ns = reader.readUInt(child); break;
         case Id::CodecDelay:      track.codec_delay_ns = reader.readUInt(child); break;

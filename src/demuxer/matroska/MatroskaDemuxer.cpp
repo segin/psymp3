@@ -200,9 +200,9 @@ void MatroskaDemuxer::parseTags(uint64_t tags_offset)
                             break;
                         }
                         if (field.id == Id::TagName) {
-                            name = m_reader.readString(field);
+                            name = m_reader.readUTF8(field);
                         } else if (field.id == Id::TagString) {
-                            value = m_reader.readString(field);
+                            value = m_reader.readUTF8(field);
                         }
                         m_reader.seek(field.end());
                     }
@@ -414,6 +414,14 @@ bool MatroskaDemuxer::fillQueue()
             if (child.id == Id::Cluster) {
                 m_cluster_end = 0;
                 m_read_offset = child.header_offset;
+                continue;
+            }
+            // An ID EBML forbids is damage, and the size after it cannot be
+            // trusted; the rest of the cluster goes with it.
+            if (child.invalid_id) {
+                Debug::log("demux", "MatroskaDemuxer: invalid element ID at ", child.header_offset);
+                m_read_offset = m_cluster_end;
+                m_cluster_end = 0;
                 continue;
             }
             // A child that claims to run past its cluster is damage. Reading

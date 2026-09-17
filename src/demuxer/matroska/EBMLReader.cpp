@@ -149,6 +149,9 @@ bool EBMLReader::readElementHeader(EBMLElement& out)
     }
 
     out.id = static_cast<uint32_t>(id);
+    const uint64_t marker = 1ULL << (7 * id_length);
+    const uint64_t id_bits = id & (marker - 1);
+    out.invalid_id = id_bits == marker - 1 || (id_bits == 0 && id_length > 1);
     out.size = unknown ? 0 : size;
     out.unknown_size = unknown;
     out.header_offset = start;
@@ -255,6 +258,17 @@ std::string EBMLReader::readString(const EBMLElement& element)
         value.resize(end);
     }
     return value;
+}
+
+std::string EBMLReader::readUTF8(const EBMLElement& element)
+{
+    if (element.size > kMaxBinarySize) {
+        throw std::runtime_error("EBML: implausible string length");
+    }
+    const std::vector<uint8_t> bytes = readBounded(element);
+    // decodeSafe stops at the first NUL (RFC 8794 13) and repairs what is not
+    // UTF-8, the same treatment Vorbis comments get.
+    return PsyMP3::Core::Utility::UTF8Util::decodeSafe(bytes.data(), bytes.size());
 }
 
 std::vector<uint8_t> EBMLReader::readBinary(const EBMLElement& element)
