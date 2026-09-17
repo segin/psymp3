@@ -45,7 +45,10 @@ public:
 
 private:
     EnhancedBufferPool();
-    ~EnhancedBufferPool() = default;
+    /// Unregisters the memory pressure callback, which captures this.
+    ~EnhancedBufferPool();
+
+    int m_pressure_callback_id = -1;
     
     // Disable copy constructor and assignment
     EnhancedBufferPool(const EnhancedBufferPool&) = delete;

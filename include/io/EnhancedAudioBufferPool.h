@@ -77,7 +77,10 @@ public:
 
 private:
     EnhancedAudioBufferPool();
-    ~EnhancedAudioBufferPool() = default;
+    /// Unregisters the memory pressure callback, which captures this.
+    ~EnhancedAudioBufferPool();
+
+    int m_pressure_callback_id = -1;
     
     // Disable copy constructor and assignment
     EnhancedAudioBufferPool(const EnhancedAudioBufferPool&) = delete;

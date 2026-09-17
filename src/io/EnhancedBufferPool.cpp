@@ -33,10 +33,17 @@ EnhancedBufferPool::EnhancedBufferPool()
     m_min_memory_pressure_reduce = 8;
     m_pressure_reduction_val = 256 * 1024;
 
-    // Register for memory pressure updates
-    MemoryTracker::getInstance().registerMemoryPressureCallback(
+    // Register for memory pressure updates. The tracker is constructed here,
+    // before this singleton finishes, so it outlives it, and the destructor
+    // below can take the callback back before `this` is gone.
+    m_pressure_callback_id = MemoryTracker::getInstance().registerMemoryPressureCallback(
         [this](int pressure) { this->setMemoryPressure(pressure); }
     );
+}
+
+EnhancedBufferPool::~EnhancedBufferPool()
+{
+    MemoryTracker::getInstance().unregisterMemoryPressureCallback(m_pressure_callback_id);
 }
 
 size_t EnhancedBufferPool::calculateRoundedSize(size_t target_size) const {

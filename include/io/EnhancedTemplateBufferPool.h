@@ -195,10 +195,11 @@ public:
      * @param pressure_level Memory pressure level
      */
     void setMemoryPressure(int pressure_level) {
-        m_memory_pressure = std::max(0, std::min(100, pressure_level));
+        const int level = std::max(0, std::min(100, pressure_level));
+        m_memory_pressure.store(level);
 
         // If memory pressure is high, proactively reduce pool size
-        if (m_memory_pressure > 70) {
+        if (level > 70) {
             std::lock_guard<std::mutex> lock(m_mutex);
 
             // Keep only half of the buffers in each category
@@ -315,7 +316,9 @@ protected:
     mutable std::mutex m_mutex;
 
     // Memory pressure tracking
-    int m_memory_pressure;
+    /// Written by MemoryTracker's callback on whatever thread reports the
+    /// pressure, and read wherever buffers are taken or returned.
+    std::atomic<int> m_memory_pressure;
 
     // Usage statistics
     size_t m_buffer_hits;
