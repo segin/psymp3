@@ -141,7 +141,8 @@ bool MatroskaDemuxer::parseContainer()
                 m_index.buildByScanning(m_reader, m_parser.firstClusterOffset(), m_file_size);
             }
         } catch (const std::exception& e) {
-            Debug::log("demux", "MatroskaDemuxer: index unusable, seeking disabled: ", e.what());
+            Debug::log("demux", "MatroskaDemuxer: index unusable, seeks will restart at the first cluster: ",
+                       e.what());
             m_index = CueIndex();
         }
     }
