@@ -518,6 +518,12 @@ test_iso_seek_SOURCES = test_iso_seek.cpp
 test_iso_seek_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
+if HAVE_FLAC
+check_PROGRAMS += test_flac_seek_landing
+test_flac_seek_landing_SOURCES = test_flac_seek_landing.cpp
+test_flac_seek_landing_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+endif
+
 test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
 test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
@@ -3379,6 +3385,7 @@ test_mpris_memory_validation_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 # Test scripts for running comprehensive test suites
 EXTRA_DIST = matroska_ebml_builder.h \
 	fdk_aac_test_encoder.h \
+	flac_test_stream.h \
 	run_mpris_mock_tests.sh \
 	run_mpris_stress_tests.sh \
 	run_mpris_logging_tests.sh \

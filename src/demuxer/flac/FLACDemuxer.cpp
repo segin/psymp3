@@ -4914,7 +4914,10 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         // ====================================================================
         // Requirement 3.3: Check convergence (within 250ms tolerance)
         // ====================================================================
-        if (time_diff_ms <= TOLERANCE_MS) {
+        // Only a frame that starts at or before the target will do: the
+        // stream drops what comes before the target, but nothing can bring
+        // back what a later frame skips.
+        if (is_before_target && time_diff_ms <= TOLERANCE_MS) {
             FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.3: Within tolerance (",
                        time_diff_ms, "ms <= ", TOLERANCE_MS, "ms)");
             

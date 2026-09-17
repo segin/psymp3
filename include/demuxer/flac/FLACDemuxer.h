@@ -310,6 +310,11 @@ public:
     uint64_t getDuration() const override;
     uint64_t getPosition() const override;
     uint64_t getGranulePosition(uint32_t stream_id) const override;
+    /// Every frame states its first sample, so a seek's landing and each
+    /// chunk's time are exact, and DemuxedStream trims to the target from
+    /// wherever the search stopped.
+    bool providesGranulePositions() const override { return true; }
+    bool chunkTimesAreExact() const override { return true; }
 
 private:
     // ========================================================================
