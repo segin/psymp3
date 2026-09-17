@@ -88,9 +88,10 @@ struct EAC3AudioFrame {
 ///
 /// @p reader must be positioned at the sync word. @p header receives the
 /// fields AC3FrameHeader describes, @p frame everything the blocks need.
-/// Returns false, with @p reason set, for a frame that is malformed or uses
-/// syntax this decoder does not follow (for instance mixdef 3's variable
-/// mixing data, which it skips by length but cannot validate).
+/// Returns false, with @p reason set, when the header does not parse as an
+/// E-AC-3 syncframe or the fields run past the end of the buffer. Syntax the
+/// decoder has no use for -- mixdef 3's mixing data, addbsi, blkstrtinfo --
+/// is stepped over by its length, not validated.
 bool eac3ParseFrame(AC3BitReader& reader, AC3FrameHeader& header,
                     EAC3AudioFrame& frame, const char** reason = nullptr);
 
