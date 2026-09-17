@@ -75,6 +75,12 @@ void AC3FrameDecoder::finishBlock(Frame& frame, unsigned index, const AC3Block* 
                 eac3EcplRegenerate(zr, zi, block.ecpl_bands, block.ecpl[ch], ch,
                                    block.ecpl_angle_interpolation, m_ecpl_random,
                                    block.coefficients[ch]);
+                // Zero-bit bins keep their dither as drawn, at the coupling
+                // channel's level. Standard coupling scales it by the
+                // channel's coordinate (§7.4.3), but Annex E does not say
+                // whether enhanced coupling's amplitudes apply to it, and
+                // there is no encoder at hand that emits enhanced coupling
+                // to compare a decode against.
                 for (unsigned bin = 0; bin < kBlockSamples; ++bin) {
                     if (block.ecpl_dithered[ch][bin]) {
                         block.coefficients[ch][bin] = block.ecpl_dither[ch][bin];
