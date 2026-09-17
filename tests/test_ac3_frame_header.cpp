@@ -16,7 +16,8 @@ using namespace PsyMP3::Codec::AC3;
 namespace {
 
 /// Writes bits most significant first, so a test can spell a syncframe header
-/// out field by field the way A/52 Tables 5.1 and E1.2 print them.
+/// out field by field the way A/52 prints it: Tables 5.1 and 5.2 for AC-3's
+/// syncinfo() and bsi(), Tables E1.1 and E1.2 for E-AC-3's.
 class BitWriter {
 public:
     void put(uint32_t value, unsigned bits)
@@ -186,9 +187,11 @@ public:
 protected:
     void runTest() override
     {
-        // A/52 §E2.3.1.6: 0..8 AC-3, 9..10 the Annex D alternate syntax,
-        // 11..16 E-AC-3. bsid sits at bit 40 in both layouts precisely so it
-        // can be read before either is parsed.
+        // A/52 §E2.3.1.6: bsid 0..8 is AC-3 and 11..16 is E-AC-3, both to be
+        // decoded, while 9 and 10 cannot be decoded and must be muted. Annex
+        // D's alternate syntax is bsid 6 (§D2.1), which decodes as AC-3.
+        // §E2.1 puts bsid at the same offset, bit 40, in both layouts so the
+        // two can be told apart before either is parsed.
         AC3FrameHeader header;
         auto ac3 = ac3Header(0, 0, /*bsid=*/8);
         ASSERT_TRUE(parseAC3FrameHeader(ac3.data(), ac3.size(), header), "AC-3 parses");
@@ -207,11 +210,13 @@ protected:
         ASSERT_TRUE(std::string(header.displayName()) == "E-AC-3",
                     "and is named E-AC-3, so Media Information can tell the two apart");
 
-        // The Annex D alternate syntax is still AC-3 by name.
-        auto alternate = ac3Header(0, 0, /*bsid=*/9);
-        ASSERT_TRUE(parseAC3FrameHeader(alternate.data(), alternate.size(), header), "parses");
+        // bsid 9 lies between the two ranges. Its header is read with AC-3's
+        // layout, so it is still named AC-3, but §E2.3.1.6 says to mute it
+        // rather than decode it.
+        auto muted = ac3Header(0, 0, /*bsid=*/9);
+        ASSERT_TRUE(parseAC3FrameHeader(muted.data(), muted.size(), header), "parses");
         ASSERT_TRUE(std::string(header.displayName()) == "AC-3", "bsid 9 is still AC-3");
-        ASSERT_FALSE(header.isDecodable(), "though this decoder does not implement it");
+        ASSERT_FALSE(header.isDecodable(), "though A/52 says it cannot be decoded");
     }
 };
 
