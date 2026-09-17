@@ -39,13 +39,14 @@ enum class ExponentStrategy {
     D45   = 3, ///< one per quad
 };
 
-/// The largest exponent a stream can state. A/52 §7.1.3 calls these "5-bit
-/// absolute exponents", but the coded range stops at 24: an exponent is a
-/// right-shift applied to a mantissa, and 24 already shifts a 24-bit value
-/// away entirely.
+/// The largest exponent a stream can state. Exponents are 5-bit values, but
+/// A/52 §7.1.1 allows only 0..24: a coefficient with more than 24 leading
+/// zeros keeps exponent 24, and its mantissa carries the rest as leading
+/// zeros of its own.
 constexpr uint8_t kMaxExponent = 24;
 
-/// Mantissas that share one differential, A/52 Table 7.4: 1, 2 or 4.
+/// Mantissas that share one exponent: grpsize in A/52 §7.1.3, 1 for D15, 2
+/// for D25 and 4 for D45.
 unsigned ac3ExponentGroupSize(ExponentStrategy strategy);
 
 /// Number of coded groups for an independent or coupled channel, A/52 §7.1.3.
@@ -81,17 +82,20 @@ unsigned ac3ChannelEndMantissa(uint8_t chbwcod);
 unsigned ac3CouplingStartMantissa(uint8_t cplbegf);
 unsigned ac3CouplingEndMantissa(int cplendf);
 
-/// The LFE channel is fixed: bins 0 to 7, always two groups, always D15.
+/// The LFE channel is fixed: bins 0 to 6 (lfeendmant = 7, an exclusive end),
+/// always two groups, always D15.
 constexpr unsigned kLfeEndMantissa = 7;
 constexpr unsigned kLfeExponentGroups = 2;
 
 /// Decodes one channel's exponents into @p exponents.
 ///
 /// Exponents are differentially coded and packed three to a 7-bit word, so a
-/// group states three deltas of -2..+2 each and every delta is then repeated
-/// across its group size. Bin 0 carries the absolute exponent, which is sent
-/// separately, and every later bin is reached by accumulation -- which is why
-/// a single corrupt group skews everything above it rather than one bin.
+/// group states three deltas of -2..+2 each. The exponent each delta produces
+/// is then copied across 1, 2 or 4 bins, the strategy's grpsize, so a delta
+/// moves the exponent once, not once per bin (§7.1.3 step 4). Bin 0 carries
+/// the absolute exponent, which is sent separately, and every later bin is
+/// reached by accumulation -- which is why a single corrupt group skews
+/// everything above it rather than one bin.
 ///
 /// @param absolute_exponent  exps[ch][0], the exponent of bin 0. For the
 ///                           coupling channel this is cplabsexp doubled: it is

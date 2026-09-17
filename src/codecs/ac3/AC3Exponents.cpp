@@ -131,8 +131,8 @@ unsigned ac3DecodeExponents(AC3BitReader& reader, ExponentStrategy strategy,
     int previous = absolute_exponent;
 
     for (unsigned group = 0; group < group_count; ++group) {
-        // Three mapped values packed into one 7-bit word, A/52 §7.1.3:
-        // gexp = 25*M1 + 5*M2 + M3, each M in 0..4.
+        // Three mapped values packed into one 7-bit word as
+        // 25*M1 + 5*M2 + M3, each M in 0..4 (A/52 §7.1.2); §7.1.3 unpacks it.
         uint32_t packed = reader.read(7);
         int deltas[3];
         deltas[0] = static_cast<int>(packed / 25);
