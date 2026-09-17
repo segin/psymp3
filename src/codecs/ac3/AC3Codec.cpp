@@ -121,6 +121,12 @@ AudioFrame AC3Codec::decode_unlocked(const MediaChunk& chunk)
         }
         AC3FrameHeader header;
         if (!parseAC3FrameHeader(p, avail, header) || header.frame_size == 0) {
+            if (avail < kMaxHeaderParseBytes) {
+                // Maybe not a bad header but one cut short: the rest of it
+                // arrives with the next chunk. Skipping here threw the frame
+                // away whenever a slice ended inside a header.
+                break;
+            }
             ++offset;
             continue;
         }

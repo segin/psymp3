@@ -485,6 +485,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_ac3_downmix \
 	test_ac3_oracle \
 	test_ac3_null_demuxer \
+	test_ac3_codec \
 	test_mp2_codec \
 	test_demuxed_stream_seek \
 	test_http_client_parse_url \
@@ -586,6 +587,12 @@ test_mp2_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
 
 test_ac3_oracle_SOURCES = test_ac3_oracle.cpp
 test_ac3_oracle_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
+
+test_ac3_codec_SOURCES = test_ac3_codec.cpp
+# FULL_CODEC_LIBS names the AC-3 codec archive after the codec base it needs,
+# so it is named once more ahead of them.
+test_ac3_codec_LDADD = $(top_builddir)/src/codecs/ac3/libpsymp3-codec-ac3.a \
+	$(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
 
 test_ac3_null_demuxer_SOURCES = test_ac3_null_demuxer.cpp
 test_ac3_null_demuxer_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
