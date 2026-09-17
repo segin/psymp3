@@ -688,6 +688,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     // Calculate pre-skip offset
     uint64_t samples_to_skip = m_samples_to_skip.load();
     size_t actual_skip_frames = 0;
+    m_last_skipped_frames = 0;
 
     if (samples_to_skip > 0 && samples_decoded > 0) {
         actual_skip_frames = std::min(static_cast<size_t>(samples_decoded), static_cast<size_t>(samples_to_skip));
@@ -702,6 +703,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
 
         Debug::log("opus", "Pre-skip applied during decoding: skipped ", actual_skip_frames, " sample frames");
     }
+    m_last_skipped_frames = actual_skip_frames;
 
     size_t frames_to_keep = samples_decoded - actual_skip_frames;
     size_t samples_to_keep = frames_to_keep * m_channels;
@@ -769,7 +771,10 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
                 ? (expected_output_samples - emitted_sample_frames)
                 : 0;
     } else {
-        frame.timestamp_samples = chunk.timestamp_samples;
+        // The packet's audio starts at its time, and what is kept starts
+        // after the pre-skip dropped from it -- which a reset restores, so
+        // the first packet after a seek loses it again.
+        frame.timestamp_samples = chunk.timestamp_samples + m_last_skipped_frames;
     }
 
     // End trimming is only valid for the terminal packet of the stream.

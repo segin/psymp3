@@ -123,6 +123,8 @@ private:
     // Position tracking
     std::atomic<uint64_t> m_samples_decoded{0};
     std::atomic<uint64_t> m_samples_to_skip{0};
+    /// Pre-skip frames dropped from the packet decoded last.
+    size_t m_last_skipped_frames = 0;
     
     // Error handling
     std::atomic<bool> m_error_state{false};
