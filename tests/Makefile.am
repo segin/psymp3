@@ -484,6 +484,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_ac3_drc \
 	test_ac3_downmix \
 	test_ac3_oracle \
+	test_mp2_codec \
 	test_http_client_parse_url \
 	test_http_client_fallback \
 	test_http_iohandler_validation \
@@ -573,6 +574,10 @@ test_ac3_downmix_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 # Decodes the broadband oracle streams of generate_ac3_corpus.sh through
 # DemuxedStream and compares band energies with ffmpeg's decode; skips (77)
 # when the corpus has not been generated.
+# MP2Codec's channel handling (kjmp2 always decodes to stereo).
+test_mp2_codec_SOURCES = test_mp2_codec.cpp
+test_mp2_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
+
 test_ac3_oracle_SOURCES = test_ac3_oracle.cpp
 test_ac3_oracle_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
 

@@ -70,6 +70,12 @@ bool MP2Codec::canDecode(const StreamInfo& stream_info) const {
 
 bool MP2Codec::initialize_unlocked() {
     kjmp2_init(&m_decoder);
+    // kjmp2 always produces two channels. A mono stream is handed back as
+    // mono (see decode_unlocked); anything else is stereo, whatever the
+    // container claimed, since that is what the device has to be opened for.
+    if (m_stream_info.channels != 1) {
+        m_stream_info.channels = 2;
+    }
     m_initialized = true;
     Debug::log("mp2", "MP2Codec: Initialized kjmp2 decoder");
     return true;
@@ -100,13 +106,19 @@ AudioFrame MP2Codec::decode_unlocked(const MediaChunk& chunk) {
     }
 
     AudioFrame frame;
-    // kjmp2 emits 16-bit PCM; the pipeline carries full-scale S32.
-    frame.samples.resize(KJMP2_SAMPLES_PER_FRAME * 2);
+    // kjmp2 duplicates a mono stream into both channels. The device is opened
+    // with the stream's channel count, so a mono stream gets one channel of
+    // each pair back: handing a mono device the interleaved pair played every
+    // sample twice, at half speed and an octave down. kjmp2 emits 16-bit PCM;
+    // the pipeline carries full-scale S32.
+    const size_t channels = m_stream_info.channels == 1 ? 1 : 2;
+    const size_t stride = 2 / channels;
+    frame.samples.resize(KJMP2_SAMPLES_PER_FRAME * channels);
     for (size_t i = 0; i < frame.samples.size(); ++i) {
-        frame.samples[i] = static_cast<AudioSample>(pcm[i]) * 65536;
+        frame.samples[i] = static_cast<AudioSample>(pcm[i * stride]) * 65536;
     }
     frame.sample_rate = m_sample_rate;
-    frame.channels = 2; // kjmp2 output is always stereo-interleaved
+    frame.channels = static_cast<uint16_t>(channels);
     frame.timestamp_samples = chunk.timestamp_samples;
     if (m_sample_rate != 0) {
         frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / m_sample_rate;
