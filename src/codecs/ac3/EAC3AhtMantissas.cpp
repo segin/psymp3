@@ -71,7 +71,7 @@ float eac3GaqDequantize(AC3BitReader& reader, unsigned hebap, unsigned gain)
 
     // Gk of 2 or 4: a shorter small codeword, gain-attenuated, unless it is
     // the tag -- the full-scale negative codeword -- in which case a large
-    // mantissa follows it and is remapped instead (Table E3.5).
+    // mantissa follows it and is remapped instead (Tables E3.5 and E3.6).
     const unsigned gain_index = gain == 2 ? 1u : 2u;
     const unsigned small_bits = gain == 2 ? m - 1 : m - 2;
     const unsigned large_bits = gain == 2 ? m - 1 : m;
@@ -86,9 +86,12 @@ float eac3GaqDequantize(AC3BitReader& reader, unsigned hebap, unsigned gain)
 
 void eac3AhtInverseDct(const float x[6], float c[6])
 {
-    // The printed equation's two radicals -- the leading sqrt(2) and
-    // R_0 = 1/sqrt(2) -- are what make it an orthogonal transform; the
-    // plain-text rendering of the standard drops both.
+    // The printed equation has two radicals, a leading sqrt(2) and
+    // R_0 = 1/sqrt(2); the plain-text rendering of the standard drops both.
+    // R_0 gives the DC basis function the same length as the other five, so
+    // the transform is orthogonal up to scale (M^T M = 6I). The leading
+    // sqrt(2) only sets the gain: it cancels R_0, so X = (1, 0, ..., 0) gives
+    // C(m) = 1.
     constexpr double kSqrt2 = 1.41421356237309504880;
     for (unsigned m = 0; m < 6; ++m) {
         double sum = x[0] / kSqrt2;

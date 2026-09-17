@@ -9,8 +9,10 @@
  * Every table here was extracted mechanically from the printed standard and
  * checked, never read off by eye:
  *   - hebaptab: 64 non-decreasing entries covering every value 0..19;
- *   - remap constants: the Gk = 1 column equals round(32768 / (2^m - 1)) for
- *     every hebap, and the sign and N/A structure matches the table's;
+ *   - remap constants: the Gk = 1 'a' column equals round(32768 / (2^m - 1))
+ *     for hebap 8..18. hebap 19 is printed as 0 where the formula gives 1,
+ *     and is kept as printed, which makes its remap y = x. The sign and N/A
+ *     structure matches the table's;
  *   - VQ codebooks: exactly 4, 8, 16, 32, 128, 256 and 512 contiguous rows of
  *     six 16-bit values, so a row lost or split at a page break fails.
  */
