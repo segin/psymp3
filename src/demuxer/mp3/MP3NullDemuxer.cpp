@@ -334,7 +334,7 @@ bool MP3NullDemuxer::parseFirstFrame_unlocked() {
         uint32_t frame_size = getFrameSize(header);
 
         // Set up stream info. Route Layer II to the dedicated mp2 (kjmp2) codec;
-        // Layer III (and, for lack of a Layer I decoder, Layer I) stay "mp3".
+        // Layers III and I stay "mp3": minimp3 decodes both.
         uint8_t frame_layer = (header[1] >> 1) & 0x03;
         m_stream_info.stream_id = 1;
         m_stream_info.codec_type = "audio";

@@ -54,7 +54,8 @@ private:
         PCM_16_SIGNED,
         PCM_24_SIGNED,
         PCM_32_SIGNED,
-        PCM_32_FLOAT
+        PCM_32_FLOAT,
+        PCM_64_FLOAT
     } m_pcm_format;
     
     void detectPCMFormat();

@@ -86,6 +86,7 @@ protected:
         ASSERT_TRUE(codecNameForId("A_FLAC") == "flac", "A_FLAC");
         ASSERT_TRUE(codecNameForId("A_MPEG/L3") == "mp3", "A_MPEG/L3");
         ASSERT_TRUE(codecNameForId("A_MPEG/L2") == "mp2", "A_MPEG/L2");
+        ASSERT_TRUE(codecNameForId("A_MPEG/L1") == "mp3", "A_MPEG/L1, which minimp3 decodes");
         ASSERT_TRUE(codecNameForId("A_TRUEHD") == "truehd", "A_TRUEHD");
         ASSERT_TRUE(codecNameForId("A_PCM/INT/LIT") == "pcm", "A_PCM/INT/LIT");
 

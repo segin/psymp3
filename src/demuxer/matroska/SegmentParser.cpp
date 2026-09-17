@@ -36,8 +36,8 @@ namespace {
 /// A CodecID missing from here maps to nothing, so the demuxer can say which
 /// codec a file needs rather than open it and fail at the first packet. DTS is
 /// the notable absence: nothing in the tree decodes it, and it is common in
-/// .mkv. A_MS/ACM and A_MPEG/L1 are missing too, although PsyMP3 has decoders
-/// for what they usually carry.
+/// .mkv. A_MS/ACM is missing too, although PsyMP3 has decoders for what it
+/// usually carries.
 struct CodecMapping {
     const char* codec_id;
     const char* codec_name;
@@ -48,10 +48,11 @@ constexpr CodecMapping kCodecMap[] = {
     {"A_VORBIS",        "vorbis"},
     {"A_FLAC",          "flac"},
     {"A_ALAC",          "alac"},
-    // Layers 3 and 2 go to their own decoders. A_MPEG/L1 is not mapped,
-    // although minimp3, behind "mp3", decodes Layer I as well.
+    // Layer II has a decoder of its own. minimp3, behind "mp3", decodes
+    // Layers I and III.
     {"A_MPEG/L3",       "mp3"},
     {"A_MPEG/L2",       "mp2"},
+    {"A_MPEG/L1",       "mp3"},
     // Bare A_AAC carries an AudioSpecificConfig in CodecPrivate, which names
     // the profile. The profile-suffixed IDs are the legacy form and carry
     // none (cellar-codec 3.4.2-3.4.10); toStreamInfo writes one for the LC

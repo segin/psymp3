@@ -72,6 +72,9 @@ bool PCMCodec::canDecode(const StreamInfo& stream_info) const {
         case 24:
         case 32:
             return true;
+        case 64:
+            // Only as float: there is no 64-bit integer PCM to speak of.
+            return stream_info.codec_tag == 0x0003;
         default:
             return false;
     }
@@ -172,6 +175,24 @@ size_t PCMCodec::convertSamples(const std::vector<uint8_t>& input_data,
                 output_samples[i] = static_cast<AudioSample>(sample_float * 2147483520.0f);
             }
             break;
+
+        case PCMFormat::PCM_64_FLOAT:
+            for (size_t i = 0; i < num_samples; ++i) {
+                const uint8_t* p = &input_ptr[i * 8];
+                uint64_t bits = 0;
+                for (int b = 0; b < 8; ++b) {
+                    bits = (bits << 8) | p[big_endian ? b : 7 - b];
+                }
+                double sample;
+                std::memcpy(&sample, &bits, sizeof(double));
+                // As for 32-bit float: NaN is silence, and the rest clamps.
+                if (std::isnan(sample)) {
+                    sample = 0.0;
+                }
+                sample = std::clamp(sample, -1.0, 1.0);
+                output_samples[i] = static_cast<AudioSample>(sample * 2147483647.0);
+            }
+            break;
     }
 
     return num_samples;
@@ -199,6 +220,9 @@ void PCMCodec::detectPCMFormat() {
             } else {
                 m_pcm_format = PCMFormat::PCM_32_SIGNED;
             }
+            break;
+        case 64:
+            m_pcm_format = PCMFormat::PCM_64_FLOAT; // canDecode admits it only as float
             break;
         default:
             m_pcm_format = PCMFormat::PCM_16_SIGNED; // Default fallback
