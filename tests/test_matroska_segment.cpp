@@ -528,6 +528,37 @@ protected:
     }
 };
 
+class VorbisDelayTest : public TestCase {
+public:
+    VorbisDelayTest() : TestCase("A Vorbis track's CodecDelay is left to the decoder") {}
+
+protected:
+    void runTest() override
+    {
+        // ffmpeg writes CodecDelay 2,666,667 ns on Vorbis tracks: the 128-frame
+        // overlap a Vorbis decoder already swallows by emitting nothing for
+        // the first packet. Converting it into encoder_delay trimmed it again
+        // and lost the first 128 frames of real audio.
+        const std::vector<uint8_t> track =
+            element(Id::TrackEntry, uintEl(Id::TrackNumber, 1)
+                                  + uintEl(Id::TrackType, TrackType::Audio)
+                                  + strEl(Id::CodecID, "A_VORBIS")
+                                  + element(Id::CodecPrivate, std::vector<uint8_t>{2, 30, 60})
+                                  + uintEl(Id::CodecDelay, 2666667)
+                                  + element(Id::Audio,
+                                            floatEl(Id::SamplingFrequency, 48000.0)
+                                          + uintEl(Id::Channels, 2)));
+        Parsed parsed(ebmlHeader("webm")
+                      + element(Id::Segment,
+                                element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                              + element(Id::Tracks, track)));
+        const StreamInfo info =
+            parsed.parser().toStreamInfo(*parsed.parser().preferredAudioTrack());
+        ASSERT_EQUALS(uint32_t{0}, info.encoder_delay,
+                      "the decoder already drops the overlap CodecDelay describes");
+    }
+};
+
 class OpusRateTest : public TestCase {
 public:
     OpusRateTest() : TestCase("An Opus track plays at 48 kHz whatever its SamplingFrequency says") {}
@@ -690,6 +721,7 @@ int main()
     suite.addTest(std::make_unique<HostileFloatTest>());
     suite.addTest(std::make_unique<CodecDelayCeilingTest>());
     suite.addTest(std::make_unique<OpusRateTest>());
+    suite.addTest(std::make_unique<VorbisDelayTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

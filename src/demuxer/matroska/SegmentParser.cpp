@@ -464,13 +464,20 @@ StreamInfo SegmentParser::toStreamInfo(const TrackEntry& track) const
     // (19 bytes, magic, version 1, a non-zero channel count, mapping family 0, 1
     // or 255). They are restated here because Opus support is optional and the
     // demuxer is built without it.
+    //
+    // Vorbis needs no header test. A Vorbis decoder's output already starts at
+    // the stream's first sample, because the first packet only primes the
+    // overlap and yields nothing, and the CodecDelay muxers write for Vorbis
+    // (ffmpeg's 2,666,667 ns, 128 frames at 48 kHz) describes that same
+    // overlap. Trimming it again cut 128 real frames off every such track.
     const std::vector<uint8_t>& cp = track.codec_private;
-    const bool decoder_trims_its_own_delay =
+    const bool opus_head_usable =
         track.codec_id == "A_OPUS" && cp.size() >= 19 &&
         cp[0] == 'O' && cp[1] == 'p' && cp[2] == 'u' && cp[3] == 's' &&
         cp[4] == 'H' && cp[5] == 'e' && cp[6] == 'a' && cp[7] == 'd' &&
         cp[8] == 1 && cp[9] != 0 &&
         (cp[18] == 0 || cp[18] == 1 || cp[18] == 255);
+    const bool decoder_trims_its_own_delay = opus_head_usable || track.codec_id == "A_VORBIS";
 
     // RFC 9559 sets no upper bound on CodecDelay, but no codec primes for
     // anything like 10 s (Opus states 6.5 ms). A larger value comes from a
