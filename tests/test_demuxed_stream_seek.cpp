@@ -223,6 +223,85 @@ std::vector<int32_t> readAll(DemuxedStream& stream)
     return counters;
 }
 
+/// Hands out 16-bit stereo PCM in chunks of 441 frames with Ogg-style
+/// granule positions, the last chunk ending the stream short of its audio.
+class GranuleDemuxer : public PsyMP3::Demuxer::Demuxer {
+    static constexpr uint8_t kPlaceholder[1] = {0};
+
+public:
+    static constexpr int kChunks = 10;
+    static constexpr uint64_t kFramesPerChunk = 441;
+    static constexpr uint64_t kShortfall = 80;
+
+    explicit GranuleDemuxer(std::unique_ptr<PsyMP3::Demuxer::Demuxer> inner)
+        : PsyMP3::Demuxer::Demuxer(std::make_unique<MemoryIOHandler>(kPlaceholder, sizeof(kPlaceholder)))
+        , m_inner(std::move(inner)) {}
+
+    bool parseContainer() override { return true; }
+    std::vector<StreamInfo> getStreams() const override { return m_inner->getStreams(); }
+    StreamInfo getStreamInfo(uint32_t id) const override { return m_inner->getStreamInfo(id); }
+    MediaChunk readChunk() override
+    {
+        if (m_next >= kChunks) {
+            m_eof = true;
+            return MediaChunk();
+        }
+        MediaChunk chunk;
+        chunk.stream_id = 1;
+        for (uint64_t f = 0; f < kFramesPerChunk; ++f, ++m_counter) {
+            for (int ch = 0; ch < 2; ++ch) {
+                chunk.data.push_back(static_cast<uint8_t>(m_counter & 0xFF));
+                chunk.data.push_back(static_cast<uint8_t>(m_counter >> 8));
+            }
+        }
+        ++m_next;
+        chunk.granule_position = kFramesPerChunk * static_cast<uint64_t>(m_next);
+        if (m_next == kChunks) {
+            chunk.granule_position -= kShortfall;
+            chunk.end_of_stream = true;
+        }
+        return chunk;
+    }
+    MediaChunk readChunk(uint32_t) override { return readChunk(); }
+    bool seekTo(uint64_t) override { return false; }
+    bool isEOF() const override { return m_eof; }
+    uint64_t getDuration() const override { return 0; }
+    uint64_t getPosition() const override { return 0; }
+    bool providesGranulePositions() const override { return true; }
+    uint64_t getGranulePosition(uint32_t) const override { return 0; }
+
+private:
+    std::unique_ptr<PsyMP3::Demuxer::Demuxer> m_inner;
+    int m_next = 0;
+    uint16_t m_counter = 0;
+    bool m_eof = false;
+};
+
+class LastGranuleTest : public TestCase {
+public:
+    LastGranuleTest() : TestCase("Audio past the stream's last granule is not played") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> file = rampFile();
+        DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                             TagLib::String("ramp.mka"));
+        ASSERT_EQUALS(uint32_t{kRate}, static_cast<uint32_t>(stream.getRate()), "opened");
+        stream.m_demuxer = std::make_unique<GranuleDemuxer>(std::move(stream.m_demuxer));
+        while (!stream.m_chunk_buffer.empty()) {
+            stream.m_chunk_buffer.pop();
+        }
+        stream.m_current_buffer_bytes = 0;
+
+        const std::vector<int32_t> counters = readAll(stream);
+        const size_t expected = GranuleDemuxer::kChunks * GranuleDemuxer::kFramesPerChunk
+                              - GranuleDemuxer::kShortfall;
+        ASSERT_EQUALS(expected, counters.size(), "the stream ends at its last granule");
+        ASSERT_EQUALS(static_cast<int32_t>(expected - 1), counters.back(), "and nothing before it is lost");
+    }
+};
+
 class TailPaddingTest : public TestCase {
 public:
     TailPaddingTest() : TestCase("A last block's DiscardPadding is not played, however late the codec returns it") {}
@@ -268,6 +347,7 @@ int main()
     TestSuite suite("DemuxedStream Seek Tests");
     suite.addTest(std::make_unique<RefusedSeekKeepsAudioTest>());
     suite.addTest(std::make_unique<TailPaddingTest>());
+    suite.addTest(std::make_unique<LastGranuleTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);

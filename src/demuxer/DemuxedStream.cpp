@@ -411,6 +411,16 @@ AudioFrame DemuxedStream::getNextFrame() {
                 m_samples_consumed += frame.getSampleFrameCount();
             }
         } else if (has_granule) {
+            // The stream's last granule is where it ends, and that can fall
+            // inside the last packet's audio (Vorbis I §A.2): the rest is
+            // padding to fill the packet's block, and is not played.
+            if (source->end_of_stream && granule > m_samples_consumed) {
+                const uint16_t channels = frame.channels ? frame.channels : 1;
+                const uint64_t keep = granule - m_samples_consumed;
+                if (frame.getSampleFrameCount() > keep) {
+                    frame.samples.resize(static_cast<size_t>(keep * channels));
+                }
+            }
             // Correct timestamp calculation for non-Opus Ogg codecs. For Ogg
             // Vorbis, granule position is only valid on the last packet of
             // each page.
