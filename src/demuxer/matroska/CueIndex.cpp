@@ -104,9 +104,10 @@ bool CueIndex::parseCues(EBMLReader& reader, uint64_t cues_offset,
                     }
                     reader.seek(field.end());
                 }
-                // A .mkv cues its video and its audio separately. Taking a
-                // video entry would start audio decoding from whatever cluster
-                // happened to hold a keyframe.
+                // Each CueTrackPositions names one track's block, and only the
+                // selected track's are kept. A file with video usually cues no
+                // audio at all, which leaves the index empty and the file to
+                // the cluster scan.
                 if (position_seen && track == track_number) {
                     cluster_offset = segment_data_offset + position;
                     have_position = true;
@@ -149,21 +150,25 @@ bool CueIndex::buildByScanning(EBMLReader& reader, uint64_t first_cluster,
             continue;
         }
 
-        // A cluster of unknown size gives no way to find the next one without
-        // reading its contents, which is the whole cost this scan avoids. Stop
-        // rather than fall back to reading the file through.
+        // A cluster of unknown size gives no way to find the next one short of
+        // walking the header of every element inside it -- one read per block
+        // rather than one per cluster, which is the cost this scan avoids.
+        // Stop rather than fall back to that.
         if (cluster.unknown_size) {
             break;
         }
 
-        // Timestamp must precede the cluster's blocks, but it is not
-        // necessarily the first child: a muxer may put a CRC-32 or Void element
-        // ahead of it, and ffmpeg writes exactly that. Reading only the first
-        // child finds the CRC and concludes the cluster has no timestamp, which
-        // leaves the whole scan empty.
+        // Timestamp is not necessarily the first child. RFC 9559 5.1.3.1 says
+        // it SHOULD be first, or second after a CRC-32, and ffmpeg writes
+        // exactly that CRC-32 ahead of it; anything else in front is stepped
+        // over too. Reading only the first child finds the CRC and concludes
+        // the cluster has no timestamp, which leaves the whole scan empty.
         //
         // Walking stops at the first block regardless, so this still reads a
-        // couple of element headers per cluster rather than any block data.
+        // couple of element headers per cluster rather than any block data. It
+        // assumes the Timestamp comes before the blocks, which the spec does
+        // not require: a cluster that states it later is left out of the
+        // index.
         const uint64_t cluster_end = cluster.end();
         while (reader.tell() < cluster_end) {
             EBMLElement child;
@@ -202,7 +207,9 @@ const CueEntry* CueIndex::entryFor(uint64_t time_ticks) const
                                    return value < entry.time_ticks;
                                });
     if (it == m_entries.begin()) {
-        // Before the first entry: start at the beginning rather than nowhere.
+        // Before the first entry: answer with that entry rather than nothing.
+        // It is the first indexed cluster, which with sparse Cues need not be
+        // the file's first, so the caller checks its time.
         return &m_entries.front();
     }
     return &*(it - 1);

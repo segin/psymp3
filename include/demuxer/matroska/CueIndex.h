@@ -49,9 +49,9 @@ class CueIndex {
 public:
     /// Reads a Cues element that @p cues_offset points at.
     ///
-    /// Entries for other tracks are ignored: a .mkv cues its video and its
-    /// audio separately, and starting audio playback from a video keyframe's
-    /// cluster is at best approximate.
+    /// Only entries for @p track_number are kept. In a file with video,
+    /// ffmpeg and mkvmerge cue no audio track at all, so for such a file this
+    /// finds nothing and MatroskaDemuxer falls back to buildByScanning().
     ///
     /// @param segment_data_offset  what CueClusterPosition is relative to
     /// @return false when the element is not Cues or yields no usable entry
@@ -64,12 +64,16 @@ public:
     /// Only the headers: each Cluster's size says where the next one begins, so
     /// this seeks between them rather than reading any block. That makes it
     /// proportional to the number of clusters -- a few thousand for a long
-    /// file -- rather than to its size.
+    /// file -- rather than to its size. It stops at the first Cluster of
+    /// unknown size, which says no such thing, so a live-muxed file is indexed
+    /// only up to there.
     bool buildByScanning(EBMLReader& reader, uint64_t first_cluster, uint64_t file_size);
 
     /// The entry to start decoding from to reach @p time_ticks: the last one at
     /// or before it, since a seek must land on or before its target and decode
-    /// forward. Null when the index is empty.
+    /// forward. When every entry is later than the target, this is the first
+    /// entry, which is still after it; a caller that must not land late
+    /// compares the entry's time with the target. Null when the index is empty.
     const CueEntry* entryFor(uint64_t time_ticks) const;
 
     bool empty() const { return m_entries.empty(); }
