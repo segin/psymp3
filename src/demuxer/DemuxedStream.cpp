@@ -604,7 +604,17 @@ void DemuxedStream::seekTo(unsigned long pos) {
     // Exclude the decoder thread (getData) for the whole seek; see m_decode_mutex.
     std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
 
-    // Thread-safe clearing of chunk buffer and current frame
+    // Ask the demuxer first. A refused seek leaves the stream exactly where it
+    // was: the buffered chunks and the current frame are the audio that plays
+    // next, and discarding them first made every refused seek skip ahead --
+    // or end the track, once the buffer held everything left to read.
+    if (!m_demuxer->seekTo(pos)) {
+        Debug::log("demux", "DemuxedStream::seekTo(): demuxer refused ", pos, " ms; playback continues");
+        return;
+    }
+
+    // The demuxer has moved, so everything buffered belongs to the old
+    // position.
     {
         std::lock_guard<std::mutex> lock(m_buffer_mutex);
         while (!m_chunk_buffer.empty()) {
@@ -617,12 +627,6 @@ void DemuxedStream::seekTo(unsigned long pos) {
         m_temp_buffer_bytes = 0;
         m_current_frame = AudioFrame{};
         m_current_frame_offset = 0;
-    }
-    
-    // Seek demuxer
-    if (!m_demuxer->seekTo(pos)) {
-        // Handle seek failure if necessary
-        return;
     }
     
     // Reset codec state. reset() re-runs codec initialization, which throws on a
