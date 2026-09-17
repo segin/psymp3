@@ -230,7 +230,14 @@ bool parseEAC3(AC3BitReader& reader, AC3FrameHeader& header)
 
     // E-AC-3 states a frame length rather than a bit rate; deriving one needs
     // the block count, which varies. Left at zero rather than guessed.
-    return header.sample_rate != 0 && !reader.overrun();
+    //
+    // No real frame is shorter than 16 bytes: syncinfo and bsi alone take
+    // seven, and audfrm, one audio block's exponents and the 17-bit
+    // errorcheck follow. Believing a smaller frmsiz let a hostile file of
+    // repeated four-byte "frames" build a frame index twice its own size.
+    constexpr uint16_t kMinFrameBytes = 16;
+    return header.sample_rate != 0 && header.frame_size >= kMinFrameBytes
+        && !reader.overrun();
 }
 
 } // namespace

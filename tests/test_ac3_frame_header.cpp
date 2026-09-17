@@ -244,6 +244,17 @@ protected:
         // E-AC-3 states a frame length rather than a bit rate, so none is
         // reported rather than a guess.
         ASSERT_TRUE(header.bitrate == 0, "no bit rate is invented for E-AC-3");
+
+        // No real frame is under 16 bytes. frmsiz 1 (four bytes) is what a
+        // file of repeated "0B 77 00 01" produces, and believing it built a
+        // frame index twice the file's size.
+        AC3FrameHeader tiny;
+        auto four = eac3Header(0, 1);
+        ASSERT_FALSE(parseAC3FrameHeader(four.data(), four.size(), tiny),
+                     "a four-byte E-AC-3 frame is not believed");
+        auto sixteen = eac3Header(0, 7);
+        ASSERT_TRUE(parseAC3FrameHeader(sixteen.data(), sixteen.size(), tiny),
+                    "sixteen bytes is the smallest frame accepted");
     }
 };
 
