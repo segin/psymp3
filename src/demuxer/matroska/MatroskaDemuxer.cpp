@@ -143,7 +143,7 @@ bool MatroskaDemuxer::parseContainer()
 
     const uint64_t tags_at = m_parser.seekPosition(Id::Tags);
     if (tags_at != 0) {
-        parseTags(tags_at);
+        parseTags(tags_at, chosen ? chosen->uid : 0);
     }
 
     m_read_offset = m_parser.firstClusterOffset();
@@ -153,9 +153,18 @@ bool MatroskaDemuxer::parseContainer()
     return true;
 }
 
-void MatroskaDemuxer::parseTags(uint64_t tags_offset)
+void MatroskaDemuxer::parseTags(uint64_t tags_offset, uint64_t track_uid)
 {
-    std::map<std::string, std::vector<std::string>> fields;
+    // Every SimpleTag that applies to the track, with the level it was
+    // written at. An empty value is kept: at a lower level it says that an
+    // upper level's value does not apply (RFC 9559 24.2).
+    struct Record {
+        std::string name;
+        std::string value;
+        uint64_t level;
+        bool is_default;
+    };
+    std::vector<Record> records;
     try {
         m_reader.seek(tags_offset);
         EBMLElement tags;
@@ -176,11 +185,13 @@ void MatroskaDemuxer::parseTags(uint64_t tags_offset)
                 continue;
             }
 
-            // TargetTypeValue scopes what a name means: a TITLE at 50 is the
-            // album's, at 30 the track's. Without it every release would
-            // overwrite its own track title with the album name.
+            // TargetTypeValue says what a name describes: a TITLE at 50 is the
+            // album's, at 30 the track's. The UIDs say which track, chapter,
+            // edition or attachment the Tag is about.
             uint64_t target = 50;
-            std::vector<std::pair<std::string, std::string>> simple;
+            std::vector<uint64_t> track_uids;
+            bool elsewhere = false;
+            std::vector<Record> simple;
             const uint64_t tag_end = tag.end();
             while (m_reader.tell() < tag_end) {
                 EBMLElement child;
@@ -194,15 +205,21 @@ void MatroskaDemuxer::parseTags(uint64_t tags_offset)
                         if (!m_reader.readElementHeader(field)) {
                             break;
                         }
-                        if (field.id == 0x68CA) { // TargetTypeValue
+                        if (field.id == Id::TargetTypeValue) {
                             // Empty means the schema default, 50 (RFC 8794 6.1).
                             target = field.size == 0 ? 50 : m_reader.readUInt(field);
+                        } else if (field.id == Id::TagTrackUID) {
+                            track_uids.push_back(m_reader.readUInt(field));
+                        } else if (field.id == Id::TagEditionUID || field.id == Id::TagChapterUID
+                                   || field.id == Id::TagAttachmentUID) {
+                            elsewhere = elsewhere || m_reader.readUInt(field) != 0;
                         }
                         m_reader.seek(field.end());
                     }
                 } else if (child.id == Id::SimpleTag) {
                     std::string name;
                     std::string value;
+                    bool is_default = true;
                     const uint64_t simple_end = child.end();
                     while (m_reader.tell() < simple_end) {
                         EBMLElement field;
@@ -213,35 +230,99 @@ void MatroskaDemuxer::parseTags(uint64_t tags_offset)
                             name = m_reader.readUTF8(field);
                         } else if (field.id == Id::TagString) {
                             value = m_reader.readUTF8(field);
+                        } else if (field.id == Id::TagDefault) {
+                            is_default = field.size == 0 || m_reader.readUInt(field) != 0;
                         }
                         m_reader.seek(field.end());
                     }
-                    if (!name.empty() && !value.empty()) {
-                        simple.emplace_back(name, value);
+                    if (!name.empty()) {
+                        simple.push_back({name, value, 0, is_default});
                     }
                 }
                 m_reader.seek(child.end());
             }
 
-            for (auto& pair : simple) {
-                std::string name = pair.first;
-                // A TITLE scoped to the album is the album name, which is what
-                // the rest of PsyMP3 calls ALBUM. Everything else keeps the
-                // name Matroska gave it, which follows the same convention
-                // Vorbis comments use.
-                if (target >= 50 && name == "TITLE") {
-                    name = "ALBUM";
+            // A Tag about a chapter, an edition or an attachment says nothing
+            // about the track as a whole, and one aimed at other tracks says
+            // nothing about this one. A TagTrackUID of 0 means every track.
+            const bool for_this_track =
+                track_uids.empty()
+                || std::find(track_uids.begin(), track_uids.end(), 0) != track_uids.end()
+                || (track_uid != 0
+                    && std::find(track_uids.begin(), track_uids.end(), track_uid) != track_uids.end());
+            if (!elsewhere && for_this_track) {
+                for (Record& record : simple) {
+                    record.level = target;
+                    records.push_back(std::move(record));
                 }
-                // Appended rather than assigned: a release with several
-                // artists writes several ARTIST tags, and PsyMP3 keeps those
-                // value-separate all the way to Last.fm.
-                fields[name].push_back(pair.second);
             }
             m_reader.seek(tag_end);
         }
     } catch (const std::exception& e) {
         Debug::log("demux", "MatroskaDemuxer: tags unreadable: ", e.what());
         return;
+    }
+
+    // Levels nest (RFC 9559 24.2): a value applies to the levels below it
+    // unless one of them states its own, which replaces it, and an empty
+    // value there says it does not apply. So a name takes the values of the
+    // lowest level in [lowest, highest] that states it. Several values at
+    // that level stay separate -- a release with several artists writes
+    // several ARTIST tags -- unless some are marked as the default language,
+    // in which case only those count.
+    const auto resolve = [&records](const std::string& name, uint64_t lowest, uint64_t highest) {
+        uint64_t best = std::numeric_limits<uint64_t>::max();
+        bool any_default = false;
+        for (const Record& record : records) {
+            if (record.name == name && record.level >= lowest && record.level <= highest
+                && record.level < best) {
+                best = record.level;
+            }
+        }
+        for (const Record& record : records) {
+            any_default = any_default || (record.name == name && record.level == best && record.is_default);
+        }
+        std::vector<std::string> values;
+        for (const Record& record : records) {
+            if (record.name == name && record.level == best && !record.value.empty()
+                && (record.is_default || !any_default)
+                && std::find(values.begin(), values.end(), record.value) == values.end()) {
+                values.push_back(record.value);
+            }
+        }
+        return values;
+    };
+
+    // The track is level 30. Its TITLE comes from that level or the part
+    // above it, never from 50, where TITLE is the album's name -- which the
+    // rest of PsyMP3 calls ALBUM. The album's ARTIST is its ALBUMARTIST, and
+    // passes down to ARTIST where the track names none.
+    constexpr uint64_t kTrackLevel = 30;
+    constexpr uint64_t kAlbumLevel = 50;
+    std::map<std::string, std::vector<std::string>> fields;
+    for (const Record& record : records) {
+        if (record.name == "TITLE" || fields.count(record.name)) {
+            continue;
+        }
+        std::vector<std::string> values =
+            resolve(record.name, kTrackLevel, std::numeric_limits<uint64_t>::max());
+        if (!values.empty()) {
+            fields[record.name] = std::move(values);
+        }
+    }
+    std::vector<std::string> title = resolve("TITLE", kTrackLevel, kAlbumLevel - 1);
+    if (!title.empty()) {
+        fields["TITLE"] = std::move(title);
+    }
+    std::vector<std::string> album = resolve("TITLE", kAlbumLevel, kAlbumLevel);
+    if (!album.empty()) {
+        fields["ALBUM"] = std::move(album);
+    }
+    if (!fields.count("ALBUMARTIST")) {
+        std::vector<std::string> album_artist = resolve("ARTIST", kAlbumLevel, kAlbumLevel);
+        if (!album_artist.empty()) {
+            fields["ALBUMARTIST"] = std::move(album_artist);
+        }
     }
 
     if (!fields.empty()) {

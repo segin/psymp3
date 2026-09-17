@@ -79,8 +79,9 @@ private:
     /// Handles one SimpleBlock or the Block inside a BlockGroup.
     void takeBlock(const EBMLElement& block, int64_t cluster_ticks,
                    int64_t discard_padding_ns);
-    /// Matroska Tags into the Tag framework.
-    void parseTags(uint64_t tags_offset);
+    /// Matroska Tags into the Tag framework, as they apply to the track
+    /// whose TrackUID is @p track_uid.
+    void parseTags(uint64_t tags_offset, uint64_t track_uid);
     /// Ticks in the Segment's TimestampScale to milliseconds.
     uint64_t ticksToMs(int64_t ticks) const;
 

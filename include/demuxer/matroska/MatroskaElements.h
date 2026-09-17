@@ -110,8 +110,14 @@ constexpr uint32_t CueRelativePosition = 0xF0;
 constexpr uint32_t Tags      = 0x1254C367;
 constexpr uint32_t Tag       = 0x7373;
 constexpr uint32_t Targets   = 0x63C0;
+constexpr uint32_t TargetTypeValue  = 0x68CA;
+constexpr uint32_t TagTrackUID      = 0x63C5;
+constexpr uint32_t TagEditionUID    = 0x63C9;
+constexpr uint32_t TagChapterUID    = 0x63C4;
+constexpr uint32_t TagAttachmentUID = 0x63C6;
 constexpr uint32_t SimpleTag = 0x67C8;
 constexpr uint32_t TagName   = 0x45A3;
+constexpr uint32_t TagDefault = 0x4484;
 constexpr uint32_t TagString = 0x4487;
 
 constexpr uint32_t Attachments = 0x1941A469;
