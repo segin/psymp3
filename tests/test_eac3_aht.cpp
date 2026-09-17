@@ -112,15 +112,19 @@ protected:
     }
 };
 
-/// Table E3.5's quantizer characteristics, checked on real bit sequences.
+/// Table E3.5's quantizer characteristics and Table E3.6's remapping
+/// constants, checked on real bit sequences.
 class GaqDequantizeTest : public TestCase {
 public:
-    GaqDequantizeTest() : TestCase("GAQ mantissas decode to Table E3.5's reconstruction points") {}
+    GaqDequantizeTest() : TestCase("GAQ mantissas decode to the points of Tables E3.5 and E3.6") {}
 
 protected:
     void runTest() override
     {
         // Gk = 1, hebap 8 (m = 3): a symmetric 7-level quantizer, step 2/7.
+        // Table E3.5 prints this step as 2/(2m - 1), without the superscript
+        // its other cells have. Its 2^m - 1 points and Table E3.6's
+        // a = 0x1249 (1 + a = 8/7) both make it 2/(2^m - 1).
         {
             BitWriter w;
             w.putSigned(1, 3);
