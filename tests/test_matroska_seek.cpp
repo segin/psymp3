@@ -735,6 +735,44 @@ protected:
     }
 };
 
+class HostileClustersTest : public TestCase {
+public:
+    HostileClustersTest() : TestCase("Blocks that overrun their cluster or overflow the clock are skipped") {}
+
+protected:
+    void runTest() override
+    {
+        const std::vector<uint8_t> frame(kFrameBytes, 0x5A);
+        std::vector<uint8_t> clusters;
+        // Clusters whose only block claims a payload of 8 MiB, far beyond
+        // the cluster and the file.
+        for (int i = 0; i < 20; ++i) {
+            const std::vector<uint8_t> overrun = idBytes(Id::SimpleBlock) + sizeBytes(8u << 20)
+                                               + std::vector<uint8_t>{0x81, 0x00, 0x00, 0x80};
+            clusters = clusters + element(Id::Cluster, uintEl(Id::Timestamp, 0) + overrun);
+        }
+        // A cluster at the very end of the clock, with a block one tick later.
+        const std::vector<uint8_t> max_timestamp = element(Id::Timestamp,
+            {0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+        clusters = clusters + element(Id::Cluster, max_timestamp + simpleBlock(1, 1, frame));
+        // And a sound one.
+        clusters = clusters + element(Id::Cluster, uintEl(Id::Timestamp, 40) + simpleBlock(1, 0, frame));
+
+        const std::vector<uint8_t> file =
+            ebmlHeader("matroska")
+          + element(Id::Segment, element(Id::Info, uintEl(Id::TimestampScale, 1000000))
+                               + element(Id::Tracks, pcmTrack(1)) + clusters);
+        auto handler = std::make_unique<MemoryIOHandler>(file.data(), file.size());
+        MatroskaDemuxer demuxer(std::move(handler));
+        ASSERT_TRUE(demuxer.parseContainer(), "fixture should parse");
+
+        const MediaChunk chunk = demuxer.readChunk();
+        ASSERT_TRUE(chunk.isValid(), "the sound block is still reached");
+        ASSERT_EQUALS(samplesAt(40), chunk.timestamp_samples, "and it is the only block handed out");
+        ASSERT_FALSE(demuxer.readChunk().isValid(), "after which the file ends");
+    }
+};
+
 } // namespace
 
 int main()
@@ -752,6 +790,7 @@ int main()
     suite.addTest(std::make_unique<HeaderStrippedFramesTest>());
     suite.addTest(std::make_unique<OversizedVideoBlockTest>());
     suite.addTest(std::make_unique<DiscardPaddingTest>());
+    suite.addTest(std::make_unique<HostileClustersTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

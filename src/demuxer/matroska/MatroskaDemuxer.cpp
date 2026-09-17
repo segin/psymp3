@@ -298,7 +298,15 @@ void MatroskaDemuxer::takeBlock(const EBMLElement& block, int64_t cluster_ticks,
         }
     }
 
-    const int64_t ticks = cluster_ticks + header.timestamp_offset;
+    // A Cluster Timestamp at the edge of the int64 range would overflow the
+    // sum, which is undefined; such a block has no usable time anyway.
+    const int64_t offset = header.timestamp_offset;
+    if ((offset > 0 && cluster_ticks > std::numeric_limits<int64_t>::max() - offset) ||
+        (offset < 0 && cluster_ticks < std::numeric_limits<int64_t>::min() - offset)) {
+        Debug::log("demux", "MatroskaDemuxer: block time out of range at ", block.header_offset);
+        return;
+    }
+    const int64_t ticks = cluster_ticks + offset;
     const uint64_t milliseconds = ticksToMs(ticks);
     for (size_t i = 0; i < frames.size(); ++i) {
         const BlockFrame& frame = frames[i];
@@ -377,10 +385,26 @@ bool MatroskaDemuxer::fillQueue()
                 m_read_offset = child.header_offset;
                 continue;
             }
+            // A child that claims to run past its cluster is damage. Reading
+            // it anyway pulled the walk back inside what had just been read,
+            // so a file of such clusters could keep the decoder busy for
+            // hours; the rest of the cluster is skipped instead.
+            if (!child.unknown_size && child.end() > m_cluster_end) {
+                Debug::log("demux", "MatroskaDemuxer: element at ", child.header_offset,
+                           " overruns its cluster");
+                m_read_offset = m_cluster_end;
+                m_cluster_end = 0;
+                continue;
+            }
 
             const uint64_t next = child.unknown_size ? m_cluster_end : child.end();
             if (child.id == Id::Timestamp) {
-                m_cluster_ticks = static_cast<int64_t>(m_reader.readUInt(child));
+                // A uinteger; beyond int64 it is held at the limit rather than
+                // wrapped by the conversion.
+                const uint64_t timestamp = m_reader.readUInt(child);
+                m_cluster_ticks = timestamp > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())
+                                ? std::numeric_limits<int64_t>::max()
+                                : static_cast<int64_t>(timestamp);
             } else if (child.id == Id::SimpleBlock) {
                 takeBlock(child, m_cluster_ticks, 0);
             } else if (child.id == Id::BlockGroup && !child.unknown_size) {
@@ -396,16 +420,17 @@ bool MatroskaDemuxer::fillQueue()
                 while (cursor < group_end) {
                     m_reader.seek(cursor);
                     EBMLElement inner;
-                    if (!m_reader.readElementHeader(inner)) {
-                        break;
+                    if (!m_reader.readElementHeader(inner) || inner.unknown_size
+                        || inner.end() > group_end) {
+                        break; // damage: nothing past here belongs to the group
                     }
                     if (inner.id == Id::Block && !have_block) {
                         block = inner;
                         have_block = true;
-                    } else if (inner.id == Id::DiscardPadding && !inner.unknown_size) {
+                    } else if (inner.id == Id::DiscardPadding) {
                         discard_padding_ns = m_reader.readInt(inner);
                     }
-                    cursor = inner.unknown_size ? group_end : inner.end();
+                    cursor = inner.end();
                 }
                 if (have_block) {
                     takeBlock(block, m_cluster_ticks, discard_padding_ns);
