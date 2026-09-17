@@ -868,7 +868,10 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 break;
             case CODEC_AC3:
             case CODEC_EC3:
-                // One syncframe per sample, and one codec for both. The box
+                // One codec for both. An AC-3 sample is one syncframe; an
+                // E-AC-3 sample can hold several, its dependent substreams
+                // and other programmes being syncframes of their own, and the
+                // codec takes whatever it is handed. The box
                 // after the sample entry -- 'dac3', or 'dec3' for E-AC-3 --
                 // restates the stream's acmod and lfeon (ETSI TS 102 366
                 // Annex F), and that is the channel count to give the audio
