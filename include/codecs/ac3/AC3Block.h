@@ -37,8 +37,9 @@ constexpr unsigned kMaxFullBandwidthChannels = 5;
 constexpr unsigned kCouplingSlot = kMaxFullBandwidthChannels;
 constexpr unsigned kLfeSlot = kMaxFullBandwidthChannels + 1;
 constexpr unsigned kChannelSlots = kMaxFullBandwidthChannels + 2;
-/// Coupling sub-bands, A/52 §5.4.3.13: cplbegf and cplendf are four bits each
-/// and ncplsubnd = 3 + cplendf - cplbegf, so eighteen is the ceiling.
+/// Coupling sub-bands. cplbegf and cplendf are four bits each and
+/// ncplsubnd = 3 + cplendf - cplbegf (A/52 §5.4.3.11-§5.4.3.12), so eighteen
+/// is the ceiling: the eighteen sub-bands of Table 7.24 (§5.4.3.13).
 constexpr unsigned kMaxCouplingBands = 18;
 
 /// E-AC-3's frame layer, defined in EAC3Frame.h. The block parser reads
@@ -116,8 +117,9 @@ struct AC3FrameState {
     uint8_t cplsleak = 0;
 
 
-    /// True once a block has set the coupling strategy and bit allocation
-    /// parameters. A frame whose first block omits them is malformed.
+    /// True once this frame has bit allocation parameters to work with. In
+    /// AC-3 the first block to send baie or snroffste sets it; the E-AC-3
+    /// path sets it in every block. A block that finds it unset is refused.
     bool have_allocation = false;
 
     /// The dynamic range gains in force, §7.7.1.2: a block that sends no
@@ -185,9 +187,11 @@ struct AC3Block {
     /// Whether each channel used the short transform this block, A/52 §7.9.
     bool block_switch[kMaxFullBandwidthChannels] = {};
     /// Channel 2's gain in 1+1 mode, where the two channels are separate
-    /// programmes with separate dynamic range control.
+    /// programmes with separate dynamic range control. In any other mode it
+    /// equals dynamic_range.
     float dynamic_range2 = 1.0f;
-    /// Dynamic range control word, or 1.0 when the block sends none.
+    /// The linear dynrng gain in force for this block (§7.7.1.2): the last
+    /// dynrng sent in this frame, or unity if none has been sent yet.
     float dynamic_range = 1.0f;
 
     /// Enhanced coupling leaves the coupled channels unfinished: rebuilding
@@ -215,6 +219,12 @@ struct AC3Block {
     EAC3SpxChannel spx[kMaxFullBandwidthChannels];
 };
 
+/// A/52 §7.7.1.2: an 8-bit dynrng word as a linear gain. The top three bits
+/// are a signed shift X (-4..3) and the low five a mantissa Y read as
+/// 0.1Y in binary, so the gain is 2^(X+1) * (32 + Y) / 64: 0x00 is exactly
+/// unity, and the range runs from -24.08 dB to +23.95 dB.
+float ac3DynamicRangeGain(uint8_t dynrng);
+
 /// Parses one audio block and produces its transform coefficients.
 ///
 /// Runs the chain the standard lays out: the block's own fields, then
@@ -222,19 +232,20 @@ struct AC3Block {
 /// (§7.4) and rematrixing (§7.5). What comes out is ready for the inverse
 /// transform and nothing else.
 ///
-/// @param state  carried between the six blocks of a frame; zero it at the
-///               start of each frame, not each block
-/// @return false when the block is malformed or the stream ran out, in which
-///         case @p block holds whatever was decoded before the fault.
+/// @param reader  positioned at the start of the block's audblk()
+/// @param header  the header of the syncframe the block belongs to
+/// @param state   carried between the blocks of a frame; reset it at the
+///                start of each frame, not each block, keeping only its
+///                noise generators
+/// @param block   output: the block's coefficients, and what the frame
+///                decoder still has to finish for it
 /// @param reason  set to a short description when parsing fails, for logging
 ///                and for telling one fault from another while bringing the
 ///                decoder up. Points at a literal; never freed.
-/// A/52 §7.7.1.2: an 8-bit dynrng word as a linear gain. The top three bits
-/// are a signed shift X (-4..3) and the low five a mantissa Y read as
-/// 0.1Y in binary, so the gain is 2^(X+1) * (32 + Y) / 64: 0x00 is exactly
-/// unity, and the range runs from -24.08 dB to +23.95 dB.
-float ac3DynamicRangeGain(uint8_t dynrng);
-
+/// @param eac3    the frame's bsi() and audfrm() fields when decoding E-AC-3;
+///                nullptr for AC-3
+/// @return false when the block is malformed or the stream ran out, in which
+///         case @p block holds whatever was decoded before the fault.
 bool ac3ParseAudioBlock(AC3BitReader& reader, const AC3FrameHeader& header,
                         AC3FrameState& state, AC3Block& block,
                         const char** reason = nullptr,
