@@ -106,6 +106,30 @@ void testG722ViaMediaFactory()
 
     std::remove(path.c_str());
 }
+
+// A raw stream has no header, so its first octets can be anything, including
+// an MPEG audio sync. The extension has to win over that.
+void testG722ThatLooksLikeMpegAudio()
+{
+    std::vector<uint8_t> encoded = {0xFF, 0xFB, 0x90, 0x64}; // an MP3 frame header
+    encoded.insert(encoded.end(), std::begin(kG722Sine1600), std::end(kG722Sine1600));
+    const std::string path = makeTempPath("-sync.g722");
+    writeBinaryFile(path, encoded);
+
+    try {
+        auto stream = PsyMP3::Demuxer::MediaFactory::createStream(path);
+        require(stream != nullptr, ".g722 beginning FF FB should still open");
+        require(stream->getRate() == 16000, ".g722 beginning FF FB should open as G.722, not MPEG audio");
+
+        std::vector<uint8_t> pcm(4096, 0);
+        require(stream->getData(pcm.size(), pcm.data()) > 0, "and decode");
+    } catch (...) {
+        std::remove(path.c_str());
+        throw;
+    }
+
+    std::remove(path.c_str());
+}
 #endif
 
 } // namespace
@@ -116,6 +140,7 @@ int main()
         testMuLawViaMediaFactory();
 #ifdef HAVE_G722
         testG722ViaMediaFactory();
+        testG722ThatLooksLikeMpegAudio();
 #endif
         std::cout << "Raw audio main stream integration tests passed" << std::endl;
         return 0;

@@ -390,7 +390,15 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
 std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& file_path) {
     // Initialize built-in formats if needed (thread-safe)
     initializeBuiltInFormats();
-    
+
+    // Raw streams have no header to sniff, so their extension is all there
+    // is to go on, and it wins over content, as in MediaFactory. Any G.722 or
+    // mu-law octets can begin like a signature: FF FB reads as MPEG audio.
+    std::string by_extension = detectFormatFromExtension(file_path);
+    if (by_extension == "raw") {
+        return by_extension;
+    }
+
     // Try content-based detection first
     std::string format_id = probeFormat(handler);
     if (!format_id.empty()) {
@@ -398,7 +406,7 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& f
     }
     
     // Fall back to extension-based detection
-    return detectFormatFromExtension(file_path);
+    return by_extension;
 }
 
 void DemuxerFactory::registerDemuxer(const std::string& format_id, DemuxerFactoryFunc factory_func) {

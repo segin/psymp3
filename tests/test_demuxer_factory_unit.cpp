@@ -194,8 +194,14 @@ protected:
         // Test magic bytes override extension
         std::vector<uint8_t> ogg_data = {0x4F, 0x67, 0x67, 0x53}; // "OggS"
         auto ogg_handler = std::make_unique<FormatTestIOHandler>(ogg_data);
-        std::string ogg_format = DemuxerFactory::probeFormat(ogg_handler.get(), "test.pcm");
+        std::string ogg_format = DemuxerFactory::probeFormat(ogg_handler.get(), "test.mp3");
         ASSERT_EQUALS("ogg", ogg_format, "Magic bytes should override extension hint");
+
+        // ...except a raw one: raw audio has no header, and its first octets
+        // can be anything, a signature included.
+        auto raw_ogg_handler = std::make_unique<FormatTestIOHandler>(ogg_data);
+        std::string raw_ogg_format = DemuxerFactory::probeFormat(raw_ogg_handler.get(), "test.pcm");
+        ASSERT_EQUALS("raw", raw_ogg_format, "A raw extension should override magic bytes");
         
         // Test unknown extension
         std::string unknown_format = DemuxerFactory::probeFormat(raw_handler.get(), "test.xyz");
