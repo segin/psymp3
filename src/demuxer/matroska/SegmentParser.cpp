@@ -68,6 +68,21 @@ constexpr CodecMapping kCodecMap[] = {
     {"A_PCM/FLOAT/IEEE","pcm",     false},
 };
 
+/// An unsigned integer element's value, or @p fallback when the element is
+/// empty. An empty element whose schema declares a default takes that default
+/// (RFC 8794 6.1); EBMLReader reads it as 0, which is right only when there is
+/// none.
+uint64_t uintOr(EBMLReader& reader, const EBMLElement& element, uint64_t fallback)
+{
+    return element.size == 0 ? fallback : reader.readUInt(element);
+}
+
+/// The same for a float element.
+double floatOr(EBMLReader& reader, const EBMLElement& element, double fallback)
+{
+    return element.size == 0 ? fallback : reader.readFloat(element);
+}
+
 } // namespace
 
 std::string codecNameForId(const std::string& codec_id)
@@ -280,7 +295,7 @@ void SegmentParser::parseInfo(EBMLReader& reader, const EBMLElement& info)
             break;
         }
         switch (child.id) {
-        case Id::TimestampScale: m_info.timestamp_scale_ns = reader.readUInt(child); break;
+        case Id::TimestampScale: m_info.timestamp_scale_ns = uintOr(reader, child, 1000000); break;
         case Id::Duration:       m_info.duration_ticks = reader.readFloat(child);    break;
         case Id::MuxingApp:      m_info.muxing_app = reader.readString(child);       break;
         case Id::WritingApp:     m_info.writing_app = reader.readString(child);      break;
@@ -335,9 +350,9 @@ TrackEntry SegmentParser::parseTrackEntry(EBMLReader& reader, const EBMLElement&
         case Id::DefaultDuration: track.default_duration_ns = reader.readUInt(child); break;
         case Id::CodecDelay:      track.codec_delay_ns = reader.readUInt(child); break;
         case Id::SeekPreRoll:     track.seek_preroll_ns = reader.readUInt(child); break;
-        case Id::FlagLacing:      track.lacing_allowed = reader.readUInt(child) != 0; break;
-        case Id::FlagDefault:     track.default_track = reader.readUInt(child) != 0; break;
-        case Id::FlagEnabled:     track.enabled = reader.readUInt(child) != 0; break;
+        case Id::FlagLacing:      track.lacing_allowed = uintOr(reader, child, 1) != 0; break;
+        case Id::FlagDefault:     track.default_track = uintOr(reader, child, 1) != 0; break;
+        case Id::FlagEnabled:     track.enabled = uintOr(reader, child, 1) != 0; break;
         // BCP 47 supersedes the ISO 639-2 field when both are present.
         case Id::LanguageBCP47:   track.language = reader.readString(child); break;
         case Id::Audio:           parseAudio(reader, child, track); break;
@@ -455,13 +470,13 @@ void SegmentParser::parseAudio(EBMLReader& reader, const EBMLElement& audio,
         }
         switch (child.id) {
         case Id::SamplingFrequency:
-            track.sampling_frequency = reader.readFloat(child);
+            track.sampling_frequency = floatOr(reader, child, 8000.0);
             break;
         case Id::OutputSamplingFrequency:
             track.output_sampling_frequency = reader.readFloat(child);
             break;
         case Id::Channels:
-            track.channels = static_cast<uint16_t>(reader.readUInt(child));
+            track.channels = static_cast<uint16_t>(uintOr(reader, child, 1));
             break;
         case Id::BitDepth:
             track.bit_depth = static_cast<uint16_t>(reader.readUInt(child));

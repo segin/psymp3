@@ -185,7 +185,8 @@ void MatroskaDemuxer::parseTags(uint64_t tags_offset)
                             break;
                         }
                         if (field.id == 0x68CA) { // TargetTypeValue
-                            target = m_reader.readUInt(field);
+                            // Empty means the schema default, 50 (RFC 8794 6.1).
+                            target = field.size == 0 ? 50 : m_reader.readUInt(field);
                         }
                         m_reader.seek(field.end());
                     }

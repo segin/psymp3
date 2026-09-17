@@ -358,6 +358,26 @@ protected:
             ASSERT_EQUALS(44100u, info.sample_rate, "an explicit rate wins over the default");
             ASSERT_TRUE(info.channels == 1, "Channels still defaults");
         }
+        {   // Elements present but empty take their defaults too (RFC 8794
+            // 6.1), where reading them as 0 disabled the track and zeroed its
+            // rate and channel count.
+            Parsed parsed(parse(element(Id::TrackEntry,
+                                        uintEl(Id::TrackNumber, 1)
+                                      + uintEl(Id::TrackType, TrackType::Audio)
+                                      + strEl(Id::CodecID, "A_FLAC")
+                                      + element(Id::FlagEnabled, {})
+                                      + element(Id::FlagDefault, {})
+                                      + element(Id::FlagLacing, {})
+                                      + element(Id::Audio,
+                                                element(Id::SamplingFrequency, {})
+                                              + element(Id::Channels, {})))));
+            const TrackEntry* t = parsed.parser().preferredAudioTrack();
+            ASSERT_NOT_NULL(t, "an empty FlagEnabled leaves the track enabled");
+            ASSERT_TRUE(t->enabled && t->default_track && t->lacing_allowed, "all three flags are 1");
+            const StreamInfo info = parsed.parser().toStreamInfo(*t);
+            ASSERT_EQUALS(8000u, info.sample_rate, "an empty SamplingFrequency is 8000");
+            ASSERT_TRUE(info.channels == 1, "an empty Channels is 1");
+        }
     }
 };
 
