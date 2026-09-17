@@ -4118,7 +4118,9 @@ test_tag_picture_unit_LDADD = \
 
 # Tag fuzzing tests and corpus generators
 check_PROGRAMS += fuzz_tag_vorbis fuzz_tag_id3v1 fuzz_tag_id3v2 fuzz_tag_picture
-check_PROGRAMS += generate_vorbis_corpus generate_id3v1_corpus generate_id3v2_corpus generate_picture_corpus generate_matroska_corpus
+check_PROGRAMS += generate_vorbis_corpus generate_id3v1_corpus generate_id3v2_corpus generate_picture_corpus
+# Nothing reads its output, so make check does not run it; build it by name.
+EXTRA_PROGRAMS += generate_matroska_corpus
 
 # VorbisComment fuzzer
 fuzz_tag_vorbis_SOURCES = fuzz_tag_vorbis.cpp

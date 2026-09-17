@@ -1,8 +1,12 @@
 /*
- * generate_matroska_corpus.cpp - Writes the .mka fixtures the Matroska tests use.
+ * generate_matroska_corpus.cpp - Writes .mka files for trying the Matroska
+ * demuxer by hand.
  *
- * Run from the top of the tree:
- *   ./tests/generate_matroska_corpus
+ * No test reads them: the Matroska tests build their files in memory. So this
+ * is not part of make check, and is built on request:
+ *   make -C tests generate_matroska_corpus
+ *   ./tests/generate_matroska_corpus [DIRECTORY]
+ * DIRECTORY defaults to tests/data, relative to where it runs.
  *
  * The files are not committed -- tests/data holds no tracked binaries -- so
  * this is what produces them, and it is the thing to read to know what each
