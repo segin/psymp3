@@ -697,25 +697,25 @@ check_PROGRAMS += test_raw_audio_stream_integration
 # G711 codec tests (both A-law and μ-law)
 if HAVE_G711
   # A-law tests
-check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties test_wav_g711 test_wav_g711_improved
+check_PROGRAMS += test_g711_suite test_wav_g711 test_wav_g711_improved
 check_PROGRAMS += test_raw_audio_tag_safety
   # WaveStream test
   check_PROGRAMS += test_wav_stream
   # μ-law tests
-  check_PROGRAMS += test_mulaw_conversion_accuracy
+  check_PROGRAMS += 
   # Combined codec selection tests
-  check_PROGRAMS += test_mulaw_alaw_codec_selection test_mulaw_alaw_error_handling
+  check_PROGRAMS += 
   # Performance tests for G711
-  check_PROGRAMS += test_mulaw_alaw_performance
+  check_PROGRAMS += 
   # Integration tests for G711
-  check_PROGRAMS += test_mulaw_alaw_integration
+  check_PROGRAMS += 
 endif
 
 # Codec selection and validation tests
-check_PROGRAMS += test_codec_selection_validation_simple
+check_PROGRAMS += 
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression test_memory_suite 
+check_PROGRAMS += test_codec_suite test_threading_safety_baseline test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression test_memory_suite 
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
@@ -1327,8 +1327,21 @@ endif
 endif
 
 # A-law codec table verification test
-test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
-test_alaw_table_verification_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS) $(COMMON_CODEC_LIBS)
+# G.711 Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_g711_suite_SOURCES = test_g711_suite.cpp \
+	codecs/g711/test_alaw_codec_properties.cpp \
+	codecs/g711/test_alaw_conversion_accuracy.cpp \
+	codecs/g711/test_alaw_sample_conversion.cpp \
+	codecs/g711/test_alaw_table_verification.cpp \
+	codecs/g711/test_mulaw_alaw_codec_selection.cpp \
+	codecs/g711/test_mulaw_alaw_error_handling.cpp \
+	codecs/g711/test_mulaw_alaw_integration.cpp \
+	codecs/g711/test_mulaw_alaw_performance.cpp \
+	codecs/g711/test_mulaw_conversion_accuracy.cpp
+# The union of what these linked apiece: the codec archives for the A-law
+# and mu-law codecs themselves, and the utilities the rest use.
+test_g711_suite_LDADD = libtest_utilities.a $(FULL_CODEC_LIBS) $(AM_LDFLAGS) $(COMMON_CODEC_LIBS)
 
 test_track_utils_SOURCES = test_track_utils.cpp
 test_track_utils_LDADD = \
@@ -1376,18 +1389,8 @@ test_raw_audio_stream_integration_LDADD = \
 	$(AM_LDFLAGS)
 
 # A-law codec sample conversion test
-test_alaw_sample_conversion_SOURCES = test_alaw_sample_conversion.cpp
-test_alaw_sample_conversion_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
-
 # A-law codec conversion accuracy test
-test_alaw_conversion_accuracy_SOURCES = test_alaw_conversion_accuracy.cpp
-test_alaw_conversion_accuracy_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
-
 # μ-law codec conversion accuracy test
-test_mulaw_conversion_accuracy_SOURCES = test_mulaw_conversion_accuracy.cpp
-test_mulaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
-
 # WAV G.711 conversion test
 test_wav_g711_SOURCES = test_wav_g711.cpp
 test_wav_g711_LDADD = libtest_utilities.a $(top_builddir)/src/stream.o $(top_builddir)/src/track.o $(top_builddir)/src/debug.o $(top_builddir)/src/io/file/libpsymp3-io-file.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/libpsymp3-core.a $(SDL_LIBS) $(TAGLIB_LIBS) $(Z_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(SPEEX_LIBS) $(AM_LDFLAGS) -latomic
@@ -1414,58 +1417,21 @@ test_wav_g711_improved_SOURCES = test_wav_g711_improved.cpp
 test_wav_g711_improved_LDADD = libtest_utilities.a $(top_builddir)/src/stream.o $(top_builddir)/src/track.o $(top_builddir)/src/debug.o $(top_builddir)/src/io/file/libpsymp3-io-file.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/libpsymp3-core.a $(SDL_LIBS) $(TAGLIB_LIBS) $(Z_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(SPEEX_LIBS) $(AM_LDFLAGS) -latomic
 
 # Codec selection and validation test (simple)
-test_codec_selection_validation_simple_SOURCES = test_codec_selection_validation_simple.cpp
-test_codec_selection_validation_simple_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
+# Codec Framework Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_codec_suite_SOURCES = test_codec_suite.cpp \
+	codecs/test_codec_concurrent_instances.cpp \
+	codecs/test_codec_performance.cpp \
+	codecs/test_codec_performance_simple.cpp \
+	codecs/test_codec_selection_validation_simple.cpp \
+	codecs/test_codec_thread_safety.cpp \
+	codecs/test_codec_thread_safety_simple.cpp
+test_codec_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Codec performance test
-test_codec_performance_SOURCES = test_codec_performance.cpp
-test_codec_performance_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
-
 # μ-law/A-law codec performance test
-test_mulaw_alaw_performance_SOURCES = test_mulaw_alaw_performance.cpp
-test_mulaw_alaw_performance_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
-	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
-	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
-	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a -lopus -logg \
-	$(AM_LDFLAGS)
-
 # Codec thread safety test
-test_codec_thread_safety_SOURCES = test_codec_thread_safety.cpp
-test_codec_thread_safety_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
-
 # Codec concurrent instances test
-test_codec_concurrent_instances_SOURCES = test_codec_concurrent_instances.cpp
-test_codec_concurrent_instances_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
-
 # MPRIS types test (conditional on HAVE_DBUS)
 if HAVE_DBUS
 # MPRIS Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
@@ -1715,13 +1681,7 @@ test_threading_performance_regression_LDADD = \
 	$(AM_LDFLAGS)
 
 # Simple codec performance test (minimal dependencies)
-test_codec_performance_simple_SOURCES = test_codec_performance_simple.cpp
-test_codec_performance_simple_LDADD = $(AM_LDFLAGS)
-
 # Simple codec thread safety test (minimal dependencies)
-test_codec_thread_safety_simple_SOURCES = test_codec_thread_safety_simple.cpp
-test_codec_thread_safety_simple_LDADD = $(AM_LDFLAGS)
-
 # Threading safety baseline test
 test_threading_safety_baseline_SOURCES = test_threading_safety_baseline.cpp
 test_threading_safety_baseline_LDADD = libtest_utilities.a -lpthread
@@ -1780,21 +1740,11 @@ test_simplepcmcodec_comprehensive_integration_SOURCES = test_simplepcmcodec_comp
 test_simplepcmcodec_comprehensive_integration_LDADD = $(AM_LDFLAGS)
 
 # μ-law/A-law codec integration tests with SimplePCMCodec
-test_mulaw_alaw_integration_SOURCES = test_mulaw_alaw_integration.cpp
-test_mulaw_alaw_integration_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # μ-law codec property-based tests (standalone, minimal dependencies)
 test_mulaw_codec_properties_SOURCES = test_mulaw_codec_properties.cpp
 test_mulaw_codec_properties_LDADD = $(AM_LDFLAGS)
 
 # A-law codec property-based tests (standalone, minimal dependencies)
-test_alaw_codec_properties_SOURCES = test_alaw_codec_properties.cpp
-test_alaw_codec_properties_LDADD = $(AM_LDFLAGS)
-
 # μ-law/A-law parameter handling property-based tests (standalone, minimal dependencies)
 # Temporarily disabled - test not yet added to check_PROGRAMS
 # test_mulaw_alaw_parameter_handling_SOURCES = test_mulaw_alaw_parameter_handling.cpp
@@ -1988,13 +1938,7 @@ test_flac_debug_logging_format_properties_SOURCES = test_flac_debug_logging_form
 test_flac_debug_logging_format_properties_LDADD = $(AM_LDFLAGS)
 
 # μ-law/A-law codec selection unit tests (standalone, minimal dependencies)
-test_mulaw_alaw_codec_selection_SOURCES = test_mulaw_alaw_codec_selection.cpp
-test_mulaw_alaw_codec_selection_LDADD = $(AM_LDFLAGS)
-
 # μ-law/A-law error handling unit tests (standalone, minimal dependencies)
-test_mulaw_alaw_error_handling_SOURCES = test_mulaw_alaw_error_handling.cpp
-test_mulaw_alaw_error_handling_LDADD = $(AM_LDFLAGS)
-
 # Conditional codec compilation test
 test_conditional_codec_compilation_SOURCES = test_conditional_codec_compilation.cpp
 test_conditional_codec_compilation_LDADD = libtest_utilities.a \

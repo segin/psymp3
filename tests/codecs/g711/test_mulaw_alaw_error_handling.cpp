@@ -61,7 +61,7 @@ static int test_count = 0;
 static int passed_count = 0;
 static int failed_count = 0;
 
-void assert_true(bool condition, const std::string& message) {
+static void assert_true(bool condition, const std::string& message) {
     test_count++;
     if (condition) {
         passed_count++;
@@ -72,7 +72,7 @@ void assert_true(bool condition, const std::string& message) {
     }
 }
 
-void assert_false(bool condition, const std::string& message) {
+static void assert_false(bool condition, const std::string& message) {
     test_count++;
     if (!condition) {
         passed_count++;
@@ -95,12 +95,12 @@ void assert_equals(int expected, int actual, const std::string& message) {
     }
 }
 
-void print_test_section(const std::string& section_name) {
+static void print_test_section(const std::string& section_name) {
     std::cout << "\n" << section_name << std::endl;
     std::cout << std::string(section_name.length(), '=') << std::endl;
 }
 
-void print_results() {
+static void print_results() {
     std::cout << "\n" << std::string(60, '=') << std::endl;
     std::cout << "Test Results Summary" << std::endl;
     std::cout << std::string(60, '=') << std::endl;
@@ -634,7 +634,7 @@ void test_error_recovery_and_state_consistency() {
 // MAIN TEST RUNNER
 // ========================================
 
-int main() {
+int test_mulaw_alaw_error_handling_main() {
     std::cout << std::string(60, '=') << std::endl;
     std::cout << "μ-LAW/A-LAW CODEC ERROR HANDLING UNIT TESTS" << std::endl;
     std::cout << std::string(60, '=') << std::endl;

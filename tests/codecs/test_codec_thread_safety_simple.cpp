@@ -29,7 +29,7 @@ static constexpr size_t NUM_THREADS = 8;
 static constexpr size_t OPERATIONS_PER_THREAD = 10000;
 static constexpr size_t TEST_DURATION_MS = 2000;
 
-int test_failures = 0;
+static int test_failures = 0;
 std::mutex output_mutex;
 
 /**
@@ -308,7 +308,7 @@ void testSharedDataStructureSafety() {
     }
 }
 
-int main() {
+int test_codec_thread_safety_simple_main() {
     try {
         std::cout << "=== Simple Codec Thread Safety Tests ===" << std::endl;
         

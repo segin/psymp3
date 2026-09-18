@@ -379,6 +379,6 @@ int run_alaw_property_tests() {
 // ========================================
 // STANDALONE TEST EXECUTABLE
 // ========================================
-int main() {
+int test_alaw_codec_properties_main() {
     return run_alaw_property_tests();
 }

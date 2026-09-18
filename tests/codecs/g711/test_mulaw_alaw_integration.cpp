@@ -72,6 +72,8 @@ protected:
 };
 
 // SimplePCMCodec base class
+namespace {  // so that another test file's SimplePCMCodec cannot be
+             // mistaken for this one when they share a program
 class SimplePCMCodec : public AudioCodec {
 public:
     explicit SimplePCMCodec(const StreamInfo& stream_info) : AudioCodec(stream_info) {}
@@ -104,8 +106,12 @@ protected:
                                   std::vector<int16_t>& output_samples) = 0;
     virtual size_t getBytesPerInputSample() const = 0;
 };
+}  // namespace
+
 
 // MuLawCodec implementation
+namespace {  // so that another test file's MuLawCodec cannot be
+             // mistaken for this one when they share a program
 class MuLawCodec : public SimplePCMCodec {
 public:
     explicit MuLawCodec(const StreamInfo& stream_info) : SimplePCMCodec(stream_info) {
@@ -158,11 +164,15 @@ private:
         s_table_initialized = true;
     }
 };
+}  // namespace
+
 
 int16_t MuLawCodec::MULAW_TO_PCM[256];
 bool MuLawCodec::s_table_initialized = false;
 
 // ALawCodec implementation
+namespace {  // so that another test file's ALawCodec cannot be
+             // mistaken for this one when they share a program
 class ALawCodec : public SimplePCMCodec {
 public:
     explicit ALawCodec(const StreamInfo& stream_info) : SimplePCMCodec(stream_info) {
@@ -215,6 +225,8 @@ private:
         s_table_initialized = true;
     }
 };
+}  // namespace
+
 
 int16_t ALawCodec::ALAW_TO_PCM[256];
 bool ALawCodec::s_table_initialized = false;
@@ -450,7 +462,7 @@ void test_continuous_stream_processing() {
     std::cout << "✓ Continuous stream processing works correctly" << std::endl;
 }
 
-int main() {
+int test_mulaw_alaw_integration_main() {
     std::cout << "=== μ-law/A-law Codec Integration Tests ===" << std::endl;
     std::cout << "Testing SimplePCMCodec integration with MuLawCodec and ALawCodec" << std::endl;
     std::cout << std::endl;

@@ -7,7 +7,7 @@
 
 #ifdef ENABLE_ALAW_CODEC
 
-int main() {
+int test_alaw_table_verification_main() {
     // Create a StreamInfo for A-law codec
     StreamInfo stream_info;
     stream_info.codec_type = "audio";
@@ -132,7 +132,7 @@ int main() {
 }
 
 #else
-int main() {
+int test_alaw_table_verification_main() {
     Debug::log("A-law codec not enabled in build");
     return 0;
 }

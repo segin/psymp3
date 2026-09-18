@@ -62,6 +62,8 @@ const int16_t MULAW_TO_PCM_TEST[256] = {
 /**
  * @brief Simple test framework
  */
+namespace {  // so that another test file's SimpleTestFramework cannot be
+             // mistaken for this one when they share a program
 class SimpleTestFramework {
 private:
     static int test_count;
@@ -107,6 +109,8 @@ public:
         return failed_count;
     }
 };
+}  // namespace
+
 
 int SimpleTestFramework::test_count = 0;
 int SimpleTestFramework::passed_count = 0;
@@ -171,7 +175,7 @@ void test_mulaw_amplitude_extremes_accuracy() {
                  "Maximum positive μ-law (0x80) should produce 32124");
 }
 
-int main() {
+int test_mulaw_conversion_accuracy_main() {
     std::cout << "μ-law Conversion Accuracy Tests" << std::endl;
     std::cout << "===============================" << std::endl;
     

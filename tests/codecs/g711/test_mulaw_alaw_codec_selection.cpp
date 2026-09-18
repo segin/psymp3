@@ -124,7 +124,7 @@ static int test_count = 0;
 static int passed_count = 0;
 static int failed_count = 0;
 
-void assert_true(bool condition, const std::string& message) {
+static void assert_true(bool condition, const std::string& message) {
     test_count++;
     if (condition) {
         passed_count++;
@@ -135,7 +135,7 @@ void assert_true(bool condition, const std::string& message) {
     }
 }
 
-void assert_false(bool condition, const std::string& message) {
+static void assert_false(bool condition, const std::string& message) {
     test_count++;
     if (!condition) {
         passed_count++;
@@ -158,12 +158,12 @@ void assert_equals(const std::string& expected, const std::string& actual, const
     }
 }
 
-void print_test_section(const std::string& section_name) {
+static void print_test_section(const std::string& section_name) {
     std::cout << "\n" << section_name << std::endl;
     std::cout << std::string(section_name.length(), '=') << std::endl;
 }
 
-void print_results() {
+static void print_results() {
     std::cout << "\n" << std::string(50, '=') << std::endl;
     std::cout << "Test Results Summary" << std::endl;
     std::cout << std::string(50, '=') << std::endl;
@@ -706,7 +706,7 @@ void test_multiple_codec_name_variants() {
     }
 }
 
-int main() {
+int test_mulaw_alaw_codec_selection_main() {
     std::cout << std::string(50, '=') << std::endl;
     std::cout << "μ-law/A-law Codec Selection Unit Tests" << std::endl;
     std::cout << std::string(50, '=') << std::endl;

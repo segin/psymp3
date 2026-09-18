@@ -27,12 +27,12 @@ static constexpr size_t TELEPHONY_SAMPLE_RATE = 8000;
 static constexpr size_t PACKET_SIZE_BYTES = 160; // 20ms at 8kHz
 static constexpr size_t TEST_ITERATIONS = 10000;
 
-int test_failures = 0;
+static int test_failures = 0;
 
 /**
  * @brief Generate random audio data for performance testing
  */
-std::vector<uint8_t> generateRandomAudioData(size_t size) {
+static std::vector<uint8_t> generateRandomAudioData(size_t size) {
     std::vector<uint8_t> data(size);
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -239,7 +239,7 @@ void testLookupTableMemoryFootprint() {
     }
 }
 
-int main() {
+int test_codec_performance_simple_main() {
     try {
         std::cout << "=== Simple Codec Performance Tests ===" << std::endl;
         

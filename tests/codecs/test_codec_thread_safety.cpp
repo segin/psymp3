@@ -30,7 +30,7 @@ static constexpr size_t OPERATIONS_PER_THREAD = 1000;
 static constexpr size_t PACKET_SIZE = 160; // 20ms at 8kHz
 static constexpr size_t TEST_DURATION_MS = 5000;
 
-int test_failures = 0;
+static int test_failures = 0;
 std::mutex result_mutex;
 std::vector<std::string> thread_results;
 
@@ -430,7 +430,7 @@ void testSharedTableAccess() {
     }
 }
 
-int main() {
+int test_codec_thread_safety_main() {
     // The registry is only populated by MediaFactory in the player;
     // standalone test binaries must register codecs themselves or
     // CodecRegistry::createCodec() comes back empty.

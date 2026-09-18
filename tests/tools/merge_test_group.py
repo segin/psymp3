@@ -75,7 +75,8 @@ for name in group:
                              "VTT", "guard variable", "DW.ref", "non-virtual thunk",
                              "virtual thunk", "rc::", "SheenBidi", "hb_", "FT_",
                              # production types that are not in a namespace
-                             "Stream::", "AudioFrame", "IOHandler::", "Player::")) for f in forms):
+                             "Stream::", "AudioFrame", "IOHandler::", "Player::",
+                             "AudioCodec::", "Demuxer::")) for f in forms):
             continue
         defined[sym].add(name)
 clashes = {s_: f for s_, f in defined.items() if len(f) > 1 and s_ != "main"}
@@ -167,7 +168,7 @@ p = tests / "Makefile.am"
 s = p.read_text()
 def drop_from_programs(text, name, replacement=None):
     """Remove one name from a check_PROGRAMS statement, whatever its layout."""
-    for m in re.finditer(r"^check_PROGRAMS\s*\+?=.*?(?<!\\)\n", text, re.M | re.S):
+    for m in re.finditer(r"^[ \t]*check_PROGRAMS\s*\+?=.*?(?<!\\)\n", text, re.M | re.S):
         stmt = m.group(0)
         if not re.search(r"(?<![\w.-])" + re.escape(name) + r"(?![\w.-])", stmt):
             continue

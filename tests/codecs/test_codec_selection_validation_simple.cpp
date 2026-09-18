@@ -416,7 +416,7 @@ void test_edge_cases() {
     SimpleTestFramework::assert_false(mulaw_codec.canDecode(stream_info), "μ-law should reject sample rate just over maximum");
 }
 
-int main() {
+int test_codec_selection_validation_simple_main() {
     std::cout << "Codec Selection and Validation Tests (Simple)" << std::endl;
     std::cout << "=============================================" << std::endl;
     

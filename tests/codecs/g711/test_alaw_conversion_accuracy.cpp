@@ -74,6 +74,8 @@ const std::array<int16_t, 256> ALawValidation::EXPECTED_ALAW_TO_PCM = {{
 /**
  * @brief Simple test framework
  */
+namespace {  // so that another test file's SimpleTestFramework cannot be
+             // mistaken for this one when they share a program
 class SimpleTestFramework {
 private:
     static int test_count;
@@ -119,6 +121,8 @@ public:
         return failed_count;
     }
 };
+}  // namespace
+
 
 int SimpleTestFramework::test_count = 0;
 int SimpleTestFramework::passed_count = 0;
@@ -210,7 +214,7 @@ void test_alaw_even_bit_inversion_accuracy() {
                "A-law even-bit inversion should cause different magnitudes for 0x54 and 0x56");
 }
 
-int main() {
+int test_alaw_conversion_accuracy_main() {
     std::cout << "A-law Conversion Accuracy Tests" << std::endl;
     std::cout << "===============================" << std::endl;
     

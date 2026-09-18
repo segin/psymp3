@@ -27,12 +27,12 @@ static constexpr size_t WIDEBAND_SAMPLE_RATE = 16000;
 static constexpr size_t PACKET_SIZE_BYTES = 160; // 20ms at 8kHz
 static constexpr size_t LARGE_PACKET_SIZE = 1600; // 200ms at 8kHz
 
-int test_failures = 0;
+static int test_failures = 0;
 
 /**
  * @brief Generate random audio data for performance testing
  */
-std::vector<uint8_t> generateRandomAudioData(size_t size) {
+static std::vector<uint8_t> generateRandomAudioData(size_t size) {
     std::vector<uint8_t> data(size);
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -345,7 +345,7 @@ void testLookupTableMemoryEfficiency() {
     }
 }
 
-int main() {
+int test_codec_performance_main() {
     // The registry is only populated by MediaFactory in the player;
     // standalone test binaries must register codecs themselves or
     // CodecRegistry::createCodec() comes back empty.

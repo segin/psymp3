@@ -8,7 +8,7 @@
 
 #ifdef ENABLE_ALAW_CODEC
 
-int main() {
+int test_alaw_sample_conversion_main() {
     // Test basic A-law sample conversion through decode method
     StreamInfo stream_info;
     stream_info.codec_type = "audio";
@@ -141,7 +141,7 @@ int main() {
 
 #else
 
-int main() {
+int test_alaw_sample_conversion_main() {
     printf("A-law codec not enabled in build\n");
     return 0;
 }

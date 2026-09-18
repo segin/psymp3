@@ -29,7 +29,7 @@ static constexpr size_t MAX_CONCURRENT_INSTANCES = 16;
 static constexpr size_t OPERATIONS_PER_INSTANCE = 500;
 static constexpr size_t PACKET_SIZE = 160; // 20ms at 8kHz
 
-int test_failures = 0;
+static int test_failures = 0;
 
 /**
  * @brief Generate unique test data for each instance
@@ -423,7 +423,7 @@ void testMixedConcurrentInstances() {
     }
 }
 
-int main() {
+int test_codec_concurrent_instances_main() {
     // The registry is only populated by MediaFactory in the player;
     // standalone test binaries must register codecs themselves or
     // CodecRegistry::createCodec() comes back empty.
