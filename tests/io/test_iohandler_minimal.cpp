@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 
-int main() {
+int test_iohandler_minimal_main() {
     std::cout << "Running minimal IOHandler integration test..." << std::endl;
     
     try {

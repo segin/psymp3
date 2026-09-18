@@ -280,7 +280,7 @@ public:
     }
 };
 
-int main() {
+int test_memory_pool_manager_integration_main() {
     Debug::log("test", "Starting MemoryPoolManager integration tests");
     
     MemoryPoolManagerIntegrationTest test;

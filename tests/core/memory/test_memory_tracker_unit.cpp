@@ -85,7 +85,7 @@ public:
     }
 };
 
-int main() {
+int test_memory_tracker_unit_main() {
     Debug::log("test", "Starting MemoryTracker unit tests");
 
     MemoryTrackerUnitTest test;

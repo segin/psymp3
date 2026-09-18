@@ -343,7 +343,7 @@ protected:
 /**
  * Main test function
  */
-int main() {
+int test_audio_thread_safety_main() {
     // Headless environments (CI) have no audio hardware; default to SDL's
     // dummy driver so device opens succeed. An explicitly set driver wins.
     setenv("SDL_AUDIO_DRIVER", "dummy", 0);

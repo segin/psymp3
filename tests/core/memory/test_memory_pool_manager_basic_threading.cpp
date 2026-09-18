@@ -13,7 +13,7 @@
 /**
  * Very basic test to verify MemoryPoolManager works in a threaded environment
  */
-int main() {
+int test_memory_pool_manager_basic_threading_main() {
     std::cout << "Basic MemoryPoolManager threading test" << std::endl;
     
     try {

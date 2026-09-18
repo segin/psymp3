@@ -328,7 +328,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_audio_buffer_cursor_main()
 {
     // No real device is needed, and a test must not open the desktop's.
     setenv("SDL_AUDIO_DRIVER", "dummy", 0);

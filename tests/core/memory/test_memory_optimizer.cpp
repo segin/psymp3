@@ -201,7 +201,7 @@ void testMemoryOptimizerCore() {
 }
 
 // Main test function
-int main() {
+int test_memory_optimizer_main() {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
     
     std::cout << "Memory Optimizer Tests" << std::endl;

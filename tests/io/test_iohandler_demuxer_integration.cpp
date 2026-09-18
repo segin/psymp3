@@ -411,7 +411,7 @@ public:
     }
 };
 
-int main() {
+int test_iohandler_demuxer_integration_main() {
     TestSuite suite("IOHandler Demuxer Integration Tests");
     
     suite.addTest(std::make_unique<FileIOHandlerDemuxerTest>());

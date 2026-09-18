@@ -593,7 +593,7 @@ void test_unicode_filename_support() {
     std::cout << "  ✓ Unicode filename support tested" << std::endl;
 }
 
-int main() {
+int test_iohandler_legacy_compatibility_main() {
     std::cout << "IOHandler Legacy Compatibility Tests" << std::endl;
     std::cout << "====================================" << std::endl;
     std::cout << std::endl;

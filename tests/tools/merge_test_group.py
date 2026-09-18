@@ -73,7 +73,9 @@ for name in group:
         if any(f.startswith((".L", "std::", "__gnu", "TestFramework::", "PsyMP3::", "TagLib::",
                              "Debug::", "operator new", "operator delete", "typeinfo", "vtable",
                              "VTT", "guard variable", "DW.ref", "non-virtual thunk",
-                             "virtual thunk", "rc::", "SheenBidi", "hb_", "FT_")) for f in forms):
+                             "virtual thunk", "rc::", "SheenBidi", "hb_", "FT_",
+                             # production types that are not in a namespace
+                             "Stream::", "AudioFrame", "IOHandler::", "Player::")) for f in forms):
             continue
         defined[sym].add(name)
 clashes = {s_: f for s_, f in defined.items() if len(f) > 1 and s_ != "main"}

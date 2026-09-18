@@ -443,7 +443,7 @@ public:
     }
 };
 
-int main() {
+int test_memory_pool_manager_thread_safety_comprehensive_main() {
     Debug::log("test", "Starting MemoryPoolManager comprehensive thread safety tests");
     
     MemoryPoolManagerThreadSafetyTest test;

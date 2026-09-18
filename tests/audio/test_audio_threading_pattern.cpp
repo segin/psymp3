@@ -195,7 +195,7 @@ void testPerformanceImpact() {
               << results3.speedup_ratio << "x" << std::endl;
 }
 
-int main() {
+int test_audio_threading_pattern_main() {
     std::cout << "PsyMP3 Audio Threading Pattern Tests" << std::endl;
     std::cout << "====================================" << std::endl;
     

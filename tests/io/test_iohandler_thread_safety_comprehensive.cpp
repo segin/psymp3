@@ -556,7 +556,7 @@ private:
     }
 };
 
-int main() {
+int test_iohandler_thread_safety_comprehensive_main() {
     try {
         IOHandlerThreadSafetyTest test;
         test.runAllTests();

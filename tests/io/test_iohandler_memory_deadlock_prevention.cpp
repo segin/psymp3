@@ -274,7 +274,7 @@ private:
     }
 };
 
-int main() {
+int test_iohandler_memory_deadlock_prevention_main() {
     try {
         IOHandlerMemoryDeadlockTest test;
         test.runAllTests();

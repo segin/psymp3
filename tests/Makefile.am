@@ -354,24 +354,17 @@ debug_dual_flac_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
-test_memory_optimizer_SOURCES = test_memory_optimizer.cpp
-test_memory_optimizer_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
-test_memory_leak_prevention_SOURCES = test_memory_leak_prevention.cpp
-test_memory_leak_prevention_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
+# Memory Management Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_memory_suite_SOURCES = test_memory_suite.cpp \
+	core/memory/test_memory_leak_prevention.cpp \
+	core/memory/test_memory_optimizer.cpp \
+	core/memory/test_memory_pool_allocation_failure.cpp \
+	core/memory/test_memory_pool_manager_basic_threading.cpp \
+	core/memory/test_memory_pool_manager_integration.cpp \
+	core/memory/test_memory_pool_manager_thread_safety_comprehensive.cpp \
+	core/memory/test_memory_tracker_unit.cpp
+test_memory_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 debug_bit_extraction_SOURCES = debug_bit_extraction.cpp
 debug_bit_extraction_LDADD = $(AM_LDFLAGS)
@@ -431,19 +424,13 @@ test_seek_deadlock_LDADD = \
 # Individual test executables
 check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
 	test_harness_integration \
-	test_iohandler_integration_simple \
-	test_iohandler_minimal \
-	test_iohandler_basic \
+	test_iohandler_suite \
 	test_integration_verification \
-	test_iohandler_demuxer_integration \
-	test_iohandler_demuxer_integration_simple \
 	test_psymp3_system_integration \
 	test_api_consistency \
 	test_demuxer_unit \
 	test_seeking_engine \
 	test_demuxer_suite \
-	test_iohandler_legacy_compatibility \
-	test_iohandler_performance_validation \
 	test_widget_hierarchy_properties \
 	test_widget_suite \
 	test_matroska_suite \
@@ -728,7 +715,7 @@ endif
 check_PROGRAMS += test_codec_selection_validation_simple
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_memory_pool_allocation_failure test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression test_memory_tracker_unit test_memory_optimizer test_memory_leak_prevention
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression test_memory_suite 
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
@@ -812,29 +799,19 @@ endif
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
-test_iohandler_integration_simple_SOURCES = test_iohandler_integration_simple.cpp
-test_iohandler_integration_simple_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
-test_iohandler_minimal_SOURCES = test_iohandler_minimal.cpp
-test_iohandler_minimal_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
-test_iohandler_basic_SOURCES = test_iohandler_basic.cpp
-test_iohandler_basic_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
+# IOHandler Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_iohandler_suite_SOURCES = test_iohandler_suite.cpp \
+	io/test_iohandler_basic.cpp \
+	io/test_iohandler_demuxer_integration.cpp \
+	io/test_iohandler_demuxer_integration_simple.cpp \
+	io/test_iohandler_integration_simple.cpp \
+	io/test_iohandler_legacy_compatibility.cpp \
+	io/test_iohandler_memory_deadlock_prevention.cpp \
+	io/test_iohandler_minimal.cpp \
+	io/test_iohandler_performance_validation.cpp \
+	io/test_iohandler_thread_safety_comprehensive.cpp
+test_iohandler_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_integration_verification_SOURCES = test_integration_verification.cpp
 test_integration_verification_LDADD = libtest_utilities.a \
@@ -843,20 +820,6 @@ test_integration_verification_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
-
-test_iohandler_demuxer_integration_SOURCES = test_iohandler_demuxer_integration.cpp
-test_iohandler_demuxer_integration_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
-test_iohandler_demuxer_integration_simple_SOURCES = test_iohandler_demuxer_integration_simple.cpp
-test_iohandler_demuxer_integration_simple_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 
 test_psymp3_system_integration_SOURCES = test_psymp3_system_integration.cpp
 test_psymp3_system_integration_LDADD = libtest_utilities.a \
@@ -910,32 +873,6 @@ test_demuxer_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 # Integration tests
 # Performance and regression tests
 # IOHandler backward compatibility and performance validation tests
-test_iohandler_legacy_compatibility_SOURCES = test_iohandler_legacy_compatibility.cpp
-test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
-
-test_iohandler_performance_validation_SOURCES = test_iohandler_performance_validation.cpp
-test_iohandler_performance_validation_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
-
 test_http_client_parse_url_SOURCES = test_http_client_parse_url.cpp
 test_http_client_parse_url_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
@@ -1790,65 +1727,26 @@ test_threading_safety_baseline_SOURCES = test_threading_safety_baseline.cpp
 test_threading_safety_baseline_LDADD = libtest_utilities.a -lpthread
 
 # Audio thread safety test
-test_audio_thread_safety_SOURCES = test_audio_thread_safety.cpp
-test_audio_thread_safety_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/audio.o \
-	$(top_builddir)/src/dsp/Equalizer.o \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/core/fft.o \
-	$(top_builddir)/src/core/fft_draw.o \
-	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(AM_LDFLAGS)
+# Audio Pipeline Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_audio_suite_SOURCES = test_audio_suite.cpp \
+	audio/test_audio_buffer_cursor.cpp \
+	audio/test_audio_frame_assembly.cpp \
+	audio/test_audio_thread_safety.cpp \
+	audio/test_audio_threading_pattern.cpp
+test_audio_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Audio's PCM queue: read cursor, compaction, and continuity through the
 # real SDL callback and decoder thread (SDL dummy driver, no device output)
-check_PROGRAMS += test_audio_buffer_cursor
-test_audio_buffer_cursor_SOURCES = test_audio_buffer_cursor.cpp
-test_audio_buffer_cursor_LDADD = $(test_audio_thread_safety_LDADD)
-
+check_PROGRAMS += test_audio_suite 
 # Cover art selection and data: URIs for MPRIS
 check_PROGRAMS += test_cover_art
 test_cover_art_SOURCES = test_cover_art.cpp
 test_cover_art_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Decoded PCM stays whole-frame and gapless across stream reads
-check_PROGRAMS += test_audio_frame_assembly
-test_audio_frame_assembly_SOURCES = test_audio_frame_assembly.cpp
-test_audio_frame_assembly_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/audio.o \
-	$(top_builddir)/src/dsp/Equalizer.o \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/core/fft.o \
-	$(top_builddir)/src/core/fft_draw.o \
-	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(AM_LDFLAGS)
-
+check_PROGRAMS += 
 # Audio threading pattern test (simpler test without SDL dependencies)
-test_audio_threading_pattern_SOURCES = test_audio_threading_pattern.cpp
-test_audio_threading_pattern_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # Surface thread safety test
 test_surface_thread_safety_SOURCES = test_surface_thread_safety.cpp
 test_surface_thread_safety_LDADD = \
@@ -2192,76 +2090,12 @@ test_flac_parse_coded_number_LDADD = \
 endif
 
 # IOHandler thread safety comprehensive test
-test_iohandler_thread_safety_comprehensive_SOURCES = test_iohandler_thread_safety_comprehensive.cpp
-test_iohandler_thread_safety_comprehensive_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(AM_LDFLAGS)
-
 # IOHandler memory deadlock prevention test
-test_iohandler_memory_deadlock_prevention_SOURCES = test_iohandler_memory_deadlock_prevention.cpp
-test_iohandler_memory_deadlock_prevention_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # MemoryPoolManager integration test
-test_memory_pool_manager_integration_SOURCES = test_memory_pool_manager_integration.cpp
-test_memory_pool_manager_integration_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # MemoryTracker unit test
-test_memory_tracker_unit_SOURCES = test_memory_tracker_unit.cpp
-test_memory_tracker_unit_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # MemoryPoolManager comprehensive thread safety test
-test_memory_pool_manager_thread_safety_comprehensive_SOURCES = test_memory_pool_manager_thread_safety_comprehensive.cpp
-test_memory_pool_manager_thread_safety_comprehensive_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # MemoryPoolManager basic threading test
-test_memory_pool_manager_basic_threading_SOURCES = test_memory_pool_manager_basic_threading.cpp
-test_memory_pool_manager_basic_threading_LDADD = \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # MemoryPoolManager allocation failure test
-test_memory_pool_allocation_failure_SOURCES = test_memory_pool_allocation_failure.cpp
-test_memory_pool_allocation_failure_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 test_frame_size_estimation_consistency_SOURCES = test_frame_size_estimation_consistency.cpp
 test_frame_size_estimation_consistency_LDADD = \
 	libtest_utilities.a \

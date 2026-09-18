@@ -6,7 +6,7 @@
 
 #include "psymp3.h"
 
-int main() {
+int test_iohandler_basic_main() {
     std::cout << "Running basic IOHandler test..." << std::endl;
     
     try {

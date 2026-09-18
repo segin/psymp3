@@ -326,7 +326,7 @@ bool test_thread_safety() {
 /**
  * @brief Main test function
  */
-int main() {
+int test_memory_leak_prevention_main() {
     Debug::log("test", "Starting memory management and resource safety tests");
     
     bool all_passed = true;

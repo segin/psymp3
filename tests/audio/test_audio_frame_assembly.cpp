@@ -110,7 +110,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_audio_frame_assembly_main()
 {
     TestSuite suite("Audio Frame Assembly Tests");
     suite.addTest(std::make_unique<DecoderReadSizeTest>());

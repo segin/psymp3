@@ -10,14 +10,14 @@
 #include "psymp3.h"
 
 // Simple test framework to avoid memory management issues
-void assert_true(bool condition, const std::string& message) {
+static void assert_true(bool condition, const std::string& message) {
     if (!condition) {
         std::cout << "FAILED: " << message << std::endl;
         exit(1);
     }
 }
 
-void assert_false(bool condition, const std::string& message) {
+static void assert_false(bool condition, const std::string& message) {
     if (condition) {
         std::cout << "FAILED: " << message << std::endl;
         exit(1);
@@ -32,7 +32,7 @@ void assert_equals(size_t expected, size_t actual, const std::string& message) {
 }
 
 // Test 1: Verify IOHandler interface compatibility with demuxers
-void test_iohandler_interface_compatibility() {
+static void test_iohandler_interface_compatibility() {
     std::cout << "Testing IOHandler interface compatibility..." << std::endl;
     
     // Test that IOHandler interface provides all methods needed by demuxers
@@ -150,7 +150,7 @@ void test_existing_demuxer_integration() {
     std::cout << "Existing demuxer integration verified" << std::endl;
 }
 
-int main() {
+int test_iohandler_demuxer_integration_simple_main() {
     std::cout << "IOHandler Demuxer Integration Tests (Simple)" << std::endl;
     std::cout << "=============================================" << std::endl;
     std::cout << std::endl;

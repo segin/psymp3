@@ -13,14 +13,14 @@
 #include <cassert>
 
 // Simple test framework functions
-void assert_true(bool condition, const std::string& message) {
+static void assert_true(bool condition, const std::string& message) {
     if (!condition) {
         std::cerr << "ASSERTION FAILED: " << message << std::endl;
         exit(1);
     }
 }
 
-void assert_false(bool condition, const std::string& message) {
+static void assert_false(bool condition, const std::string& message) {
     if (condition) {
         std::cerr << "ASSERTION FAILED: " << message << std::endl;
         exit(1);
@@ -97,7 +97,7 @@ void test_taglib_string_integration() {
 }
 
 // Test 3: IOHandler Interface Compatibility - Verify interface works as expected by demuxers
-void test_iohandler_interface_compatibility() {
+static void test_iohandler_interface_compatibility() {
     std::cout << "Testing IOHandler interface compatibility..." << std::endl;
     
     std::string test_file = "test_interface.txt";
@@ -261,7 +261,7 @@ void test_memory_management_integration() {
     std::cout << "  ✓ Memory management integration test passed" << std::endl;
 }
 
-int main() {
+int test_iohandler_integration_simple_main() {
     std::cout << "Running IOHandler Integration Tests (Simple)..." << std::endl;
     std::cout << "=============================================" << std::endl;
     

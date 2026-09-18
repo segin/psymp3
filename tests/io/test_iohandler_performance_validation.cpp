@@ -721,7 +721,7 @@ void test_feature_impact_validation() {
     std::cout << "  ✓ Feature impact validation completed successfully" << std::endl;
 }
 
-int main() {
+int test_iohandler_performance_validation_main() {
     std::cout << "IOHandler Performance Validation Tests" << std::endl;
     std::cout << "=====================================" << std::endl;
     std::cout << std::endl;
