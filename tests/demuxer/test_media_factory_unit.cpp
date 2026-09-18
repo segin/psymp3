@@ -392,7 +392,7 @@ protected:
     }
 };
 
-int main() {
+int test_media_factory_unit_main() {
     registerAllDemuxers();
     TestSuite suite("MediaFactory Unit Tests");
     

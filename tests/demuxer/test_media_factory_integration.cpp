@@ -444,7 +444,7 @@ protected:
     }
 };
 
-int main() {
+int test_media_factory_integration_main() {
     registerAllDemuxers();
     TestSuite suite("MediaFactory Integration Tests");
     

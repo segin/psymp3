@@ -783,7 +783,7 @@ protected:
     }
 };
 
-int main() {
+int test_demuxer_performance_main() {
     registerAllDemuxers();
     TestSuite suite("Demuxer Performance and Regression Tests");
     

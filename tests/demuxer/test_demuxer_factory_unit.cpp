@@ -400,7 +400,7 @@ protected:
     }
 };
 
-int main() {
+int test_demuxer_factory_unit_main() {
     // Initialise demuxers
     registerAllDemuxers();
     

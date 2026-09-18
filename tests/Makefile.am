@@ -453,12 +453,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_api_consistency \
 	test_demuxer_unit \
 	test_seeking_engine \
-	test_demuxer_factory_unit \
-	test_media_factory_unit \
-	test_demuxed_stream_unit \
-	test_demuxer_integration \
-	test_media_factory_integration \
-	test_demuxer_performance \
+	test_demuxer_suite \
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
 	test_widget_event_routing \
@@ -911,26 +906,19 @@ test_seeking_engine_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
-test_demuxer_factory_unit_SOURCES = test_demuxer_factory_unit.cpp
-test_demuxer_factory_unit_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
-test_media_factory_unit_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
-test_demuxed_stream_unit_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# Demuxer and MediaFactory Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_demuxer_suite_SOURCES = test_demuxer_suite.cpp \
+	demuxer/test_demuxer_factory_unit.cpp \
+	demuxer/test_media_factory_unit.cpp \
+	demuxer/test_demuxed_stream_unit.cpp \
+	demuxer/test_demuxer_integration.cpp \
+	demuxer/test_media_factory_integration.cpp \
+	demuxer/test_demuxer_performance.cpp
+test_demuxer_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Integration tests
-test_demuxer_integration_SOURCES = test_demuxer_integration.cpp
-test_demuxer_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_media_factory_integration_SOURCES = test_media_factory_integration.cpp
-test_media_factory_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
 # Performance and regression tests
-test_demuxer_performance_SOURCES = test_demuxer_performance.cpp
-test_demuxer_performance_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
 # IOHandler backward compatibility and performance validation tests
 test_iohandler_legacy_compatibility_SOURCES = test_iohandler_legacy_compatibility.cpp
 test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \

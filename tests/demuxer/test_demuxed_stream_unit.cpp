@@ -513,7 +513,7 @@ protected:
     }
 };
 
-int main() {
+int test_demuxed_stream_unit_main() {
     registerAllDemuxers();
     TestSuite suite("DemuxedStream Unit Tests");
     

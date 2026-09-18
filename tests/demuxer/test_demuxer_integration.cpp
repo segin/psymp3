@@ -675,7 +675,7 @@ protected:
     }
 };
 
-int main() {
+int test_demuxer_integration_main() {
     registerAllDemuxers();
     TestSuite suite("Demuxer Integration Tests");
     
