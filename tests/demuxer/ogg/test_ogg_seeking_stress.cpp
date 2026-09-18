@@ -21,12 +21,12 @@
 // using namespace PsyMP3::Demuxer::Ogg;
 // using namespace PsyMP3::IO::File;
 
-int main(int argc, char** argv) {
+// The file to stress was overridable on the command line, which nothing
+// passed; sharing a program with the other Ogg tests leaves no argv of its
+// own, so the default path is the only one.
+int test_ogg_seeking_stress_main() {
     // Path to a real Ogg file in tests/data
-    std::string filename = "data/02 Foo Fighters - Monkey Wrench.ogg";
-    if (argc > 1) {
-        filename = argv[1];
-    }
+    const std::string filename = "data/02 Foo Fighters - Monkey Wrench.ogg";
     
     std::cout << "Running Ogg Seeking Stress Test on: " << filename << std::endl;
 
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
 
 #else
 
-int main() {
+int test_ogg_seeking_stress_main() {
     std::cout << "OggDemuxer disabled, skipping test." << std::endl;
     return 0;
 }

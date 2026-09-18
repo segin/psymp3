@@ -649,7 +649,7 @@ public:
     }
 };
 
-int main() {
+int test_oggdemuxer_comprehensive_main() {
     std::cout << "OGG Demuxer Comprehensive Test Suite" << std::endl;
     std::cout << "====================================" << std::endl;
     

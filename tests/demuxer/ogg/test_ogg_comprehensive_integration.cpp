@@ -821,7 +821,7 @@ void printSummary() {
     }
 }
 
-int main() {
+int test_ogg_comprehensive_integration_main() {
     std::cout << "========================================" << std::endl;
     std::cout << "OGG Demuxer Comprehensive Integration Tests" << std::endl;
     std::cout << "Task 20: Comprehensive Integration Testing" << std::endl;
@@ -852,7 +852,7 @@ int main() {
 
 #else // !HAVE_OGGDEMUXER
 
-int main() {
+int test_ogg_comprehensive_integration_main() {
     std::cout << "OGG Demuxer comprehensive integration tests skipped - HAVE_OGGDEMUXER not defined" << std::endl;
     return 0;
 }

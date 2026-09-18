@@ -783,7 +783,7 @@ private:
 };
 
 // Main test function
-int main() {
+int test_ogg_memory_safety_main() {
     Debug::log("test", "Starting OggDemuxer Memory Safety Tests");
     
     try {
@@ -798,7 +798,7 @@ int main() {
 
 #else // !HAVE_OGGDEMUXER
 
-int main() {
+int test_ogg_memory_safety_main() {
     Debug::log("test", "OggDemuxer not available - skipping memory safety tests");
     return 0;
 }

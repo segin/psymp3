@@ -74,6 +74,8 @@ public:
 };
 
 // Mock IOHandler for performance testing
+namespace {  // so that another test file's MockIOHandler cannot be
+             // mistaken for this one when they share a program
 class MockIOHandler : public IOHandler {
 private:
     std::vector<uint8_t> data;
@@ -141,6 +143,8 @@ public:
     size_t getReadCount() const { return read_count; }
     void resetReadCount() { read_count = 0; }
 };
+}  // namespace
+
 
 // Performance test implementations
 
@@ -306,7 +310,7 @@ bool testConcurrentAccess() {
     }
 }
 
-int main() {
+int test_oggdemuxer_performance_main() {
     PerformanceTestRunner runner;
     
     // Add performance tests with time limits
@@ -325,7 +329,7 @@ int main() {
 
 #else
 
-int main() {
+int test_oggdemuxer_performance_main() {
     std::cout << "OggDemuxer not available - skipping performance tests\n";
     return 0;
 }

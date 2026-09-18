@@ -234,7 +234,7 @@ bool testGetPrevPageSerialNotFound() {
 }
 
 // Main test runner
-int main() {
+int test_ogg_page_extraction_main() {
     std::cout << "Running OggSyncManager Tests..." << std::endl;
     std::cout << "=============================================" << std::endl;
     
@@ -260,7 +260,7 @@ int main() {
 
 #else // !HAVE_OGGDEMUXER
 
-int main() {
+int test_ogg_page_extraction_main() {
     std::cout << "OggSyncManager not available - skipping page extraction tests" << std::endl;
     return 0;
 }

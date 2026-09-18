@@ -582,7 +582,7 @@ private:
     }
 };
 
-int main() {
+int test_ogg_data_streaming_main() {
     DataStreamingTest test;
     TestFramework::TestCaseInfo result = test.run();
     
@@ -597,7 +597,7 @@ int main() {
 
 #else // !HAVE_OGGDEMUXER
 
-int main() {
+int test_ogg_data_streaming_main() {
     std::cout << "OggDemuxer not available - skipping data streaming tests" << std::endl;
     return 0;
 }

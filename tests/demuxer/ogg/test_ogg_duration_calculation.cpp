@@ -24,6 +24,8 @@ using namespace PsyMP3::Demuxer::Ogg;
 using namespace PsyMP3::IO;
 
 // Mock IOHandler for testing
+namespace {  // so that another test file's MockIOHandler cannot be
+             // mistaken for this one when they share a program
 class MockIOHandler : public IOHandler {
 private:
     std::vector<uint8_t> m_data;
@@ -68,6 +70,8 @@ public:
         return m_position >= m_data.size();
     }
 };
+}  // namespace
+
 
 // Helper function to create a minimal Ogg page
 std::vector<uint8_t> createOggPage(uint32_t serial_number, uint64_t granule_position, 
@@ -335,7 +339,7 @@ void test_exponential_chunk_sizes() {
     ASSERT_TRUE(duration_ms >= 0, "Expected non-negative duration from scanning");
 }
 
-int main() {
+int test_ogg_duration_calculation_main() {
     std::cout << "Running OggDemuxer Duration Calculation Tests..." << std::endl;
     
     int tests_run = 0;
@@ -371,7 +375,7 @@ int main() {
 }
 
 #else
-int main() {
+int test_ogg_duration_calculation_main() {
     std::cout << "OggDemuxer not available - skipping duration calculation tests" << std::endl;
     return 0;
 }

@@ -31,6 +31,8 @@
 
 // --- Mock Classes ---
 
+namespace {  // so that another test file's MockIOHandler cannot be
+             // mistaken for this one when they share a program
 class MockIOHandler : public PsyMP3::IO::IOHandler {
 private:
     std::vector<uint8_t> m_data;
@@ -84,6 +86,8 @@ public:
         return static_cast<off_t>(m_data.size());
     }
 };
+}  // namespace
+
 
 // --- Test Implementation ---
 
@@ -214,7 +218,7 @@ void test_multiplexed_seeking_rejection() {
     std::cout << "PASSED: Correctly ignored secondary stream pages." << std::endl;
 }
 
-int main() {
+int test_ogg_multiplexed_seeking_main() {
     try {
         test_multiplexed_seeking_rejection();
         return 0;
@@ -226,7 +230,7 @@ int main() {
 
 #else
 
-int main() {
+int test_ogg_multiplexed_seeking_main() {
     std::cout << "OggDemuxer disabled, skipping test." << std::endl;
     return 0;
 }

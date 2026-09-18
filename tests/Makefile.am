@@ -583,10 +583,7 @@ generate_matroska_corpus_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
-	test_ogg_data_streaming test_ogg_memory_safety \
-	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
-	test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
+check_PROGRAMS += test_ogg_suite \
 	test_compression_lz77
 
 if HAVE_RAPIDCHECK
@@ -1019,7 +1016,20 @@ test_surface_from_bmp_error_LDADD = \
 
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
-test_ogg_page_extraction_SOURCES = test_ogg_page_extraction.cpp
+# Ogg Demuxer Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_ogg_suite_SOURCES = test_ogg_suite.cpp \
+	demuxer/ogg/test_ogg_page_extraction.cpp \
+	demuxer/ogg/test_ogg_duration_calculation.cpp \
+	demuxer/ogg/test_ogg_time_conversion.cpp \
+	demuxer/ogg/test_ogg_data_streaming.cpp \
+	demuxer/ogg/test_ogg_memory_safety.cpp \
+	demuxer/ogg/test_oggdemuxer_performance.cpp \
+	demuxer/ogg/test_oggdemuxer_comprehensive.cpp \
+	demuxer/ogg/test_ogg_comprehensive_integration.cpp \
+	demuxer/ogg/test_ogg_multiplexed_seeking.cpp \
+	demuxer/ogg/test_ogg_seeking_stress.cpp
+test_ogg_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_ogg_fuzzing_SOURCES = test_ogg_fuzzing.cpp
 test_ogg_fuzzing_LDADD = libtest_utilities.a \
@@ -1040,59 +1050,6 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	$(OGG_LIBS) \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
-
-test_ogg_multiplexed_seeking_SOURCES = test_ogg_multiplexed_seeking.cpp
-test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/debug.o \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS) \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(VORBIS_LIBS)
-
-test_ogg_seeking_stress_SOURCES = test_ogg_seeking_stress.cpp
-test_ogg_seeking_stress_LDADD = libtest_utilities.a \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/debug.o \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
 
 test_ogg_aggressive_SOURCES = test_ogg_aggressive.cpp
 test_ogg_aggressive_LDADD = libtest_utilities.a \
@@ -1344,23 +1301,6 @@ test_ogg_integration_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-test_ogg_page_extraction_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
-
 
 
 
@@ -1385,89 +1325,9 @@ test_ogg_codec_detection_LDADD = \
 	$(AM_LDFLAGS)
 
 # OggDemuxer duration calculation test
-test_ogg_duration_calculation_SOURCES = test_ogg_duration_calculation.cpp
-test_ogg_duration_calculation_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
-
 # OggDemuxer time conversion test
-test_ogg_time_conversion_SOURCES = test_ogg_time_conversion.cpp
-test_ogg_time_conversion_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
-
 # OggDemuxer data streaming test
-test_ogg_data_streaming_SOURCES = test_ogg_data_streaming.cpp
-test_ogg_data_streaming_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
-
 # OggDemuxer memory safety test
-test_ogg_memory_safety_SOURCES = test_ogg_memory_safety.cpp
-test_ogg_memory_safety_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
-
 # OggDemuxer error handling test
 test_error_handling_SOURCES = test_error_handling.cpp
 test_error_handling_LDADD = $(OGG_DEMUXER_TEST_LIBS)
@@ -3077,75 +2937,8 @@ test_flac_sample_format_rfc9639_compliance_LDADD = \
 	$(AM_LDFLAGS)
 
 # OggDemuxer performance test
-test_oggdemuxer_performance_SOURCES = test_oggdemuxer_performance.cpp
-test_oggdemuxer_performance_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(OPUS_LIBS) \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
-
 # OggDemuxer comprehensive test suite
-test_oggdemuxer_comprehensive_SOURCES = test_oggdemuxer_comprehensive.cpp
-test_oggdemuxer_comprehensive_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(OPUS_LIBS) \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
-
 # OggDemuxer comprehensive integration test (Task 20)
-test_ogg_comprehensive_integration_SOURCES = test_ogg_comprehensive_integration.cpp
-test_ogg_comprehensive_integration_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(OPUS_LIBS) \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
-
 # Opus Codec Tests
 test_opus_codec_core_decoding_SOURCES = test_opus_codec_core_decoding.cpp
 test_opus_codec_core_decoding_LDADD = \

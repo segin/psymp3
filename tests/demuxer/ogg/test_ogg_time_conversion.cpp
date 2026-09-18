@@ -174,6 +174,8 @@ std::vector<uint8_t> createMinimalOpusOggStream(int32_t serial, int64_t audio_gr
 /**
  * @brief Mock IOHandler for testing that doesn't require actual files
  */
+namespace {  // so that another test file's MockIOHandler cannot be
+             // mistaken for this one when they share a program
 class MockIOHandler : public IOHandler {
 public:
     MockIOHandler() : IOHandler() {}
@@ -185,6 +187,8 @@ public:
     bool eof() override { return true; }
     off_t getFileSize() override { return 0; }
 };
+}  // namespace
+
 
 /**
  * @brief Test fixture for time conversion tests
@@ -722,7 +726,7 @@ bool test_ogg_get_position_reports_milliseconds() {
     return true;
 }
 
-int main() {
+int test_ogg_time_conversion_main() {
     printf("Starting OggDemuxer time conversion tests...\n");
     
     bool all_passed = true;
@@ -864,7 +868,7 @@ int main() {
 }
 
 #else
-int main() {
+int test_ogg_time_conversion_main() {
     printf("OggDemuxer not available - skipping time conversion tests\n");
     return 0;
 }
