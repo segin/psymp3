@@ -70,6 +70,7 @@ int main()
         } else if (failed > 0) {
             ++failed_files;
             failures += failed;
+            std::printf("--- %s reported %d failure(s)\n", entry.name, failed);
         }
     }
 
@@ -78,7 +79,6 @@ int main()
         std::printf("\n=== all %d file(s) skipped ===\n", skipped_files);
         return 77;
     }
-
     std::printf("\n=== Demuxer and MediaFactory Tests: %zu files, %d failed test(s) in %d file(s), %d skipped ===\n",
                 sizeof(kEntries) / sizeof(kEntries[0]), failures, failed_files, skipped_files);
     return failures;
