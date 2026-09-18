@@ -102,7 +102,7 @@ void test_overflow_handling() {
     ASSERT_EQUALS(rect3.height(), 0, "Height should clamp to 0");
 }
 
-int main() {
+int test_rect_transformation_main() {
     // Create test suite
     TestSuite suite("Rectangle Transformation Tests");
     

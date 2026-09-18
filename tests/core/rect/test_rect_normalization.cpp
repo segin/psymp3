@@ -69,7 +69,7 @@ void testCoordinateSystemLimits() {
     assertRectArea(r2, static_cast<uint32_t>(65535) * 65535, "Maximum area calculation");
 }
 
-int main() {
+int test_rect_normalization_main() {
     // Create test suite
     TestSuite suite("Rectangle Normalization and Coordinate System Tests");
     

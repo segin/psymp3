@@ -95,7 +95,7 @@ void test_expand_shrink_equivalence() {
     assertRectsIdentical(r, original, "Expand then shrink should return to original");
 }
 
-int main() {
+int test_rect_expansion_main() {
     // Create test suite
     TestSuite suite("Rectangle Expansion and Contraction Tests");
     

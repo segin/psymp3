@@ -366,7 +366,7 @@ void test_complete_widget_integration() {
     std::cout << "✓ All complete widget integration tests passed!" << std::endl;
 }
 
-int main() {
+int test_rect_integration_main() {
     std::cout << "=== Rect Integration Tests ===" << std::endl;
     std::cout << std::endl;
     

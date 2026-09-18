@@ -155,7 +155,7 @@ void test_single_pixel_rectangles() {
     testContainmentPatterns(pixel, another_pixel, true, "Identical single pixels should contain each other");
 }
 
-int main() {
+int test_rect_containment_main() {
     // Create test suite
     TestSuite suite("Rectangle Containment Tests");
     

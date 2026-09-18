@@ -136,7 +136,7 @@ void test_coordinate_transformations() {
     ASSERT_TRUE(widget.y() == 150, "Y should remain unchanged");
 }
 
-int main() {
+int test_widget_rect_integration_main() {
     TestSuite suite("Widget-Rect Integration Tests");
     
     suite.addTest("Widget Positioning Patterns", test_widget_positioning_patterns);

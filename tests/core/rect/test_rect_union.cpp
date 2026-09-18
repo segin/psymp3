@@ -150,7 +150,7 @@ void test_union_single_pixel() {
     testUnionPatterns(large, pixel, expected_large, "Union of large rectangle with single pixel");
 }
 
-int main() {
+int test_rect_union_main() {
     // Create test suite
     TestSuite suite("Rectangle Union Tests");
     

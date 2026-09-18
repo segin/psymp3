@@ -257,7 +257,7 @@ void test_pos_size_accessors() {
     std::cout << "  ✓ size() with structured binding works" << std::endl;
 }
 
-int main() {
+int test_rect_pair_variants_main() {
     std::cout << "=== Rect Pair Variants Tests ===" << std::endl;
     std::cout << std::endl;
     

@@ -741,7 +741,7 @@ public:
 // MAIN TEST RUNNER
 // ========================================
 
-int main() {
+int test_rect_unit_main() {
     TestSuite suite("Rect Unit Tests");
     
     // Basic construction and properties

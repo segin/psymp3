@@ -85,7 +85,7 @@ void test_precision_with_odd_dimensions() {
     assertRectEquals(rect, 45, 45, 11, 11, "Centering with odd dimensions");
 }
 
-int main() {
+int test_rect_centering_overflow_main() {
     // Create test suite
     TestSuite suite("Rectangle Centering Overflow Tests");
     

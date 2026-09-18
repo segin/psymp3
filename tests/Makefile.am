@@ -429,19 +429,7 @@ test_seek_deadlock_LDADD = \
 
 
 # Individual test executables
-check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union \
-	test_rect_centering \
-	test_rect_centering_overflow \
-	test_rect_expansion \
-	test_rect_transformation \
-	test_rect_normalization \
-	test_rect_modern_cpp \
-	test_rect_backward_compatibility \
-	test_rect_performance \
-	test_rect_unit \
-	test_rect_integration \
-	test_rect_pair_variants \
-	test_widget_rect_integration \
+check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
 	test_harness_integration \
 	test_iohandler_integration_simple \
 	test_iohandler_minimal \
@@ -766,53 +754,27 @@ endif
 test_mediafile_SOURCES = test_mediafile.cpp
 test_mediafile_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
-test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
-test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
+# Rect Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_rect_suite_SOURCES = test_rect_suite.cpp \
+	core/rect/test_rect_area_validation.cpp \
+	core/rect/test_rect_backward_compatibility.cpp \
+	core/rect/test_rect_centering.cpp \
+	core/rect/test_rect_centering_overflow.cpp \
+	core/rect/test_rect_containment.cpp \
+	core/rect/test_rect_expansion.cpp \
+	core/rect/test_rect_integration.cpp \
+	core/rect/test_rect_intersection.cpp \
+	core/rect/test_rect_modern_cpp.cpp \
+	core/rect/test_rect_normalization.cpp \
+	core/rect/test_rect_pair_variants.cpp \
+	core/rect/test_rect_performance.cpp \
+	core/rect/test_rect_transformation.cpp \
+	core/rect/test_rect_union.cpp \
+	core/rect/test_rect_unit.cpp \
+	core/rect/test_widget_rect_integration.cpp
+test_rect_suite_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 
-test_rect_containment_SOURCES = test_rect_containment.cpp
-test_rect_containment_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_intersection_SOURCES = test_rect_intersection.cpp
-test_rect_intersection_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_union_SOURCES = test_rect_union.cpp
-test_rect_union_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_centering_SOURCES = test_rect_centering.cpp
-test_rect_centering_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_centering_overflow_SOURCES = test_rect_centering_overflow.cpp
-test_rect_centering_overflow_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_expansion_SOURCES = test_rect_expansion.cpp
-test_rect_expansion_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_transformation_SOURCES = test_rect_transformation.cpp
-test_rect_transformation_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_normalization_SOURCES = test_rect_normalization.cpp
-test_rect_normalization_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_modern_cpp_SOURCES = test_rect_modern_cpp.cpp
-test_rect_modern_cpp_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_backward_compatibility_SOURCES = test_rect_backward_compatibility.cpp
-test_rect_backward_compatibility_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_performance_SOURCES = test_rect_performance.cpp
-test_rect_performance_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_unit_SOURCES = test_rect_unit.cpp
-test_rect_unit_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_integration_SOURCES = test_rect_integration.cpp
-test_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_rect_pair_variants_SOURCES = test_rect_pair_variants.cpp
-test_rect_pair_variants_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-
-test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
-test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 test_widget_hierarchy_properties_SOURCES = test_widget_hierarchy_properties.cpp
 test_widget_hierarchy_properties_LDADD = $(COMMON_TEST_LIBS) $(RAPIDCHECK_LIBS) $(AM_LDFLAGS)
 

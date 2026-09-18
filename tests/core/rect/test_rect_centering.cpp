@@ -100,7 +100,7 @@ void test_edge_cases() {
     assertRectEquals(rect, 20, 20, 10, 10, "Centering in zero-size container");
 }
 
-int main() {
+int test_rect_centering_main() {
     // Create test suite
     TestSuite suite("Rectangle Centering Tests");
     

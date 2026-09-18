@@ -148,7 +148,7 @@ void test_consistency_between_isEmpty_and_isValid() {
     assertRectInvalid(rect4, "Zero dimensions should be invalid");
 }
 
-int main() {
+int test_rect_area_validation_main() {
     // Create test suite
     TestSuite suite("Rectangle Area and Validation Tests");
     

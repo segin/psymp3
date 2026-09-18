@@ -141,7 +141,7 @@ void test_memory_usage() {
     ASSERT_TRUE(duration.count() < 10000, "Object creation should be fast");
 }
 
-int main() {
+int test_rect_performance_main() {
     TestSuite suite("Rectangle Performance Tests");
     
     suite.addTest("Accessor Performance", test_accessor_performance);

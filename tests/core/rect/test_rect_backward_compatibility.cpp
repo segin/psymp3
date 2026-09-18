@@ -140,7 +140,7 @@ void test_enhanced_methods_coexistence() {
     assert(rect.height() == 50);
 }
 
-int main() {
+int test_rect_backward_compatibility_main() {
     TestSuite suite("Rectangle Backward Compatibility Tests");
     
     suite.addTest("Existing Constructors", test_existing_constructors);

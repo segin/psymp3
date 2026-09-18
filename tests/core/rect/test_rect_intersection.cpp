@@ -170,7 +170,7 @@ void test_intersection_consistency() {
     assertRectValid(result2, "Intersection result should be valid");
 }
 
-int main() {
+int test_rect_intersection_main() {
     // Create test suite
     TestSuite suite("Rectangle Intersection Tests");
     

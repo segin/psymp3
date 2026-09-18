@@ -62,16 +62,18 @@ for name in group:
                 depth -= 1
             elif ch == " " and depth == 0:
                 cut = i + 1
-        sym = sym[cut:]
+        # Both spellings are tested below: the cut is a guess, and on a symbol
+        # it guesses wrong about it must not hide what the symbol really is.
+        forms = (sym, sym[cut:])
         # Types a shared test header defines inline are the same definition in
         # every file that includes it; MERGE_ALLOW names them.
         import os
-        if any(sym.startswith(a) for a in os.environ.get("MERGE_ALLOW", "").split()):
+        if any(f.startswith(a) for f in forms for a in os.environ.get("MERGE_ALLOW", "").split()):
             continue
-        if sym.startswith((".L", "std::", "__gnu", "TestFramework::", "PsyMP3::", "TagLib::", "Debug::",
-                           "operator new", "operator delete", "typeinfo", "vtable", "VTT",
-                           "guard variable", "DW.ref", "non-virtual thunk", "virtual thunk",
-                           "rc::", "SheenBidi", "hb_", "FT_")):
+        if any(f.startswith((".L", "std::", "__gnu", "TestFramework::", "PsyMP3::", "TagLib::",
+                             "Debug::", "operator new", "operator delete", "typeinfo", "vtable",
+                             "VTT", "guard variable", "DW.ref", "non-virtual thunk",
+                             "virtual thunk", "rc::", "SheenBidi", "hb_", "FT_")) for f in forms):
             continue
         defined[sym].add(name)
 clashes = {s_: f for s_, f in defined.items() if len(f) > 1 and s_ != "main"}

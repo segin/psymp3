@@ -61,7 +61,7 @@ void test_toString_method() {
     ASSERT_TRUE(str3.find("[EMPTY]") != std::string::npos, "toString() should indicate invalid rectangle");
 }
 
-int main() {
+int test_rect_modern_cpp_main() {
     // Create test suite
     TestSuite suite("Rectangle Modern C++ Features Tests");
     
