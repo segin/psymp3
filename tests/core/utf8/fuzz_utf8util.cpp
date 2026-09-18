@@ -280,7 +280,7 @@ void fuzz_roundtrip(RandomGenerator& rng, int iterations) {
 // Main
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int fuzz_utf8util_main_argv(int argc, char* argv[]) {
     int iterations = 1000;
     uint64_t seed = 0;
     
@@ -323,3 +323,11 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+
+/// fuzz_utf8util took arguments when it was a program of its own.
+int fuzz_utf8util_main()
+{
+    char program[] = "fuzz_utf8util";
+    char* argv[] = {program, nullptr};
+    return fuzz_utf8util_main_argv(1, argv);
+}

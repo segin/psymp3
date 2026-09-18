@@ -245,7 +245,7 @@ bool testRiceCoding() {
 
 } // anonymous namespace
 
-int main() {
+int test_native_flac_edge_cases_main() {
     std::cout << "=== Native FLAC Edge Case Tests ===" << std::endl;
     std::cout << std::endl;
     

@@ -282,7 +282,7 @@ void test_rapidcheck_properties() {
 // Main
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int test_utf8util_properties_main_argv(int argc, char* argv[]) {
     std::cout << "========================================" << std::endl;
     std::cout << "UTF8Util Property-Based Tests" << std::endl;
     std::cout << "========================================" << std::endl;
@@ -307,3 +307,11 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+
+/// test_utf8util_properties took arguments when it was a program of its own.
+int test_utf8util_properties_main()
+{
+    char program[] = "test_utf8util_properties";
+    char* argv[] = {program, nullptr};
+    return test_utf8util_properties_main_argv(1, argv);
+}

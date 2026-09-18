@@ -80,7 +80,7 @@ protected:
     }
 };
 
-int main(int argc, char* argv[])
+int test_track_utils_main_argv(int argc, char* argv[])
 {
     (void)argc;
     (void)argv;
@@ -92,4 +92,12 @@ int main(int argc, char* argv[])
     suite.printResults(results);
 
     return suite.getFailureCount(results) > 0 ? 1 : 0;
+}
+
+/// test_track_utils took arguments when it was a program of its own.
+int test_track_utils_main()
+{
+    char program[] = "test_track_utils";
+    char* argv[] = {program, nullptr};
+    return test_track_utils_main_argv(1, argv);
 }

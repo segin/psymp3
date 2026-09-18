@@ -82,7 +82,7 @@ void test_shuffle() {
     std::cout << "PASS: Basic shuffle test passed." << std::endl;
 }
 
-int main() {
+int test_playlist_shuffle_main() {
     try {
         test_shuffle();
         std::cout << "All playlist shuffle tests passed!" << std::endl;

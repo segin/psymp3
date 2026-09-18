@@ -154,7 +154,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_playlist_block_edits_main()
 {
     TestSuite suite("Playlist Block Edit Tests");
     suite.addTest(std::make_unique<MoveBlockTest>());

@@ -1,0 +1,67 @@
+/*
+ * test_utf8util_suite.cpp - utf-8 utility tests, in one program
+ * This file is part of PsyMP3.
+ * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * Each of these tests keeps its own file and its own suite; what they share
+ * is this program's link, which without them numbered one per test and cost
+ * more than every one of them takes to run. Every entry returns its failure
+ * count, as its main did.
+ */
+
+/*
+ * @TEST_METADATA_BEGIN
+ * @TEST_NAME: UTF-8 Utility Tests
+ * @TEST_AUTHOR: Kirn Gill II <segin2005@gmail.com>
+ * @TEST_CREATED: 2026-09-18
+ * @TEST_TIMEOUT: 120000
+ * @TEST_PARALLEL_SAFE: true
+ * @TEST_TAGS: utf8,core,unit
+ * @TEST_METADATA_END
+ */
+
+#include <cstdio>
+
+int fuzz_utf8util_main();
+int test_utf8util_properties_main();
+int test_utf8util_unit_main();
+
+namespace {
+
+struct Entry {
+    const char* name;
+    int (*run)();
+};
+
+const Entry kEntries[] = {
+    {"fuzz_utf8util",             fuzz_utf8util_main},
+    {"test_utf8util_properties",  test_utf8util_properties_main},
+    {"test_utf8util_unit",        test_utf8util_unit_main},
+};
+
+} // namespace
+
+int main()
+{
+    int failures = 0;
+    int failed_files = 0;
+    int skipped_files = 0;
+    for (const Entry& entry : kEntries) {
+        // The name goes out before the tests run, so that a crash says which
+        // file was in the middle of it.
+        std::printf("\n=== %s ===\n", entry.name);
+        std::fflush(stdout);
+        const int failed = entry.run();
+        if (failed > 0) {
+            ++failed_files;
+            failures += failed;
+        }
+    }
+
+    std::printf("\n=== UTF-8 Utility Tests: %zu files, %d failed test(s) in %d file(s), %d skipped ===\n",
+                sizeof(kEntries) / sizeof(kEntries[0]), failures, failed_files, skipped_files);
+    return failures;
+}

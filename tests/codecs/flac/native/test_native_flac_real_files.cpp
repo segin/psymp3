@@ -152,7 +152,7 @@ void testDecodeFile(const TestFile& testFile) {
 
 } // anonymous namespace
 
-int main() {
+int test_native_flac_real_files_main() {
     std::cout << "=== Native FLAC Real File Tests ===" << std::endl;
     std::cout << std::endl;
     std::cout << "Testing " << TEST_FILES.size() << " FLAC files from tests/data directory" << std::endl;

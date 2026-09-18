@@ -195,7 +195,7 @@ private:
     }
 };
 
-int main() {
+int test_playlist_load_main() {
     TestSuite suite("Playlist Load Tests");
     suite.addTest(std::make_unique<PlaylistLoadTest>());
     auto results = suite.runAll();

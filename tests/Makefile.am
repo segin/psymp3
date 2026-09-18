@@ -451,7 +451,6 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
 	test_surface_from_bmp_error \
 	test_extensibility_utils \
 	test_lastfm_url_encode_unit \
-	test_track_utils \
 	test_verify_random
 
 if HAVE_AAC
@@ -1343,16 +1342,14 @@ test_g711_suite_SOURCES = test_g711_suite.cpp \
 # and mu-law codecs themselves, and the utilities the rest use.
 test_g711_suite_LDADD = libtest_utilities.a $(FULL_CODEC_LIBS) $(AM_LDFLAGS) $(COMMON_CODEC_LIBS)
 
-test_track_utils_SOURCES = test_track_utils.cpp
-test_track_utils_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(AM_LDFLAGS)
+# Playlist and Track Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_playlist_suite_SOURCES = test_playlist_suite.cpp \
+	core/playlist/test_playlist_block_edits.cpp \
+	core/playlist/test_playlist_load.cpp \
+	core/playlist/test_playlist_shuffle.cpp \
+	core/playlist/test_track_utils.cpp
+test_playlist_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_verify_random_SOURCES = verify_random.cpp
 test_verify_random_LDADD =
@@ -2492,8 +2489,8 @@ test_debug_system_LDADD = \
 if HAVE_NATIVE_FLAC
 check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit \
 	test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit \
-	test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases \
-	test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading test_flac_parse_coded_number \
+	test_native_flac_suite \
+	test_flac_parse_coded_number \
 	test_flac_rfc9639_compliance_validator
 
 # BitstreamReader unit tests
@@ -2557,48 +2554,22 @@ test_sample_reconstructor_unit_LDADD = \
 	$(AM_LDFLAGS)
 
 # Integration test: Real FLAC files
-test_native_flac_real_files_SOURCES = test_native_flac_real_files.cpp
-test_native_flac_real_files_LDADD = \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
+# Native FLAC Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_native_flac_suite_SOURCES = test_native_flac_suite.cpp \
+	codecs/flac/native/test_native_flac_containers.cpp \
+	codecs/flac/native/test_native_flac_edge_cases.cpp \
+	codecs/flac/native/test_native_flac_memory_usage.cpp \
+	codecs/flac/native/test_native_flac_performance_benchmark.cpp \
+	codecs/flac/native/test_native_flac_real_files.cpp \
+	codecs/flac/native/test_native_flac_threading.cpp
+test_native_flac_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Integration test: Container formats
-test_native_flac_containers_SOURCES = test_native_flac_containers.cpp
-test_native_flac_containers_LDADD = \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS) \
-	-logg
-
 # Integration test: Edge cases
-test_native_flac_edge_cases_SOURCES = test_native_flac_edge_cases.cpp
-test_native_flac_edge_cases_LDADD = \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
-
 # Performance test: benchmark native FLAC decoding
-test_native_flac_performance_benchmark_SOURCES = test_native_flac_performance_benchmark.cpp
-test_native_flac_performance_benchmark_LDADD = \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
-
 # Performance test: Memory usage
-test_native_flac_memory_usage_SOURCES = test_native_flac_memory_usage.cpp
-test_native_flac_memory_usage_LDADD = \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
-
 # Performance test: Threading
-test_native_flac_threading_SOURCES = test_native_flac_threading.cpp
-test_native_flac_threading_LDADD = \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
-
 endif
 
 # Fixed predictor overflow tests (outside HAVE_NATIVE_FLAC - standalone test)
@@ -2849,18 +2820,14 @@ test_tag_suite_SOURCES = test_tag_suite.cpp \
 	tag/test_tag_picture_properties.cpp \
 	tag/test_tag_picture_unit.cpp
 test_tag_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+if HAVE_RAPIDCHECK
+# Two of these are property-based tests; they were linking it themselves.
+test_tag_suite_LDADD += $(RAPIDCHECK_LIBS)
+endif
 
 # Tag property-based tests
 if HAVE_RAPIDCHECK
 else
-test_tag_properties_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
 endif
 
 # ID3v2 tag unit tests
@@ -2960,26 +2927,11 @@ endif
 # Tag thread safety tests (Property 12: Thread-Safe Concurrent Reads)
 if HAVE_RAPIDCHECK
 else
-test_tag_thread_safety_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS) -lpthread $(TAGLIB_LIBS)
 endif
 
 # Tag picture access property tests (Property 13: Picture Index Access)
 if HAVE_RAPIDCHECK
 else
-test_tag_picture_properties_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
 endif
 
 # Tag picture access unit tests
@@ -3098,99 +3050,35 @@ test_utility_unit_LDADD = \
 	$(AM_LDFLAGS)
 
 # Playlist shuffle test
-check_PROGRAMS += test_playlist_shuffle
-test_playlist_shuffle_SOURCES = test_playlist_shuffle.cpp
-test_playlist_shuffle_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/playlist.o \
-	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(SDL_LIBS) \
-	$(AM_LDFLAGS)
-
-check_PROGRAMS += test_playlist_block_edits
-test_playlist_block_edits_SOURCES = test_playlist_block_edits.cpp
-test_playlist_block_edits_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/playlist.o \
-	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(SDL_LIBS) \
-	$(AM_LDFLAGS)
-
+check_PROGRAMS += 
+check_PROGRAMS += test_playlist_suite 
 # ============================================================================
 # UTF8Util Tests
 # ============================================================================
 
-check_PROGRAMS += test_utf8util_unit test_utf8util_properties fuzz_utf8util
+check_PROGRAMS += test_utf8util_suite 
 
 # UTF8Util unit tests
-test_utf8util_unit_SOURCES = test_utf8util_unit.cpp
-test_utf8util_unit_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS)
+# UTF-8 Utility Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_utf8util_suite_SOURCES = test_utf8util_suite.cpp \
+	core/utf8/fuzz_utf8util.cpp \
+	core/utf8/test_utf8util_properties.cpp \
+	core/utf8/test_utf8util_unit.cpp
+test_utf8util_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+if HAVE_RAPIDCHECK
+# One of these is a property-based test, and linked it itself.
+test_utf8util_suite_LDADD += -lrapidcheck
+endif
 
 # UTF8Util property-based tests
-test_utf8util_properties_SOURCES = test_utf8util_properties.cpp
-test_utf8util_properties_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS)
 if HAVE_RAPIDCHECK
-test_utf8util_properties_LDADD += -lrapidcheck
 endif
 
 # UTF8Util fuzzing tests
-fuzz_utf8util_SOURCES = fuzz_utf8util.cpp
-fuzz_utf8util_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS)
-
 
 # Playlist load test
-check_PROGRAMS += test_playlist_load
-test_playlist_load_SOURCES = test_playlist_load.cpp
-test_playlist_load_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/playlist.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(AM_LDFLAGS)
-
+check_PROGRAMS += 
 # Base64 Tests
 # ============================================================================
 

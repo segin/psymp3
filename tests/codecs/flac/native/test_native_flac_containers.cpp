@@ -268,7 +268,7 @@ void testOggFlacOnly() {
 
 } // anonymous namespace
 
-int main() {
+int test_native_flac_containers_main() {
     std::cout << "=== Native FLAC Container Format Tests ===" << std::endl;
     std::cout << std::endl;
     

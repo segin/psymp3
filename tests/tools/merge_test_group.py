@@ -192,7 +192,13 @@ for name in group[1:]:
 
 def remove_block(text, var):
     """Drop `var = ...` and its backslash continuation lines. Returns (text, at)."""
+    # A program's variable may be assigned once and appended to inside a
+    # conditional; both forms go, and an append is reported so that whatever
+    # it added can be folded into the merged program.
     start = text.find(f"\n{var} = ")
+    appended = text.find(f"\n{var} += ")
+    if start < 0 or (0 <= appended < start):
+        start = appended
     if start < 0:
         return text, None
     start += 1
@@ -211,8 +217,10 @@ where = None
 for n in group:
     found = False
     for var in (f"{n}_SOURCES", f"{n}_LDADD", f"{n}_CPPFLAGS", f"{n}_CXXFLAGS", f"{n}_LDFLAGS"):
-        s, at = remove_block(s, var)
-        if at is not None:
+        while True:
+            s, at = remove_block(s, var)
+            if at is None:
+                break
             found = True
             if where is None or at < where:
                 where = at

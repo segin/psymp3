@@ -43,7 +43,7 @@
  */
 
 // Helper to create test FLAC data
-std::vector<uint8_t> createTestFLACData(uint32_t sample_rate, uint32_t channels, 
+static std::vector<uint8_t> createTestFLACData(uint32_t sample_rate, uint32_t channels, 
                                         uint32_t bits_per_sample, uint32_t num_frames) {
     std::vector<uint8_t> data;
     
@@ -482,7 +482,7 @@ bool test_independent_decoder_state() {
     }
 }
 
-int main() {
+int test_native_flac_threading_main() {
     // The registry is only populated by MediaFactory in the player;
     // standalone test binaries must register codecs themselves or
     // AudioCodecFactory::createCodec("flac") comes back empty.
@@ -529,7 +529,7 @@ int main() {
 
 #else
 
-int main() {
+int test_native_flac_threading_main() {
     std::cerr << "Native FLAC decoder not available (HAVE_NATIVE_FLAC not defined)" << std::endl;
     return 77; // Skip test
 }
