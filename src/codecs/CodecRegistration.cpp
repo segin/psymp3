@@ -172,7 +172,7 @@ void registerAllDemuxers() {
     // Always register these demuxers (no conditional compilation)
     DemuxerRegistry::getInstance().registerDemuxer("riff", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<ChunkDemuxer>(std::move(handler));
-    }, "RIFF/WAVE", {"wav", "wave"});
+    }, "RIFF/WAVE", {"wav", "wave", "avi"});  // an AVI is a RIFF form too
     Debug::log("demuxer", "registerAllDemuxers: Registered RIFF demuxer");
     
     DemuxerRegistry::getInstance().registerDemuxer("aiff", [](std::unique_ptr<IOHandler> handler) {
