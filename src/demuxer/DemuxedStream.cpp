@@ -422,7 +422,13 @@ AudioFrame joinFrames(AudioFrame head, AudioFrame tail) {
     if (head.samples.empty()) {
         return tail;
     }
-    head.samples.insert(head.samples.end(), tail.samples.begin(), tail.samples.end());
+    // Written as a resize and a copy rather than the insert it reads as:
+    // GCC 14 cannot see the size of the destination through insert()'s
+    // reallocation here and fails the build on a -Wstringop-overflow that
+    // cannot happen, the two vectors being distinct.
+    const size_t at = head.samples.size();
+    head.samples.resize(at + tail.samples.size());
+    std::copy(tail.samples.begin(), tail.samples.end(), head.samples.begin() + at);
     return head;
 }
 
