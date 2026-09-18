@@ -1,0 +1,87 @@
+/*
+ * test_flac_codec_unit_minimal.cpp - Minimal unit tests for FLAC libraries
+ * This file is part of PsyMP3.
+ * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that
+ * the above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
+ */
+
+#include "psymp3.h"
+#include "test_framework.h"
+
+using namespace TestFramework;
+
+#ifdef HAVE_NATIVE_FLAC
+namespace FLACCodecSupport = PsyMP3::Codec::FLAC::FLACCodecSupport;
+#endif
+
+#ifdef HAVE_FLAC
+/**
+ * @brief Minimal unit tests for FLAC library availability and basic functionality
+ * Requirements: 16.1, 16.2 - Conditional compilation integration
+ */
+class FLACLibraryMinimalTest : public TestCase {
+public:
+    FLACLibraryMinimalTest() : TestCase("FLAC Library Minimal Test") {}
+
+protected:
+    void runTest() override {
+        testFLACLibraryAvailability();
+        testFLACDecoderCreation();
+    }
+
+private:
+    void testFLACLibraryAvailability() {
+        // Test that FLAC support is properly enabled
+        ASSERT_TRUE(true, "FLAC support should be available when HAVE_FLAC is defined");
+        
+#ifdef HAVE_NATIVE_FLAC
+        // Test Native FLAC version information
+        std::string info = FLACCodecSupport::getCodecInfo();
+        ASSERT_TRUE(!info.empty(), "Native FLAC codec info should be available");
+        ASSERT_TRUE(info.find("Native FLAC") != std::string::npos, "Codec info should mention Native FLAC");
+#endif
+    }
+
+    void testFLACDecoderCreation() {
+#ifdef HAVE_NATIVE_FLAC
+        // Native implementation uses its own state management
+        // Just verify we can instantiate the support class
+        ASSERT_TRUE(FLACCodecSupport::isAvailable(), "Native FLAC codec should be available");
+#endif
+    }
+};
+
+int test_flac_codec_unit_minimal_main() {
+    TestSuite suite("FLAC Library Minimal Tests");
+    suite.addTest(std::make_unique<FLACLibraryMinimalTest>());
+    
+    auto results = suite.runAll();
+    suite.printResults(results);
+    
+    return suite.getFailureCount(results);
+}
+
+#else // !HAVE_FLAC
+
+int test_flac_codec_unit_minimal_main() {
+    std::cout << "FLAC support not available - skipping FLAC library tests" << std::endl;
+    return 0;
+}
+
+#endif // HAVE_FLAC
