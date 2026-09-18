@@ -54,19 +54,32 @@ int main()
 {
     int failures = 0;
     int failed_files = 0;
+    int skipped_files = 0;
     for (const Entry& entry : kEntries) {
         // The name goes out before the tests run, so that a crash says which
         // file was in the middle of it.
         std::printf("\n=== %s ===\n", entry.name);
         std::fflush(stdout);
         const int failed = entry.run();
-        if (failed > 0) {
+        // 77 is the skip status, which a test returns when what it needs is
+        // not there -- a fixture, usually. It is not a failure, and it is not
+        // a count of them either.
+        if (failed == 77) {
+            ++skipped_files;
+            std::printf("--- %s skipped\n", entry.name);
+        } else if (failed > 0) {
             ++failed_files;
             failures += failed;
         }
     }
 
-    std::printf("\n=== Demuxer and MediaFactory Tests: %zu files, %d failed test(s) in %d file(s) ===\n",
-                sizeof(kEntries) / sizeof(kEntries[0]), failures, failed_files);
+    // A program every one of whose tests skipped has skipped.
+    if (skipped_files == static_cast<int>(sizeof(kEntries) / sizeof(kEntries[0]))) {
+        std::printf("\n=== all %d file(s) skipped ===\n", skipped_files);
+        return 77;
+    }
+
+    std::printf("\n=== Demuxer and MediaFactory Tests: %zu files, %d failed test(s) in %d file(s), %d skipped ===\n",
+                sizeof(kEntries) / sizeof(kEntries[0]), failures, failed_files, skipped_files);
     return failures;
 }
