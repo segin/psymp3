@@ -14,7 +14,7 @@
 // MPRISLogger is not yet implemented - skip these tests
 #ifndef HAVE_MPRIS_LOGGER
 
-int main() {
+int test_mpris_logger_performance_main() {
     std::cout << "MPRIS Logger performance tests skipped - MPRISLogger not yet implemented" << std::endl;
     return 0;
 }

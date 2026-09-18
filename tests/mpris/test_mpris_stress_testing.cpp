@@ -551,7 +551,7 @@ bool test_comprehensive_stress() {
 /**
  * Main stress test runner
  */
-int main() {
+int test_mpris_stress_testing_main() {
     std::cout << "Running MPRIS Stress Tests..." << std::endl << std::endl;
     
     bool all_passed = true;

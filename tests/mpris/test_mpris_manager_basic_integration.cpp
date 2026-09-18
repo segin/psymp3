@@ -135,7 +135,7 @@ void test_mpris_manager_component_coordination() {
 /**
  * Main function for basic integration test
  */
-int main() {
+int test_mpris_manager_basic_integration_main() {
     printf("Running MPRISManager basic integration tests...\n\n");
     
     try {

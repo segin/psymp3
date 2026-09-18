@@ -566,7 +566,7 @@ private:
 };
 
 // Main test function
-int main() {
+int test_mpris_performance_profiler_main() {
     std::cout << "MPRIS Performance Profiler and Validation Suite" << std::endl;
     std::cout << "================================================" << std::endl;
     MPRISPerformanceTest performance_test;

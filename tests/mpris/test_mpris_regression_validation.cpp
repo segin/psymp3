@@ -585,7 +585,7 @@ private:
 #endif // HAVE_DBUS
 
 // Main test function
-int main() {
+int test_mpris_regression_validation_main() {
     std::cout << "MPRIS Regression Validation Suite" << std::endl;
     std::cout << "==================================" << std::endl;
     

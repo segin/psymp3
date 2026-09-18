@@ -256,7 +256,7 @@ public:
 #endif // HAVE_DBUS
 
 // Simple main function for standalone test execution
-int main() {
+int test_mpris_manager_integration_main() {
     printf("Running MPRISManager integration tests...\n");
     
     try {

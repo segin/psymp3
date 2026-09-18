@@ -460,7 +460,7 @@ bool test_mock_framework_integration() {
 /**
  * Main test runner
  */
-int main() {
+int test_mpris_mock_framework_main() {
     std::cout << "Running MPRIS Mock Framework comprehensive tests..." << std::endl << std::endl;
     
     bool all_passed = true;

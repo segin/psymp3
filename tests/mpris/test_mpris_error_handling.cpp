@@ -516,7 +516,7 @@ private:
 };
 
 // Test main function
-int main() {
+int test_mpris_error_handling_main() {
     try {
         MPRISErrorHandlingTest::runAllTests();
         std::cout << "\nAll MPRIS error handling tests completed successfully!\n";
@@ -534,7 +534,7 @@ int main() {
 
 #include <iostream>
 
-int main() {
+int test_mpris_error_handling_main() {
     std::cout << "MPRIS error handling tests skipped - D-Bus support not compiled in\n";
     return 0;
 }

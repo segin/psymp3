@@ -119,7 +119,7 @@ void test_mpris_manager_error_handling() {
 /**
  * Simple main function for standalone test execution
  */
-int main() {
+int test_mpris_manager_simple_main() {
     printf("Running simple MPRISManager tests...\n\n");
     
     try {

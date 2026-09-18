@@ -160,7 +160,7 @@ void test_mpris_manager_initialization() {
 /**
  * Main function for minimal MPRISManager tests
  */
-int main() {
+int test_mpris_manager_minimal_main() {
     printf("Running minimal MPRISManager tests...\n\n");
     
     try {

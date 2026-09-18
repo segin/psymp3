@@ -14,7 +14,7 @@
 // MPRISLogger is not yet implemented - skip these tests
 #ifndef HAVE_MPRIS_LOGGER
 
-int main() {
+int test_mpris_logger_dbus_tracing_main() {
     std::cout << "MPRIS Logger D-Bus tracing tests skipped - MPRISLogger not yet implemented" << std::endl;
     return 0;
 }

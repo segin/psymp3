@@ -323,7 +323,7 @@ bool test_dbus_variant_dictionary() {
 }
 
 // Main test runner
-int main() {
+int test_mpris_types_main() {
     std::cout << "Running MPRIS Types unit tests..." << std::endl;
     
     bool all_passed = true;
@@ -350,7 +350,7 @@ int main() {
 
 #else // !HAVE_DBUS
 
-int main() {
+int test_mpris_types_main() {
     std::cout << "MPRIS Types tests skipped - D-Bus support not available" << std::endl;
     return 0;
 }

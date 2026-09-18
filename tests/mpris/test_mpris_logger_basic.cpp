@@ -23,7 +23,7 @@ using namespace PsyMP3::MPRIS;
 // MPRISLogger is not yet implemented - skip these tests
 #ifndef HAVE_MPRIS_LOGGER
 
-int main() {
+int test_mpris_logger_basic_main() {
     std::cout << "MPRIS Logger tests skipped - MPRISLogger not yet implemented" << std::endl;
     return 0;
 }
@@ -179,7 +179,7 @@ void test_logging_macros() {
     std::remove(temp_log_file.c_str());
 }
 
-int main() {
+int test_mpris_logger_basic_main() {
     try {
         std::cout << "Running MPRIS Logger Basic Tests..." << std::endl;
         
@@ -214,7 +214,7 @@ int main() {
 
 #else // !HAVE_DBUS
 
-int main() {
+int test_mpris_logger_basic_main() {
     std::cout << "MPRIS Logger tests skipped - D-Bus support not available" << std::endl;
     return 0;
 }

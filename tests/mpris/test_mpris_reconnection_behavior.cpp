@@ -36,6 +36,7 @@ public:
     
     ~MPRISReconnectionTester() {
         cleanupTestSession();
+        restoreSessionAddress();
     }
     
     bool runAllTests() {
@@ -82,6 +83,12 @@ public:
 private:
     pid_t m_test_session_pid;
     std::string m_test_session_address;
+    // What DBUS_SESSION_BUS_ADDRESS said before this test replaced it with a
+    // bus of its own. Sharing a program with other tests, leaving the dead
+    // address behind stops every one of them that runs afterwards from
+    // reaching a bus at all.
+    std::string m_outer_session_address;
+    bool m_had_outer_session_address = false;
     
     bool startTestDBusSession() {
         // A test can end, or bail out early, with its daemon still running.
@@ -176,7 +183,11 @@ private:
             }
             m_test_session_address = address_buffer;
             
-            // Set environment variable
+            // Set environment variable, remembering what it said.
+            if (const char* outer = getenv("DBUS_SESSION_BUS_ADDRESS")) {
+                m_outer_session_address = outer;
+                m_had_outer_session_address = true;
+            }
             setenv("DBUS_SESSION_BUS_ADDRESS", m_test_session_address.c_str(), 1);
             
             std::cout << "Started test D-Bus session: " << m_test_session_address << std::endl;
@@ -196,6 +207,17 @@ private:
         return false;
     }
     
+    /// Puts back the session bus address this test found on the way in.
+    void restoreSessionAddress() {
+        if (m_had_outer_session_address) {
+            setenv("DBUS_SESSION_BUS_ADDRESS", m_outer_session_address.c_str(), 1);
+        } else {
+            unsetenv("DBUS_SESSION_BUS_ADDRESS");
+        }
+        m_had_outer_session_address = false;
+        m_outer_session_address.clear();
+    }
+
     void cleanupTestSession() {
         if (m_test_session_pid > 0) {
             kill(m_test_session_pid, SIGTERM);
@@ -551,7 +573,7 @@ private:
     }
 };
 
-int main() {
+int test_mpris_reconnection_behavior_main() {
     std::cout << "MPRIS Reconnection Behavior Test" << std::endl;
     std::cout << "================================" << std::endl;
     
@@ -577,7 +599,7 @@ int main() {
 
 #else // !HAVE_DBUS
 
-int main() {
+int test_mpris_reconnection_behavior_main() {
     std::cout << "MPRIS reconnection behavior test skipped (D-Bus not available)" << std::endl;
     return 0;
 }

@@ -400,7 +400,7 @@ private:
     PlayerState state;
 };
 
-int main(int argc, char* argv[]) {
+int test_mpris_concurrent_clients_main_argv(int argc, char* argv[]) {
     // No session bus -> automake SKIP (exit 77), never FAIL: distcheck's
     // inner make check (and any headless environment) may run without
     // dbus-run-session, and a missing bus is an environment gap, not a defect.
@@ -493,9 +493,16 @@ int main(int argc, char* argv[]) {
 
 #else // !HAVE_DBUS
 
-int main() {
+int test_mpris_concurrent_clients_main() {
     std::cout << "MPRIS concurrent clients test skipped (D-Bus not available)" << std::endl;
     return 0;
 }
 
 #endif // HAVE_DBUS
+/// test_mpris_concurrent_clients took arguments when it was a program of its own.
+int test_mpris_concurrent_clients_main()
+{
+    char program[] = "test_mpris_concurrent_clients";
+    char* argv[] = {program, nullptr};
+    return test_mpris_concurrent_clients_main_argv(1, argv);
+}

@@ -548,7 +548,7 @@ private:
     PlayerState state;
 };
 
-int main() {
+int test_mpris_memory_validation_main() {
     // No session bus -> automake SKIP (exit 77), never FAIL: distcheck's
     // inner make check (and any headless environment) may run without
     // dbus-run-session, and a missing bus is an environment gap, not a defect.
@@ -593,7 +593,7 @@ int main() {
 
 #else // !HAVE_DBUS
 
-int main() {
+int test_mpris_memory_validation_main() {
     std::cout << "MPRIS memory validation test skipped (D-Bus not available)" << std::endl;
     return 0;
 }
