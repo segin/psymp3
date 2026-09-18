@@ -280,7 +280,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_widget_event_routing_main()
 {
     TestSuite suite("Widget Event Routing Tests");
     suite.addTest(std::make_unique<ClippedChildCoordinatesTest>());

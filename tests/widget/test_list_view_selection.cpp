@@ -258,7 +258,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_list_view_selection_main()
 {
     TestSuite suite("List View Selection Tests");
     suite.addTest(std::make_unique<ShiftClickTest>());

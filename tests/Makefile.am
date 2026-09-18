@@ -456,11 +456,8 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_demuxer_suite \
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
-	test_widget_event_routing \
-	test_list_view_selection \
 	test_widget_hierarchy_properties \
-	test_widget_rendering \
-	test_complex_script_rendering \
+	test_widget_suite \
 	test_matroska_suite \
 	test_ac3_suite \
 	test_ac3_oracle \
@@ -511,19 +508,22 @@ test_avi_demuxer_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
 test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
-test_widget_rendering_SOURCES = test_widget_rendering.cpp
-test_widget_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-# The bundled font lives in the source tree, not beside the test binary.
-test_widget_rendering_CPPFLAGS = $(AM_CPPFLAGS) \
+# Widget and Rendering Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_widget_suite_SOURCES = test_widget_suite.cpp \
+	widget/test_widget_rendering.cpp \
+	widget/test_complex_script_rendering.cpp \
+	widget/test_widget_event_routing.cpp \
+	widget/test_list_view_selection.cpp
+test_widget_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# The bundled font and the script corpus live in the source tree, not
+# beside the test binary.
+test_widget_suite_CPPFLAGS = $(AM_CPPFLAGS) \
 	-DPSYMP3_TOP_SRCDIR='"$(top_srcdir)"'
 
-test_complex_script_rendering_SOURCES = test_complex_script_rendering.cpp
-test_complex_script_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# The bundled font lives in the source tree, not beside the test binary.
 # The corpus is rendered with the bundled font, which lives in the source tree
 # rather than beside the test binary.
-test_complex_script_rendering_CPPFLAGS = $(AM_CPPFLAGS) \
-	-DPSYMP3_TOP_SRCDIR='"$(top_srcdir)"'
-
 # The Matroska tests share one program, as the AC-3 ones do: each keeps its
 # file and its suite, and they no longer link the static stack six times over.
 test_matroska_suite_SOURCES = test_matroska_suite.cpp \
@@ -695,7 +695,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive test_mpris_logger_basic test_mpris_logger_dbus_tracing test_mpris_logger_performance test_mpris_spec_compliance test_mpris_concurrent_clients test_mpris_reconnection_behavior test_mpris_memory_validation test_mpris_performance_profiler test_mpris_regression_validation
+check_PROGRAMS += test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_suite 
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -777,11 +777,6 @@ test_rect_pair_variants_LDADD = libtest_utilities.a $(top_builddir)/src/core/lib
 
 test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
 test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
-test_widget_event_routing_SOURCES = test_widget_event_routing.cpp
-test_widget_event_routing_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_list_view_selection_SOURCES = test_list_view_selection.cpp
-test_list_view_selection_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_widget_hierarchy_properties_SOURCES = test_widget_hierarchy_properties.cpp
 test_widget_hierarchy_properties_LDADD = $(COMMON_TEST_LIBS) $(RAPIDCHECK_LIBS) $(AM_LDFLAGS)
 
@@ -1538,14 +1533,34 @@ test_codec_concurrent_instances_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS
 
 # MPRIS types test (conditional on HAVE_DBUS)
 if HAVE_DBUS
-test_mpris_types_SOURCES = test_mpris_types.cpp
-test_mpris_types_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(DBUS_LIBS) \
-	$(AM_LDFLAGS)
+# MPRIS Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+# player_stub.cpp stands in for the player the MPRIS code calls into;
+# eleven of these tests compiled it in, and one program needs it once.
+test_mpris_suite_SOURCES = test_mpris_suite.cpp player_stub.cpp \
+	mpris/test_mpris_concurrent_clients.cpp \
+	mpris/test_mpris_error_handling.cpp \
+	mpris/test_mpris_error_integration.cpp \
+	mpris/test_mpris_logger_basic.cpp \
+	mpris/test_mpris_logger_dbus_tracing.cpp \
+	mpris/test_mpris_logger_performance.cpp \
+	mpris/test_mpris_manager_basic_integration.cpp \
+	mpris/test_mpris_manager_comprehensive.cpp \
+	mpris/test_mpris_manager_integration.cpp \
+	mpris/test_mpris_manager_minimal.cpp \
+	mpris/test_mpris_manager_simple.cpp \
+	mpris/test_mpris_memory_validation.cpp \
+	mpris/test_mpris_mock_framework.cpp \
+	mpris/test_mpris_performance_profiler.cpp \
+	mpris/test_mpris_reconnection_behavior.cpp \
+	mpris/test_mpris_regression_validation.cpp \
+	mpris/test_mpris_spec_compliance.cpp \
+	mpris/test_mpris_stress_testing.cpp \
+	mpris/test_mpris_types.cpp
+# libtest_utilities.a again at the end: the MPRIS archive's references to
+# Player are satisfied by mock_player.o, and a static archive only
+# supplies what is still wanted when the linker reaches it.
+test_mpris_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LDFLAGS)
 
 test_dbus_connection_manager_SOURCES = test_dbus_connection_manager.cpp
 test_dbus_connection_manager_LDADD = \
@@ -1571,34 +1586,6 @@ test_method_handler_LDADD = \
 
 test_signal_emitter_SOURCES = test_signal_emitter.cpp
 test_signal_emitter_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(DBUS_LIBS) \
-	$(AM_LDFLAGS)
-
-test_mpris_manager_integration_SOURCES = test_mpris_manager_integration.cpp player_stub.cpp
-test_mpris_manager_integration_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_manager_simple_SOURCES = test_mpris_manager_simple.cpp player_stub.cpp
-test_mpris_manager_simple_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_manager_minimal_SOURCES = test_mpris_manager_minimal.cpp player_stub.cpp
-test_mpris_manager_minimal_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_manager_basic_integration_SOURCES = test_mpris_manager_basic_integration.cpp player_stub.cpp
-test_mpris_manager_basic_integration_LDADD = \
-	$(COMMON_TEST_LIBS) \
-	$(DBUS_LIBS) \
-	$(AM_LDFLAGS)
-
-test_mpris_error_handling_SOURCES = test_mpris_error_handling.cpp
-test_mpris_error_handling_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_error_integration_SOURCES = test_mpris_error_integration.cpp
-test_mpris_error_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -3087,12 +3074,6 @@ test_opus_compatibility_performance_LDADD = \
 
 # MPRIS Mock Framework Tests
 if HAVE_DBUS
-test_mpris_mock_framework_SOURCES = test_mpris_mock_framework.cpp
-test_mpris_mock_framework_LDADD = libtest_utilities.a $(AM_LDFLAGS)
-
-test_mpris_stress_testing_SOURCES = test_mpris_stress_testing.cpp
-test_mpris_stress_testing_LDADD = libtest_utilities.a $(AM_LDFLAGS)
-
 
 test_mock_framework_standalone_SOURCES = test_mock_framework_standalone.cpp
 test_mock_framework_standalone_LDADD = libtest_utilities.a $(AM_LDFLAGS)
@@ -3113,32 +3094,9 @@ test_method_handler_simple_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 test_signal_emitter_comprehensive_SOURCES = test_signal_emitter_comprehensive.cpp player_stub.cpp
 test_signal_emitter_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 
-test_mpris_manager_comprehensive_SOURCES = test_mpris_manager_comprehensive.cpp player_stub.cpp
-test_mpris_manager_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_logger_basic_SOURCES = test_mpris_logger_basic.cpp
-test_mpris_logger_basic_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_logger_dbus_tracing_SOURCES = test_mpris_logger_dbus_tracing.cpp player_stub.cpp
-test_mpris_logger_dbus_tracing_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_logger_performance_SOURCES = test_mpris_logger_performance.cpp
-test_mpris_logger_performance_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
 # MPRIS Integration Tests
-test_mpris_spec_compliance_SOURCES = test_mpris_spec_compliance.cpp player_stub.cpp
-test_mpris_spec_compliance_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_concurrent_clients_SOURCES = test_mpris_concurrent_clients.cpp player_stub.cpp
-test_mpris_concurrent_clients_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_reconnection_behavior_SOURCES = test_mpris_reconnection_behavior.cpp player_stub.cpp
-test_mpris_reconnection_behavior_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mpris_memory_validation_SOURCES = test_mpris_memory_validation.cpp player_stub.cpp
-test_mpris_memory_validation_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
 # Test scripts for running comprehensive test suites
 EXTRA_DIST = matroska_ebml_builder.h \
 	fdk_aac_test_encoder.h \
@@ -3150,12 +3108,6 @@ EXTRA_DIST = matroska_ebml_builder.h \
 
 # MPRIS Final Validation Tests (Task 15)
 if HAVE_DBUS
-test_mpris_performance_profiler_SOURCES = test_mpris_performance_profiler.cpp
-test_mpris_performance_profiler_LDADD = \
-	$(AM_LDFLAGS)
-
-test_mpris_regression_validation_SOURCES = test_mpris_regression_validation.cpp player_stub.cpp fake_player.h
-test_mpris_regression_validation_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
 # Additional test scripts and headers to be distributed
@@ -3685,31 +3637,23 @@ mp3out_LDADD = \
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual test_demuxer_tag_extraction test_stream_tag_integration test_tag_thread_safety test_tag_picture_properties test_tag_picture_unit
+check_PROGRAMS += test_tag_suite test_id3v2_tag test_demuxer_tag_extraction test_stream_tag_integration 
 
 # Tag unit tests
-test_tag_unit_SOURCES = test_tag_unit.cpp
-test_tag_unit_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
+# Tag Framework Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_tag_suite_SOURCES = test_tag_suite.cpp \
+	tag/test_tag_unit.cpp \
+	tag/test_tag_properties.cpp \
+	tag/test_tag_factory.cpp \
+	tag/test_tag_error_handling_manual.cpp \
+	tag/test_tag_thread_safety.cpp \
+	tag/test_tag_picture_properties.cpp \
+	tag/test_tag_picture_unit.cpp
+test_tag_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Tag property-based tests
-test_tag_properties_SOURCES = test_tag_properties.cpp
 if HAVE_RAPIDCHECK
-test_tag_properties_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(RAPIDCHECK_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
 else
 test_tag_properties_LDADD = \
 	libtest_utilities.a \
@@ -3733,27 +3677,7 @@ test_id3v2_tag_LDADD = \
 	$(AM_LDFLAGS)
 
 # TagFactory unit tests
-test_tag_factory_SOURCES = test_tag_factory.cpp
-test_tag_factory_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
-
 # Tag error handling tests
-test_tag_error_handling_manual_SOURCES = test_tag_error_handling_manual.cpp
-test_tag_error_handling_manual_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
-
 # Demuxer tag extraction tests
 test_demuxer_tag_extraction_SOURCES = test_demuxer_tag_extraction.cpp
 test_demuxer_tag_extraction_LDADD = \
@@ -3836,16 +3760,7 @@ test_stream_tag_integration_LDADD = \
 endif
 
 # Tag thread safety tests (Property 12: Thread-Safe Concurrent Reads)
-test_tag_thread_safety_SOURCES = test_tag_thread_safety.cpp
 if HAVE_RAPIDCHECK
-test_tag_thread_safety_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(RAPIDCHECK_LIBS) \
-	$(AM_LDFLAGS) -lpthread $(TAGLIB_LIBS)
 else
 test_tag_thread_safety_LDADD = \
 	libtest_utilities.a \
@@ -3857,17 +3772,7 @@ test_tag_thread_safety_LDADD = \
 endif
 
 # Tag picture access property tests (Property 13: Picture Index Access)
-test_tag_picture_properties_SOURCES = test_tag_picture_properties.cpp
 if HAVE_RAPIDCHECK
-test_tag_picture_properties_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(RAPIDCHECK_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
 else
 test_tag_picture_properties_LDADD = \
 	libtest_utilities.a \
@@ -3880,16 +3785,6 @@ test_tag_picture_properties_LDADD = \
 endif
 
 # Tag picture access unit tests
-test_tag_picture_unit_SOURCES = test_tag_picture_unit.cpp
-test_tag_picture_unit_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/debug.o \
-	$(TAGLIB_LIBS) \
-	$(AM_LDFLAGS)
-
 # Tag fuzzing tests and corpus generators
 check_PROGRAMS += fuzz_tag_vorbis fuzz_tag_id3v1 fuzz_tag_id3v2 fuzz_tag_picture
 check_PROGRAMS += generate_vorbis_corpus generate_id3v1_corpus generate_id3v2_corpus generate_picture_corpus

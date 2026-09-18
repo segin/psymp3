@@ -408,7 +408,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_complex_script_rendering_main()
 {
     if (bundledFontPath().empty()) {
         std::cerr << "SKIP: bundled res/vera.ttf not found; set PSYMP3_TEST_FONT\n";

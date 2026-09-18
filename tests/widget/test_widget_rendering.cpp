@@ -361,7 +361,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_widget_rendering_main()
 {
     TestSuite suite("Widget Rendering Regression Tests");
     suite.addTest(std::make_unique<LabelRenderingTest>());
