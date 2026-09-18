@@ -586,7 +586,7 @@ bool runTagThreadSafetyPropertyTests() {
 // Test Runner
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int test_tag_thread_safety_main_argv(int argc, char* argv[]) {
     std::cout << "=== Tag Thread Safety Tests ===\n\n";
     
     bool all_passed = true;
@@ -663,4 +663,12 @@ int main(int argc, char* argv[]) {
         std::cout << "\nSome tests FAILED!\n";
         return 1;
     }
+}
+
+/// test_tag_thread_safety took arguments when it was a program of its own.
+int test_tag_thread_safety_main()
+{
+    char program[] = "test_tag_thread_safety";
+    char* argv[] = {program, nullptr};
+    return test_tag_thread_safety_main_argv(1, argv);
 }

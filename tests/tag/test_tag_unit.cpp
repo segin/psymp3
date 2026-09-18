@@ -1303,7 +1303,7 @@ protected:
 // Main
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int test_tag_unit_main_argv(int argc, char* argv[]) {
     TestSuite suite("Tag Framework Unit Tests");
     
     // NullTag tests
@@ -1406,4 +1406,12 @@ int main(int argc, char* argv[]) {
     suite.printResults(results);
     
     return suite.getFailureCount(results) > 0 ? 1 : 0;
+}
+
+/// test_tag_unit took arguments when it was a program of its own.
+int test_tag_unit_main()
+{
+    char program[] = "test_tag_unit";
+    char* argv[] = {program, nullptr};
+    return test_tag_unit_main_argv(1, argv);
 }

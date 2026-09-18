@@ -472,7 +472,7 @@ protected:
 // Test Suite Registration
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int test_tag_factory_main_argv(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     
@@ -513,4 +513,12 @@ int main(int argc, char* argv[]) {
     suite.printResults(results);
     
     return suite.getFailureCount(results) == 0 ? 0 : 1;
+}
+
+/// test_tag_factory took arguments when it was a program of its own.
+int test_tag_factory_main()
+{
+    char program[] = "test_tag_factory";
+    char* argv[] = {program, nullptr};
+    return test_tag_factory_main_argv(1, argv);
 }

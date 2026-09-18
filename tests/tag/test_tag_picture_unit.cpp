@@ -476,7 +476,7 @@ protected:
 // Main function
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int test_tag_picture_unit_main_argv(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     
@@ -520,3 +520,11 @@ int main(int argc, char* argv[]) {
     return suite.getFailureCount(results) > 0 ? 1 : 0;
 }
 
+
+/// test_tag_picture_unit took arguments when it was a program of its own.
+int test_tag_picture_unit_main()
+{
+    char program[] = "test_tag_picture_unit";
+    char* argv[] = {program, nullptr};
+    return test_tag_picture_unit_main_argv(1, argv);
+}

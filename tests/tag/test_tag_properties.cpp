@@ -1118,7 +1118,7 @@ bool runRapidCheckTests() {
     return all_passed;
 }
 
-int main(int argc, char* argv[]) {
+int test_tag_properties_main_argv(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     
@@ -2124,7 +2124,7 @@ protected:
 // Main
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int test_tag_properties_main_argv(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
     
@@ -2187,3 +2187,11 @@ int main(int argc, char* argv[]) {
 
 #endif // HAVE_RAPIDCHECK
 
+
+/// test_tag_properties took arguments when it was a program of its own.
+int test_tag_properties_main()
+{
+    char program[] = "test_tag_properties";
+    char* argv[] = {program, nullptr};
+    return test_tag_properties_main_argv(1, argv);
+}

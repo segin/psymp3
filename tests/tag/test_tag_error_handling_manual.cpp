@@ -144,7 +144,7 @@ bool test_tagfactory_corrupted_data() {
     return true;
 }
 
-int main() {
+int test_tag_error_handling_manual_main() {
     std::cout << "========================================" << std::endl;
     std::cout << "Tag Error Handling Manual Tests" << std::endl;
     std::cout << "========================================" << std::endl;
