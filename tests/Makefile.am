@@ -435,9 +435,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
 	test_widget_suite \
 	test_matroska_suite \
 	test_ac3_suite \
-	test_ac3_oracle \
-	test_ac3_null_demuxer \
-	test_ac3_codec \
+	test_ac3_container_suite \
 	test_mp2_codec \
 	test_pcm_codec \
 	test_demuxed_stream_seek \
@@ -448,7 +446,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
 	test_bounded_buffer \
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
-	test_surface_from_bmp_error \
+	test_surface_suite \
 	test_extensibility_utils \
 	test_lastfm_url_encode_unit \
 	test_verify_random
@@ -595,18 +593,16 @@ test_mp2_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
 test_pcm_codec_SOURCES = test_pcm_codec.cpp
 test_pcm_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
 
-test_ac3_oracle_SOURCES = test_ac3_oracle.cpp
-test_ac3_oracle_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
+# AC-3 Container and Codec Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_ac3_container_suite_SOURCES = test_ac3_container_suite.cpp \
+	demuxer/ac3/test_ac3_codec.cpp \
+	demuxer/ac3/test_ac3_null_demuxer.cpp \
+	demuxer/ac3/test_ac3_oracle.cpp
+test_ac3_container_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
-test_ac3_codec_SOURCES = test_ac3_codec.cpp
 # FULL_CODEC_LIBS names the AC-3 codec archive after the codec base it needs,
 # so it is named once more ahead of them.
-test_ac3_codec_LDADD = $(top_builddir)/src/codecs/ac3/libpsymp3-codec-ac3.a \
-	$(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
-
-test_ac3_null_demuxer_SOURCES = test_ac3_null_demuxer.cpp
-test_ac3_null_demuxer_LDADD = $(FULL_CODEC_LIBS) $(OGG_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) $(AM_LDFLAGS)
-
 generate_matroska_corpus_SOURCES = generate_matroska_corpus.cpp
 generate_matroska_corpus_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
@@ -688,7 +684,7 @@ check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
 endif
 
 if HAVE_G722
-check_PROGRAMS += test_g722_integration test_g722_conformance test_g722_wav
+check_PROGRAMS += test_g722_suite 
 endif
 
 check_PROGRAMS += test_raw_audio_stream_integration
@@ -714,17 +710,17 @@ endif
 check_PROGRAMS += 
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_suite test_threading_safety_baseline test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression test_memory_suite 
+check_PROGRAMS += test_codec_suite test_threading_safety_baseline test_system_wide_threading_integration test_threading_performance_regression test_memory_suite 
 
 # SimplePCMCodec integration tests
-check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
+check_PROGRAMS += test_simplepcm_suite 
 
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_suite 
+check_PROGRAMS += test_dbus_connection_manager test_property_manager test_method_handler_suite test_signal_emitter test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_signal_emitter_comprehensive test_mpris_suite 
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -926,14 +922,13 @@ test_enhanced_buffer_pool_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
-test_surface_from_bmp_error_SOURCES = test_surface_from_bmp_error.cpp
-test_surface_from_bmp_error_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/surface.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(SDL_LIBS) \
-	$(AM_LDFLAGS)
+# Surface Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_surface_suite_SOURCES = test_surface_suite.cpp \
+	core/surface/test_surface_from_bmp_error.cpp \
+	core/surface/test_surface_performance_regression.cpp \
+	core/surface/test_surface_thread_safety.cpp
+test_surface_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -980,30 +975,16 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
-test_ogg_aggressive_SOURCES = test_ogg_aggressive.cpp
-test_ogg_aggressive_LDADD = libtest_utilities.a \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/debug.o \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
+# Ogg Demuxer Behaviour Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_ogg_extra_suite_SOURCES = test_ogg_extra_suite.cpp \
+	demuxer/ogg/extra/test_ogg_aggressive.cpp \
+	demuxer/ogg/extra/test_ogg_error_handling.cpp \
+	demuxer/ogg/extra/test_ogg_integration.cpp \
+	demuxer/ogg/extra/test_ogg_seeking_algorithms.cpp
+test_ogg_extra_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
-check_PROGRAMS += test_stream_manager test_ogg_aggressive
+check_PROGRAMS += test_stream_manager test_ogg_extra_suite 
 test_stream_manager_SOURCES = test_stream_manager.cpp
 test_stream_manager_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
@@ -1137,29 +1118,7 @@ test_speex_parser_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_ogg_seeking_algorithms
-test_ogg_seeking_algorithms_SOURCES = test_ogg_seeking_algorithms.cpp
-test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/debug.o \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
-
+check_PROGRAMS += 
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
 	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -1180,56 +1139,8 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 	$(OPUS_LIBS) \
 	-lpthread
 
-check_PROGRAMS += test_ogg_error_handling
-test_ogg_error_handling_SOURCES = test_ogg_error_handling.cpp
-test_ogg_error_handling_LDADD = libtest_utilities.a \
-	$(FULL_CODEC_LIBS) \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS) \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(VORBIS_LIBS)
-
-check_PROGRAMS += test_ogg_integration
-test_ogg_integration_SOURCES = test_ogg_integration.cpp
-test_ogg_integration_LDADD = libtest_utilities.a \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/debug.o \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
-
+check_PROGRAMS += 
+check_PROGRAMS += 
 
 
 
@@ -1365,21 +1276,16 @@ test_raw_audio_tag_safety_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(AM_LDFLAGS)
 
-test_g722_integration_SOURCES = test_g722_integration.cpp
-test_g722_integration_LDADD = \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
+# G.722 Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_g722_suite_SOURCES = test_g722_suite.cpp \
+	codecs/g722/test_g722_conformance.cpp \
+	codecs/g722/test_g722_integration.cpp \
+	codecs/g722/test_g722_wav.cpp
+test_g722_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # ITU-T G.722 Appendix II sequences, fetched by fetch_g722_testvectors.sh;
 # skips (77) without them.
-test_g722_conformance_SOURCES = test_g722_conformance.cpp
-test_g722_conformance_LDADD = $(FULL_CODEC_LIBS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
-
-test_g722_wav_SOURCES = test_g722_wav.cpp
-test_g722_wav_LDADD = $(FULL_CODEC_LIBS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
-
 test_raw_audio_stream_integration_SOURCES = test_raw_audio_stream_integration.cpp
 test_raw_audio_stream_integration_LDADD = \
 	$(COMMON_TEST_LIBS) \
@@ -1472,15 +1378,15 @@ test_dbus_connection_manager_LDADD = \
 test_property_manager_SOURCES = test_property_manager.cpp player_stub.cpp
 test_property_manager_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 
-test_method_handler_SOURCES = test_method_handler.cpp
-test_method_handler_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(DBUS_LIBS) \
-	$(AM_LDFLAGS)
+# MPRIS Method Handler Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+# player_stub.cpp for the same reason the MPRIS suite compiles it: the
+# method handler calls into the player.
+test_method_handler_suite_SOURCES = test_method_handler_suite.cpp player_stub.cpp \
+	mpris/method/test_method_handler.cpp \
+	mpris/method/test_method_handler_comprehensive.cpp \
+	mpris/method/test_method_handler_simple.cpp
+test_method_handler_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LDFLAGS)
 
 test_signal_emitter_SOURCES = test_signal_emitter.cpp
 test_signal_emitter_LDADD = \
@@ -1705,37 +1611,18 @@ test_cover_art_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 check_PROGRAMS += 
 # Audio threading pattern test (simpler test without SDL dependencies)
 # Surface thread safety test
-test_surface_thread_safety_SOURCES = test_surface_thread_safety.cpp
-test_surface_thread_safety_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/surface.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # Surface performance regression test
-test_surface_performance_regression_SOURCES = test_surface_performance_regression.cpp
-test_surface_performance_regression_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/surface.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # SimplePCMCodec integration test (minimal version)
-test_simplepcmcodec_integration_minimal_SOURCES = test_simplepcmcodec_integration_minimal.cpp
-test_simplepcmcodec_integration_minimal_LDADD = $(AM_LDFLAGS)
+# Simple PCM Codec Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_simplepcm_suite_SOURCES = test_simplepcm_suite.cpp \
+	codecs/pcm/test_simplepcmcodec_comprehensive_integration.cpp \
+	codecs/pcm/test_simplepcmcodec_integration_minimal.cpp \
+	codecs/pcm/test_simplepcmcodec_real_integration.cpp
+test_simplepcm_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # SimplePCMCodec real integration test (with MuLaw/ALaw codecs)
-test_simplepcmcodec_real_integration_SOURCES = test_simplepcmcodec_real_integration.cpp
-test_simplepcmcodec_real_integration_LDADD = $(AM_LDFLAGS)
-
 # SimplePCMCodec comprehensive integration test (minimal dependencies)
-test_simplepcmcodec_comprehensive_integration_SOURCES = test_simplepcmcodec_comprehensive_integration.cpp
-test_simplepcmcodec_comprehensive_integration_LDADD = $(AM_LDFLAGS)
-
 # μ-law/A-law codec integration tests with SimplePCMCodec
 # μ-law codec property-based tests (standalone, minimal dependencies)
 test_mulaw_codec_properties_SOURCES = test_mulaw_codec_properties.cpp
@@ -2304,12 +2191,6 @@ test_dbus_connection_manager_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLA
 test_property_manager_comprehensive_SOURCES = test_property_manager_comprehensive.cpp player_stub.cpp
 test_property_manager_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 
-test_method_handler_comprehensive_SOURCES = test_method_handler_comprehensive.cpp player_stub.cpp
-test_method_handler_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_method_handler_simple_SOURCES = test_method_handler_simple.cpp player_stub.cpp
-test_method_handler_simple_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
 test_signal_emitter_comprehensive_SOURCES = test_signal_emitter_comprehensive.cpp player_stub.cpp
 test_signal_emitter_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
 
@@ -2595,59 +2476,48 @@ test_fixed_predictor_overflow_LDADD = \
 
 # **Feature: flac-demuxer, Property 11: Reserved Channel Bits Detection**
 # **Validates: Requirements 7.7**
-check_PROGRAMS += test_flac_channel_bits_properties
-test_flac_channel_bits_properties_SOURCES = test_flac_channel_bits_properties.cpp
-test_flac_channel_bits_properties_LDFLAGS = 
-test_flac_channel_bits_properties_LDADD = 
+check_PROGRAMS += 
+# FLAC Seeking Property Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_flac_properties_suite_SOURCES = test_flac_properties_suite.cpp \
+	codecs/flac/properties/test_flac_best_position_selection_properties.cpp \
+	codecs/flac/properties/test_flac_bisection_convergence_properties.cpp \
+	codecs/flac/properties/test_flac_bisection_range_adjustment_properties.cpp \
+	codecs/flac/properties/test_flac_bit_depth_bits_properties.cpp \
+	codecs/flac/properties/test_flac_byte_position_estimation_properties.cpp \
+	codecs/flac/properties/test_flac_channel_bits_properties.cpp \
+	codecs/flac/properties/test_flac_strategy_priority_properties.cpp \
+	codecs/flac/properties/test_flac_time_differential_properties.cpp
+test_flac_properties_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # **Feature: flac-demuxer, Property 12: Reserved Bit Depth Detection**
 # **Validates: Requirements 8.5**
-check_PROGRAMS += test_flac_bit_depth_bits_properties
-test_flac_bit_depth_bits_properties_SOURCES = test_flac_bit_depth_bits_properties.cpp
-test_flac_bit_depth_bits_properties_LDFLAGS = 
-test_flac_bit_depth_bits_properties_LDADD = 
-
+check_PROGRAMS += 
 # **Feature: flac-bisection-seeking, Property 1: Byte Position Estimation Correctness**
 # **Validates: Requirements 1.1, 1.2, 1.4, 1.5**
-check_PROGRAMS += test_flac_byte_position_estimation_properties
-test_flac_byte_position_estimation_properties_SOURCES = test_flac_byte_position_estimation_properties.cpp
-test_flac_byte_position_estimation_properties_LDFLAGS = 
-test_flac_byte_position_estimation_properties_LDADD = 
-
+check_PROGRAMS += 
 # **Feature: flac-bisection-seeking, Property 6: Bisection Range Adjustment**
 # **Validates: Requirements 3.1, 3.2**
-check_PROGRAMS += test_flac_bisection_range_adjustment_properties
-test_flac_bisection_range_adjustment_properties_SOURCES = test_flac_bisection_range_adjustment_properties.cpp
-test_flac_bisection_range_adjustment_properties_LDFLAGS = 
-test_flac_bisection_range_adjustment_properties_LDADD = 
-
+check_PROGRAMS += 
 # **Feature: flac-bisection-seeking, Property 7: Convergence Termination**
 # **Validates: Requirements 3.3, 3.4, 3.5, 3.6**
-check_PROGRAMS += test_flac_bisection_convergence_properties
-test_flac_bisection_convergence_properties_SOURCES = test_flac_bisection_convergence_properties.cpp
-test_flac_bisection_convergence_properties_LDFLAGS = 
+check_PROGRAMS += 
 test_flac_bisection_convergence_properties_LDADD =
 
 
 # **Feature: flac-bisection-seeking, Property 8: Time Differential Calculation**
 # **Validates: Requirements 4.1, 4.2**
-check_PROGRAMS += test_flac_time_differential_properties
-test_flac_time_differential_properties_SOURCES = test_flac_time_differential_properties.cpp
-test_flac_time_differential_properties_LDFLAGS = 
+check_PROGRAMS += 
 test_flac_time_differential_properties_LDADD =
 
 # **Feature: flac-bisection-seeking, Property 9: Best Position Selection**
 # **Validates: Requirements 4.3, 4.4**
-check_PROGRAMS += test_flac_best_position_selection_properties
-test_flac_best_position_selection_properties_SOURCES = test_flac_best_position_selection_properties.cpp
-test_flac_best_position_selection_properties_LDFLAGS = 
+check_PROGRAMS += test_flac_properties_suite 
 test_flac_best_position_selection_properties_LDADD =
 
 # **Feature: flac-bisection-seeking, Property 10: Strategy Priority**
 # **Validates: Requirements 7.1, 7.2, 7.3, 7.5**
-check_PROGRAMS += test_flac_strategy_priority_properties
-test_flac_strategy_priority_properties_SOURCES = test_flac_strategy_priority_properties.cpp
-test_flac_strategy_priority_properties_LDFLAGS = 
+check_PROGRAMS += 
 test_flac_strategy_priority_properties_LDADD =
 
 
