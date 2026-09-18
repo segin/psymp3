@@ -285,6 +285,8 @@ protected:
 /**
  * @brief Test format signature registration
  */
+namespace {  // so that another test file's FormatRegistrationTest cannot be
+             // mistaken for this one when they share a program
 class FormatRegistrationTest : public TestCase {
 public:
     FormatRegistrationTest() : TestCase("Format Registration Test") {}
@@ -324,6 +326,8 @@ protected:
         ASSERT_EQUALS("custom", detected_format, "Custom format should be detected");
     }
 };
+}  // namespace
+
 
 /**
  * @brief Test demuxer factory registration

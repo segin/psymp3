@@ -289,6 +289,8 @@ protected:
 /**
  * @brief Test format registration
  */
+namespace {  // so that another test file's FormatRegistrationTest cannot be
+             // mistaken for this one when they share a program
 class FormatRegistrationTest : public TestCase {
 public:
     FormatRegistrationTest() : TestCase("Format Registration Test") {}
@@ -350,6 +352,8 @@ protected:
         ASSERT_FALSE(MediaFactory::supportsExtension("test"), "Should not support unregistered extension");
     }
 };
+}  // namespace
+
 
 /**
  * @brief Test content detector registration
