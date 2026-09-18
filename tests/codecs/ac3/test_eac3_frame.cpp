@@ -497,7 +497,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_eac3_frame_main()
 {
     TestSuite suite("E-AC-3 Frame Tests");
     suite.addTest(std::make_unique<TableShapeTest>());

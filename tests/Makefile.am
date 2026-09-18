@@ -21,7 +21,7 @@ SUBDIRS = .
 # The vendored SheenBidi headers are needed because several tests compile
 # ../src/core/font.cpp directly, and it includes <SheenBidi/SheenBidi.h>. The
 # main build carries the same two paths in src/Makefile.am.
-AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/third_party/sheenbidi/Headers -I$(top_srcdir)/third_party/sheenbidi/Source $(HARFBUZZ_CFLAGS) $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir) -I$(top_srcdir)/include -I$(top_srcdir)/third_party/sheenbidi/Headers -I$(top_srcdir)/third_party/sheenbidi/Source $(HARFBUZZ_CFLAGS) $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -472,18 +472,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_matroska_cues \
 	test_matroska_seek \
 	test_matroska_tags \
-	test_ac3_frame_header \
-	test_ac3_exponents \
-	test_ac3_bit_allocation \
-	test_ac3_mantissas \
-	test_ac3_transform \
-	test_eac3_frame \
-	test_eac3_spx \
-	test_eac3_tpnp \
-	test_eac3_aht \
-	test_eac3_ecpl \
-	test_ac3_drc \
-	test_ac3_downmix \
+	test_ac3_suite \
 	test_ac3_oracle \
 	test_ac3_null_demuxer \
 	test_ac3_codec \
@@ -563,41 +552,23 @@ test_matroska_seek_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_matroska_tags_SOURCES = test_matroska_tags.cpp
 test_matroska_tags_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
-test_ac3_frame_header_SOURCES = test_ac3_frame_header.cpp
-test_ac3_frame_header_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_ac3_exponents_SOURCES = test_ac3_exponents.cpp
-test_ac3_exponents_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_ac3_bit_allocation_SOURCES = test_ac3_bit_allocation.cpp
-test_ac3_bit_allocation_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_ac3_mantissas_SOURCES = test_ac3_mantissas.cpp
-test_ac3_mantissas_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_ac3_transform_SOURCES = test_ac3_transform.cpp
-test_ac3_transform_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_eac3_frame_SOURCES = test_eac3_frame.cpp
-test_eac3_frame_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_eac3_spx_SOURCES = test_eac3_spx.cpp
-test_eac3_spx_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_eac3_tpnp_SOURCES = test_eac3_tpnp.cpp
-test_eac3_tpnp_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_eac3_aht_SOURCES = test_eac3_aht.cpp
-test_eac3_aht_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_eac3_ecpl_SOURCES = test_eac3_ecpl.cpp
-test_eac3_ecpl_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_ac3_drc_SOURCES = test_ac3_drc.cpp
-test_ac3_drc_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_ac3_downmix_SOURCES = test_ac3_downmix.cpp
-test_ac3_downmix_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# The AC-3 and E-AC-3 unit tests share one program. Each still has its own
+# file and its own suite; what they no longer have is a link apiece, and each
+# of these links the whole static stack for a test that runs in milliseconds.
+test_ac3_suite_SOURCES = test_ac3_suite.cpp \
+	codecs/ac3/test_ac3_frame_header.cpp \
+	codecs/ac3/test_ac3_exponents.cpp \
+	codecs/ac3/test_ac3_bit_allocation.cpp \
+	codecs/ac3/test_ac3_mantissas.cpp \
+	codecs/ac3/test_ac3_transform.cpp \
+	codecs/ac3/test_eac3_frame.cpp \
+	codecs/ac3/test_eac3_spx.cpp \
+	codecs/ac3/test_eac3_tpnp.cpp \
+	codecs/ac3/test_eac3_aht.cpp \
+	codecs/ac3/test_eac3_ecpl.cpp \
+	codecs/ac3/test_ac3_drc.cpp \
+	codecs/ac3/test_ac3_downmix.cpp
+test_ac3_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Decodes the broadband oracle streams of generate_ac3_corpus.sh through
 # DemuxedStream and compares band energies with ffmpeg's decode; skips (77)

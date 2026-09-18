@@ -299,7 +299,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_eac3_spx_main()
 {
     TestSuite suite("E-AC-3 Spectral Extension Tests");
     suite.addTest(std::make_unique<BandingTest>());

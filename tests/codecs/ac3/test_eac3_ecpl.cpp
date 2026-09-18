@@ -188,7 +188,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_eac3_ecpl_main()
 {
     TestSuite suite("E-AC-3 Enhanced Coupling Tests");
     suite.addTest(std::make_unique<TableTest>());

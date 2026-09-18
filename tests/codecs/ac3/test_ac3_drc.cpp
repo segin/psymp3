@@ -56,7 +56,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_ac3_drc_main()
 {
     TestSuite suite("AC-3 Dynamic Range Control Tests");
     suite.addTest(std::make_unique<GainWordTest>());

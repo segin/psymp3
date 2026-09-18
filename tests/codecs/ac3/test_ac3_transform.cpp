@@ -194,7 +194,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_ac3_transform_main()
 {
     TestSuite suite("AC-3 Inverse Transform Tests");
     suite.addTest(std::make_unique<WindowTableTest>());

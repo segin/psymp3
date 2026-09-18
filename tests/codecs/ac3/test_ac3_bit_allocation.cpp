@@ -376,7 +376,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_ac3_bit_allocation_main()
 {
     TestSuite suite("AC-3 Bit Allocation Tests");
     suite.addTest(std::make_unique<DeltaAccumulationTest>());

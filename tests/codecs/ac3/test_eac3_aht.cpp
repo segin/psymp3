@@ -251,7 +251,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_eac3_aht_main()
 {
     TestSuite suite("E-AC-3 Adaptive Hybrid Transform Tests");
     suite.addTest(std::make_unique<GaqSectionsTest>());

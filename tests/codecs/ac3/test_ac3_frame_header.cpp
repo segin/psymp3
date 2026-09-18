@@ -294,7 +294,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_ac3_frame_header_main()
 {
     TestSuite suite("AC-3 Frame Header Tests");
     suite.addTest(std::make_unique<BitReaderTest>());

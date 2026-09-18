@@ -278,7 +278,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_ac3_exponents_main()
 {
     TestSuite suite("AC-3 Exponent Decoding Tests");
     suite.addTest(std::make_unique<GroupSizeTest>());

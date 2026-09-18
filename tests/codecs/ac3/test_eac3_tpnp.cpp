@@ -148,7 +148,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_eac3_tpnp_main()
 {
     TestSuite suite("E-AC-3 Transient Pre-Noise Processing Tests");
     suite.addTest(std::make_unique<PlacementTest>());
