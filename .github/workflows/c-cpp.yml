@@ -98,7 +98,11 @@ jobs:
           # make -k keeps going past a failing phase so the test suite (run
           # once, by the harness) and the top-level threading checks BOTH
           # report, rather than aborting at the first failing sub-target.
-          dbus-run-session -- make -k check
+          # -j because `check` builds the ~300 test programs before running
+          # them, and each one links the whole static stack: that build, not
+          # the suite, is where this step's time goes (20 of 25 minutes, the
+          # run itself under 5). The harness still runs them one at a time.
+          dbus-run-session -- make -j$(nproc) -k check
           echo "Tests completed successfully"
         else
           echo "No tests available to run"
@@ -112,7 +116,10 @@ jobs:
           # distcheck re-runs the whole test suite inside the dist tree, so it
           # needs the same session bus the 'Run tests' step gets - without it
           # the MPRIS tests can only skip (or, historically, fail).
-          dbus-run-session -- make distcheck
+          # It builds the sources and every test program again from the
+          # unpacked tarball, and automake hands MAKEFLAGS to the sub-make, so
+          # -j reaches that inner build too.
+          dbus-run-session -- make -j$(nproc) distcheck
           echo "Distribution check completed successfully"
         else
           echo "Distribution check not available"
