@@ -406,7 +406,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_matroska_cues_main()
 {
     TestSuite suite("Matroska Cue Index Tests");
     suite.addTest(std::make_unique<ScanFindsTimestampTest>());

@@ -473,7 +473,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_ebml_reader_main()
 {
     TestSuite suite("EBML Reader Tests");
     suite.addTest(std::make_unique<VIntWidthTest>());

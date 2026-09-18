@@ -1103,7 +1103,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_matroska_seek_main()
 {
     TestSuite suite("Matroska Seek Landing Tests");
     suite.addTest(std::make_unique<ReportsGranulePositionsTest>());

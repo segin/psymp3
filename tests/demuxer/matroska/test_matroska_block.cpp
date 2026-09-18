@@ -325,7 +325,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_matroska_block_main()
 {
     TestSuite suite("Matroska Block Parsing Tests");
     suite.addTest(std::make_unique<NoLacingTest>());

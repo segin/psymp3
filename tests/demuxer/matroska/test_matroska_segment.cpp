@@ -1014,7 +1014,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_matroska_segment_main()
 {
     TestSuite suite("Matroska Segment Parsing Tests");
     suite.addTest(std::make_unique<CodecMappingTest>());

@@ -145,7 +145,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_matroska_tags_main()
 {
     TestSuite suite("Matroska Tags");
     suite.addTest(std::make_unique<LevelsTest>());

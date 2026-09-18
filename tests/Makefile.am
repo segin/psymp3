@@ -466,12 +466,7 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_area_validation t
 	test_widget_hierarchy_properties \
 	test_widget_rendering \
 	test_complex_script_rendering \
-	test_ebml_reader \
-	test_matroska_segment \
-	test_matroska_block \
-	test_matroska_cues \
-	test_matroska_seek \
-	test_matroska_tags \
+	test_matroska_suite \
 	test_ac3_suite \
 	test_ac3_oracle \
 	test_ac3_null_demuxer \
@@ -534,23 +529,16 @@ test_complex_script_rendering_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 test_complex_script_rendering_CPPFLAGS = $(AM_CPPFLAGS) \
 	-DPSYMP3_TOP_SRCDIR='"$(top_srcdir)"'
 
-test_ebml_reader_SOURCES = test_ebml_reader.cpp
-test_ebml_reader_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_matroska_segment_SOURCES = test_matroska_segment.cpp
-test_matroska_segment_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_matroska_block_SOURCES = test_matroska_block.cpp
-test_matroska_block_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_matroska_cues_SOURCES = test_matroska_cues.cpp
-test_matroska_cues_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_matroska_seek_SOURCES = test_matroska_seek.cpp
-test_matroska_seek_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_matroska_tags_SOURCES = test_matroska_tags.cpp
-test_matroska_tags_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# The Matroska tests share one program, as the AC-3 ones do: each keeps its
+# file and its suite, and they no longer link the static stack six times over.
+test_matroska_suite_SOURCES = test_matroska_suite.cpp \
+	demuxer/matroska/test_ebml_reader.cpp \
+	demuxer/matroska/test_matroska_segment.cpp \
+	demuxer/matroska/test_matroska_block.cpp \
+	demuxer/matroska/test_matroska_cues.cpp \
+	demuxer/matroska/test_matroska_seek.cpp \
+	demuxer/matroska/test_matroska_tags.cpp
+test_matroska_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # The AC-3 and E-AC-3 unit tests share one program. Each still has its own
 # file and its own suite; what they no longer have is a link apiece, and each
