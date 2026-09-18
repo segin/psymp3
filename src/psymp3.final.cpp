@@ -82,6 +82,7 @@
 // ============================================================================
 #include "demuxer/ChainedStream.cpp"
 #include "demuxer/ChunkDemuxer.cpp"
+#include "demuxer/ChunkDemuxerAvi.cpp"
 #include "demuxer/DemuxedStream.cpp"
 #include "demuxer/Demuxer.cpp"
 #include "demuxer/DemuxerExtensibility.cpp"

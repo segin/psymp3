@@ -18,6 +18,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 libpsymp3_demuxer_a_SOURCES = \
 	ChainedStream.cpp \
 	ChunkDemuxer.cpp \
+	ChunkDemuxerAvi.cpp \
 	Demuxer.cpp \
 	DemuxedStream.cpp \
 	DemuxerExtensibility.cpp \

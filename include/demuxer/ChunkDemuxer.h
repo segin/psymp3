@@ -104,9 +104,17 @@ inline std::string waveFormatCodecName(uint16_t format_tag)
  * @brief Universal chunk-based demuxer
  * 
  * Supports:
- * - Microsoft RIFF (little-endian): WAV files
+ * - Microsoft RIFF (little-endian): WAV and AVI files
  * - Amiga IFF (big-endian): General interchange format
  * - Apple AIFF (big-endian): Audio interchange format
+ *
+ * An AVI is the same RIFF grammar with a different form type and a different
+ * layout inside it: the streams are declared in a `hdrl` list, one `strl`
+ * each, and the audio is cut into chunks interleaved with the video through a
+ * `movi` list (`00wb` for stream 0's audio, `01dc` for stream 1's video). An
+ * audio `strl` describes itself with the same `WAVEFORMATEX` a WAV's `fmt `
+ * chunk holds, so the format tag picks the codec the same way. Only audio is
+ * read. That part is in ChunkDemuxerAvi.cpp; see parseAviForm().
  */
 class ChunkDemuxer : public Demuxer {
 public:
@@ -126,7 +134,13 @@ public:
      * @brief Get the container form type (WAVE, AIFF, etc.)
      */
     uint32_t getFormType() const { return m_form_type; }
-    std::string getContainerName() const override { return isAiffFile() ? "AIFF" : "RIFF/WAVE"; }
+    std::string getContainerName() const override
+    {
+        if (isAiffFile()) {
+            return "AIFF";
+        }
+        return isAviFile() ? "RIFF/AVI" : "RIFF/WAVE";
+    }
     
     /**
      * @brief Check endianness of the format
@@ -147,6 +161,19 @@ public:
     bool isAiffFile() const {
         return m_form_type == AIFF_FOURCC || m_form_type == AIFC_FOURCC;
     }
+
+    /**
+     * @brief Check if this is an AVI file
+     */
+    bool isAviFile() const { return m_form_type == AVI_FOURCC; }
+
+    /// An AVI chunk's time comes from the stream header's rate and the bytes
+    /// or chunks before it, so the landing of a seek, and every chunk time,
+    /// are exact. WAV and AIFF hand out one contiguous stream and need
+    /// neither.
+    bool providesGranulePositions() const override { return isAviFile(); }
+    bool chunkTimesAreExact() const override { return isAviFile(); }
+    uint64_t getGranulePosition(uint32_t stream_id) const override;
     
 private:
     // Container FourCC constants (Always read as Big-Endian)
@@ -156,6 +183,7 @@ private:
     
     // Format type constants (Read using container endianness)
     static constexpr uint32_t WAVE_FOURCC = 0x45564157; // "WAVE" (read as little-endian)
+    static constexpr uint32_t AVI_FOURCC  = 0x20495641; // "AVI " (read as little-endian)
     static constexpr uint32_t AIFF_FOURCC = 0x41494646; // "AIFF" (read as big-endian)
     static constexpr uint32_t AIFC_FOURCC = 0x41494643; // "AIFC" (AIFF-C)
     
@@ -230,6 +258,61 @@ private:
     /// samples, whatever the header's bit depth says, so every byte and time
     /// conversion has to know.
     static bool isG722(const AudioStreamData& stream);
+
+    /// One `movi` list: where its chunks start and end. A file past 2 GB
+    /// continues in further RIFF forms of type 'AVIX', each with another one
+    /// (OpenDML 1.02 section 3), and they are read as one run of chunks.
+    struct AviSegment {
+        uint64_t begin = 0;
+        uint64_t end = 0;
+    };
+
+    /// One audio chunk, as the file's index describes it.
+    struct AviIndexEntry {
+        uint64_t offset = 0;   ///< of the chunk header, not of its data
+        uint32_t size = 0;
+        uint64_t ticks = 0;    ///< stream samples before this chunk
+    };
+
+    /// What an AVI's headers say about the audio stream being played, and
+    /// where reading has got to. Untouched for WAV and AIFF.
+    struct AviLayout {
+        std::vector<AviSegment> segments;
+        std::vector<AviIndexEntry> index;
+        std::vector<AviSegment> super_index;  ///< where the 'ix##' chunks are
+        uint64_t idx1_offset = 0;
+        uint32_t idx1_size = 0;
+        uint32_t stream_number = 0;  ///< the AVI stream number of the audio
+        /// dwSampleSize: the bytes one stream sample takes, or 0 when they
+        /// vary and each chunk counts as one sample.
+        uint32_t sample_size = 0;
+        uint32_t scale = 1;          ///< dwScale
+        uint32_t rate = 0;           ///< dwRate: samples per dwScale seconds
+        uint64_t length_ticks = 0;   ///< dwLength, in stream samples
+        size_t segment = 0;          ///< which segment is being read
+        uint64_t offset = 0;         ///< the next chunk header in it
+        uint64_t ticks = 0;          ///< stream samples handed out so far
+        bool have_audio = false;
+    };
+    AviLayout m_avi;
+
+    /// Reads an AVI's headers, lists its audio stream and builds its index.
+    bool parseAviForm();
+    bool parseAviHeaderList(uint64_t begin, uint64_t end);
+    bool parseAviStreamList(uint64_t begin, uint64_t end, uint32_t stream_number);
+    void parseAviInfoList(uint64_t begin, uint64_t end);
+    void readAviSuperIndex(uint64_t offset, uint32_t size);
+    void readAviStandardIndex(uint64_t offset, uint32_t size);
+    void readAviOldIndex(uint64_t offset, uint32_t size);
+    void buildAviIndex();
+    /// The next audio chunk of the `movi` lists, or an empty one at the end.
+    MediaChunk readAviChunk();
+    bool seekAvi(uint64_t timestamp_ms);
+    /// Stream samples to output sample frames, and to milliseconds.
+    uint64_t aviTicksToSamples(uint64_t ticks) const;
+    uint64_t aviTicksToMs(uint64_t ticks) const;
+    /// Reads @p count bytes at @p offset; false unless they are all there.
+    bool readAviBytes(uint64_t offset, void* into, size_t count) const;
 
     uint32_t m_container_fourcc = 0;             // FORM or RIFF
     uint32_t m_form_type = 0;                    // AIFF, WAVE, etc.

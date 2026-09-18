@@ -48,11 +48,21 @@ bool ChunkDemuxer::parseContainer() {
         Debug::log("chunk", "ChunkDemuxer: Container=0x", std::hex, m_container_fourcc, 
                    ", Form=0x", m_form_type, std::dec, ", BigEndian=", m_big_endian);
         
-        // Support WAVE (RIFF), AIFF (FORM), and other IFF variants
-        if (m_form_type != WAVE_FOURCC && !isAiffFile()) {
+        // Support WAVE (RIFF), AVI (RIFF), AIFF (FORM), and other IFF variants
+        if (m_form_type != WAVE_FOURCC && m_form_type != AVI_FOURCC && !isAiffFile()) {
             Debug::log("chunk", "ChunkDemuxer: Unsupported form type: 0x", std::hex, m_form_type);
-            reportError("container", "Unsupported form type (expected WAVE or AIFF)");
+            reportError("container", "Unsupported form type (expected WAVE, AVI or AIFF)");
             return false;
+        }
+
+        // An AVI keeps its audio in chunks spread through a 'movi' list
+        // rather than in one 'data' chunk, so it is walked its own way.
+        if (m_form_type == AVI_FOURCC) {
+            if (!parseAviForm()) {
+                return false;
+            }
+            m_parsed = true;
+            return true;
         }
         
         // Parse chunks within the container with error recovery
@@ -266,6 +276,9 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
     if (it == m_audio_streams.end()) {
         return MediaChunk{};
     }
+    if (isAviFile()) {
+        return readAviChunk();
+    }
     
     AudioStreamData& stream_data = it->second;
     
@@ -373,6 +386,9 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
 bool ChunkDemuxer::seekTo(uint64_t timestamp_ms) {
     if (m_audio_streams.empty()) {
         return false;
+    }
+    if (isAviFile()) {
+        return seekAvi(timestamp_ms);
     }
     
     // For simplicity, seek the first audio stream
