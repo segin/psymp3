@@ -524,6 +524,11 @@ test_flac_seek_landing_SOURCES = test_flac_seek_landing.cpp
 test_flac_seek_landing_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
+# AVI files, which ChunkDemuxer reads as the RIFF form they are.
+check_PROGRAMS += test_avi_demuxer
+test_avi_demuxer_SOURCES = test_avi_demuxer.cpp
+test_avi_demuxer_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
 test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
