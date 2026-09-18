@@ -650,15 +650,18 @@ void MediaFactory::initializeDefaultFormats() {
         MediaFormat wave_format;
         wave_format.format_id = "riff";
         wave_format.display_name = "WAVE";
-        wave_format.extensions = {"WAV", "WAVE", "BWF"};
+        // An AVI is the same RIFF file with a different form type, and the
+        // same demuxer reads the audio out of it.
+        wave_format.extensions = {"WAV", "WAVE", "BWF", "AVI"};
         // Comprehensive MIME type support for WAVE
-        wave_format.mime_types = {"audio/wav", "audio/wave", "audio/x-wav", "audio/vnd.wave", "audio/x-pn-wav"};
+        wave_format.mime_types = {"audio/wav", "audio/wave", "audio/x-wav", "audio/vnd.wave", "audio/x-pn-wav",
+                                  "video/avi", "video/msvideo", "video/x-msvideo"};
         wave_format.magic_signatures = {"RIFF"};
         wave_format.priority = 10;
         wave_format.supports_streaming = true;
         wave_format.supports_seeking = true;
         wave_format.is_container = true;
-        wave_format.description = "RIFF WAVE audio";
+        wave_format.description = "RIFF audio: a WAVE file, or the audio of an AVI";
         
         registerFormatInternal(wave_format, [](const std::string& uri, const ContentInfo& info) {
             return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));

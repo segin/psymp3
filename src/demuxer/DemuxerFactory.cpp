@@ -75,6 +75,8 @@ void DemuxerFactory::initializeBuiltInFormats() {
     // Register file extensions
     s_extension_to_format["wav"] = "riff";
     s_extension_to_format["wave"] = "riff";
+    // An AVI is the same RIFF demuxer: ChunkDemuxer reads its 'movi' list.
+    s_extension_to_format["avi"] = "riff";
     s_extension_to_format["aif"] = "aiff";
     s_extension_to_format["aiff"] = "aiff";
     s_extension_to_format["aifc"] = "aiff"; // AIFF-C, same demuxer
