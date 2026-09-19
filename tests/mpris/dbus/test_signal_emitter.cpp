@@ -52,6 +52,8 @@ public:
     }
 };
 
+namespace {  // so that another test file's SignalEmitterTest cannot be
+             // mistaken for this one when they share a program
 class SignalEmitterTest {
 public:
     SignalEmitterTest() {
@@ -71,6 +73,8 @@ public:
     std::unique_ptr<DBusConnectionManager> connection;
     std::unique_ptr<SignalEmitter> signal_emitter;
 };
+}  // namespace
+
 
 // Test basic construction and destruction
 void testConstructionAndDestruction() {
@@ -352,7 +356,7 @@ void testNoDBusSupport() {
 }
 #endif
 
-int main() {
+int test_signal_emitter_main() {
     std::cout << "Running SignalEmitter tests..." << std::endl;
     
     // Run basic tests

@@ -135,7 +135,7 @@ bool testStreamInfoConsistency() {
     }
 }
 
-int main() {
+int test_streaminfo_recovery_main() {
     std::cout << "FLAC STREAMINFO Recovery Mechanisms Test" << std::endl;
     std::cout << "========================================" << std::endl;
 

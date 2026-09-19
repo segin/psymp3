@@ -323,7 +323,7 @@ protected:
 
 } // namespace
 
-int main() {
+int test_aac_integration_main() {
     TestSuite suite("AAC Integration Tests");
     suite.addTest(std::make_unique<AACESDSParsingTest>());
     suite.addTest(std::make_unique<AACCodecInitializationTest>());
@@ -338,7 +338,7 @@ int main() {
 
 #else
 
-int main() {
+int test_aac_integration_main() {
     return 0;
 }
 

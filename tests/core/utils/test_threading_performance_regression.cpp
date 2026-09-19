@@ -519,7 +519,7 @@ private:
 /**
  * Main test function
  */
-int main() {
+int test_threading_performance_regression_main() {
     // Initialize debug system
     Debug::init("performance_test.log", {"performance", "threading"});
     

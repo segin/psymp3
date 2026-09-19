@@ -300,7 +300,7 @@ void testConfigurationChanges() {
     std::cout << "PASS: Configuration changes test" << std::endl;
 }
 
-int main() {
+int test_bounded_queue_main() {
     std::cout << "Running BoundedQueue tests..." << std::endl;
     
     testConstructor();

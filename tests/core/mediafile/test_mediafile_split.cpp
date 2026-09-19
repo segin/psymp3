@@ -123,7 +123,7 @@ protected:
     }
 };
 
-int main() {
+int test_mediafile_split_main() {
     TestSuite suite("MediaFile Split Tests");
     suite.addTest(std::make_unique<MediaFileSplitTest>());
     auto results = suite.runAll();

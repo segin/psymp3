@@ -141,7 +141,7 @@ protected:
 
 } // namespace
 
-int main()
+int test_aac_output_format_main()
 {
     registerAllCodecs();
     registerAllDemuxers();

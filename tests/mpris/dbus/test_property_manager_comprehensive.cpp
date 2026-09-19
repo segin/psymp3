@@ -24,6 +24,8 @@ using namespace PsyMP3::MPRIS;
 /**
  * @brief Test class for PropertyManager comprehensive testing
  */
+namespace {  // so that another test file's PropertyManagerTest cannot be
+             // mistaken for this one when they share a program
 class PropertyManagerTest : public TestCase {
 public:
     PropertyManagerTest() : TestCase("PropertyManagerTest") {}
@@ -371,6 +373,8 @@ private:
                     "Contention ratio should be sane");
     }
 };
+}  // namespace
+
 
 /**
  * @brief Test class for PropertyManager edge cases and stress scenarios
@@ -526,7 +530,7 @@ private:
 };
 
 // Test suite setup and execution
-int main() {
+int test_property_manager_comprehensive_main() {
     TestSuite suite("PropertyManager Comprehensive Tests");
     
     suite.addTest(std::make_unique<PropertyManagerTest>());

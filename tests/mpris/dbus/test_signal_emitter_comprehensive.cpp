@@ -30,6 +30,8 @@ using namespace PsyMP3::MPRIS;
  * verify through the emitter's own statistics and queue state, which is
  * what the class actually guarantees.
  */
+namespace {  // so that another test file's SignalEmitterTest cannot be
+             // mistaken for this one when they share a program
 class SignalEmitterTest : public TestCase {
 public:
     SignalEmitterTest() : TestCase("SignalEmitterTest") {}
@@ -209,8 +211,10 @@ private:
         ASSERT_TRUE(stats.signals_sent >= 1, "Signal should send after reconnect");
     }
 };
+}  // namespace
 
-int main() {
+
+int test_signal_emitter_comprehensive_main() {
     // The emitter needs a genuine session bus; SKIP where none exists.
     {
         DBusError probe;

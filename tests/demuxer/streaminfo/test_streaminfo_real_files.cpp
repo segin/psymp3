@@ -90,7 +90,7 @@ bool testStreamInfoWithFile(const std::string& filename) {
     }
 }
 
-int main() {
+int test_streaminfo_real_files_main() {
     std::cout << "FLAC STREAMINFO Real File Verification Test" << std::endl;
     std::cout << "===========================================" << std::endl;
     

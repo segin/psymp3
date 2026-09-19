@@ -353,7 +353,7 @@ private:
 };
 
 // Test suite setup and execution
-int main() {
+int test_dbus_connection_manager_comprehensive_main() {
     // No session bus -> automake SKIP (exit 77), never FAIL: distcheck's
     // inner make check (and any headless environment) may run without
     // dbus-run-session, and a missing bus is an environment gap, not a defect.

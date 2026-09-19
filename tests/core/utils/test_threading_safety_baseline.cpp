@@ -293,7 +293,7 @@ void runPerformanceBenchmarks() {
               << results3.speedup_ratio << "x" << std::endl;
 }
 
-int main() {
+int test_threading_safety_baseline_main() {
     std::cout << "PsyMP3 Threading Safety Baseline Tests" << std::endl;
     std::cout << "======================================" << std::endl;
     

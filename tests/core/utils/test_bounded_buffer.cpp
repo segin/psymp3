@@ -223,7 +223,7 @@ public:
     }
 };
 
-int main() {
+int test_bounded_buffer_main() {
     TestSuite suite("BoundedBuffer Tests");
 
     suite.addTest(std::make_unique<TestBoundedBuffer>());

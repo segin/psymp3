@@ -251,7 +251,7 @@ bool test_without_dbus_support() {
 #endif
 
 // Main test runner
-int main() {
+int test_dbus_connection_manager_main() {
     std::cout << "Running DBusConnectionManager unit tests..." << std::endl;
     
     bool all_passed = true;

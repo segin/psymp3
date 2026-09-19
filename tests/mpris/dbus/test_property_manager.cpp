@@ -27,6 +27,8 @@ public:
     //  but this provides a foundation for future integration)
 };
 
+namespace {  // so that another test file's PropertyManagerTest cannot be
+             // mistaken for this one when they share a program
 class PropertyManagerTest : public TestFramework::TestCase {
 public:
     PropertyManagerTest(const std::string& name) : TestCase(name) {}
@@ -45,6 +47,8 @@ protected:
     std::unique_ptr<MockPlayer> m_mock_player;
     std::unique_ptr<PropertyManager> m_property_manager;
 };
+}  // namespace
+
 
 // Test basic metadata operations
 class TestBasicMetadata : public PropertyManagerTest {
@@ -365,7 +369,7 @@ public:
     }
 };
 
-int main() {
+int test_property_manager_main() {
     TestFramework::TestSuite suite("PropertyManager Tests");
     
     // Add all test cases

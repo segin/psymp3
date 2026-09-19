@@ -422,13 +422,12 @@ test_seek_deadlock_LDADD = \
 
 
 # Individual test executables
-check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
+check_PROGRAMS = test_mediafile_suite test_rect_suite \
 	test_harness_integration \
 	test_iohandler_suite \
 	test_integration_verification \
 	test_psymp3_system_integration \
 	test_api_consistency \
-	test_demuxer_unit \
 	test_seeking_engine \
 	test_demuxer_suite \
 	test_widget_hierarchy_properties \
@@ -439,11 +438,10 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
 	test_mp2_codec \
 	test_pcm_codec \
 	test_demuxed_stream_seek \
-	test_http_client_parse_url \
+	test_http_suite \
 	test_http_client_fallback \
-	test_http_iohandler_validation \
 	test_http_io_handler \
-	test_bounded_buffer \
+	test_core_utils_suite \
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
 	test_surface_suite \
@@ -452,15 +450,16 @@ check_PROGRAMS = test_mediafile test_mediafile_split test_rect_suite \
 	test_verify_random
 
 if HAVE_AAC
-check_PROGRAMS += test_aac_integration
-test_aac_integration_SOURCES = test_aac_integration.cpp
-test_aac_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+check_PROGRAMS += test_aac_suite 
+# AAC Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_aac_suite_SOURCES = test_aac_suite.cpp \
+	codecs/aac/test_aac_integration.cpp \
+	codecs/aac/test_aac_output_format.cpp
+test_aac_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # HE-AAC streams made with FDK's encoder, which is in the decoder's library.
-check_PROGRAMS += test_aac_output_format
-test_aac_output_format_SOURCES = test_aac_output_format.cpp
-test_aac_output_format_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
+check_PROGRAMS += 
 check_PROGRAMS += test_iso_seek
 test_iso_seek_SOURCES = test_iso_seek.cpp
 test_iso_seek_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
@@ -710,7 +709,7 @@ endif
 check_PROGRAMS += 
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_suite test_threading_safety_baseline test_system_wide_threading_integration test_threading_performance_regression test_memory_suite 
+check_PROGRAMS += test_codec_suite test_system_wide_threading_integration test_memory_suite 
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcm_suite 
@@ -720,21 +719,25 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_dbus_connection_manager test_property_manager test_method_handler_suite test_signal_emitter test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_signal_emitter_comprehensive test_mpris_suite 
+check_PROGRAMS += test_dbus_suite test_method_handler_suite test_mock_framework_standalone test_mpris_suite 
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_streaminfo_real_files \
-	test_streaminfo_recovery test_iohandler_deadlock \
+check_PROGRAMS += test_streaminfo_suite \
+	test_iohandler_deadlock \
 	test_entropy_coding_compilation \
 	test_flac_suite \
 	test_flac_parser_vulnerability
 endif
 
 # Test program sources and dependencies
-test_mediafile_SOURCES = test_mediafile.cpp
-test_mediafile_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+# MediaFile Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_mediafile_suite_SOURCES = test_mediafile_suite.cpp \
+	core/mediafile/test_mediafile.cpp \
+	core/mediafile/test_mediafile_split.cpp
+test_mediafile_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Rect Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
@@ -827,16 +830,12 @@ test_api_consistency_SOURCES = test_api_consistency.cpp
 test_api_consistency_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 
 # Demuxer architecture unit tests
-test_demuxer_unit_SOURCES = test_demuxer_unit.cpp
-test_demuxer_unit_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
+# Demuxer Tag and Unit Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_demuxer_extra_suite_SOURCES = test_demuxer_extra_suite.cpp \
+	demuxer/test_demuxer_tag_extraction.cpp \
+	demuxer/test_demuxer_unit.cpp
+test_demuxer_extra_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_seeking_engine_SOURCES = test_seeking_engine.cpp
 test_seeking_engine_LDADD = libtest_utilities.a \
@@ -868,15 +867,22 @@ test_demuxer_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 # Integration tests
 # Performance and regression tests
 # IOHandler backward compatibility and performance validation tests
-test_http_client_parse_url_SOURCES = test_http_client_parse_url.cpp
-test_http_client_parse_url_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
+# HTTP Client Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_http_suite_SOURCES = test_http_suite.cpp \
+	io/http/test_http_client_parse_url.cpp \
+	io/http/test_http_iohandler_validation.cpp
+test_http_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
+# These two stay programs of their own, and cannot join test_http_suite:
+# each replaces HTTPClient in the link, and they do it differently.
+# test_http_client_fallback compiles src/io/http/HTTPClient.cpp itself
+# with HTTP_CLIENT_NO_CURL defined, to exercise the path taken when
+# curl is absent; test_http_io_handler defines stub HTTPClient methods
+# so that HTTPIOHandler can be tested without a server. One program
+# cannot hold both sets of definitions. Merging them would mean giving
+# HTTPIOHandler an injectable client instead of mocking it at link
+# time, which is a change to the code under test, not to its tests.
 test_http_client_fallback_SOURCES = test_http_client_fallback.cpp
 test_http_client_fallback_LDADD = \
 	libtest_utilities.a \
@@ -884,23 +890,14 @@ test_http_client_fallback_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
-test_http_iohandler_validation_SOURCES = test_http_iohandler_validation.cpp
-test_http_iohandler_validation_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
-
-test_bounded_buffer_SOURCES = test_bounded_buffer.cpp
-test_bounded_buffer_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
+# Bounded Buffer, Queue and Threading Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_core_utils_suite_SOURCES = test_core_utils_suite.cpp \
+	core/utils/test_bounded_buffer.cpp \
+	core/utils/test_bounded_queue.cpp \
+	core/utils/test_threading_performance_regression.cpp \
+	core/utils/test_threading_safety_baseline.cpp
+test_core_utils_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_io_buffer_pool_SOURCES = test_io_buffer_pool.cpp
 test_io_buffer_pool_LDADD = \
@@ -1366,17 +1363,17 @@ test_mpris_suite_SOURCES = test_mpris_suite.cpp player_stub.cpp \
 # supplies what is still wanted when the linker reaches it.
 test_mpris_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LDFLAGS)
 
-test_dbus_connection_manager_SOURCES = test_dbus_connection_manager.cpp
-test_dbus_connection_manager_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(DBUS_LIBS) \
-	$(AM_LDFLAGS)
-
-test_property_manager_SOURCES = test_property_manager.cpp player_stub.cpp
-test_property_manager_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
+# D-Bus Connection, Property and Signal Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+# player_stub.cpp: the property manager reads the player's state.
+test_dbus_suite_SOURCES = test_dbus_suite.cpp player_stub.cpp \
+	mpris/dbus/test_dbus_connection_manager.cpp \
+	mpris/dbus/test_dbus_connection_manager_comprehensive.cpp \
+	mpris/dbus/test_property_manager.cpp \
+	mpris/dbus/test_property_manager_comprehensive.cpp \
+	mpris/dbus/test_signal_emitter.cpp \
+	mpris/dbus/test_signal_emitter_comprehensive.cpp
+test_dbus_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LDFLAGS)
 
 # MPRIS Method Handler Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
@@ -1387,16 +1384,6 @@ test_method_handler_suite_SOURCES = test_method_handler_suite.cpp player_stub.cp
 	mpris/method/test_method_handler_comprehensive.cpp \
 	mpris/method/test_method_handler_simple.cpp
 test_method_handler_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LDFLAGS)
-
-test_signal_emitter_SOURCES = test_signal_emitter.cpp
-test_signal_emitter_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(DBUS_LIBS) \
-	$(AM_LDFLAGS)
 
 # Vorbis Streaming Property Tests
 # **Feature: vorbis-codec, Property 11: Bounded Buffer Size**
@@ -1567,28 +1554,9 @@ test_system_wide_threading_integration_LDADD = \
 	$(AM_LDFLAGS)
 
 # Threading performance regression test
-test_threading_performance_regression_SOURCES = test_threading_performance_regression.cpp
-test_threading_performance_regression_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/audio.o \
-	$(top_builddir)/src/dsp/Equalizer.o \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/core/surface.o \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(AM_LDFLAGS)
-
 # Simple codec performance test (minimal dependencies)
 # Simple codec thread safety test (minimal dependencies)
 # Threading safety baseline test
-test_threading_safety_baseline_SOURCES = test_threading_safety_baseline.cpp
-test_threading_safety_baseline_LDADD = libtest_utilities.a -lpthread
-
 # Audio thread safety test
 # Audio Pipeline Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
@@ -1837,41 +1805,14 @@ test_conditional_codec_compilation_LDADD = libtest_utilities.a \
 if HAVE_FLAC
 # FLAC demuxer real file test
 # FLAC STREAMINFO real files test
-test_streaminfo_real_files_SOURCES = test_streaminfo_real_files.cpp
-test_streaminfo_real_files_LDADD = \
-	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
+# StreamInfo Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_streaminfo_suite_SOURCES = test_streaminfo_suite.cpp \
+	demuxer/streaminfo/test_streaminfo_real_files.cpp \
+	demuxer/streaminfo/test_streaminfo_recovery.cpp
+test_streaminfo_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # FLAC STREAMINFO recovery test
-test_streaminfo_recovery_SOURCES = test_streaminfo_recovery.cpp
-test_streaminfo_recovery_LDADD = \
-	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
-
 # FLAC STREAMINFO debug/extraction test (standalone, no library dependencies)
 test_streaminfo_debug_SOURCES = test_streaminfo_debug.cpp
 test_streaminfo_debug_LDADD = $(AM_LDFLAGS)
@@ -2185,15 +2126,6 @@ test_mock_framework_standalone_SOURCES = test_mock_framework_standalone.cpp
 test_mock_framework_standalone_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 
 # Comprehensive MPRIS component tests
-test_dbus_connection_manager_comprehensive_SOURCES = test_dbus_connection_manager_comprehensive.cpp player_stub.cpp
-test_dbus_connection_manager_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_property_manager_comprehensive_SOURCES = test_property_manager_comprehensive.cpp player_stub.cpp
-test_property_manager_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
-test_signal_emitter_comprehensive_SOURCES = test_signal_emitter_comprehensive.cpp player_stub.cpp
-test_signal_emitter_comprehensive_LDADD = $(MPRIS_TEST_LIBS) $(AM_LDFLAGS)
-
 endif
 
 # MPRIS Integration Tests
@@ -2676,7 +2608,7 @@ mp3out_LDADD = \
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_suite test_id3v2_tag test_demuxer_tag_extraction test_stream_tag_integration 
+check_PROGRAMS += test_tag_suite test_id3v2_tag test_demuxer_extra_suite test_stream_tag_integration 
 
 # Tag unit tests
 # Tag Framework Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
@@ -2714,27 +2646,6 @@ test_id3v2_tag_LDADD = \
 # TagFactory unit tests
 # Tag error handling tests
 # Demuxer tag extraction tests
-test_demuxer_tag_extraction_SOURCES = test_demuxer_tag_extraction.cpp
-test_demuxer_tag_extraction_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
-	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
-
 # Stream-Tag integration tests (Property 11: Stream-Tag Delegation Consistency)
 test_stream_tag_integration_SOURCES = test_stream_tag_integration.cpp
 if HAVE_RAPIDCHECK
@@ -2956,13 +2867,13 @@ check_PROGRAMS += test_base64_unit
 
 # Base64 unit tests
 test_base64_unit_SOURCES = test_base64_unit.cpp
-check_PROGRAMS += test_fft_unit
-test_fft_unit_SOURCES = test_fft_unit.cpp
-test_fft_unit_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS)
+check_PROGRAMS += 
+# FFT Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_fft_suite_SOURCES = test_fft_suite.cpp \
+	core/fft/test_fft_mode.cpp \
+	core/fft/test_fft_unit.cpp
+test_fft_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_base64_unit_LDADD = \
 	libtest_utilities.a \
@@ -2975,23 +2886,10 @@ test_base64_unit_LDADD = \
 # BoundedQueue Tests
 # ============================================================================
 
-check_PROGRAMS += test_bounded_queue
+check_PROGRAMS += 
 
 # BoundedQueue tests
-test_bounded_queue_SOURCES = test_bounded_queue.cpp
-test_bounded_queue_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS)
-
-check_PROGRAMS += test_fft_mode
-test_fft_mode_SOURCES = test_fft_mode.cpp
-test_fft_mode_LDADD = \
-	libtest_utilities.a \
-	../src/core/libpsymp3-core.a
-
+check_PROGRAMS += test_fft_suite 
 # Every check program is a test, and runs exactly once per `make check`. With
 # the harness configured, it is the runner (see check-local) and automake's
 # check-TESTS is given nothing, or the whole suite would run twice. Without the
@@ -3038,9 +2936,6 @@ test_flac_stream_marker_with_logging_LDADD = $(AM_LDFLAGS)
 check_PROGRAMS += test_storage_permissions
 test_storage_permissions_SOURCES = test_storage_permissions.cpp
 test_storage_permissions_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
-
-test_mediafile_split_SOURCES = test_mediafile_split.cpp
-test_mediafile_split_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_http_io_handler_SOURCES = test_http_io_handler.cpp $(top_srcdir)/src/io/http/HTTPIOHandler.cpp
 test_http_io_handler_LDADD = \

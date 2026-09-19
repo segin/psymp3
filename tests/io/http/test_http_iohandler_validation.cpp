@@ -33,7 +33,7 @@ protected:
     }
 };
 
-int main(int argc, char* argv[]) {
+int test_http_iohandler_validation_main_argv(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
@@ -44,4 +44,12 @@ int main(int argc, char* argv[]) {
     suite.printResults(results);
 
     return suite.getFailureCount(results) > 0 ? 1 : 0;
+}
+
+/// test_http_iohandler_validation took arguments when it was a program of its own.
+int test_http_iohandler_validation_main()
+{
+    char program[] = "test_http_iohandler_validation";
+    char* argv[] = {program, nullptr};
+    return test_http_iohandler_validation_main_argv(1, argv);
 }

@@ -146,7 +146,7 @@ public:
     }
 };
 
-int main() {
+int test_mediafile_main() {
     TestMediaFile suite;
     auto results = suite.runAll();
     suite.printResults(results);

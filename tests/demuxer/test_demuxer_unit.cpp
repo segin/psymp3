@@ -445,7 +445,7 @@ protected:
     }
 };
 
-int main() {
+int test_demuxer_unit_main() {
     TestSuite suite("Demuxer Architecture Unit Tests");
     
     // Add all test cases

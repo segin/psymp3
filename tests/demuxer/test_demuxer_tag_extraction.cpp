@@ -236,7 +236,7 @@ void test_null_tag_values() {
     std::cout << "  PASSED: NullTag returns empty/zero values\n";
 }
 
-int main() {
+int test_demuxer_tag_extraction_main() {
     std::cout << "=== Demuxer Tag Extraction Tests ===\n\n";
     
     int passed = 0;

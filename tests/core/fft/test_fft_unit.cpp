@@ -227,7 +227,7 @@ protected:
     }
 };
 
-int main() {
+int test_fft_unit_main() {
     TestSuite suite("FFT Unit Tests");
 
     suite.addTest(std::make_unique<FFTBasicPropertiesTest>());

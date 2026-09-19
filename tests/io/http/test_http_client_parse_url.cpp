@@ -150,7 +150,7 @@ protected:
     }
 };
 
-int main(int argc, char* argv[]) {
+int test_http_client_parse_url_main_argv(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
@@ -161,4 +161,12 @@ int main(int argc, char* argv[]) {
     suite.printResults(results);
 
     return suite.getFailureCount(results) > 0 ? 1 : 0;
+}
+
+/// test_http_client_parse_url took arguments when it was a program of its own.
+int test_http_client_parse_url_main()
+{
+    char program[] = "test_http_client_parse_url";
+    char* argv[] = {program, nullptr};
+    return test_http_client_parse_url_main_argv(1, argv);
 }

@@ -43,7 +43,7 @@ protected:
     }
 };
 
-int main() {
+int test_fft_mode_main() {
     try {
         FFTModeTest test;
         TestCaseInfo info = test.run();
