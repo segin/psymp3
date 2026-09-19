@@ -15,6 +15,27 @@ jobs:
     # which configure's `taglib >= 1.6` check accepts).
     container: debian:trixie
 
+    env:
+      # mold links this tree several times over -- once per check program,
+      # and again inside distcheck -- and it is markedly faster at it than
+      # GNU ld. Exported rather than passed to configure so that distcheck's
+      # own configure, which runs as a child of this one, uses it too.
+      LDFLAGS: -fuse-ld=mold
+      # Most test sources do not change from one push to the next, and both
+      # `check` and `distcheck` compile all of them; ccache makes the second
+      # compile of an unchanged file free, within a run and across runs.
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 1500M
+      # distcheck builds in a tree of its own under the workspace, and with
+      # -g the compiler records the path a file was compiled in, so ccache
+      # hashes that path as well and the same source compiled in the two
+      # trees misses. These two make the paths stop mattering: measured in
+      # the CI image, the second tree goes from no hits to all of them. The
+      # cost is that a cached object carries the directory recorded when it
+      # was first compiled, which for a CI artifact is of no consequence.
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: "1"
+
     steps:
     - name: Install dependencies
       run: |
@@ -48,7 +69,9 @@ jobs:
           dbus-daemon \
           zlib1g-dev \
           libflac-dev \
-          flac
+          flac \
+          mold \
+          ccache
         # taglib 2 renamed the -dev package; fall back for older suites.
         apt-get install -y libtag-dev || apt-get install -y libtag1-dev
         # No Qt/GTK on purpose: CI is the one build that exercises the
@@ -59,6 +82,24 @@ jobs:
 
     - name: Checkout repository
       uses: actions/checkout@v5
+
+    - name: Restore the compiler cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/.ccache
+        # The newest cache of a previous run is restored and this run saves
+        # its own; the key has to differ each time or the save is skipped.
+        key: ccache-${{ github.sha }}
+        restore-keys: |
+          ccache-
+
+    - name: Use ccache for the compilers
+      run: |
+        # Debian's ccache ships wrappers named gcc/g++/cc/c++; putting them
+        # first in PATH means configure, make and distcheck all find them,
+        # with no CC/CXX override to thread through the sub-builds.
+        echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+        ccache --zero-stats
 
     - name: Generate configure script
       run: |
@@ -133,6 +174,10 @@ jobs:
         else
           echo "Distribution check not available"
         fi
+
+    - name: Compiler cache statistics
+      if: always()
+      run: ccache --show-stats --verbose | head -20
 
     - name: Upload build artifacts
       if: always()
