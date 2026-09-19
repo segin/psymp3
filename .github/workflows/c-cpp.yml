@@ -81,10 +81,10 @@ jobs:
         # the reference-implementation type definitions.
 
     - name: Checkout repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v7
 
     - name: Restore the compiler cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ github.workspace }}/.ccache
         # The newest cache of a previous run is restored and this run saves
@@ -181,7 +181,7 @@ jobs:
 
     - name: Upload build artifacts
       if: always()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: psymp3-build-${{ github.sha }}
         path: |

@@ -51,7 +51,7 @@ jobs:
 
     - name: Check toolchain cache
       id: cache
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ~/llvm-mingw
         key: ${{ steps.key.outputs.key }}
@@ -105,10 +105,10 @@ jobs:
       MESON_CPU_FAMILY: ${{ matrix.meson_cpu_family }}
       MESON_CPU: ${{ matrix.meson_cpu }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
 
     - name: Restore toolchain
-      uses: actions/cache/restore@v5
+      uses: actions/cache/restore@v6
       with:
         path: ~/llvm-mingw
         key: ${{ needs.toolchain.outputs.cache-key }}
@@ -123,7 +123,7 @@ jobs:
 
     - name: Check dependency cache
       id: deps
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ${{ env.PREFIX }}
         key: xwin-deps-${{ matrix.tuple }}-r${{ env.DEPS_REV }}-zlib${{ env.ZLIB_VER }}-ssl${{ env.OPENSSL_VER }}-curl${{ env.CURL_VER }}-tag${{ env.TAGLIB_VER }}-ft${{ env.FREETYPE_VER }}-hb${{ env.HARFBUZZ_VER }}-ogg${{ env.OGG_VER }}-opus${{ env.OPUS_VER }}-speex${{ env.SPEEX_VER }}-fdk${{ env.FDKAAC_VER }}-sdl${{ env.SDL3_VER }}
@@ -333,14 +333,14 @@ jobs:
         file dist/*.exe
 
     - name: Upload stripped binary
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: psymp3-${{ matrix.arch }}-b${{ env.BUILD }}.exe
         path: dist/psymp3-${{ matrix.arch }}-b${{ env.BUILD }}.exe
         if-no-files-found: error
 
     - name: Upload debug binary
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: psymp3-${{ matrix.arch }}-b${{ env.BUILD }}-debug.exe
         path: dist/psymp3-${{ matrix.arch }}-b${{ env.BUILD }}-debug.exe

@@ -58,7 +58,7 @@ jobs:
           apt-get update
         fi
 
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
 
     - name: Install build dependencies
       run: |
@@ -99,7 +99,7 @@ jobs:
         test -f /usr/share/icons/hicolor/48x48/apps/psymp3.png
 
     - name: Upload package
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: psymp3-${{ matrix.artifact }}-deb
         path: package/dpkg/out/*.deb
@@ -130,7 +130,7 @@ jobs:
           zypper --non-interactive install git-core rpm-build tar gzip
         fi
 
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
 
     - name: Install build dependencies
       run: |
@@ -188,7 +188,7 @@ jobs:
         test -f /usr/share/icons/hicolor/48x48/apps/psymp3.png
 
     - name: Upload package
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: psymp3-${{ matrix.artifact }}-rpm
         path: |
