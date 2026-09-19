@@ -123,7 +123,7 @@ void testG722ThatLooksLikeMpegAudio()
 
 } // namespace
 
-int main()
+int test_raw_audio_stream_integration_main()
 {
     try {
         testMuLawViaMediaFactory();

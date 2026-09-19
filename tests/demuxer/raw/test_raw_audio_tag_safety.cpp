@@ -49,7 +49,7 @@ protected:
     }
 };
 
-int main(int argc, char* argv[])
+int test_raw_audio_tag_safety_main_argv(int argc, char* argv[])
 {
     (void)argc;
     (void)argv;
@@ -61,4 +61,12 @@ int main(int argc, char* argv[])
     suite.printResults(results);
 
     return suite.getFailureCount(results) > 0 ? 1 : 0;
+}
+
+/// test_raw_audio_tag_safety took arguments when it was a program of its own.
+int test_raw_audio_tag_safety_main()
+{
+    char program[] = "test_raw_audio_tag_safety";
+    char* argv[] = {program, nullptr};
+    return test_raw_audio_tag_safety_main_argv(1, argv);
 }

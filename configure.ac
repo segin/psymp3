@@ -728,3 +728,9 @@ echo ""
 
 AC_OUTPUT
 AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])
+
+# The FLAC parser tests are one program covering both parsers: the native
+# decoder's coded-number reader and the Ogg demuxer's FLAC header parser.
+# It is built when either of those is.
+AM_CONDITIONAL([HAVE_FLAC_PARSER_TESTS],
+               [test "x$have_native_flac" = "xyes" || test "x$have_oggdemuxer" = "xyes"])

@@ -235,7 +235,7 @@ void test_non_overflowing_orders() {
     ASSERT_TRUE(result1_64 == result1_32, "Order 1: Both implementations agree (no overflow possible)");
 }
 
-int main() {
+int test_fixed_predictor_overflow_main() {
     std::cout << "=== FLAC Fixed Predictor Overflow Tests ===" << std::endl;
     std::cout << "\nThese tests verify that integer overflow is prevented in" << std::endl;
     std::cout << "fixed predictor calculations for high bit-depth FLAC files." << std::endl;

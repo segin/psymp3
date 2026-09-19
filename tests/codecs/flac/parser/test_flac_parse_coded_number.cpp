@@ -184,7 +184,7 @@ void test_parse_with_logging() {
     std::cout << "✓ Logging wrapper behaves correctly" << std::endl;
 }
 
-int main() {
+int test_flac_parse_coded_number_main() {
     std::cout << "Running FLAC FLACRFC9639::parseCodedNumber Tests" << std::endl;
     std::cout << "===================================" << std::endl;
 
@@ -215,7 +215,7 @@ int main() {
 
 #include <iostream>
 
-int main() {
+int test_flac_parse_coded_number_main() {
     std::cout << "FLAC support not available - skipping FLACRFC9639::parseCodedNumber tests" << std::endl;
     return 0;
 }

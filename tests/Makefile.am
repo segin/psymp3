@@ -634,7 +634,7 @@ test_path_security_LDADD = \
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
 if HAVE_RAPIDCHECK
 check_PROGRAMS += test_boxparser_vulnerability \
-    test_rapidcheck_setup test_opus_codec_property test_fixed_predictor_properties \
+    test_rapidcheck_setup test_opus_codec_property \
     test_rect_properties
 
 test_rapidcheck_setup_SOURCES = test_rapidcheck_setup.cpp
@@ -657,13 +657,6 @@ test_opus_codec_property_LDADD = \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
-test_fixed_predictor_properties_SOURCES = test_fixed_predictor_properties.cpp
-test_fixed_predictor_properties_LDADD = \
-	$(RAPIDCHECK_LIBS) \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS)
-
 test_rect_properties_SOURCES = test_rect_properties.cpp
 test_rect_properties_LDADD = \
 	libtest_utilities.a \
@@ -682,13 +675,13 @@ if HAVE_G722
 check_PROGRAMS += test_g722_suite 
 endif
 
-check_PROGRAMS += test_raw_audio_stream_integration
+check_PROGRAMS += test_raw_audio_suite 
 
 # G711 codec tests (both A-law and μ-law)
 if HAVE_G711
   # A-law tests
 check_PROGRAMS += test_g711_suite test_wav_g711 test_wav_g711_improved
-check_PROGRAMS += test_raw_audio_tag_safety
+check_PROGRAMS += 
   # WaveStream test
   check_PROGRAMS += test_wav_stream
   # μ-law tests
@@ -971,28 +964,17 @@ test_ogg_extra_suite_SOURCES = test_ogg_extra_suite.cpp \
 	demuxer/ogg/extra/test_ogg_seeking_algorithms.cpp
 test_ogg_extra_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
-check_PROGRAMS += test_stream_manager test_ogg_extra_suite 
-test_stream_manager_SOURCES = test_stream_manager.cpp
-test_stream_manager_LDADD = libtest_utilities.a \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/debug.o \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
+check_PROGRAMS += test_ogg_extra_suite 
+# Stream Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_stream_suite_SOURCES = test_stream_suite.cpp \
+	core/stream/test_stream_tag_integration.cpp
+test_stream_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+if HAVE_OGGDEMUXER
+# The stream manager is the Ogg demuxer's, so it joins the program only where
+# that demuxer is built; the dispatcher leaves it out the same way.
+test_stream_suite_SOURCES += core/stream/test_stream_manager.cpp
+endif
 
 check_PROGRAMS += test_codec_identification
 test_codec_identification_SOURCES = test_codec_identification.cpp
@@ -1059,29 +1041,7 @@ test_opus_parser_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_flac_parser
-test_flac_parser_SOURCES = test_flac_parser.cpp
-test_flac_parser_LDADD = libtest_utilities.a \
-	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	../src/demuxer/libpsymp3-demuxer.a \
-	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	../src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	../src/io/file/libpsymp3-io-file.a \
-	../src/io/libpsymp3-io.a \
-	../src/debug.o \
-	../src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(ZLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(DBUS_LIBS) \
-	$(OPUS_LIBS)
-
+check_PROGRAMS += 
 check_PROGRAMS += test_speex_parser
 test_speex_parser_SOURCES = test_speex_parser.cpp
 test_speex_parser_LDADD = libtest_utilities.a \
@@ -1244,16 +1204,19 @@ test_playlist_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_verify_random_SOURCES = verify_random.cpp
 
-test_raw_audio_tag_safety_SOURCES = test_raw_audio_tag_safety.cpp
-test_raw_audio_tag_safety_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(AM_LDFLAGS)
+# Raw Audio Stream Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
+# its file and its suite; what they no longer have is a link apiece.
+test_raw_audio_suite_SOURCES = test_raw_audio_suite.cpp \
+	demuxer/raw/test_raw_audio_stream_integration.cpp
+test_raw_audio_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+test_raw_audio_suite_CPPFLAGS = $(AM_CPPFLAGS)
+if HAVE_G711
+# The tag-safety test covers the G.711 raw streams, so it joins the program
+# only where those codecs are built. HAVE_G711 is an automake conditional with
+# no macro of its own, so the dispatcher is told about it here.
+test_raw_audio_suite_SOURCES += demuxer/raw/test_raw_audio_tag_safety.cpp
+test_raw_audio_suite_CPPFLAGS += -DPSYMP3_TEST_HAVE_G711
+endif
 
 # G.722 Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
@@ -1265,11 +1228,6 @@ test_g722_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # ITU-T G.722 Appendix II sequences, fetched by fetch_g722_testvectors.sh;
 # skips (77) without them.
-test_raw_audio_stream_integration_SOURCES = test_raw_audio_stream_integration.cpp
-test_raw_audio_stream_integration_LDADD = \
-	$(COMMON_TEST_LIBS) \
-	$(AM_LDFLAGS)
-
 # A-law codec sample conversion test
 # A-law codec conversion accuracy test
 # μ-law codec conversion accuracy test
@@ -1827,12 +1785,6 @@ test_iohandler_deadlock_LDADD = \
 # Simple FLAC codec quality validation test (minimal dependencies)
 # FLAC thread safety validation test
 # Minimal FLAC codec unit tests
-test_flac_parse_coded_number_SOURCES = test_flac_parse_coded_number.cpp
-test_flac_parse_coded_number_LDADD = \
-	$(FULL_CODEC_LIBS) \
-	$(COMMON_CODEC_LIBS) \
-	$(AM_LDFLAGS)
-
 endif
 
 # IOHandler thread safety comprehensive test
@@ -2278,7 +2230,6 @@ if HAVE_NATIVE_FLAC
 check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit \
 	test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit \
 	test_native_flac_suite \
-	test_flac_parse_coded_number \
 	test_flac_rfc9639_compliance_validator
 
 # BitstreamReader unit tests
@@ -2361,13 +2312,7 @@ test_native_flac_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
 # Fixed predictor overflow tests (outside HAVE_NATIVE_FLAC - standalone test)
-check_PROGRAMS += test_fixed_predictor_overflow
-test_fixed_predictor_overflow_SOURCES = test_fixed_predictor_overflow.cpp
-test_fixed_predictor_overflow_LDADD = \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/debug.o \
-	$(AM_LDFLAGS)
-
+check_PROGRAMS += 
 # OggDemuxer property-based tests (RFC 3533 compliance)
 # Works with or without RapidCheck - falls back to exhaustive unit tests
 
@@ -2562,7 +2507,7 @@ mp3out_LDADD = \
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_suite test_id3v2_tag test_demuxer_extra_suite test_stream_tag_integration 
+check_PROGRAMS += test_tag_suite test_id3v2_tag test_demuxer_extra_suite test_stream_suite 
 
 # Tag unit tests
 # Tag Framework Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
@@ -2601,62 +2546,8 @@ test_id3v2_tag_LDADD = \
 # Tag error handling tests
 # Demuxer tag extraction tests
 # Stream-Tag integration tests (Property 11: Stream-Tag Delegation Consistency)
-test_stream_tag_integration_SOURCES = test_stream_tag_integration.cpp
 if HAVE_RAPIDCHECK
-test_stream_tag_integration_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
-	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(RAPIDCHECK_LIBS) \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	-lopus -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 else
-test_stream_tag_integration_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
-	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
-	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
-	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
-	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(OGG_LIBS) \
-	-lopus -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 endif
 
 # Tag thread safety tests (Property 12: Thread-Safe Concurrent Reads)
@@ -2905,3 +2796,30 @@ AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
 check_PROGRAMS += test_memory_pool_allocation_failure
 test_memory_pool_allocation_failure_SOURCES = core/memory/test_memory_pool_allocation_failure.cpp
 test_memory_pool_allocation_failure_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
+# The fixed-predictor tests share a program. The property-based half needs
+# RapidCheck, so it joins only where that is configured.
+check_PROGRAMS += test_fixed_predictor_suite
+test_fixed_predictor_suite_SOURCES = test_fixed_predictor_suite.cpp \
+	codecs/flac/predictor/test_fixed_predictor_overflow.cpp
+test_fixed_predictor_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+if HAVE_RAPIDCHECK
+test_fixed_predictor_suite_SOURCES += codecs/flac/predictor/test_fixed_predictor_properties.cpp
+test_fixed_predictor_suite_LDADD += $(RAPIDCHECK_LIBS)
+endif
+
+# The two FLAC parser tests share a program, and their halves are built under
+# different conditions: one belongs to the native decoder, the other to the
+# Ogg demuxer. The program is built when either is, and each half is listed
+# and dispatched only where it is compiled.
+if HAVE_FLAC_PARSER_TESTS
+check_PROGRAMS += test_flac_parser_suite
+test_flac_parser_suite_SOURCES = test_flac_parser_suite.cpp
+test_flac_parser_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+if HAVE_NATIVE_FLAC
+test_flac_parser_suite_SOURCES += codecs/flac/parser/test_flac_parse_coded_number.cpp
+endif
+if HAVE_OGGDEMUXER
+test_flac_parser_suite_SOURCES += codecs/flac/parser/test_flac_parser.cpp
+endif
+endif

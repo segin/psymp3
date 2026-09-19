@@ -108,7 +108,7 @@ bool testReset() {
     }
 }
 
-int main() {
+int test_stream_manager_main() {
     std::cout << "Running OggStreamManager Tests..." << std::endl;
     std::cout << "=============================================" << std::endl;
     
@@ -130,7 +130,7 @@ int main() {
 
 #else
 
-int main() {
+int test_stream_manager_main() {
     std::cout << "Ogg support disabled" << std::endl;
     return 0;
 }

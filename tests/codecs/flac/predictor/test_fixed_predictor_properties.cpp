@@ -74,7 +74,7 @@ int64_t computeFixedPrediction_production(const int32_t* samples, uint32_t sampl
 
 } // anonymous namespace
 
-int main() {
+int test_fixed_predictor_properties_main() {
     std::cout << "=== FLAC Fixed Predictor Property-Based Tests ===" << std::endl;
     
     bool all_passed = true;
@@ -179,7 +179,7 @@ int main() {
 
 #else
 // No RapidCheck - provide a stub
-int main() {
+int test_fixed_predictor_properties_main() {
     std::cout << "RapidCheck not enabled, skipping property-based tests" << std::endl;
     std::cout << "Run ./configure --enable-rapidcheck to enable" << std::endl;
     return 0;

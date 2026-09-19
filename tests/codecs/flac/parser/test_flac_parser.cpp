@@ -94,7 +94,7 @@ bool testIDHeader() {
 } // namespace Demuxer
 } // namespace PsyMP3
 
-int main() {
+int test_flac_parser_main() {
     std::cout << "Running FLACHeaderParser Tests..." << std::endl;
     int passed = 0;
     int total = 0;
@@ -110,5 +110,5 @@ int main() {
     }
 }
 #else
-int main() { return 0; }
+int test_flac_parser_main() { return 0; }
 #endif

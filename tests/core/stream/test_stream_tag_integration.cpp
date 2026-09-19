@@ -354,7 +354,7 @@ bool runStreamTagPropertyTests() {
 // Test Runner
 // ============================================================================
 
-int main(int argc, char* argv[]) {
+int test_stream_tag_integration_main_argv(int argc, char* argv[]) {
     std::cout << "=== Stream-Tag Integration Tests ===\n\n";
     
     bool all_passed = true;
@@ -444,4 +444,12 @@ int main(int argc, char* argv[]) {
         std::cout << "\nSome tests FAILED!\n";
         return 1;
     }
+}
+
+/// test_stream_tag_integration took arguments when it was a program of its own.
+int test_stream_tag_integration_main()
+{
+    char program[] = "test_stream_tag_integration";
+    char* argv[] = {program, nullptr};
+    return test_stream_tag_integration_main_argv(1, argv);
 }
