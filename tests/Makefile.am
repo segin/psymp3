@@ -431,9 +431,7 @@ check_PROGRAMS = test_mediafile_suite test_rect_suite \
 	test_demuxer_suite \
 	test_widget_hierarchy_properties \
 	test_widget_suite \
-	test_matroska_suite \
-	test_ac3_suite \
-	test_ac3_container_suite \
+	\
 	test_mp2_codec \
 	test_pcm_codec \
 	test_demuxed_stream_seek \
@@ -549,6 +547,7 @@ test_widget_suite_CPPFLAGS = $(AM_CPPFLAGS) \
 # rather than beside the test binary.
 # The Matroska tests share one program, as the AC-3 ones do: each keeps its
 # file and its suite, and they no longer link the static stack six times over.
+if HAVE_MATROSKA
 test_matroska_suite_SOURCES = test_matroska_suite.cpp \
 	demuxer/matroska/test_ebml_reader.cpp \
 	demuxer/matroska/test_matroska_segment.cpp \
@@ -557,10 +556,12 @@ test_matroska_suite_SOURCES = test_matroska_suite.cpp \
 	demuxer/matroska/test_matroska_seek.cpp \
 	demuxer/matroska/test_matroska_tags.cpp
 test_matroska_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+endif
 
 # The AC-3 and E-AC-3 unit tests share one program. Each still has its own
 # file and its own suite; what they no longer have is a link apiece, and each
 # of these links the whole static stack for a test that runs in milliseconds.
+if HAVE_AC3
 test_ac3_suite_SOURCES = test_ac3_suite.cpp \
 	codecs/ac3/test_ac3_frame_header.cpp \
 	codecs/ac3/test_ac3_exponents.cpp \
@@ -575,6 +576,7 @@ test_ac3_suite_SOURCES = test_ac3_suite.cpp \
 	codecs/ac3/test_ac3_drc.cpp \
 	codecs/ac3/test_ac3_downmix.cpp
 test_ac3_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+endif
 
 # Decodes the broadband oracle streams of generate_ac3_corpus.sh through
 # DemuxedStream and compares band energies with ffmpeg's decode; skips (77)
@@ -591,11 +593,13 @@ test_pcm_codec_LDADD = $(FULL_CODEC_LIBS) $(AM_LDFLAGS)
 
 # AC-3 Container and Codec Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
+if HAVE_AC3
 test_ac3_container_suite_SOURCES = test_ac3_container_suite.cpp \
 	demuxer/ac3/test_ac3_codec.cpp \
 	demuxer/ac3/test_ac3_null_demuxer.cpp \
 	demuxer/ac3/test_ac3_oracle.cpp
 test_ac3_container_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+endif
 
 # FULL_CODEC_LIBS names the AC-3 codec archive after the codec base it needs,
 # so it is named once more ahead of them.
@@ -2822,4 +2826,16 @@ endif
 if HAVE_OGGDEMUXER
 test_flac_parser_suite_SOURCES += codecs/flac/parser/test_flac_parser.cpp
 endif
+endif
+
+if HAVE_AC3
+check_PROGRAMS += test_ac3_suite
+endif
+
+if HAVE_AC3
+check_PROGRAMS += test_ac3_container_suite
+endif
+
+if HAVE_MATROSKA
+check_PROGRAMS += test_matroska_suite
 endif

@@ -63,21 +63,33 @@ DEMUXER_LIBS =
 
 # MP3 codec is always built (minimp3 has no external dependency)
 CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
-CODEC_LIBS += codecs/mp2/libpsymp3-codec-mp2.a
 CODEC_LIBS += codecs/alac/libpsymp3-codec-alac.a
-# AC-3, written in tree from ATSC A/52, so nothing external is needed.
-CODEC_LIBS += codecs/ac3/libpsymp3-codec-ac3.a
-# MLP/TrueHD is always built (the decoder is bundled, no external dependency)
-CODEC_LIBS += codecs/mlp/libpsymp3-codec-mlp.a
 DEMUXER_LIBS += demuxer/mp3/libpsymp3-demuxer-mp3.a
+
+# MP2 through the bundled kjmp2: nothing external, but it can be left out.
+if HAVE_MP2
+CODEC_LIBS += codecs/mp2/libpsymp3-codec-mp2.a
+endif
+
+# MLP/TrueHD: the decoder is vendored, so nothing external is needed.
+if HAVE_TRUEHD
+CODEC_LIBS += codecs/mlp/libpsymp3-codec-mlp.a
 DEMUXER_LIBS += demuxer/mlp/libpsymp3-demuxer-mlp.a
-# The AC-3 demuxer parses syncframe headers with the codec's own parser, and
-# ld resolves archives left to right, so the codec archive follows it again.
+endif
+
+# AC-3, written in tree from ATSC A/52, so nothing external is needed. The
+# demuxer parses syncframe headers with the codec's own parser, and ld
+# resolves archives left to right, so the codec archive follows it again.
+if HAVE_AC3
+CODEC_LIBS += codecs/ac3/libpsymp3-codec-ac3.a
 DEMUXER_LIBS += demuxer/ac3/libpsymp3-demuxer-ac3.a
 DEMUXER_LIBS += codecs/ac3/libpsymp3-codec-ac3.a
-# Matroska/WebM: the EBML reader and container parser are in tree, so this
-# needs nothing external and is always available.
+endif
+
+# Matroska/WebM: the EBML reader and container parser are in tree.
+if HAVE_MATROSKA
 DEMUXER_LIBS += demuxer/matroska/libpsymp3-demuxer-matroska.a
+endif
 
 if HAVE_FLAC
 DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
@@ -123,7 +135,10 @@ if FINAL_BUILD
 # keeps them out of the unity translation unit -- the same reason
 # stb_vorbis_impl.c is built apart.
 psymp3_SOURCES = psymp3.final.cpp codecs/vorbis/stb_vorbis_impl.c \
-	codecs/aac/fdk_aac.cpp codecs/mlp/mlp_decoder_impl.cpp
+	codecs/aac/fdk_aac.cpp
+if HAVE_TRUEHD
+psymp3_SOURCES += codecs/mlp/mlp_decoder_impl.cpp
+endif
 # Final build still needs system libraries
 psymp3_LDADD = \
 	libpsymp3-sheenbidi.a \
@@ -165,8 +180,11 @@ psymp3_SOURCES = \
  player.cpp playlist.cpp \
  stream.cpp core/surface.cpp \
  system.cpp \
- track.cpp core/truetype.cpp \
- codecs/mlp/mlp_decoder_impl.cpp
+ track.cpp core/truetype.cpp
+if HAVE_TRUEHD
+# The vendored decoder is built apart from the rest, as in the unity build.
+psymp3_SOURCES += codecs/mlp/mlp_decoder_impl.cpp
+endif
 
 # Link static libraries from subdirectories FIRST (regular build only)
 # Order matters: our convenience libraries must come BEFORE system libraries

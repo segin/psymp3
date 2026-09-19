@@ -164,6 +164,24 @@ AC_ARG_ENABLE([g722],
   [AS_HELP_STRING([--enable-g722], [Enable G.722 support @<:@default=yes@:>@])],
   [enable_g722=$enableval], [enable_g722=yes])
 
+AC_ARG_ENABLE([mp2],
+  [AS_HELP_STRING([--enable-mp2], [Enable MP2 support via the bundled kjmp2 @<:@default=yes@:>@])],
+  [enable_mp2=$enableval], [enable_mp2=yes])
+
+AC_ARG_ENABLE([ac3],
+  [AS_HELP_STRING([--enable-ac3], [Enable AC-3 and E-AC-3 support @<:@default=yes@:>@])],
+  [enable_ac3=$enableval], [enable_ac3=yes])
+
+AC_ARG_ENABLE([truehd],
+  [AS_HELP_STRING([--enable-truehd], [Enable MLP and Dolby TrueHD support @<:@default=yes@:>@])],
+  [enable_truehd=$enableval], [enable_truehd=yes])
+
+# Containers, not codecs: this one builds the EBML reader and the Matroska
+# parsers, whatever codecs are configured to play out of them.
+AC_ARG_ENABLE([matroska],
+  [AS_HELP_STRING([--enable-matroska], [Enable the Matroska and WebM container @<:@default=yes@:>@])],
+  [enable_matroska=$enableval], [enable_matroska=yes])
+
 # Check for optional codec libraries
 have_flac=no
 have_native_flac=no
@@ -171,6 +189,10 @@ have_vorbis=no
 have_opus=no
 have_aac=no
 have_g722=no
+have_mp2=no
+have_ac3=no
+have_truehd=no
+have_matroska=no
 
 # Native FLAC decoder - no external library dependency
 if test "x$enable_flac" = "xyes"; then
@@ -244,6 +266,30 @@ if test "x$enable_g722" = "xyes"; then
   AC_DEFINE([HAVE_G722], [1], [Define to 1 if G.722 support is enabled])
 else
   have_g722=no
+fi
+
+# These four are written or bundled in tree -- kjmp2 for MP2, the A/52
+# decoder for AC-3 and E-AC-3, the vendored MLP decoder for TrueHD, and the
+# EBML reader and parsers for Matroska -- so there is no library to probe
+# for. The switch is the whole decision.
+if test "x$enable_mp2" = "xyes"; then
+  have_mp2=yes
+  AC_DEFINE([HAVE_MP2], [1], [Define to 1 if MP2 support is enabled])
+fi
+
+if test "x$enable_ac3" = "xyes"; then
+  have_ac3=yes
+  AC_DEFINE([HAVE_AC3], [1], [Define to 1 if AC-3 and E-AC-3 support is enabled])
+fi
+
+if test "x$enable_truehd" = "xyes"; then
+  have_truehd=yes
+  AC_DEFINE([HAVE_TRUEHD], [1], [Define to 1 if MLP and TrueHD support is enabled])
+fi
+
+if test "x$enable_matroska" = "xyes"; then
+  have_matroska=yes
+  AC_DEFINE([HAVE_MATROSKA], [1], [Define to 1 if Matroska and WebM support is enabled])
 fi
 
 # Check for Speex (Ogg container required)
@@ -335,6 +381,10 @@ AM_CONDITIONAL([HAVE_VORBISENC_TESTS], [test "x$have_vorbisenc" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
 AM_CONDITIONAL([HAVE_G722], [test "x$have_g722" = "xyes"])
+AM_CONDITIONAL([HAVE_MP2], [test "x$have_mp2" = "xyes"])
+AM_CONDITIONAL([HAVE_AC3], [test "x$have_ac3" = "xyes"])
+AM_CONDITIONAL([HAVE_TRUEHD], [test "x$have_truehd" = "xyes"])
+AM_CONDITIONAL([HAVE_MATROSKA], [test "x$have_matroska" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
 AM_CONDITIONAL([HAVE_SPEEX], [test "x$have_speex" = "xyes"])
@@ -700,6 +750,9 @@ fi
 echo "  Opus:              $have_opus"
 echo "  AAC (FDK-AAC):     $have_aac"
 echo "  G.722 (built in):  $have_g722"
+echo "  MP2 (kjmp2):       $have_mp2"
+echo "  AC-3/E-AC-3:       $have_ac3"
+echo "  MLP/TrueHD:        $have_truehd"
 echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"
@@ -709,6 +762,7 @@ echo "  FLAC:              $have_flac"
 echo "  Ogg:               $have_ogg"
 echo "  ISO (MP4):         yes"
 echo "  RIFF (WAV):        yes"
+echo "  Matroska/WebM:     $have_matroska"
 echo ""
 echo "Optional Features:"
 echo "  MPRIS (D-Bus):     $have_dbus"

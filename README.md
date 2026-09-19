@@ -105,6 +105,13 @@ make -j$(nproc)
 **Build Options:**
 - `--enable-flac` / `--enable-vorbis` / `--enable-opus` / `--enable-aac` /
   `--enable-speex` / `--enable-g722` / `--enable-g711` — per-codec toggles (default: yes)
+- `--enable-mp2` / `--enable-ac3` / `--enable-truehd` — the codecs that need
+  nothing external: MPEG Layer II through the bundled kjmp2, AC-3 and E-AC-3
+  written in tree from ATSC A/52, and MLP/Dolby TrueHD through the vendored
+  decoder (default: yes). Disabling one leaves its files unplayable: nothing
+  registers the codec, and nothing claims the format.
+- `--enable-matroska` — the Matroska and WebM container, parsers and all
+  (default: yes). Disabling it leaves `.mka`, `.mkv` and `.webm` unreadable.
 - `--enable-mpris` — MPRIS desktop integration over D-Bus (default: auto)
 - `--enable-final` — unity build: all sources in one translation unit (much
   faster full rebuilds; used for release builds)

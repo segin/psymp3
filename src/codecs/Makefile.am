@@ -9,7 +9,19 @@
 
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
-SUBDIRS = pcm mp3 mp2 alac mlp ac3
+SUBDIRS = pcm mp3 alac
+
+if HAVE_MP2
+SUBDIRS += mp2
+endif
+
+if HAVE_TRUEHD
+SUBDIRS += mlp
+endif
+
+if HAVE_AC3
+SUBDIRS += ac3
+endif
 
 noinst_LIBRARIES = libpsymp3-codecs.a
 

@@ -93,6 +93,7 @@
 
 // Demuxer - Raw Audio
 #include "demuxer/raw/RawAudioDemuxer.cpp"
+#ifdef HAVE_AC3
 #include "codecs/ac3/AC3FrameHeader.cpp"
 #include "codecs/ac3/AC3Exponents.cpp"
 #include "codecs/ac3/AC3BitAllocation.cpp"
@@ -107,11 +108,14 @@
 #include "codecs/ac3/AC3Downmix.cpp"
 #include "codecs/ac3/AC3FrameDecoder.cpp"
 #include "codecs/ac3/AC3Codec.cpp"
+#endif // HAVE_AC3
+#ifdef HAVE_MATROSKA
 #include "demuxer/matroska/EBMLReader.cpp"
 #include "demuxer/matroska/SegmentParser.cpp"
 #include "demuxer/matroska/BlockParser.cpp"
 #include "demuxer/matroska/CueIndex.cpp"
 #include "demuxer/matroska/MatroskaDemuxer.cpp"
+#endif // HAVE_MATROSKA
 
 // Demuxer - ISO/MP4
 #include "demuxer/iso/BoxParser.cpp"
@@ -174,7 +178,9 @@
 #define MINIMP3_IMPLEMENTATION
 #include "../third_party/minimp3/minimp3.h"
 #include "codecs/mp3/MiniMP3Codec.cpp"
+#ifdef HAVE_MP2
 #include "codecs/mp2/MP2Codec.cpp"
+#endif
 #include "codecs/alac/ALACCodec.cpp"
 
 // ============================================================================
@@ -182,9 +188,13 @@
 // the decoder body is a separate object -- see codecs/mlp/mlp_decoder_impl.cpp
 // -- because both the codec and the demuxer link against it)
 // ============================================================================
+#ifdef HAVE_TRUEHD
 #include "codecs/mlp/MLPCodec.cpp"
 #include "demuxer/mlp/MLPNullDemuxer.cpp"
+#endif
+#ifdef HAVE_AC3
 #include "demuxer/ac3/AC3NullDemuxer.cpp"
+#endif
 
 // ============================================================================
 // Vorbis Codec (always available via bundled stb_vorbis; the C implementation

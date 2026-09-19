@@ -50,12 +50,14 @@ void registerAllCodecs() {
     });
     Debug::log("codec", "registerAllCodecs: Registered minimp3 codec with CodecRegistry");
 
-    // kjmp2-based MPEG Layer II codec (always available, no external dependency)
+#ifdef HAVE_MP2
+    // kjmp2-based MPEG Layer II codec: bundled, and built unless --disable-mp2
     PsyMP3::Codec::MP2::MP2CodecSupport::registerCodec();
     CodecRegistry::registerCodec("mp2", [](const StreamInfo& info) {
         return std::make_unique<PsyMP3::Codec::MP2::MP2Codec>(info);
     });
     Debug::log("codec", "registerAllCodecs: Registered kjmp2 codec with CodecRegistry");
+#endif // HAVE_MP2
 
     // Apple Lossless (ALAC) codec (always available, bundled Apache-2.0 decoder)
     PsyMP3::Codec::ALAC::ALACCodecSupport::registerCodec();
@@ -64,7 +66,8 @@ void registerAllCodecs() {
     });
     Debug::log("codec", "registerAllCodecs: Registered ALAC codec with CodecRegistry");
 
-    // MLP / Dolby TrueHD (always available, bundled Apache-2.0 decoder)
+#ifdef HAVE_TRUEHD
+    // MLP / Dolby TrueHD: bundled Apache-2.0 decoder, built unless --disable-truehd
     PsyMP3::Codec::MLP::MLPCodecSupport::registerCodec();
     CodecRegistry::registerCodec("truehd", [](const StreamInfo& info) {
         return std::make_unique<PsyMP3::Codec::MLP::MLPCodec>(info);
@@ -73,8 +76,10 @@ void registerAllCodecs() {
         return std::make_unique<PsyMP3::Codec::MLP::MLPCodec>(info);
     });
     Debug::log("codec", "registerAllCodecs: Registered MLP/TrueHD codec with CodecRegistry");
+#endif // HAVE_TRUEHD
 
-    // AC-3 (always available, in tree from ATSC A/52)
+#ifdef HAVE_AC3
+    // AC-3 and E-AC-3: in tree from ATSC A/52, built unless --disable-ac3
     PsyMP3::Codec::AC3::AC3CodecSupport::registerCodec();
     CodecRegistry::registerCodec("ac3", [](const StreamInfo& info) {
         return std::make_unique<PsyMP3::Codec::AC3::AC3Codec>(info);
@@ -83,6 +88,7 @@ void registerAllCodecs() {
         return std::make_unique<PsyMP3::Codec::AC3::AC3Codec>(info);
     });
     Debug::log("codec", "registerAllCodecs: Registered AC-3 and E-AC-3 codec with CodecRegistry");
+#endif // HAVE_AC3
 
 #ifdef HAVE_VORBIS
     // Register the new container-agnostic VorbisCodec with AudioCodecFactory
@@ -185,10 +191,12 @@ void registerAllDemuxers() {
     }, "MP4/ISO", {"mp4", "m4a", "mov"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MP4/ISO demuxer");
     
+#ifdef HAVE_MATROSKA
     DemuxerRegistry::getInstance().registerDemuxer("matroska", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<PsyMP3::Demuxer::Matroska::MatroskaDemuxer>(std::move(handler));
     }, "Matroska/WebM", {"mka", "mkv", "webm"});
     Debug::log("demuxer", "registerAllDemuxers: Registered Matroska/WebM demuxer");
+#endif // HAVE_MATROSKA
 
     DemuxerRegistry::getInstance().registerDemuxer("raw", [](std::unique_ptr<IOHandler> handler) {
         // Note: RawAudioDemuxer needs file path for format detection
@@ -203,17 +211,21 @@ void registerAllDemuxers() {
     }, "MP3", {"mp3"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MP3 null demuxer");
 
-    // MLP/TrueHD null demuxer (always available - MLP is self-containerizing)
+#ifdef HAVE_TRUEHD
+    // MLP/TrueHD null demuxer: MLP is self-containerizing
     DemuxerRegistry::getInstance().registerDemuxer("truehd", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<PsyMP3::Demuxer::MLP::MLPNullDemuxer>(std::move(handler));
     }, "MLP", {"thd", "truehd", "mlp"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MLP/TrueHD null demuxer");
+#endif // HAVE_TRUEHD
 
-    // AC-3 / E-AC-3 null demuxer (always available - AC-3 is self-framing)
+#ifdef HAVE_AC3
+    // AC-3 / E-AC-3 null demuxer: AC-3 is self-framing
     DemuxerRegistry::getInstance().registerDemuxer("ac3", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<PsyMP3::Demuxer::AC3::AC3NullDemuxer>(std::move(handler));
     }, "AC-3", {"ac3", "eac3", "ec3"});
     Debug::log("demuxer", "registerAllDemuxers: Registered AC-3 null demuxer");
+#endif // HAVE_AC3
 
     // FLAC demuxer registration
 #ifdef HAVE_FLAC

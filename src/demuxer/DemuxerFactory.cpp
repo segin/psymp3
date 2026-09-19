@@ -47,7 +47,9 @@ void DemuxerFactory::initializeBuiltInFormats() {
     // EBML magic, which opens every Matroska and WebM file. Registered here as
     // well as in DemuxerRegistry: probeFormat matches against this table, and
     // the two are kept in step for every other format too.
+#ifdef HAVE_MATROSKA
     registerSignature_unlocked(FormatSignature("matroska", {0x1A, 0x45, 0xDF, 0xA3}, 0, 95));
+#endif
     
     // MP3 signature (ID3v2)
     registerSignature_unlocked(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"
@@ -64,13 +66,17 @@ void DemuxerFactory::initializeBuiltInFormats() {
 
     // MLP/TrueHD major sync, which follows the four-byte access unit header.
     // 0xF8726FBA is Dolby TrueHD (FBA), 0xF8726FBB is Meridian MLP (FBB).
+#ifdef HAVE_TRUEHD
     registerSignature_unlocked(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBA}, 4, 100));
     registerSignature_unlocked(FormatSignature("truehd", {0xF8, 0x72, 0x6F, 0xBB}, 4, 100));
+#endif
 
     // AC-3 / E-AC-3 sync word. Only sixteen bits, which turn up by chance in
     // other binary data, so it ranks below every longer signature; the
     // demuxer then insists on two consecutive valid syncframes.
+#ifdef HAVE_AC3
     registerSignature_unlocked(FormatSignature("ac3", {0x0B, 0x77}, 0, 60));
+#endif
 
     // Register file extensions
     s_extension_to_format["wav"] = "riff";
@@ -90,12 +96,16 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["mp3"] = "mp3";
     s_extension_to_format["mp2"] = "mp3"; // Layer II elementary stream -> MP3 demuxer
     s_extension_to_format["mpa"] = "mp3"; // generic MPEG audio -> MP3 demuxer
+#ifdef HAVE_TRUEHD
     s_extension_to_format["thd"] = "truehd";
     s_extension_to_format["truehd"] = "truehd";
     s_extension_to_format["mlp"] = "truehd";
+#endif
+#ifdef HAVE_AC3
     s_extension_to_format["ac3"] = "ac3";
     s_extension_to_format["eac3"] = "ac3";
     s_extension_to_format["ec3"] = "ac3";
+#endif
     s_extension_to_format["pcm"] = "raw";
     s_extension_to_format["raw"] = "raw";
     s_extension_to_format["s8"] = "raw";
