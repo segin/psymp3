@@ -368,13 +368,17 @@ check-local: threading-check-tests
 # Threading safety test targets
 .PHONY: threading-check-tests threading-check-integration threading-check-performance
 
+# The threading tests now share programs with the rest of their subsystems,
+# so these build the suites holding them. Naming a program that no longer
+# exists is not a loud failure: `make -n check` fails, and the CI step that
+# asks it whether there are tests reads that as "none".
 threading-check-tests:
 	@echo "Running threading safety tests..."
-	@$(MAKE) -C tests test_threading_safety_baseline
-	@$(MAKE) -C tests test_audio_thread_safety
-	@$(MAKE) -C tests test_iohandler_thread_safety_comprehensive
-	@$(MAKE) -C tests test_memory_pool_manager_thread_safety_comprehensive
-	@$(MAKE) -C tests test_surface_thread_safety
+	@$(MAKE) -C tests test_core_utils_suite
+	@$(MAKE) -C tests test_audio_suite
+	@$(MAKE) -C tests test_iohandler_suite
+	@$(MAKE) -C tests test_memory_suite
+	@$(MAKE) -C tests test_surface_suite
 	@echo "Basic threading safety tests completed"
 
 threading-check-integration:
@@ -385,8 +389,8 @@ threading-check-integration:
 
 threading-check-performance:
 	@echo "Running threading performance regression tests..."
-	@$(MAKE) -C tests test_threading_performance_regression
-	@cd tests && ./test_threading_performance_regression
+	@$(MAKE) -C tests test_core_utils_suite
+	@cd tests && ./test_core_utils_suite
 	@echo "Threading performance regression tests completed"
 
 # Comprehensive threading validation (for CI)

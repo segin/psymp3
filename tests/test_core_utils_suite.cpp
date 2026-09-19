@@ -57,12 +57,24 @@ int main()
         std::printf("\n=== %s ===\n", entry.name);
         std::fflush(stdout);
         const int failed = entry.run();
-        if (failed > 0) {
+        // 77 is the skip status, which a test returns when what it needs is
+        // not there -- a fixture, usually. It is not a failure, and it is not
+        // a count of them either.
+        if (failed == 77) {
+            ++skipped_files;
+            std::printf("--- %s skipped\n", entry.name);
+        } else if (failed > 0) {
             ++failed_files;
             failures += failed;
+            std::printf("--- %s reported %d failure(s)\n", entry.name, failed);
         }
     }
 
+    // A program every one of whose tests skipped has skipped.
+    if (skipped_files == static_cast<int>(sizeof(kEntries) / sizeof(kEntries[0]))) {
+        std::printf("\n=== all %d file(s) skipped ===\n", skipped_files);
+        return 77;
+    }
     std::printf("\n=== Bounded Buffer, Queue and Threading Tests: %zu files, %d failed test(s) in %d file(s), %d skipped ===\n",
                 sizeof(kEntries) / sizeof(kEntries[0]), failures, failed_files, skipped_files);
     return failures;

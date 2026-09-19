@@ -93,6 +93,15 @@ jobs:
       # into a red job.
       continue-on-error: true
       run: |
+        # `make -n check` failing means the check targets are broken -- a
+        # program named in a Makefile that no longer exists, say -- not that
+        # there are no tests. It used to be read as the latter, and a whole
+        # run went by without the suite running at all.
+        if ! make -n check >/dev/null 2>&1; then
+          echo "::error::make -n check failed; the check targets are broken"
+          make -n check >/dev/null || true
+          exit 1
+        fi
         if make -n check 2>/dev/null; then
           # The MPRIS tests need a session bus, which the container lacks.
           # make -k keeps going past a failing phase so the test suite (run
