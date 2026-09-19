@@ -52,7 +52,15 @@ public:
         
         for (int i = 0; i < num_threads; i++) {
             threads.emplace_back([&, i]() {
-                std::vector<uint8_t*> buffers;
+                // Each buffer is kept with the size it was allocated with. It
+                // used to be a vector of pointers alone, with the size worked
+                // out again from the loop index at release time -- and since
+                // only the front half is erased each round, from the second
+                // round on the index no longer matched the allocation. A 1 KB
+                // buffer released as 8 KB is filed in the 8 KB pool, and the
+                // next caller to ask that pool for 8 KB gets 1 KB and writes
+                // past the end of it.
+                std::vector<std::pair<uint8_t*, size_t>> buffers;
                 
                 while (test_running) {
                     try {
@@ -61,15 +69,15 @@ public:
                             size_t size = (1024 << (j % 4)); // 1KB to 8KB
                             uint8_t* buffer = pool_manager.allocateBuffer(size, "thread_" + std::to_string(i));
                             if (buffer) {
-                                buffers.push_back(buffer);
+                                buffers.push_back({buffer, size});
                                 allocation_count++;
                             }
                         }
                         
                         // Release half of them
                         for (size_t k = 0; k < buffers.size() / 2; k++) {
-                            size_t size = (1024 << (k % 4));
-                            pool_manager.releaseBuffer(buffers[k], size, "thread_" + std::to_string(i));
+                            pool_manager.releaseBuffer(buffers[k].first, buffers[k].second,
+                                                       "thread_" + std::to_string(i));
                         }
                         buffers.erase(buffers.begin(), buffers.begin() + buffers.size() / 2);
                         
@@ -89,8 +97,8 @@ public:
                 
                 // Clean up remaining buffers
                 for (size_t k = 0; k < buffers.size(); k++) {
-                    size_t size = (1024 << (k % 4));
-                    pool_manager.releaseBuffer(buffers[k], size, "thread_" + std::to_string(i));
+                    pool_manager.releaseBuffer(buffers[k].first, buffers[k].second,
+                                               "thread_" + std::to_string(i));
                 }
             });
         }
