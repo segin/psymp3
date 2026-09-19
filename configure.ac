@@ -737,16 +737,9 @@ echo "  OpenSSL:       yes"
 echo "  libcurl:       yes"
 echo ""
 echo "Audio Codec Support:"
-echo "  MP3 (minimp3):     yes (bundled, no external dependency)"
+echo "  MP3 (minimp3):     yes"
 echo "  FLAC:              $have_flac"
-if test "x$have_flac" = "xyes"; then
-  echo "    Implementation:  Native"
-fi
-if test "x$have_vorbis" = "xyes"; then
-  echo "  Vorbis:            yes (bundled stb_vorbis, no external dependency)"
-else
-  echo "  Vorbis:            $have_vorbis"
-fi
+echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
 echo "  AAC (FDK-AAC):     $have_aac"
 echo "  G.722 (built in):  $have_g722"
