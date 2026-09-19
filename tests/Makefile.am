@@ -359,12 +359,12 @@ debug_dual_flac_LDADD = \
 test_memory_suite_SOURCES = test_memory_suite.cpp \
 	core/memory/test_memory_leak_prevention.cpp \
 	core/memory/test_memory_optimizer.cpp \
-	core/memory/test_memory_pool_allocation_failure.cpp \
 	core/memory/test_memory_pool_manager_basic_threading.cpp \
 	core/memory/test_memory_pool_manager_integration.cpp \
 	core/memory/test_memory_pool_manager_thread_safety_comprehensive.cpp \
 	core/memory/test_memory_tracker_unit.cpp
 test_memory_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 
 debug_bit_extraction_SOURCES = debug_bit_extraction.cpp
 debug_bit_extraction_LDADD = $(AM_LDFLAGS)
@@ -2896,3 +2896,12 @@ test_http_io_handler_LDADD = \
 
 # Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
 AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
+
+# A program of its own, and it has to be: it replaces the global operator
+# new and delete so that allocations of a chosen size fail on demand.
+# Sharing a program puts every other test's allocations through it too --
+# and through a replacement that covers neither the aligned nor the
+# nothrow forms, so memory from the real operator new is handed to free().
+check_PROGRAMS += test_memory_pool_allocation_failure
+test_memory_pool_allocation_failure_SOURCES = core/memory/test_memory_pool_allocation_failure.cpp
+test_memory_pool_allocation_failure_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)

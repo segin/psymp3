@@ -140,7 +140,7 @@ void test_pool_allocation_failure() {
     std::cout << "Test passed!" << std::endl;
 }
 
-int test_memory_pool_allocation_failure_main() {
+int main() {
     try {
         test_pool_allocation_failure();
         return 0;

@@ -6,6 +6,10 @@
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  *
+ * test_memory_pool_allocation_failure is NOT here: it replaces the global
+ * operator new to make allocations fail on demand, which in a shared
+ * program every other test and every library allocates through.
+ *
  * Each of these tests keeps its own file and its own suite; what they share
  * is this program's link, which without them numbered one per test and cost
  * more than every one of them takes to run. Every entry returns its failure
@@ -27,7 +31,6 @@
 
 int test_memory_leak_prevention_main();
 int test_memory_optimizer_main();
-int test_memory_pool_allocation_failure_main();
 int test_memory_pool_manager_basic_threading_main();
 int test_memory_pool_manager_integration_main();
 int test_memory_pool_manager_thread_safety_comprehensive_main();
@@ -43,7 +46,6 @@ struct Entry {
 const Entry kEntries[] = {
     {"test_memory_leak_prevention",                           test_memory_leak_prevention_main},
     {"test_memory_optimizer",                                 test_memory_optimizer_main},
-    {"test_memory_pool_allocation_failure",                   test_memory_pool_allocation_failure_main},
     {"test_memory_pool_manager_basic_threading",              test_memory_pool_manager_basic_threading_main},
     {"test_memory_pool_manager_integration",                  test_memory_pool_manager_integration_main},
     {"test_memory_pool_manager_thread_safety_comprehensive",  test_memory_pool_manager_thread_safety_comprehensive_main},

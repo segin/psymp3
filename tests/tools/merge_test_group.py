@@ -79,6 +79,31 @@ for name in group:
                              "AudioCodec::", "Demuxer::")) for f in forms):
             continue
         defined[sym].add(name)
+# A file that replaces the global operator new or delete cannot share a
+# program: every other test in it, and every library it links, allocates
+# through that replacement. One of these made the memory suite crash
+# about one run in eight, because the replacement covered neither the
+# aligned nor the nothrow forms and so handed memory from the real
+# operator new to free().
+replacers = []
+for name in group:
+    obj = next((o for o in (tests / f"{name}.o", tests / f"{name}-{name}.o") if o.exists()), None)
+    if obj is None:
+        continue
+    out = subprocess.run(["nm", "-C", "--defined-only", str(obj)], capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        m = re.match(r"^[0-9a-f]* [TWV] (operator (new|delete)\b.*)$", line)
+        if m:
+            replacers.append((name, m.group(1)))
+            break
+if replacers:
+    print("REFUSING: these replace the global allocator, which in a shared program")
+    print("every other test and every library would allocate through:")
+    for name, sym in replacers:
+        print(f"   {name}: {sym}")
+    print("Leave them as programs of their own.")
+    sys.exit(1)
+
 clashes = {s_: f for s_, f in defined.items() if len(f) > 1 and s_ != "main"}
 if unbuilt:
     print(f"REFUSING: build these first so their symbols can be checked: {', '.join(unbuilt)}")
@@ -154,21 +179,22 @@ int main()
         // 77 is the skip status, which a test returns when what it needs is
         // not there -- a fixture, usually. It is not a failure, and it is not
         // a count of them either.
-        if (failed == 77) {
+        if (failed == 77) {{
             ++skipped_files;
             std::printf("--- %s skipped\\n", entry.name);
-        } else if (failed > 0) {
+        }} else if (failed > 0) {{
             ++failed_files;
             failures += failed;
             std::printf("--- %s reported %d failure(s)\\n", entry.name, failed);
-        }
-    }
+        }}
+    }}
 
     // A program every one of whose tests skipped has skipped.
-    if (skipped_files == static_cast<int>(sizeof(kEntries) / sizeof(kEntries[0]))) {
+    if (skipped_files == static_cast<int>(sizeof(kEntries) / sizeof(kEntries[0]))) {{
         std::printf("\\n=== all %d file(s) skipped ===\\n", skipped_files);
         return 77;
-    }
+    }}
+
     std::printf("\\n=== {title}: %zu files, %d failed test(s) in %d file(s), %d skipped ===\\n",
                 sizeof(kEntries) / sizeof(kEntries[0]), failures, failed_files, skipped_files);
     return failures;
