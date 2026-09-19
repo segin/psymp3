@@ -420,7 +420,6 @@ test_seek_deadlock_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
-
 # Individual test executables
 check_PROGRAMS = test_mediafile_suite test_rect_suite \
 	test_harness_integration \
@@ -459,14 +458,12 @@ test_aac_suite_SOURCES = test_aac_suite.cpp \
 test_aac_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # HE-AAC streams made with FDK's encoder, which is in the decoder's library.
-check_PROGRAMS += 
 check_PROGRAMS += test_iso_seek
 test_iso_seek_SOURCES = test_iso_seek.cpp
 test_iso_seek_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
 if HAVE_FLAC
-check_PROGRAMS += 
 # FLAC Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
 test_flac_suite_SOURCES = test_flac_suite.cpp \
@@ -675,7 +672,6 @@ test_rect_properties_LDADD = \
 	$(AM_LDFLAGS)
 endif
 
-
 # Opus codec tests (conditional on HAVE_OPUS)
 if HAVE_OPUS
 check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
@@ -696,17 +692,12 @@ check_PROGRAMS += test_raw_audio_tag_safety
   # WaveStream test
   check_PROGRAMS += test_wav_stream
   # μ-law tests
-  check_PROGRAMS += 
   # Combined codec selection tests
-  check_PROGRAMS += 
   # Performance tests for G711
-  check_PROGRAMS += 
   # Integration tests for G711
-  check_PROGRAMS += 
 endif
 
 # Codec selection and validation tests
-check_PROGRAMS += 
 
 # Performance and thread safety tests
 check_PROGRAMS += test_codec_suite test_system_wide_threading_integration test_memory_suite 
@@ -762,7 +753,6 @@ test_rect_suite_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-c
 
 test_widget_hierarchy_properties_SOURCES = test_widget_hierarchy_properties.cpp
 test_widget_hierarchy_properties_LDADD = $(COMMON_TEST_LIBS) $(RAPIDCHECK_LIBS) $(AM_LDFLAGS)
-
 
 test_harness_integration_SOURCES = test_harness_integration.cpp
 test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
@@ -1115,7 +1105,6 @@ test_speex_parser_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += 
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
 	../src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -1135,12 +1124,6 @@ check_PROGRAMS +=
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS) \
 	-lpthread
-
-check_PROGRAMS += 
-check_PROGRAMS += 
-
-
-
 
 # OggDemuxer codec detection test
 test_ogg_codec_detection_SOURCES = test_ogg_codec_detection.cpp
@@ -1260,7 +1243,6 @@ test_playlist_suite_SOURCES = test_playlist_suite.cpp \
 test_playlist_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_verify_random_SOURCES = verify_random.cpp
-test_verify_random_LDADD =
 
 test_raw_audio_tag_safety_SOURCES = test_raw_audio_tag_safety.cpp
 test_raw_audio_tag_safety_LDADD = \
@@ -1455,9 +1437,6 @@ test_method_handler_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LD
 	$(AM_LDFLAGS)
 endif
 
-
-
-
 # test-harness is an EXTRA_PROGRAMS (so it is not built by `make all` / `make
 # install`); list it as a check-local prerequisite via this conditional variable
 # so `make check` still builds it before running.
@@ -1576,7 +1555,6 @@ test_cover_art_SOURCES = test_cover_art.cpp
 test_cover_art_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Decoded PCM stays whole-frame and gapless across stream reads
-check_PROGRAMS += 
 # Audio threading pattern test (simpler test without SDL dependencies)
 # Surface thread safety test
 # Surface performance regression test
@@ -1830,7 +1808,6 @@ test_iohandler_deadlock_LDADD = \
 
 # FLAC demuxer compatibility test
 
-
 # FLAC demuxer performance test
 # FLAC compatibility integration test
 # FLAC demuxer thread safety test
@@ -1946,7 +1923,6 @@ test_frame_size_estimation_consistency_LDADD = \
 # FLAC codec conditional compilation tests
 # FLAC binary search limitations test
 # FLAC codec threading safety test
-
 
 # FLAC demuxer threading test
 # FLAC performance optimization test
@@ -2152,7 +2128,6 @@ EXTRA_DIST += \
 	run_basic_integration_tests.sh \
 	run_mpris_logging_tests.sh \
 	fake_player.h
-
 
 # Test-support headers (mocks, fixtures, utilities): #included by the
 # distributed test sources, so the dist tree cannot compile without them.
@@ -2393,14 +2368,8 @@ test_fixed_predictor_overflow_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
-
-
-
-
 # OggDemuxer property-based tests (RFC 3533 compliance)
 # Works with or without RapidCheck - falls back to exhaustive unit tests
-
-
 
 # ============================================================================
 # FLAC Demuxer Property-Based Tests
@@ -2408,7 +2377,6 @@ test_fixed_predictor_overflow_LDADD = \
 
 # **Feature: flac-demuxer, Property 11: Reserved Channel Bits Detection**
 # **Validates: Requirements 7.7**
-check_PROGRAMS += 
 # FLAC Seeking Property Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
 test_flac_properties_suite_SOURCES = test_flac_properties_suite.cpp \
@@ -2424,34 +2392,22 @@ test_flac_properties_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # **Feature: flac-demuxer, Property 12: Reserved Bit Depth Detection**
 # **Validates: Requirements 8.5**
-check_PROGRAMS += 
 # **Feature: flac-bisection-seeking, Property 1: Byte Position Estimation Correctness**
 # **Validates: Requirements 1.1, 1.2, 1.4, 1.5**
-check_PROGRAMS += 
 # **Feature: flac-bisection-seeking, Property 6: Bisection Range Adjustment**
 # **Validates: Requirements 3.1, 3.2**
-check_PROGRAMS += 
 # **Feature: flac-bisection-seeking, Property 7: Convergence Termination**
 # **Validates: Requirements 3.3, 3.4, 3.5, 3.6**
-check_PROGRAMS += 
-test_flac_bisection_convergence_properties_LDADD =
-
 
 # **Feature: flac-bisection-seeking, Property 8: Time Differential Calculation**
 # **Validates: Requirements 4.1, 4.2**
-check_PROGRAMS += 
-test_flac_time_differential_properties_LDADD =
 
 # **Feature: flac-bisection-seeking, Property 9: Best Position Selection**
 # **Validates: Requirements 4.3, 4.4**
 check_PROGRAMS += test_flac_properties_suite 
-test_flac_best_position_selection_properties_LDADD =
 
 # **Feature: flac-bisection-seeking, Property 10: Strategy Priority**
 # **Validates: Requirements 7.1, 7.2, 7.3, 7.5**
-check_PROGRAMS += 
-test_flac_strategy_priority_properties_LDADD =
-
 
 # ============================================================================
 # flacout - FLAC to PCM/WAV decoder utility
@@ -2601,8 +2557,6 @@ mp3out_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	-logg -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(AAC_LIBS)
-
-
 
 # ============================================================================
 # Tag Framework Tests
@@ -2831,7 +2785,6 @@ test_utility_unit_LDADD = \
 	$(AM_LDFLAGS)
 
 # Playlist shuffle test
-check_PROGRAMS += 
 check_PROGRAMS += test_playlist_suite 
 # ============================================================================
 # UTF8Util Tests
@@ -2859,7 +2812,6 @@ endif
 # UTF8Util fuzzing tests
 
 # Playlist load test
-check_PROGRAMS += 
 # Base64 Tests
 # ============================================================================
 
@@ -2867,7 +2819,6 @@ check_PROGRAMS += test_base64_unit
 
 # Base64 unit tests
 test_base64_unit_SOURCES = test_base64_unit.cpp
-check_PROGRAMS += 
 # FFT Tests: one program, as the AC-3 and Matroska tests are. Each test keeps
 # its file and its suite; what they no longer have is a link apiece.
 test_fft_suite_SOURCES = test_fft_suite.cpp \
@@ -2882,11 +2833,8 @@ test_base64_unit_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
-
 # BoundedQueue Tests
 # ============================================================================
-
-check_PROGRAMS += 
 
 # BoundedQueue tests
 check_PROGRAMS += test_fft_suite 
