@@ -37,7 +37,6 @@ public:
         return bytes_to_read / size;
     }
     
-    // filesize_t, not long: where long is 32 bits these override nothing.
     int seek(PsyMP3::IO::filesize_t offset, int whence) override {
         if (m_fail_reads) return -1;
 

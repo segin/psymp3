@@ -43,8 +43,6 @@ HTTPClient::Response HTTPClient::get(const std::string& url, const std::map<std:
     return {404, "Not Found", {}, "", false, false};
 }
 
-// int64_t, as HTTPClient declares it: on a 32-bit target long is not that
-// type, and the definition then matches no declaration at all.
 HTTPClient::Response HTTPClient::getRange(const std::string& url, int64_t start_byte, int64_t end_byte, const std::map<std::string, std::string>& headers, int timeoutSeconds) {
     if (mock_network_error_status != 0) {
         return {mock_network_error_status, "Error", {}, "", false, false};

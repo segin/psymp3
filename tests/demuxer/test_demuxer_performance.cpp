@@ -234,7 +234,6 @@ public:
         return bytes_to_read / size;
     }
     
-    // filesize_t, not long: where long is 32 bits these override nothing.
     int seek(PsyMP3::IO::filesize_t offset, int whence) override {
         m_seek_count++;
         PsyMP3::IO::filesize_t new_pos;
@@ -756,9 +755,6 @@ protected:
         
         // Run workers on different subsets of demuxers
         std::vector<std::thread> workers;
-        // std::max<size_t>, not std::max(1UL, ...): where size_t is unsigned
-        // int and 1UL is unsigned long, the two arguments are different types
-        // and the template deduces nothing.
         size_t demuxers_per_worker = std::max<size_t>(1, demuxers.size() / 4);
         
         for (size_t i = 0; i < demuxers.size(); i += demuxers_per_worker) {

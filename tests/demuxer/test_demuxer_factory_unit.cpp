@@ -33,10 +33,6 @@ public:
         return bytes_to_read / size;
     }
     
-    // filesize_t, not long: on a 32-bit target long is 32 bits while the
-    // base class offsets are 64, so `long` here overrides nothing -- clang
-    // rejects it outright, and a compiler that accepted it would leave the
-    // base version in the vtable and never call this mock at all.
     int seek(PsyMP3::IO::filesize_t offset, int whence) override {
         PsyMP3::IO::filesize_t new_pos;
         switch (whence) {
