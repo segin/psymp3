@@ -756,7 +756,10 @@ protected:
         
         // Run workers on different subsets of demuxers
         std::vector<std::thread> workers;
-        size_t demuxers_per_worker = std::max(1UL, demuxers.size() / 4);
+        // std::max<size_t>, not std::max(1UL, ...): where size_t is unsigned
+        // int and 1UL is unsigned long, the two arguments are different types
+        // and the template deduces nothing.
+        size_t demuxers_per_worker = std::max<size_t>(1, demuxers.size() / 4);
         
         for (size_t i = 0; i < demuxers.size(); i += demuxers_per_worker) {
             workers.emplace_back(worker, i, i + demuxers_per_worker);
