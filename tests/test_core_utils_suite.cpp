@@ -18,8 +18,8 @@
  * @TEST_AUTHOR: Kirn Gill II <segin2005@gmail.com>
  * @TEST_CREATED: 2026-09-18
  * The threading tests in here are timing tests: four seconds on an eight-core
- * amd64 box, past two minutes on a single-core 32-bit VM, where they timed
- * out. Ten minutes is the allowance for the slowest machine that runs them.
+ * amd64 box, past two minutes on the NetBSD i386 VM, where they timed out.
+ * Ten minutes is the allowance for the slowest machine that runs them.
  * @TEST_TIMEOUT: 600000
  * @TEST_PARALLEL_SAFE: true
  * @TEST_TAGS: core,threading,queue
