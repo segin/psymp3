@@ -1237,7 +1237,10 @@ test_g722_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 # μ-law codec conversion accuracy test
 # WAV G.711 conversion test
 test_wav_g711_SOURCES = test_wav_g711.cpp
-test_wav_g711_LDADD = libtest_utilities.a $(top_builddir)/src/stream.o $(top_builddir)/src/track.o $(top_builddir)/src/debug.o $(top_builddir)/src/io/file/libpsymp3-io-file.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/libpsymp3-core.a $(SDL_LIBS) $(TAGLIB_LIBS) $(Z_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(SPEEX_LIBS) $(AM_LDFLAGS) -latomic
+# No -latomic here: configure works out whether 64-bit atomics need it and
+# puts it in LIBS. FreeBSD i386 has no libatomic at all, and naming it
+# unconditionally fails the link there.
+test_wav_g711_LDADD = libtest_utilities.a $(top_builddir)/src/stream.o $(top_builddir)/src/track.o $(top_builddir)/src/debug.o $(top_builddir)/src/io/file/libpsymp3-io-file.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/libpsymp3-core.a $(SDL_LIBS) $(TAGLIB_LIBS) $(Z_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(SPEEX_LIBS) $(AM_LDFLAGS)
 
 # WaveStream test
 test_wav_stream_SOURCES = test_wav_stream.cpp
@@ -1258,7 +1261,7 @@ test_wav_stream_LDADD = \
 
 # Improved WAV G.711 conversion test
 test_wav_g711_improved_SOURCES = test_wav_g711_improved.cpp
-test_wav_g711_improved_LDADD = libtest_utilities.a $(top_builddir)/src/stream.o $(top_builddir)/src/track.o $(top_builddir)/src/debug.o $(top_builddir)/src/io/file/libpsymp3-io-file.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/libpsymp3-core.a $(SDL_LIBS) $(TAGLIB_LIBS) $(Z_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(SPEEX_LIBS) $(AM_LDFLAGS) -latomic
+test_wav_g711_improved_LDADD = libtest_utilities.a $(top_builddir)/src/stream.o $(top_builddir)/src/track.o $(top_builddir)/src/debug.o $(top_builddir)/src/io/file/libpsymp3-io-file.a $(top_builddir)/src/io/libpsymp3-io.a $(top_builddir)/src/tag/libpsymp3-tag.a $(top_builddir)/src/core/libpsymp3-core.a $(SDL_LIBS) $(TAGLIB_LIBS) $(Z_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(SPEEX_LIBS) $(AM_LDFLAGS)
 
 # Codec selection and validation test (simple)
 # Codec Framework Tests: one program, as the AC-3 and Matroska tests are. Each test keeps

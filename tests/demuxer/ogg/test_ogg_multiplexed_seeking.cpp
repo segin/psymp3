@@ -64,7 +64,9 @@ public:
                 if (offset < 0 && static_cast<size_t>(-offset) > m_position) {
                     m_position = 0;
                 } else {
-                    m_position = std::min(m_position + offset, m_data.size());
+                    m_position = static_cast<size_t>(
+                        std::min<off_t>(static_cast<off_t>(m_position) + offset,
+                                        static_cast<off_t>(m_data.size())));
                 }
                 break;
             case SEEK_END:
