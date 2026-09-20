@@ -104,7 +104,8 @@ public:
         return actual_read;
     }
     
-    int seek(long offset, int whence) override {
+    // filesize_t, not long: where long is 32 bits these override nothing.
+    int seek(PsyMP3::IO::filesize_t offset, int whence) override {
         switch (whence) {
             case SEEK_SET: m_position = offset; break;
             case SEEK_CUR: m_position += offset; break;
@@ -114,8 +115,8 @@ public:
         if (m_position > m_data.size()) m_position = m_data.size();
         return 0;
     }
-    
-    long tell() override { return static_cast<long>(m_position); }
+
+    PsyMP3::IO::filesize_t tell() override { return static_cast<PsyMP3::IO::filesize_t>(m_position); }
     bool eof() override { return m_position >= m_data.size(); }
     off_t getFileSize() override { return m_data.size(); }
 };

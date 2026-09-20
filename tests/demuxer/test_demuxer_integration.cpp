@@ -282,25 +282,26 @@ public:
         return bytes_to_read / size;
     }
     
-    int seek(long offset, int whence) override {
-        long new_pos;
+    // filesize_t, not long: where long is 32 bits these override nothing.
+    int seek(PsyMP3::IO::filesize_t offset, int whence) override {
+        PsyMP3::IO::filesize_t new_pos;
         switch (whence) {
             case SEEK_SET: new_pos = offset; break;
-            case SEEK_CUR: new_pos = static_cast<long>(m_position) + offset; break;
-            case SEEK_END: new_pos = static_cast<long>(m_data.size()) + offset; break;
+            case SEEK_CUR: new_pos = static_cast<PsyMP3::IO::filesize_t>(m_position) + offset; break;
+            case SEEK_END: new_pos = static_cast<PsyMP3::IO::filesize_t>(m_data.size()) + offset; break;
             default: return -1;
         }
-        
-        if (new_pos < 0 || new_pos > static_cast<long>(m_data.size())) {
+
+        if (new_pos < 0 || new_pos > static_cast<PsyMP3::IO::filesize_t>(m_data.size())) {
             return -1;
         }
-        
+
         m_position = static_cast<size_t>(new_pos);
         return 0;
     }
-    
-    long tell() override {
-        return static_cast<long>(m_position);
+
+    PsyMP3::IO::filesize_t tell() override {
+        return static_cast<PsyMP3::IO::filesize_t>(m_position);
     }
     
     bool eof() override {
