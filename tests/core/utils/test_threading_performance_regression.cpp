@@ -156,32 +156,6 @@ public:
 };
 
 /**
- * Audio performance tests
- */
-class AudioPerformanceTest {
-public:
-    AudioPerformanceTest() {
-        // Audio requires constructor parameters, so we'll test what we can without instantiation
-    }
-    
-    void benchmarkAudioOperations() {
-        PerformanceMeasurement measurement("Audio operations simulation");
-        
-        measurement.measure([]() {
-            // Simulate audio processing work
-            std::this_thread::sleep_for(std::chrono::nanoseconds(100));
-        }, 10000);
-        
-        measurement.printStatistics();
-    }
-    
-    void runAllBenchmarks() {
-        std::cout << "=== Audio Performance Benchmarks ===" << std::endl;
-        benchmarkAudioOperations();
-    }
-};
-
-/**
  * I/O Handler performance tests
  */
 class IOHandlerPerformanceTest {
@@ -237,23 +211,11 @@ public:
         measurement.printStatistics();
     }
     
-    void benchmarkIOOperations() {
-        PerformanceMeasurement measurement("I/O operations simulation");
-        
-        measurement.measure([]() {
-            // Simulate I/O work
-            std::this_thread::sleep_for(std::chrono::nanoseconds(50));
-        }, 5000);
-        
-        measurement.printStatistics();
-    }
-    
     void runAllBenchmarks() {
         std::cout << "=== I/O Handler Performance Benchmarks ===" << std::endl;
         benchmarkRead();
         benchmarkSeek();
         benchmarkTell();
-        benchmarkIOOperations();
     }
     
 private:
@@ -432,9 +394,6 @@ public:
         std::cout << std::endl;
         
         // Run individual component benchmarks
-        AudioPerformanceTest audio_test;
-        audio_test.runAllBenchmarks();
-        
         IOHandlerPerformanceTest io_test;
         io_test.runAllBenchmarks();
         
