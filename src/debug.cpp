@@ -23,7 +23,6 @@
 #endif
 
 // Initialize static members
-std::mutex Debug::m_mutex;
 bool Debug::m_log_to_file = false;
 std::atomic<bool> Debug::m_any_channel_enabled{false};
 
@@ -32,7 +31,14 @@ std::atomic<bool> Debug::m_any_channel_enabled{false};
 // runs from a static object's destructor and logs on the "http" channel).
 // A function-local static would be destroyed before those destructors run —
 // with channels enabled that was a use-after-destruction segfault on exit —
-// so the set and the log sink live for the whole process instead.
+// so the set, the log sink and the lock live for the whole process instead.
+// Locking a destroyed mutex is quietly harmless with glibc and throws
+// std::system_error with libc++ on FreeBSD, which ends the process.
+std::mutex& Debug::mutex() {
+    static auto* mutex = new std::mutex();
+    return *mutex;
+}
+
 std::unordered_set<std::string>& Debug::enabledChannels() {
     static auto* channels = new std::unordered_set<std::string>();
     return *channels;
@@ -55,7 +61,7 @@ std::ofstream& Debug::logFile() {
  *                 Specifying `"all"` enables every channel.
  */
 void Debug::init(const std::string& logfile, const std::vector<std::string>& channels) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(mutex());
     
     // Clear previous state
     enabledChannels().clear();
@@ -82,7 +88,7 @@ void Debug::init(const std::string& logfile, const std::vector<std::string>& cha
  * After this call, all `Debug::log` calls are silent.
  */
 void Debug::shutdown() {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(mutex());
     if (logFile().is_open()) {
         logFile().close();
     }
@@ -106,7 +112,7 @@ void Debug::shutdown() {
  * @return `true` if the channel is enabled.
  */
 bool Debug::isChannelEnabled(const std::string& channel) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(mutex());
     
     // A global "all" channel can enable all logging.
     if (enabledChannels().count("all") > 0) {
@@ -155,7 +161,7 @@ bool Debug::isChannelEnabled(const std::string& channel) {
  * Prepends a timestamp (`HH:MM:SS.microseconds`), the channel name, and
  * optionally the source function name and line number. This is the low-level
  * implementation used by the `log()` template methods and `DEBUG_LOG` macros.
- * Thread-safe; acquires `m_mutex` internally.
+ * Thread-safe; acquires the debug lock internally.
  *
  * @param channel  Name of the debug channel.
  * @param function Name of the calling function (may be empty).
@@ -163,7 +169,7 @@ bool Debug::isChannelEnabled(const std::string& channel) {
  * @param message  The formatted message string to write.
  */
 void Debug::write(const std::string& channel, const std::string& function, int line, const std::string& message) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(mutex());
     
     auto now = std::chrono::system_clock::now();
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;

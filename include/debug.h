@@ -68,7 +68,7 @@ private:
     // Construct-on-first-use, intentionally leaked (see debug.cpp): static
     // destructors in other translation units log during process teardown.
     static std::ofstream& logFile();
-    static std::mutex m_mutex;
+    static std::mutex& mutex();
     // Construct-on-first-use: Debug::log() (via isChannelEnabled) can run from
     // other translation units' static initializers (e.g. truetype/HTTP
     // lifecycle managers) before a plain static member's constructor would have
