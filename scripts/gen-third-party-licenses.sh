@@ -6,9 +6,16 @@
 # PsyMP3 is free software. You may redistribute and/or modify it under
 # the terms of the ISC License <https://opensource.org/licenses/ISC>
 #
-# THIRD-PARTY-LICENSES.txt is the source of truth; this wraps it in a raw string
-# literal so a standalone executable can carry it. Run after editing the .txt
-# and commit both.
+# THIRD-PARTY-LICENSES.txt is the source of truth; this wraps it in a macro so
+# a standalone executable can carry it. Run after editing the .txt and commit
+# both.
+#
+# One string literal per line of text, rather than one raw string across all of
+# them: a raw string spanning newlines inside a #define is accepted by newer
+# compilers but not by GCC 10, which reports an unterminated raw string and
+# then parses the licence text as code (NetBSD 10's base compiler is GCC 10.5).
+# The macro has to stay a macro, because about.cpp concatenates it with the
+# literals around it.
 #
 # Usage: scripts/gen-third-party-licenses.sh [srcdir]
 
@@ -17,15 +24,8 @@ set -eu
 srcdir="${1:-$(dirname "$0")/..}"
 in="$srcdir/THIRD-PARTY-LICENSES.txt"
 out="$srcdir/include/core/third_party_licenses.h"
-delim="PSYMP3LIC"
 
 [ -f "$in" ] || { echo "$0: missing $in" >&2; exit 1; }
-
-# The raw-string delimiter must not appear in the text, or the literal ends early.
-if grep -qF ")$delim\"" "$in"; then
-    echo "$0: '$delim' delimiter collides with the license text; pick another" >&2
-    exit 1
-fi
 
 {
     cat <<EOF
@@ -50,10 +50,15 @@ fi
 #ifndef PSYMP3_THIRD_PARTY_LICENSES_H
 #define PSYMP3_THIRD_PARTY_LICENSES_H
 
-#define PSYMP3_THIRD_PARTY_LICENSES R"$delim(
+/* The leading "\n" is the blank line that separates this from whatever
+ * about.cpp concatenates in front of it. */
+#define PSYMP3_THIRD_PARTY_LICENSES \\
+    "\\n" \\
 EOF
-    cat "$in"
-    printf ')%s"\n\n#endif // PSYMP3_THIRD_PARTY_LICENSES_H\n' "$delim"
+    # Backslashes and quotes are escaped, each line becomes one literal, and
+    # every line but the last carries the continuation.
+    sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/^/    "/' -e 's/$/\\n" \\/' "$in"
+    printf '    ""\n\n#endif // PSYMP3_THIRD_PARTY_LICENSES_H\n'
 } > "$out.tmp"
 
 mv -f "$out.tmp" "$out"
