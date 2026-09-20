@@ -74,8 +74,11 @@ private:
             }
         }
         
-        // Test that make check target uses the test harness
-        std::string make_check = executeCommand("make -n check");
+        // Test that make check target uses the test harness. The make that
+        // built this is named in MAKE; on the BSDs the one called "make" is a
+        // different program that cannot read the generated Makefile at all.
+        const char* make = std::getenv("MAKE");
+        std::string make_check = executeCommand(std::string(make ? make : "make") + " -n check");
         ASSERT_TRUE(make_check.find("test-harness") != std::string::npos, "make check should use test harness");
     }
     
