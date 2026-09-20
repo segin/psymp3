@@ -1414,11 +1414,21 @@ endif
 # output is kept in test-harness.log as well, since CI keeps the *.log files.
 # Without the harness, automake's check-TESTS has already run TESTS, treating
 # exit 77 as a skip, so there is nothing left to do here.
+# A ThreadSanitizer build reads tsan.supp, so that the races reported are the
+# ones in this tree and not Mesa's or PipeWire's. The harness passes its own
+# environment to the programs it runs, so setting it here reaches all of them.
+# Anything the caller already put in TSAN_OPTIONS is kept.
+if ENABLE_TSAN
+TSAN_ENV = TSAN_OPTIONS="suppressions=$(abs_top_srcdir)/tsan.supp$${TSAN_OPTIONS:+,$$TSAN_OPTIONS}"
+else
+TSAN_ENV =
+endif
+
 check-local: $(check_PROGRAMS) $(CHECK_LOCAL_DEPS)
 if BUILD_TEST_HARNESS
 	@rm -f check-programs.list test-harness.status
 	@for program in $(check_PROGRAMS); do echo "$$program"; done > check-programs.list
-	@{ ./test-harness$(EXEEXT) --verbose --source-dir $(srcdir) \
+	@{ $(TSAN_ENV) ./test-harness$(EXEEXT) --verbose --source-dir $(srcdir) \
 	      --programs-file check-programs.list; \
 	   echo $$? > test-harness.status; } 2>&1 | tee test-harness.log
 	@status=`cat test-harness.status`; rm -f test-harness.status; exit $$status

@@ -27,6 +27,7 @@ endif
 # Every public header. Sources list only .cpp files, so nothing else
 # distributes these; distcheck (now enforced by CI) keeps the list honest.
 EXTRA_DIST = \
+	tsan.supp \
 	include/BoundedQueue.h \
 	include/RAIIFileHandle.h \
 	include/SpectrumColors.h \
@@ -381,16 +382,24 @@ threading-check-tests:
 	@$(MAKE) -C tests test_surface_suite
 	@echo "Basic threading safety tests completed"
 
+# These two run programs themselves rather than through the harness, so they
+# need the suppression file passed the same way `make check` passes it.
+if ENABLE_TSAN
+TSAN_ENV = TSAN_OPTIONS="suppressions=$(abs_top_srcdir)/tsan.supp$${TSAN_OPTIONS:+,$$TSAN_OPTIONS}"
+else
+TSAN_ENV =
+endif
+
 threading-check-integration:
 	@echo "Running threading safety integration tests..."
 	@$(MAKE) -C tests test_system_wide_threading_integration
-	@cd tests && ./test_system_wide_threading_integration
+	@cd tests && $(TSAN_ENV) ./test_system_wide_threading_integration
 	@echo "Threading safety integration tests completed"
 
 threading-check-performance:
 	@echo "Running threading performance regression tests..."
 	@$(MAKE) -C tests test_core_utils_suite
-	@cd tests && ./test_core_utils_suite
+	@cd tests && $(TSAN_ENV) ./test_core_utils_suite
 	@echo "Threading performance regression tests completed"
 
 # Comprehensive threading validation (for CI)

@@ -175,6 +175,13 @@ Run individual tests from the `tests/` directory so relative fixture paths (`dat
 ## Sanitizers and Property Tests
 
 - Configure with `--enable-asan`, `--enable-ubsan`, or `--enable-tsan` for sanitizer builds.
+- A `--enable-tsan` build runs the suite with `tsan.supp`, which suppresses the
+  races reported inside Mesa, SDL, PipeWire/ALSA and the X11/Wayland libraries —
+  none of which this tree can fix, and all of which would otherwise bury the
+  reports that matter. Nothing in that file suppresses PsyMP3's own code: a race
+  reported in `src/` is ours. Running a test binary by hand needs the file
+  passed too, since it is the environment that carries it:
+  `TSAN_OPTIONS=suppressions=tsan.supp ./tests/test_audio_suite`.
 - Property-based tests use RapidCheck: `./configure --enable-rapidcheck && make check`.
 
 ## Continuous Integration

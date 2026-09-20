@@ -1,14 +1,24 @@
 # ThreadSanitizer Suppression File for PsyMP3
 # These suppressions filter out known false positives from external libraries
-# that are outside PsyMP3's control.
+# that are outside PsyMP3's control. Nothing here suppresses a report from
+# PsyMP3's own code: if a race is reported in src/, it is ours.
+#
+# `make check` in a --enable-tsan build passes this file to the test suite
+# (see the check-local rule in tests/Makefile.am). For a binary run by hand:
+#
+#     TSAN_OPTIONS=suppressions=tsan.supp ./tests/test_audio_suite
 
 # Mesa Gallium driver (llvmpipe software renderer) - WSL2/WSLg races
 # These are internal driver threading issues, not application bugs.
 race:libgallium*
 race:llvmpipe*
 
-# SDL2 internal mutex/threading operations
-# SDL2 has its own internal threading model that TSan may misinterpret.
+# SDL's internal mutex/threading operations: it has a threading model of its
+# own that TSan may misinterpret. SDL3 is what this tree links; the SDL2
+# patterns are kept because the Windows and older cross builds may still be
+# resolved against it.
+race:libSDL3*
+deadlock:libSDL3*
 race:libSDL2*
 deadlock:libSDL2*
 
@@ -16,7 +26,11 @@ deadlock:libSDL2*
 race:libEGL*
 race:libGL*
 
-# PulseAudio/ALSA threading (common false positives)
+# Audio servers and the ALSA compatibility layer. PipeWire is what this tree
+# usually plays through, and its own worker threads report freely.
+race:libpipewire*
+deadlock:libpipewire*
+race:libspa*
 race:libpulse*
 race:libasound*
 
