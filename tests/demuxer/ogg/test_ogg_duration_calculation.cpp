@@ -49,10 +49,13 @@ public:
                 m_position = std::min(static_cast<size_t>(offset), m_data.size());
                 break;
             case SEEK_CUR:
-                m_position = std::min(m_position + offset, m_data.size());
+                m_position = static_cast<size_t>(
+                    std::min<off_t>(static_cast<off_t>(m_position) + offset,
+                                    static_cast<off_t>(m_data.size())));
                 break;
             case SEEK_END:
-                m_position = std::max(0L, static_cast<long>(m_data.size()) + offset);
+                m_position = static_cast<size_t>(
+                    std::max<off_t>(0, static_cast<off_t>(m_data.size()) + offset));
                 break;
         }
         return 0;
