@@ -432,20 +432,10 @@ private:
         
         const int iterations = 1000;
         for (int i = 0; i < iterations; ++i) {
-            // Simulate typical application workflow
-            
-            // 1. Audio operations (simulated)
-            std::this_thread::sleep_for(std::chrono::microseconds(5));
-            
-            // 2. Memory operations
             size_t buffer_size = 2048;
             uint8_t* buffer = pool_manager.allocateBuffer(buffer_size, "integrated_test");
-            
+
             if (buffer) {
-                // 3. I/O operations (simulated)
-                std::this_thread::sleep_for(std::chrono::microseconds(2));
-                
-                // 4. Release memory
                 pool_manager.releaseBuffer(buffer, buffer_size, "integrated_test");
             }
         }
