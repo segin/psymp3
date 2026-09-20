@@ -84,18 +84,22 @@ AC_SUBST([PSYMP3_CXXFLAGS])
 # Resolution order: inline (amd64, clang/i386) -> -latomic -> on i386 enable
 # CMPXCHG8B via -march=i586 so GCC inlines them (NetBSD's base GCC ships no
 # libatomic and defaults to i486, which lacks the instruction).
-AC_MSG_CHECKING([how to link 64-bit atomics])
-AC_LANG_PUSH([C++])
-psymp3_atomic_prog="AC_LANG_PROGRAM([[#include <atomic>
+# The program is an m4 macro, not a shell variable holding its text: passing
+# the text through the shell works, but autoconf cannot see an AC_LANG_SOURCE
+# in what it is handed and warns about it on every autoreconf.
+m4_define([PSYMP3_ATOMIC_PROG],
+  [AC_LANG_PROGRAM([[#include <atomic>
 #include <cstdint>
 static std::atomic<std::uint64_t> a;]], [[
   a.store(2, std::memory_order_relaxed);
-  return (int)(a.fetch_add(1) + a.load(std::memory_order_relaxed));]])"
-AC_LINK_IFELSE([$psymp3_atomic_prog],
+  return (int)(a.fetch_add(1) + a.load(std::memory_order_relaxed));]])])
+AC_MSG_CHECKING([how to link 64-bit atomics])
+AC_LANG_PUSH([C++])
+AC_LINK_IFELSE([PSYMP3_ATOMIC_PROG],
   [AC_MSG_RESULT([inlined])],
   [psymp3_save_libs="$LIBS"
    LIBS="$LIBS -latomic"
-   AC_LINK_IFELSE([$psymp3_atomic_prog],
+   AC_LINK_IFELSE([PSYMP3_ATOMIC_PROG],
      [AC_MSG_RESULT([-latomic])],
      [LIBS="$psymp3_save_libs"
       psymp3_atomic_fixed=no
@@ -103,7 +107,7 @@ AC_LINK_IFELSE([$psymp3_atomic_prog],
         i?86)
           psymp3_save_cxxflags="$CXXFLAGS"
           CXXFLAGS="$CXXFLAGS -march=i586"
-          AC_LINK_IFELSE([$psymp3_atomic_prog],
+          AC_LINK_IFELSE([PSYMP3_ATOMIC_PROG],
             [AC_MSG_RESULT([-march=i586])
              PSYMP3_CXXFLAGS="$PSYMP3_CXXFLAGS -march=i586"
              psymp3_atomic_fixed=yes])
