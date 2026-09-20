@@ -20,7 +20,7 @@ using namespace PsyMP3::Tag;
 using namespace TestFramework;
 
 // Test helper to check if a tag is a NullTag
-static bool isNullTag(const Tag::Tag& tag) {
+static bool isNullTag(const PsyMP3::Tag::Tag& tag) {
     // NullTag returns empty strings for all fields
     return tag.title().empty() && 
            tag.artist().empty() && 
@@ -39,7 +39,7 @@ void test_demuxer_default_null_tag() {
     // We need a valid IOHandler since Demuxer validates it
     
     // Create a minimal demuxer subclass for testing
-    class TestDemuxer : public Demuxer {
+    class TestDemuxer : public PsyMP3::Demuxer::Demuxer {
     public:
         // Constructor that accepts IOHandler but doesn't use it
         TestDemuxer(std::unique_ptr<IOHandler> io) : Demuxer(std::move(io)) {}
@@ -76,7 +76,7 @@ void test_demuxer_default_null_tag() {
         
         if (io) {
             TestDemuxer demuxer(std::move(io));
-            const Tag::Tag& tag = demuxer.getTag();
+            const PsyMP3::Tag::Tag& tag = demuxer.getTag();
             
             // Should return a NullTag (all fields empty/zero)
             ASSERT_TRUE(isNullTag(tag), "Default demuxer tag should be NullTag");
@@ -126,7 +126,7 @@ void test_flac_demuxer_tag_extraction() {
             return;
         }
         
-        const Tag::Tag& tag = demuxer.getTag();
+        const PsyMP3::Tag::Tag& tag = demuxer.getTag();
         
         // The tag should be accessible (may or may not have data depending on file)
         std::cout << "  Tag title: '" << tag.title() << "'\n";
@@ -177,7 +177,7 @@ void test_ogg_demuxer_tag_extraction() {
             return;
         }
         
-        const Tag::Tag& tag = demuxer.getTag();
+        const PsyMP3::Tag::Tag& tag = demuxer.getTag();
         
         // The tag should be accessible (may or may not have data depending on file)
         std::cout << "  Tag title: '" << tag.title() << "'\n";
