@@ -291,9 +291,14 @@ private:
         uint64_t max_position = m_property_manager->getPosition();
         ASSERT_TRUE(max_position >= 0, "Should handle maximum position value");
         
+        // Position interpolates from the clock while playing, so a read of the
+        // value just stored only comes back exactly when the machine gets there
+        // inside a microsecond. Pause first and the stored value is the answer.
+        m_property_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Paused);
         m_property_manager->updatePosition(0);
         uint64_t zero_position = m_property_manager->getPosition();
         ASSERT_EQUALS(uint64_t(0), zero_position, "Should handle zero position");
+        m_property_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
         
         // Test error recovery
         try {
