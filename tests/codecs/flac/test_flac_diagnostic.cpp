@@ -15,7 +15,7 @@
 
 // Test file path, resolved from the available fixtures at startup (main
 // exits 77 = SKIP when none are present).
-std::string TEST_FLAC_FILE;
+static std::string TEST_FLAC_FILE;
 
 /**
  * @brief Check if test file exists and get basic info

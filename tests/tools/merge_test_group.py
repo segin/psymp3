@@ -65,6 +65,11 @@ for name in group:
         # Both spellings are tested below: the cut is a guess, and on a symbol
         # it guesses wrong about it must not hide what the symbol really is.
         forms = (sym, sym[cut:])
+        # libstdc++ tags std::string-valued symbols [abi:cxx11], so two files
+        # defining the same name -- one a std::string, one not -- look like
+        # different symbols here and link on this platform. libc++ applies no
+        # such tag and the link fails. Compare without it.
+        sym = sym.replace("[abi:cxx11]", "")
         # Types a shared test header defines inline are the same definition in
         # every file that includes it; MERGE_ALLOW names them.
         import os

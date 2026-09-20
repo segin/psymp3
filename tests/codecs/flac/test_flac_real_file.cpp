@@ -23,7 +23,7 @@
     } while(0)
 
 // Test file path
-const char* TEST_FLAC_FILE = "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac";
+static const char* TEST_FLAC_FILE = "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac";
 
 /**
  * @brief Check if test file exists
