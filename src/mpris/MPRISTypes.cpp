@@ -717,8 +717,7 @@ bool ErrorRecoveryManager::attemptRecovery(
 
   // Enforce the backoff delay as a minimum interval between attempts. Rather
   // than sleeping under m_mutex (which would block other callers), defer the
-  // retry if not enough time has elapsed since the last attempt; the delay was
-  // previously computed and discarded, so backoff never actually happened.
+  // retry if not enough time has elapsed since the last attempt.
   int attempt = m_attempt_counts[category];
   auto delay = calculateDelay(category, attempt);
   auto last_it = m_last_attempt_times.find(category);
