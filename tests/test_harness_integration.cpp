@@ -74,12 +74,15 @@ private:
             }
         }
         
-        // Test that make check target uses the test harness. The make that
-        // built this is named in MAKE; on the BSDs the one called "make" is a
-        // different program that cannot read the generated Makefile at all.
-        const char* make = std::getenv("MAKE");
-        std::string make_check = executeCommand(std::string(make ? make : "make") + " -n check");
-        ASSERT_TRUE(make_check.find("test-harness") != std::string::npos, "make check should use test harness");
+        // Test that the check target runs the harness. Read that out of the
+        // Makefile next to us rather than asking make to print its recipe:
+        // this test is itself running under make check, and a make -n check
+        // from in here re-enters the whole build system, which took two
+        // minutes on the slow machines and ran into the timeout.
+        std::ifstream makefile("Makefile");
+        std::string makefile_content((std::istreambuf_iterator<char>(makefile)),
+                                     std::istreambuf_iterator<char>());
+        ASSERT_TRUE(makefile_content.find("test-harness") != std::string::npos, "make check should use test harness");
     }
     
     void testBuildSystemIntegration() {
