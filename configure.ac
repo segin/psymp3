@@ -120,12 +120,17 @@ AC_LINK_IFELSE([PSYMP3_ATOMIC_PROG],
       fi])])
 AC_LANG_POP([C++])
 
+# The type checks below compile a program that includes stdint.h only where
+# HAVE_STDINT_H is already defined. Check the headers first, or a run that
+# has not yet checked them decides uint8_t is missing and defines it as
+# unsigned char -- which the next C++ file to include stdint.h will not build
+# against. config.status --recheck was such a run.
+AC_CHECK_HEADERS([stdint.h inttypes.h stdlib.h string.h unistd.h])
+
 AC_TYPE_INT16_T
 AC_TYPE_SIZE_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
-
-AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 
 AC_CHECK_FUNCS([atexit getcwd memset])
 
