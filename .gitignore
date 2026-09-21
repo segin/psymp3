@@ -159,6 +159,13 @@ vgcore.2578017
 /debian/
 package/dpkg/out/
 package/rpm/out/
+# makepkg builds in place: src/ and pkg/ are its work directories, psymp3/ is
+# the clone it makes of this repository, and the package lands beside them.
+package/arch/src/
+package/arch/pkg/
+package/arch/psymp3/
+package/arch/*.pkg.tar.zst
+package/arch/*.log
 
 # Optional user-supplied fallback font (see README, Unicode Support).
 # Dropped in beside vera.ttf at runtime; never part of the source tree.
