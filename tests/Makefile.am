@@ -1421,6 +1421,9 @@ endif
 # ones in this tree and not Mesa's or PipeWire's. The harness passes its own
 # environment to the programs it runs, so setting it here reaches all of them.
 # Anything the caller already put in TSAN_OPTIONS is kept.
+# MAKE travels the same way, for the tests that ask this build system about
+# itself: make does not export it, and on the BSDs the program named make is
+# a different one that cannot read the Makefile it would be handed.
 if ENABLE_TSAN
 TSAN_ENV = TSAN_OPTIONS="suppressions=$(abs_top_srcdir)/tsan.supp$${TSAN_OPTIONS:+,$$TSAN_OPTIONS}"
 else
@@ -1431,7 +1434,7 @@ check-local: $(check_PROGRAMS) $(CHECK_LOCAL_DEPS)
 if BUILD_TEST_HARNESS
 	@rm -f check-programs.list test-harness.status
 	@for program in $(check_PROGRAMS); do echo "$$program"; done > check-programs.list
-	@{ $(TSAN_ENV) ./test-harness$(EXEEXT) --verbose --source-dir $(srcdir) \
+	@{ MAKE='$(MAKE)' $(TSAN_ENV) ./test-harness$(EXEEXT) --verbose --source-dir $(srcdir) \
 	      --programs-file check-programs.list; \
 	   echo $$? > test-harness.status; } 2>&1 | tee test-harness.log
 	@status=`cat test-harness.status`; rm -f test-harness.status; exit $$status
