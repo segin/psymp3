@@ -28,8 +28,6 @@ MPRISManager::MPRISManager(Player* player)
     , m_methods(nullptr)
     , m_signals(nullptr)
 {
-    // Logging system now integrated with PsyMP3 debug system
-    
     // Initialize error logging system with default handler
     ErrorLogger::getInstance().setDefaultLogHandler();
     ErrorLogger::getInstance().setLogLevel(PsyMP3::MPRIS::ErrorLogger::LogLevel::Warning);
