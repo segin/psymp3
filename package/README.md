@@ -8,15 +8,17 @@ matching machine or container.
 |---|---|---|
 | `dpkg/` | `.deb` | Debian 13 (trixie), Ubuntu 26.04 LTS |
 | `rpm/`  | `.rpm` | Fedora (latest), openSUSE Tumbleweed |
+| `arch/` | `.pkg.tar.zst` | not in CI; built with `makepkg` on Arch |
 
 ## Building by hand
 
 ```sh
 ./package/dpkg/build-deb.sh      # -> package/dpkg/out/*.deb
 ./package/rpm/build-rpm.sh       # -> package/rpm/out/*.rpm
+(cd package/arch && makepkg)     # -> package/arch/*.pkg.tar.zst
 ```
 
-Both scripts need the distribution's build dependencies installed first. The
+The two scripts need the distribution's build dependencies installed first. The
 dependency lists are single-sourced from the packaging metadata itself, so
 install them from there rather than maintaining a third copy:
 
@@ -31,6 +33,8 @@ dnf builddep package/rpm/psymp3.spec
 zypper install $(rpmspec -q --buildrequires --define "psymp3_version 0" \
     package/rpm/psymp3.spec)
 ```
+
+`makepkg -s` installs the Arch ones itself, from the PKGBUILD.
 
 ## Versioning
 
@@ -54,6 +58,15 @@ pre-release upgrade cleanly to the final release. Verified ordering:
 
 A master snapshot outranking the RC it followed is intentional: master is
 ahead of the tag, and the eventual `2.0` still supersedes every `2.0~*`.
+
+pacman is the exception. Its `vercmp` gives `~` no special meaning, so
+`2.0~rc2` sorts *above* `2.0` there — backwards. Dropping the tilde restores
+the order, because a version ending in letters sorts below the bare release
+under pacman's rules, so `version.sh arch` prints that spelling instead:
+
+```
+2.0beta4  <  2.0rc2  <  2.0snapshot1400  <  2.0
+```
 
 ## Notes on the Debian packaging
 
@@ -86,3 +99,14 @@ ahead of the real thing.
 
 `build-rpm.sh` packs the tarball with `git archive`, so untracked build output
 in a working tree never leaks into the package.
+
+## Notes on the Arch packaging
+
+The PKGBUILD takes its source from the repository it sits in, over
+`git+file://`, so like the other two it packages what is committed. `pkgver()`
+calls `version.sh arch` rather than carrying its own copy of the mapping;
+makepkg will rewrite the `pkgver=` line in the file to match, which is
+expected and need not be committed back.
+
+Arch has the real `libfdk-aac`, so AAC is built here — unlike the Fedora
+package, which has only `fdk-aac-free` to link against.

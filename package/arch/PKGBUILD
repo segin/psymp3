@@ -1,0 +1,55 @@
+# Maintainer: Kirn Gill II <segin2005@gmail.com>
+#
+# PKGBUILD - PsyMP3 Arch Linux package.
+#
+# Builds the repository this file lives in. makepkg clones the tree root over
+# git+file://, so the package holds what is committed and not what is in the
+# working tree -- the same rule as build-deb.sh and build-rpm.sh. Commit first.
+#
+#   cd package/arch && makepkg -si
+#
+# There is no check(): the test harness wants fixture media and a session
+# D-Bus for the MPRIS tests and exercises the live audio graph, none of which
+# belongs in a package build. The Debian and RPM packaging skip it likewise.
+
+pkgname=psymp3
+pkgver=2.0snapshot1812
+pkgrel=1
+pkgdesc="Audio player with FFT spectrum visualization"
+arch=('x86_64')
+url="https://github.com/segin/psymp3"
+license=('ISC')
+depends=('sdl3' 'taglib' 'freetype2' 'harfbuzz' 'curl' 'libogg' 'opus'
+         'libfdk-aac' 'speex' 'dbus' 'qt6-base' 'openssl')
+# base-devel brings gcc, make, autoconf, automake, libtool and pkgconf; only
+# what it does not carry is named here.
+makedepends=('git' 'autoconf-archive')
+# The tree root, two directories up from this one.
+source=("$pkgname::git+file://${startdir%/*/*}")
+sha256sums=('SKIP')
+
+pkgver() {
+    # Single-sourced with the .deb and .rpm packaging. The 'arch' spelling is
+    # the tilde-free one: pacman's vercmp gives '~' no special meaning, so the
+    # 2.0~rc2 the other two use would sort above 2.0 here. See version.sh.
+    "$srcdir/$pkgname/package/version.sh" arch
+}
+
+prepare() {
+    cd "$pkgname"
+    # configure is generated, not committed.
+    ./autogen.sh
+}
+
+build() {
+    cd "$pkgname"
+    ./configure --prefix=/usr
+    make
+}
+
+package() {
+    cd "$pkgname"
+    make DESTDIR="$pkgdir" install
+    # ISC is not one of the licences pacman ships the text of.
+    install -Dm644 COPYING "$pkgdir/usr/share/licenses/$pkgname/COPYING"
+}
