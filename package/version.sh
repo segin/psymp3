@@ -19,10 +19,17 @@
 #                                             so successive snapshots upgrade)
 #   1.99.17-RELEASE -> 1.99.17
 #
-# Usage: package/version.sh [upstream|build|full]
+# pacman is the exception: its vercmp gives '~' no meaning at all, so
+# 2.0~rc2 sorts ABOVE 2.0 there -- the opposite of what the tilde is for.
+# Dropping it gives the ordering back, because a version ending in letters
+# sorts below the bare release under pacman's rules. Measured with vercmp:
+#   2.0beta4  <  2.0rc2  <  2.0snapshot1400  <  2.0
+#
+# Usage: package/version.sh [upstream|build|full|arch]
 #   upstream (default) - the version alone, e.g. 2.0~rc2
 #   build              - the res/psymp3.rc build counter, e.g. 1343
 #   full               - upstream-1, ready for a .deb changelog entry
+#   arch               - upstream without the tilde, e.g. 2.0rc2, for pacman
 set -eu
 
 top=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -62,5 +69,6 @@ case "${1:-upstream}" in
     upstream) printf '%s\n' "$upstream" ;;
     build)    printf '%s\n' "$build" ;;
     full)     printf '%s-1\n' "$upstream" ;;
-    *) echo "usage: $0 [upstream|build|full]" >&2; exit 2 ;;
+    arch)     printf '%s' "$upstream" | tr -d '~'; printf '\n' ;;
+    *) echo "usage: $0 [upstream|build|full|arch]" >&2; exit 2 ;;
 esac
