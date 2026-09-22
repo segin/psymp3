@@ -1,4 +1,4 @@
-# PsyMP3 2-CURRENT
+# PsyMP3
 
 A simplistic audio media player with a flashy Fourier transform.
 
@@ -26,8 +26,6 @@ Highlights:
 - Synced lyrics display (`.lrc` files)
 - Last.fm scrobbling (Web Services API 2.0), MPRIS desktop control, and Discord Rich Presence
 - Session persistence: with Persist Playlist enabled, PsyMP3 reopens your playlist at the track you were playing
-
-> **Note**: The "2-CURRENT" version tag represents the active development branch. End users should be aware that this is pre-release software.
 
 **Contact**: <segin2005@gmail.com>
 
