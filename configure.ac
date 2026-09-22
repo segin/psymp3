@@ -486,6 +486,24 @@ if test "x$enable_filedialog" != "xno"; then
         if test -n "$psymp3_qt_major"; then
           AC_DEFINE([PSYMP3_FILEDIALOG_QT], [1], [Use a Qt QFileDialog backend])
           AC_DEFINE_UNQUOTED([PSYMP3_QT_MAJOR], [$psymp3_qt_major], [Qt major version for the file dialog])
+          # Qt 6 gives its data symbols protected visibility, and Qt's inline
+          # code (qApp, QByteArray::constData, ...) reads them directly. A PIE
+          # can reach such a symbol only by a copy relocation, which ld refuses
+          # for a protected one. Qt's CMake package hands its users
+          # -mno-direct-extern-access to make those reads go through the GOT;
+          # its pkg-config files do not, so add it here. Unlike the -fPIC in
+          # src/core/Makefile.am, it survives LTO's link-time recompile.
+          if test "x$psymp3_qt_major" = "x6"; then
+            AC_LANG_PUSH([C++])
+            AC_MSG_CHECKING([if compiler supports -mno-direct-extern-access])
+            psymp3_save_cxxflags="$CXXFLAGS"
+            CXXFLAGS="$CXXFLAGS -mno-direct-extern-access -Werror"
+            AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])],
+              [AC_MSG_RESULT([yes]); DIALOG_CFLAGS="$DIALOG_CFLAGS -mno-direct-extern-access"],
+              [AC_MSG_RESULT([no])])
+            CXXFLAGS="$psymp3_save_cxxflags"
+            AC_LANG_POP([C++])
+          fi
         elif test -n "$psymp3_gtk_major"; then
           AC_DEFINE([PSYMP3_FILEDIALOG_GTK], [1], [Use a GTK file-chooser backend])
           AC_DEFINE_UNQUOTED([PSYMP3_GTK_MAJOR], [$psymp3_gtk_major], [GTK major version for the file dialog])
