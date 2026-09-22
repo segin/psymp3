@@ -13,7 +13,7 @@
 # belongs in a package build. The Debian and RPM packaging skip it likewise.
 
 pkgname=psymp3
-pkgver=2.0snapshot1812
+pkgver=2.0snapshot1815
 pkgrel=1
 pkgdesc="Audio player with FFT spectrum visualization"
 arch=('x86_64')
@@ -21,6 +21,11 @@ url="https://github.com/segin/psymp3"
 license=('ISC')
 depends=('sdl3' 'taglib' 'freetype2' 'harfbuzz' 'curl' 'libogg' 'opus'
          'libfdk-aac' 'speex' 'dbus' 'qt6-base' 'openssl')
+# makepkg turns LTO on by default, and linking this PIE with it ends in
+#   copy relocation against non-copyable protected symbol
+#   `_ZN16QCoreApplication4selfE@@Qt_6' in libQt6Core.so
+# which ld refuses. The symbol is Qt's, reached through the file dialog.
+options=('!lto')
 # base-devel brings gcc, make, autoconf, automake, libtool and pkgconf; only
 # what it does not carry is named here.
 makedepends=('git' 'autoconf-archive')
