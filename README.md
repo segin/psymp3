@@ -78,24 +78,49 @@ Highlights:
 
 ### Build Requirements
 - C++17 compliant compiler (GCC 9+, Clang 10+, MSVC 2019+)
-- Autotools: `autoconf`, `automake`, `libtool`, and **`autoconf-archive`**
-  (required — it supplies `AX_CXX_COMPILE_STDCXX_17`; without it `autoreconf`
-  silently drops the C++17 check and the build fails with `-std=c++17` errors)
-- `pkg-config`
+- `pkg-config` (or pkgconf)
+
+Building from git needs these as well, to generate `configure`:
+
+- `autoconf` 2.69 or later, which provides `autoconf` and `autoheader`
+- `automake` 1.10 or later, which provides `automake` and `aclocal`
+- **`autoconf-archive`**, for `AX_CXX_COMPILE_STDCXX_17`. Nothing reports it
+  missing: `autoreconf` succeeds and leaves the macro in `configure` as a
+  bare word, so `configure` never turns on C++17 and the build fails later
+  with C++17 errors.
+- `pkg-config` again, this time for the `pkg.m4` macros (`PKG_CHECK_MODULES`)
+  it installs into aclocal's directory
+- `bash`, which `generate-configure.sh` is written in
+
+`libtool` is not needed.
 - Optional, for `make check`: [RapidCheck](https://github.com/emil-e/rapidcheck)
   (property-based tests, enabled with `--enable-rapidcheck`)
 
 ## Building
 
-**From a release tarball:**
+**From git**, or from GitHub's "Source code" downloads, which are snapshots of
+the repository and do not include `configure`:
 ```bash
+./generate-configure.sh
 ./configure
 make -j$(nproc)
 ```
 
-**From git** (requires autoconf-archive):
+Use `generate-configure.sh` to generate `configure` rather than running
+`autoreconf` yourself. Besides running `autoreconf -fiv`, it:
+
+- installs the repository's git hooks (`core.hooksPath=.githooks`). The
+  pre-commit hook advances the build number in `res/psymp3.rc`, which has to
+  go up with every commit.
+- deletes what an earlier run generated (`configure`, `aclocal.m4`, every
+  `Makefile.in`, `autom4te.cache`) first, so nothing stale is left behind
+- stops early if `aclocal`, `automake`, `autoconf` or `autoheader` is missing,
+  and checks afterwards that `./configure --help` runs
+
+`autogen.sh` is a symbolic link to it, for tools that expect that name.
+
+**From a `make dist` tarball**, `configure` is already there:
 ```bash
-./generate-configure.sh
 ./configure
 make -j$(nproc)
 ```
