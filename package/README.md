@@ -97,6 +97,9 @@ the one exception, named explicitly per distribution: `pkgconfig(openssl)` is
 also provided by `aws-lc-devel` on openSUSE, which would otherwise be pulled in
 ahead of the real thing.
 
+Fedora links FDK-AAC-free and may not support all AAC variants. openSUSE
+builds against the full fdk-aac from Packman.
+
 `build-rpm.sh` packs the tarball with `git archive`, so untracked build output
 in a working tree never leaks into the package.
 
@@ -107,6 +110,3 @@ The PKGBUILD takes its source from the repository it sits in, over
 calls `version.sh arch` rather than carrying its own copy of the mapping;
 makepkg will rewrite the `pkgver=` line in the file to match, which is
 expected and need not be committed back.
-
-Arch has the real `libfdk-aac`, so AAC is built here — unlike the Fedora
-package, which has only `fdk-aac-free` to link against.
