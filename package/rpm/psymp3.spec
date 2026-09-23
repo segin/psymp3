@@ -76,7 +76,8 @@ and can publish now-playing state to Discord.
 %build
 # configure is generated, not shipped in the git tree.
 ./autogen.sh
-%configure
+# The same single-translation-unit build as the Windows release binaries.
+%configure --enable-final
 %make_build
 
 %install

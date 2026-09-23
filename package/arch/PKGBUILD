@@ -43,7 +43,8 @@ prepare() {
 
 build() {
     cd "$pkgname"
-    ./configure --prefix=/usr
+    # The same single-translation-unit build as the Windows release binaries.
+    ./configure --prefix=/usr --enable-final
     make
 }
 

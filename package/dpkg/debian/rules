@@ -13,10 +13,11 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 %:
 	dh $@
 
-# configure is generated, not committed.
+# configure is generated, not committed. --enable-final makes this the same
+# single-translation-unit build as the Windows release binaries.
 override_dh_auto_configure:
 	./autogen.sh
-	dh_auto_configure
+	dh_auto_configure -- --enable-final
 
 # The test harness wants fixture media and a session D-Bus for the MPRIS
 # tests, and exercises the live audio graph; none of that belongs in a
