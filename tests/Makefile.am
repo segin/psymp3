@@ -29,52 +29,81 @@ endif
 
 # Common flags for all test programs
 
+# Each archive configure can leave out, named once here and empty when it is
+# not built. Everything below refers to these rather than to the paths, so a
+# program links with what this configuration has and asks for nothing else.
+if HAVE_AAC
+AAC_CODEC_LIB = $(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a
+endif
+if HAVE_MP2
+MP2_CODEC_LIB = $(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a
+endif
+if HAVE_TRUEHD
+MLP_CODEC_LIB = $(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a
+MLP_DEMUXER_LIB = $(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a
+endif
+if HAVE_AC3
+AC3_CODEC_LIB = $(top_builddir)/src/codecs/ac3/libpsymp3-codec-ac3.a
+AC3_DEMUXER_LIB = $(top_builddir)/src/demuxer/ac3/libpsymp3-demuxer-ac3.a
+endif
+if HAVE_MATROSKA
+MATROSKA_DEMUXER_LIB = $(top_builddir)/src/demuxer/matroska/libpsymp3-demuxer-matroska.a
+endif
+if HAVE_OPUS
+OPUS_CODEC_LIB = $(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a
+endif
+if HAVE_VORBIS
+VORBIS_CODEC_LIB = $(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a
+endif
+if HAVE_FLAC
+FLAC_CODEC_LIB = $(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a
+endif
+
 # Define optional codec/demuxer libraries (same as main binary)
 CODEC_LIBS =
 DEMUXER_LIBS =
 
-# MP3/MP2/ALAC codecs and the MP3 demuxer are always available (bundled
-# minimp3, kjmp2, and Apple ALAC — mirrors CODEC_LIBS in src/Makefile.am;
-# CodecRegistration.o references all three unconditionally).
+# MP3 and ALAC are always built (bundled minimp3 and Apple ALAC), and so is
+# the MP3 demuxer. MP2, TrueHD/MLP, AC-3 and Matroska are built unless
+# configured out, and their variables above are empty when they are.
 CODEC_LIBS += $(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a
-CODEC_LIBS += $(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a
+CODEC_LIBS += $(MP2_CODEC_LIB)
 CODEC_LIBS += $(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a
-CODEC_LIBS += $(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a
+CODEC_LIBS += $(MLP_CODEC_LIB)
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/mp3/libpsymp3-demuxer-mp3.a
-DEMUXER_LIBS += $(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a
-# Matroska/WebM: no external dependency, so it is always built. Needed by any
-# test that links CodecRegistration, which constructs the demuxer.
-DEMUXER_LIBS += $(top_builddir)/src/demuxer/matroska/libpsymp3-demuxer-matroska.a
-# AC-3: in tree, no external dependency, and referenced by anything that
-# links the codec registry. The demuxer parses syncframe headers with the
-# codec's parser, so the codec archive comes after it.
-DEMUXER_LIBS += $(top_builddir)/src/demuxer/ac3/libpsymp3-demuxer-ac3.a
-DEMUXER_LIBS += $(top_builddir)/src/codecs/ac3/libpsymp3-codec-ac3.a
+DEMUXER_LIBS += $(MLP_DEMUXER_LIB)
+# Needed by any test that links CodecRegistration, which constructs the
+# demuxer when Matroska is configured in.
+DEMUXER_LIBS += $(MATROSKA_DEMUXER_LIB)
+# The AC-3 demuxer parses syncframe headers with the codec's parser, so the
+# codec archive comes after it.
+DEMUXER_LIBS += $(AC3_DEMUXER_LIB)
+DEMUXER_LIBS += $(AC3_CODEC_LIB)
 # Repeated after the demuxer: the MLP demuxer decodes the first access unit
 # to learn the channel layout, so it needs the decoder, and ld resolves
 # archives left to right -- the codec archive has already been passed by the
 # time the demuxer's reference to it appears.
-DEMUXER_LIBS += $(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a
+DEMUXER_LIBS += $(MLP_CODEC_LIB)
 
 if HAVE_FLAC
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a
 if HAVE_NATIVE_FLAC
-CODEC_LIBS += $(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a
+CODEC_LIBS += $(FLAC_CODEC_LIB)
 else
-CODEC_LIBS += $(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a
+CODEC_LIBS += $(FLAC_CODEC_LIB)
 endif
 endif
 
 if HAVE_VORBIS
-CODEC_LIBS += $(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a
+CODEC_LIBS += $(VORBIS_CODEC_LIB)
 endif
 
 if HAVE_OPUS
-CODEC_LIBS += $(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a
+CODEC_LIBS += $(OPUS_CODEC_LIB)
 endif
 
 if HAVE_AAC
-CODEC_LIBS += $(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a
+CODEC_LIBS += $(AAC_CODEC_LIB)
 endif
 
 if HAVE_OGGDEMUXER
@@ -101,9 +130,9 @@ SYSTEM_LIBS = \
 # Note: Libraries that USE symbols must come BEFORE libraries that DEFINE them
 # We list libraries multiple times to handle circular dependencies (e.g., Codec <-> Demuxer)
 COMMON_TEST_LIBS = \
-	$(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a \
-	$(top_builddir)/src/demuxer/mlp/libpsymp3-demuxer-mlp.a \
-	$(top_builddir)/src/codecs/mlp/libpsymp3-codec-mlp.a \
+	$(MLP_CODEC_LIB) \
+	$(MLP_DEMUXER_LIB) \
+	$(MLP_CODEC_LIB) \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
 	$(top_builddir)/src/dsp/Equalizer.o \
@@ -142,7 +171,7 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
-	$(top_builddir)/src/demuxer/matroska/libpsymp3-demuxer-matroska.a \
+	$(MATROSKA_DEMUXER_LIB) \
 	$(top_builddir)/src/libpsymp3-sheenbidi.a \
 	$(HARFBUZZ_LIBS) \
 	$(SYSTEM_LIBS)
@@ -227,22 +256,22 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(MP2_CODEC_LIB) \
 	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
-	$(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(AAC_CODEC_LIB) \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(MP2_CODEC_LIB) \
 	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
-	$(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(AAC_CODEC_LIB) \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -1339,10 +1368,10 @@ test_method_handler_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LD
 # **Feature: vorbis-codec, Property 16: Reset Clears State**
 # **Validates: Requirements 7.1, 7.2, 7.4, 7.5, 7.6, 4.8, 11.4, 11.5**
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
+	$(OPUS_CODEC_LIB) \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -1361,10 +1390,10 @@ test_method_handler_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LD
 # Task 15.1: Test integration with demuxer architecture
 # **Validates: Requirements 6.1, 6.3, 11.3, 11.4, 12.8**
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
+	$(OPUS_CODEC_LIB) \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -1383,10 +1412,10 @@ test_method_handler_suite_LDADD = $(MPRIS_TEST_LIBS) libtest_utilities.a $(AM_LD
 # Task 15.2: Validate compatibility and performance
 # **Validates: Requirements 12.1, 12.2, 12.4, 13.1, 13.2, 13.8**
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
+	$(OPUS_CODEC_LIB) \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -1843,12 +1872,12 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
 #	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 #	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-#	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+#	$(FLAC_CODEC_LIB) \
 #	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(MP2_CODEC_LIB) \
 	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
-#	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
-#	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
+#	$(VORBIS_CODEC_LIB) \
+#	$(OPUS_CODEC_LIB) \
 #	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
 #	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 #	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
@@ -1857,12 +1886,12 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 #	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 #	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
-#	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+#	$(FLAC_CODEC_LIB) \
 #	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(MP2_CODEC_LIB) \
 	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
-#	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
-#	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
+#	$(VORBIS_CODEC_LIB) \
+#	$(OPUS_CODEC_LIB) \
 #	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 #	$(top_builddir)/src/io/libpsymp3-io.a \
 #	-lFLAC++ -lFLAC \
@@ -1932,12 +1961,12 @@ test_opus_codec_core_decoding_LDADD = \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -1966,12 +1995,12 @@ test_opus_codec_error_handling_LDADD = \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -2001,12 +2030,12 @@ test_opus_integration_LDADD = \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -2022,7 +2051,7 @@ test_opus_integration_LDADD = \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(MP2_CODEC_LIB) \
 	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(AM_LDFLAGS)
 
@@ -2039,12 +2068,12 @@ test_opus_compatibility_performance_LDADD = \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a \
-	$(top_builddir)/src/codecs/vorbis/libpsymp3-codec-vorbis.a \
+	$(OPUS_CODEC_LIB) \
+	$(VORBIS_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
@@ -2060,7 +2089,7 @@ test_opus_compatibility_performance_LDADD = \
 	$(OPUS_LIBS) \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
-	$(top_builddir)/src/codecs/mp2/libpsymp3-codec-mp2.a \
+	$(MP2_CODEC_LIB) \
 	$(top_builddir)/src/codecs/alac/libpsymp3-codec-alac.a \
 	$(AM_LDFLAGS)
 
@@ -2253,7 +2282,7 @@ check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subfram
 test_bitstream_reader_unit_SOURCES = test_bitstream_reader_unit.cpp
 test_bitstream_reader_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -2263,7 +2292,7 @@ test_bitstream_reader_unit_LDADD = \
 test_frame_parser_unit_SOURCES = test_frame_parser_unit.cpp
 test_frame_parser_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -2273,7 +2302,7 @@ test_frame_parser_unit_LDADD = \
 test_subframe_decoder_unit_SOURCES = test_subframe_decoder_unit.cpp
 test_subframe_decoder_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -2283,7 +2312,7 @@ test_subframe_decoder_unit_LDADD = \
 test_residual_decoder_unit_SOURCES = test_residual_decoder_unit.cpp
 test_residual_decoder_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -2293,7 +2322,7 @@ test_residual_decoder_unit_LDADD = \
 test_channel_decorrelator_unit_SOURCES = test_channel_decorrelator_unit.cpp
 test_channel_decorrelator_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -2303,7 +2332,7 @@ test_channel_decorrelator_unit_LDADD = \
 test_sample_reconstructor_unit_SOURCES = test_sample_reconstructor_unit.cpp
 test_sample_reconstructor_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -2401,7 +2430,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
-	$(top_builddir)/src/codecs/flac/libpsymp3-codec-flac.a \
+	$(FLAC_CODEC_LIB) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
