@@ -1002,7 +1002,7 @@ check_PROGRAMS += test_ogg_extra_suite
 # its file and its suite; what they no longer have is a link apiece.
 test_stream_suite_SOURCES = test_stream_suite.cpp \
 	core/stream/test_stream_tag_integration.cpp
-test_stream_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+test_stream_suite_LDADD = $(COMMON_TEST_LIBS) $(RAPIDCHECK_LIBS) $(AM_LDFLAGS)
 if HAVE_OGGDEMUXER
 # The stream manager is the Ogg demuxer's, so it joins the program only where
 # that demuxer is built; the dispatcher leaves it out the same way.
