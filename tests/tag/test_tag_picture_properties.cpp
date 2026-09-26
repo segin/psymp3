@@ -79,7 +79,7 @@ static std::unique_ptr<VorbisCommentTag> createTagWithPictures(size_t picture_co
 
 #ifdef HAVE_RAPIDCHECK
 
-bool runRapidCheckTests() {
+static bool runRapidCheckTests() {
     bool all_passed = true;
     
     std::cout << "Running RapidCheck property-based tests for Tag picture access...\n\n";

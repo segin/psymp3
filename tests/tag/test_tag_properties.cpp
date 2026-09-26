@@ -23,7 +23,7 @@ using namespace TestFramework;
 
 #ifdef HAVE_RAPIDCHECK
 
-bool runRapidCheckTests() {
+static bool runRapidCheckTests() {
     bool all_passed = true;
     
     std::cout << "Running RapidCheck property-based tests for Tag framework...\n\n";
