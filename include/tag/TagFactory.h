@@ -19,11 +19,6 @@
 #ifndef PSYMP3_TAG_TAGFACTORY_H
 #define PSYMP3_TAG_TAGFACTORY_H
 
-#include <string>
-#include <memory>
-#include <cstdint>
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Tag {
 

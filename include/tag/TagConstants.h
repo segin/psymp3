@@ -19,9 +19,6 @@
 #ifndef PSYMP3_TAG_TAGCONSTANTS_H
 #define PSYMP3_TAG_TAGCONSTANTS_H
 
-#include <cstdint>
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Tag {
 

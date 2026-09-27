@@ -20,11 +20,6 @@
 #define PSYMP3_TAG_VORBISCOMMENTTAG_H
 
 #include "tag/Tag.h"
-#include <map>
-#include <vector>
-#include <string>
-#include <memory>
-#include <cstdint>
 
 namespace PsyMP3 {
 namespace Tag {

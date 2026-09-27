@@ -19,10 +19,6 @@
 #ifndef PSYMP3_TAG_ID3V2UTILS_H
 #define PSYMP3_TAG_ID3V2UTILS_H
 
-#include <cstdint>
-#include <string>
-#include <vector>
-
 namespace PsyMP3 {
 namespace Tag {
 namespace ID3v2Utils {

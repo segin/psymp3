@@ -20,8 +20,6 @@
 #define PSYMP3_TAG_ID3V2TAG_H
 
 #include "tag/Tag.h"
-#include <map>
-#include <tuple>
 
 namespace PsyMP3 {
 namespace Tag {

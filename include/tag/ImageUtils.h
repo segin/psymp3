@@ -19,9 +19,6 @@
 #ifndef PSYMP3_TAG_IMAGEUTILS_H
 #define PSYMP3_TAG_IMAGEUTILS_H
 
-#include <vector>
-#include <cstdint>
-#include <string>
 #include "tag/Tag.h" // For Picture struct
 
 namespace PsyMP3 {

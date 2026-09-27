@@ -22,7 +22,6 @@
 #include "tag/Tag.h"
 #include "tag/ID3v1Tag.h"
 #include "tag/ID3v2Tag.h"
-#include <memory>
 
 namespace PsyMP3 {
 namespace Tag {

@@ -19,13 +19,6 @@
 #ifndef PSYMP3_TAG_TAG_H
 #define PSYMP3_TAG_TAG_H
 
-#include <string>
-#include <vector>
-#include <map>
-#include <memory>
-#include <optional>
-#include <cstdint>
-
 namespace PsyMP3 {
 namespace Tag {
 
