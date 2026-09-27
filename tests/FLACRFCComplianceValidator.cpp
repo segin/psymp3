@@ -38,8 +38,6 @@
 
 #ifdef HAVE_FLAC
 
-#include <FLAC/stream_decoder.h>
-
 // Include the comprehensive validator header
 #include "FLACRFCComplianceValidator.h"
 
@@ -670,7 +668,7 @@ std::string BitLevelAnalyzer::dumpFrameHeader(const uint8_t* data, size_t size) 
 }
 
 bool BitLevelAnalyzer::validateSubframes(const uint8_t* data, size_t size,
-                                        const FLAC__Frame* frame,
+                                        const PsyMP3::Codec::FLAC::FLAC__Frame* frame,
                                         std::vector<RFCViolationReport>& violations,
                                         size_t frame_number, size_t byte_offset) {
     if (!data || size < 4 || !frame) {
@@ -780,7 +778,7 @@ bool BitLevelAnalyzer::validateCRCs(const uint8_t* data, size_t size,
     return all_valid;
 }
 
-std::string BitLevelAnalyzer::dumpSubframes(const uint8_t* data, size_t size, const FLAC__Frame* frame) {
+std::string BitLevelAnalyzer::dumpSubframes(const uint8_t* data, size_t size, const PsyMP3::Codec::FLAC::FLAC__Frame* frame) {
     if (!data || size < 4 || !frame) {
         return "Invalid subframe data for analysis";
     }

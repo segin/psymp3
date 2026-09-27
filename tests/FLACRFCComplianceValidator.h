@@ -30,7 +30,6 @@
 #include <string>
 #include <memory>
 #include <chrono>
-#include <FLAC/stream_decoder.h>
 
 /**
  * @brief RFC 9639 compliance violation severity levels
@@ -166,7 +165,7 @@ public:
      * @brief Validate subframe structure per RFC 9639 Section 9.2
      */
     static bool validateSubframes(const uint8_t* data, size_t size,
-                                 const FLAC__Frame* frame,
+                                 const PsyMP3::Codec::FLAC::FLAC__Frame* frame,
                                  std::vector<RFCViolationReport>& violations,
                                  size_t frame_number, size_t byte_offset);
     
@@ -226,7 +225,7 @@ public:
     /**
      * @brief Dump subframe structure with RFC section references
      */
-    static std::string dumpSubframes(const uint8_t* data, size_t size, const FLAC__Frame* frame);
+    static std::string dumpSubframes(const uint8_t* data, size_t size, const PsyMP3::Codec::FLAC::FLAC__Frame* frame);
     
 private:
     // CRC lookup tables for performance
