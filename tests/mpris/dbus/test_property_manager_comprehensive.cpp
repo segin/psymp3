@@ -408,12 +408,12 @@ private:
         
         auto start_time = std::chrono::high_resolution_clock::now();
         
+        // No sleep between updates: this times the updates, and a sleep as
+        // short as the 100 us that was here lasts a whole scheduler tick on
+        // some systems -- 20 ms on OpenBSD, which made the loop take 4 s.
         for (size_t i = 0; i < total_updates; ++i) {
             uint64_t position = i * (1000000 / updates_per_second); // microseconds
             property_manager->updatePosition(position);
-            
-            // Simulate real-time intervals
-            std::this_thread::sleep_for(std::chrono::microseconds(10000 / updates_per_second));
         }
         
         auto end_time = std::chrono::high_resolution_clock::now();
