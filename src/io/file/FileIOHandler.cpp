@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <filesystem>
 
 namespace PsyMP3 {
 namespace IO {

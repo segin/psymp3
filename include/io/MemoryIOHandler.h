@@ -26,7 +26,6 @@
 
 #ifdef FINAL_BUILD
 #include "io/IOHandler.h"
-#include <deque>
 #endif
 
 // No direct includes - all includes should be in psymp3.h

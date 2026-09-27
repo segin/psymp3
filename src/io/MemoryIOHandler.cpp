@@ -23,10 +23,6 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
-#else
-#include <algorithm>
-#include <cstring>
-#include <cerrno>
 #endif
 #include "io/MemoryIOHandler.h"
 

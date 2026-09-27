@@ -9,14 +9,6 @@
 
 #include "psymp3.h"
 
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
-#include <sys/types.h>
-#include <sys/sysctl.h>
-#endif
-#if !defined(_WIN32)
-#include <sys/resource.h>   // getrusage() for the BSD / fallback peak-RSS paths
-#endif
-
 namespace PsyMP3 {
 namespace IO {
 

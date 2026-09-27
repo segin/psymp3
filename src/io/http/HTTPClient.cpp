@@ -33,18 +33,6 @@ public:
 #include "io/http/HTTPClient.h"
 #endif
 
-#include <cstdio>
-#include <string>
-#include <vector>
-#include <map>
-#include <mutex>
-#include <atomic>
-#include <thread>
-#include <chrono>
-#include <sstream>
-#include <algorithm>
-#include <cstring>
-
 namespace PsyMP3 {
 namespace IO {
 namespace HTTP {

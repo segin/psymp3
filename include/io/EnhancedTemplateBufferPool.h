@@ -24,13 +24,6 @@
 #ifndef ENHANCEDTEMPLATEBUFFERPOOL_H
 #define ENHANCEDTEMPLATEBUFFERPOOL_H
 
-#include <vector>
-#include <mutex>
-#include <atomic>
-#include <chrono>
-#include <map>
-#include <algorithm>
-
 namespace PsyMP3 {
 namespace IO {
 
