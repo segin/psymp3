@@ -9,11 +9,6 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
-#else
-#include "demuxer/iso/BoxParser.h"
-#include "demuxer/iso/ISODemuxer.h"
-#include "io/IOHandler.h"
-#include "debug.h"
 #endif
 
 namespace PsyMP3 {

@@ -13,8 +13,6 @@
 #ifndef HAS_OGGSYNCMANAGER_H
 #define HAS_OGGSYNCMANAGER_H
 
-#include "io/IOHandler.h"
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {

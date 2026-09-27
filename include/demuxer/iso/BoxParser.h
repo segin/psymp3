@@ -10,10 +10,6 @@
 #ifndef BOXPARSER_H
 #define BOXPARSER_H
 
-#ifdef FINAL_BUILD
-#include "io/IOHandler.h"
-#endif
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {

@@ -25,8 +25,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#include "demuxer/ogg/FLACHeaderParser.h"
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {

@@ -25,11 +25,6 @@
 #define DEMUXER_H
 
 // No direct includes - all includes should be in psymp3.h
-#include "io/IOHandler.h"
-#include "io/EnhancedBufferPool.h"
-#include "debug.h"
-#include "tag/Tag.h"
-#include "tag/NullTag.h"
 
 namespace PsyMP3 {
 namespace Demuxer {

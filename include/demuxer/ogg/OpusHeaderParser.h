@@ -6,8 +6,6 @@
 #ifndef HAS_OPUSHEADERPARSER_H
 #define HAS_OPUSHEADERPARSER_H
 
-#include "CodecHeaderParser.h"
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {

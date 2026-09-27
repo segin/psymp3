@@ -8,11 +8,6 @@
 #ifndef OGGDEMUXER_H
 #define OGGDEMUXER_H
 
-#include "demuxer/Demuxer.h"
-#include "OggSyncManager.h"
-#include "OggStreamManager.h"
-#include "CodecHeaderParser.h"
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
