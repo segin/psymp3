@@ -24,8 +24,6 @@
 #ifndef ENHANCEDBUFFERPOOL_H
 #define ENHANCEDBUFFERPOOL_H
 
-#include "io/EnhancedTemplateBufferPool.h"
-
 namespace PsyMP3 {
 namespace IO {
 

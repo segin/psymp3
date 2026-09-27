@@ -24,10 +24,6 @@
 #ifndef MEMORYIOHANDLER_H
 #define MEMORYIOHANDLER_H
 
-#ifdef FINAL_BUILD
-#include "io/IOHandler.h"
-#endif
-
 // No direct includes - all includes should be in psymp3.h
 
 namespace PsyMP3 {

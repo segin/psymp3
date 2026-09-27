@@ -24,7 +24,6 @@
 #ifndef FINAL_BUILD
 #include "psymp3.h"
 #endif
-#include "io/MemoryIOHandler.h"
 
 namespace PsyMP3 {
 namespace IO {

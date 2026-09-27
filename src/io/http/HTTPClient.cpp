@@ -30,7 +30,6 @@ public:
 
 #else
 #include "psymp3.h"
-#include "io/http/HTTPClient.h"
 #endif
 
 namespace PsyMP3 {

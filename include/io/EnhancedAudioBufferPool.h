@@ -38,8 +38,6 @@
  */
 using AudioSample = int32_t;
 
-#include "io/EnhancedTemplateBufferPool.h"
-
 namespace PsyMP3 {
 namespace IO {
 
