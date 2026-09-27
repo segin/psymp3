@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
 # generate-configure.sh - Generate configure script from autotools sources
 # This file is part of PsyMP3.
@@ -11,7 +11,6 @@ set -e  # Exit on any error
 set -u  # Exit on undefined variables
 
 # Script configuration
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="PsyMP3"
 
 # Color output support
@@ -60,16 +59,16 @@ check_project_directory() {
 
 # Check for required tools
 check_autotools() {
-    local missing_tools=()
-    
+    missing_tools=""
+
     for tool in aclocal automake autoconf autoheader; do
         if ! command -v "$tool" >/dev/null 2>&1; then
-            missing_tools+=("$tool")
+            missing_tools="$missing_tools $tool"
         fi
     done
-    
-    if [ ${#missing_tools[@]} -gt 0 ]; then
-        log_error "Missing required autotools: ${missing_tools[*]}"
+
+    if [ -n "$missing_tools" ]; then
+        log_error "Missing required autotools:$missing_tools"
         log_error "Please install the autotools package for your distribution:"
         log_error "  Ubuntu/Debian: sudo apt-get install autotools-dev automake autoconf"
         log_error "  CentOS/RHEL:   sudo yum install autotools automake autoconf"
