@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "core/SpectrumConfig.h"
 
 namespace PsyMP3 {
 namespace Widget {
