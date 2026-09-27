@@ -12,13 +12,6 @@
 #include "OggSyncManager.h"
 #include "OggStreamManager.h"
 #include "CodecHeaderParser.h"
-#include <memory>
-#include <map>
-#include <mutex>
-#include <deque>
-#include <atomic>
-#include <future>
-#include <ogg/ogg.h>
 
 namespace PsyMP3 {
 namespace Demuxer {

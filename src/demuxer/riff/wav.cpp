@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <limits>
 
 namespace PsyMP3 {
 namespace Demuxer {

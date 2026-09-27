@@ -14,14 +14,6 @@
 #include "demuxer/iso/ISODemuxer.h"
 #include "io/IOHandler.h"
 #include "debug.h"
-#include <vector>
-#include <string>
-#include <cstdint>
-#include <functional>
-#include <stack>
-#include <cstring>
-#include <algorithm>
-#include <memory>
 #endif
 
 namespace PsyMP3 {

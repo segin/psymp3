@@ -8,7 +8,6 @@
 #ifndef HAS_OGGSEEKINGENGINE_H
 #define HAS_OGGSEEKINGENGINE_H
 
-#include <cstdint>
 #include "io/IOHandler.h"
 #include "demuxer/ogg/OggSyncManager.h"
 #include "demuxer/ogg/OggStreamManager.h"

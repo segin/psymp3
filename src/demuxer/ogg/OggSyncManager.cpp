@@ -26,8 +26,6 @@
 #endif // !FINAL_BUILD
 
 #include "demuxer/ogg/OggSyncManager.h"
-#include <cstring>
-#include <stdexcept>
 
 namespace PsyMP3 {
 namespace Demuxer {

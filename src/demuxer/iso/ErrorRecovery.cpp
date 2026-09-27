@@ -11,11 +11,6 @@
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
-#include <algorithm>
-#include <chrono>
-#include <thread>
-#include <cstring>
-#include <sstream>
 
 ErrorRecovery::ErrorRecovery(std::shared_ptr<IOHandler> io) : io(io) {
     ResetErrorStats();

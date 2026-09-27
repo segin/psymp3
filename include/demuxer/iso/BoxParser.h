@@ -11,12 +11,6 @@
 #define BOXPARSER_H
 
 #ifdef FINAL_BUILD
-#include <cstdint>
-#include <string>
-#include <memory>
-#include <stack>
-#include <functional>
-#include <vector>
 #include "io/IOHandler.h"
 #endif
 

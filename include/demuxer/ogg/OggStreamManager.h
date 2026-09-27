@@ -8,7 +8,6 @@
 
 #ifndef HAS_OGGSTREAMMANAGER_H
 #define HAS_OGGSTREAMMANAGER_H
-#include <ogg/ogg.h>
 
 namespace PsyMP3 {
 namespace Demuxer {

@@ -13,12 +13,7 @@
 #ifndef HAS_OGGSYNCMANAGER_H
 #define HAS_OGGSYNCMANAGER_H
 
-#include <ogg/ogg.h>
-#include <memory>
-#include <vector>
 #include "io/IOHandler.h"
-#include <vector>
-#include <cstdint>
 
 namespace PsyMP3 {
 namespace Demuxer {

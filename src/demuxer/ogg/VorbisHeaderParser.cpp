@@ -26,9 +26,6 @@
 #endif // !FINAL_BUILD
 
 #include "demuxer/ogg/VorbisHeaderParser.h"
-#include <cstring>
-#include <algorithm>
-#include <cctype>
 
 namespace PsyMP3 {
 namespace Demuxer {

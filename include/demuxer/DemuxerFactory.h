@@ -24,9 +24,6 @@
 #ifndef DEMUXER_FACTORY_H
 #define DEMUXER_FACTORY_H
 
-#include <functional>
-#include <memory>
-#include <string>
 // Forward declare IOHandler properly
 namespace PsyMP3 { namespace IO { class IOHandler; } }
 

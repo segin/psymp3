@@ -25,14 +25,6 @@
 #define DEMUXER_H
 
 // No direct includes - all includes should be in psymp3.h
-#include <vector>
-#include <string>
-#include <map>
-#include <mutex>
-#include <atomic>
-#include <memory>
-#include <thread>
-#include <stdexcept>
 #include "io/IOHandler.h"
 #include "io/EnhancedBufferPool.h"
 #include "debug.h"

@@ -11,8 +11,6 @@
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
-#include <algorithm>
-#include <numeric>
 
 // Enhanced lazy-loaded sample size table implementation (Requirement 8.1)
 void SampleTableManager::LazyLoadedSampleSizes::LoadIfNeeded() const {

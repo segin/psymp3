@@ -8,7 +8,6 @@
  */
 
 #include "psymp3.h"
-#include <cstring>
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {

@@ -9,10 +9,6 @@
 
 #include "psymp3.h"
 
-#if defined(__GNUG__)
-#include <cxxabi.h>
-#endif
-
 namespace PsyMP3 {
 namespace Demuxer {
 

@@ -12,21 +12,6 @@
 namespace PsyMP3 {
 namespace Demuxer {
 
-#ifdef __linux__
-#include <dlfcn.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#elif defined(_WIN32)
-#include <windows.h>
-#include <io.h>
-#else
-#include <dlfcn.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
-
 // Static member initialization
 DemuxerPluginManager& DemuxerPluginManager::getInstance() {
     static DemuxerPluginManager instance;

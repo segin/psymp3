@@ -25,14 +25,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#include <algorithm>
-#include <vector>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <atomic>
-#include <future>
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {

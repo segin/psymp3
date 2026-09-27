@@ -9,12 +9,6 @@
 #ifndef HAS_CODECHEADERPARSER_H
 #define HAS_CODECHEADERPARSER_H
 
-#include <ogg/ogg.h>
-#include <memory>
-#include <string>
-#include <vector>
-#include <map>
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {

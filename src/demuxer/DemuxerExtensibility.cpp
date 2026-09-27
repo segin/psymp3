@@ -8,7 +8,6 @@
  */
 
 #include "psymp3.h"
-#include <algorithm>
 
 namespace PsyMP3 {
 namespace Demuxer {
