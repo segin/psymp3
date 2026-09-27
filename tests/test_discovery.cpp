@@ -343,7 +343,7 @@ namespace TestFramework {
         }
         
         std::string line;
-        std::regex include_regex(R"(^\s*#include\s*[<"]([^>"]+)[>"])");
+        static const std::regex include_regex(R"(^\s*#include\s*[<"]([^>"]+)[>"])");
         
         while (std::getline(file, line)) {
             std::smatch match;
@@ -600,7 +600,7 @@ namespace TestFramework {
     
     std::pair<std::string, std::string> MetadataParser::extractMetadata(const std::string& comment) {
         // Look for pattern: // @key: value or /* @key: value */
-        std::regex metadata_regex(R"(^\s*(?://|/\*)\s*@([^:]+):\s*(.+?)(?:\s*\*/)?$)");
+        static const std::regex metadata_regex(R"(^\s*(?://|/\*)\s*@([^:]+):\s*(.+?)(?:\s*\*/)?$)");
         std::smatch match;
         
         if (std::regex_match(comment, match, metadata_regex)) {
@@ -620,8 +620,12 @@ namespace TestFramework {
     }
     
     bool MetadataParser::isMetadataComment(const std::string& line) {
-        // Check if line contains @key: pattern
-        std::regex metadata_regex(R"(^\s*(?://|/\*)\s*@[^:]+:)");
+        // Check if line contains @key: pattern. This runs on every line of
+        // every test source, and compiling the pattern costs far more than
+        // matching it: built afresh per line, it held --list to three minutes
+        // on a Pi Zero W. Every pattern in this file is built once for that
+        // reason.
+        static const std::regex metadata_regex(R"(^\s*(?://|/\*)\s*@[^:]+:)");
         return std::regex_search(line, metadata_regex);
     }
     
@@ -633,7 +637,7 @@ namespace TestFramework {
     }
     
     std::chrono::milliseconds MetadataParser::parseTimeout(const std::string& value) {
-        std::regex timeout_regex(R"((\d+)\s*(ms|s|m)?)");
+        static const std::regex timeout_regex(R"((\d+)\s*(ms|s|m)?)");
         std::smatch match;
         
         if (std::regex_match(value, match, timeout_regex)) {
