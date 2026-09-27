@@ -19,9 +19,6 @@
 #ifndef PSYMP3_CORE_COMPRESSION_LZ77_H
 #define PSYMP3_CORE_COMPRESSION_LZ77_H
 
-#include "core/compression/Compressor.h"
-#include "core/compression/Decompressor.h"
-
 namespace PsyMP3 {
 namespace Core {
 namespace Compression {

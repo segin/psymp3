@@ -25,12 +25,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-// Outside the FINAL_BUILD guard: this is a self-contained generated header with
-// its own include guard, and the unity build needs the macro just the same. It
-// is deliberately not pulled in via psymp3.h -- ~74 KB of string literal has no
-// business in every translation unit.
-#include "core/third_party_licenses.h"
-
 namespace PsyMP3 {
 namespace Core {
 

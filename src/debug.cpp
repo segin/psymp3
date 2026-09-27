@@ -9,8 +9,6 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
-#else
-#include "debug.h"
 #endif
 
 // Initialize static members

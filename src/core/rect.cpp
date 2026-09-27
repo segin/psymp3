@@ -24,7 +24,6 @@
 #ifndef FINAL_BUILD
 #include "psymp3.h"
 #endif // !FINAL_BUILD
-#include "core/rect.h"
 
 namespace PsyMP3 {
 namespace Core {

@@ -17,7 +17,6 @@
  */
 
 #include "psymp3.h"
-#include "core/compression/LZ77.h"
 
 namespace PsyMP3 {
 namespace Core {

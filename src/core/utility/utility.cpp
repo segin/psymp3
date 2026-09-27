@@ -23,8 +23,6 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
-#else
-#include "core/utility/utility.h"
 #endif
 
 float PsyMP3::Core::Utility::logarithmicScale(const int f, float x) {
