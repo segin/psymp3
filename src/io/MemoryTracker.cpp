@@ -126,18 +126,33 @@ void MemoryTracker::update() {
     // Linux implementation (/proc)
     FILE* file = fopen("/proc/meminfo", "r");
     if (file) {
+        // Kept in kB, as /proc/meminfo gives them, and in 64 bits until the
+        // pressure is worked out. size_t is 32 bits on a 32-bit build: bytes
+        // available times 100 overflowed it there, so a Pi with 300 MB free
+        // reported pressure near 100 and I/O buffers over 64 KB were refused.
+        // Bytes alone overflow it too once a 32-bit system has 4 GB or more.
+        long long total_kb = 0;
+        long long available_kb = 0;
         char line[128];
         while (fgets(line, sizeof(line), file)) {
             if (strncmp(line, "MemTotal:", 9) == 0) {
-                new_stats.total_physical_memory = static_cast<size_t>(std::stoll(line + 9) * 1024);
+                total_kb = std::stoll(line + 9);
             } else if (strncmp(line, "MemAvailable:", 13) == 0) {
-                new_stats.available_physical_memory = static_cast<size_t>(std::stoll(line + 13) * 1024);
+                available_kb = std::stoll(line + 13);
             }
         }
         fclose(file);
-        
-        if (new_stats.total_physical_memory > 0) {
-            new_pressure_level = static_cast<int>(100 - (new_stats.available_physical_memory * 100 / new_stats.total_physical_memory));
+
+        const auto to_size = [](long long kb) -> size_t {
+            const unsigned long long bytes = static_cast<unsigned long long>(kb) * 1024ULL;
+            return bytes > std::numeric_limits<size_t>::max()
+                ? std::numeric_limits<size_t>::max() : static_cast<size_t>(bytes);
+        };
+        new_stats.total_physical_memory = to_size(total_kb);
+        new_stats.available_physical_memory = to_size(available_kb);
+
+        if (total_kb > 0) {
+            new_pressure_level = static_cast<int>(100 - (available_kb * 100 / total_kb));
         }
     }
     
