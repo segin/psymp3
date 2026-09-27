@@ -1,8 +1,6 @@
 #ifndef DBUSCONNECTIONMANAGER_H
 #define DBUSCONNECTIONMANAGER_H
 
-#include "mpris/MPRISTypes.h"
-
 // Forward declarations for D-Bus types
 struct DBusConnection;
 struct DBusError;

@@ -1,9 +1,6 @@
 #ifndef SIGNALEMITTER_H
 #define SIGNALEMITTER_H
 
-#include "mpris/MPRISTypes.h"
-#include "mpris/DBusConnectionManager.h"
-
 // Forward declarations for D-Bus types
 struct DBusConnection;
 struct DBusMessage;

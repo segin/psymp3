@@ -1,8 +1,6 @@
 #ifndef METHODHANDLER_H
 #define METHODHANDLER_H
 
-#include "MPRISTypes.h"
-
 // Forward declarations
 class Player;
 struct DBusConnection;

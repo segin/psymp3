@@ -11,8 +11,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#include "mpris/MPRISTypes.h"
-
 namespace PsyMP3 {
 namespace MPRIS {
 

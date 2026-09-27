@@ -11,11 +11,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#include "player.h"
-#include "mpris/MethodHandler.h"
-#include "mpris/MPRISTypes.h"
-#include "mpris/PropertyManager.h"
-
 namespace PsyMP3 {
 namespace MPRIS {
 

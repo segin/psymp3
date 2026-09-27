@@ -11,8 +11,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#include "mpris/MPRISTypes.h"
-
 namespace PsyMP3 {
 namespace MPRIS {
 
@@ -115,7 +113,6 @@ bool MPRISMetadata::isEmpty() const {
 }
 
 // RAII deleters implementation
-#include "mpris/DBusConnectionManager.h"
 
 void DBusConnectionDeleter::operator()([[maybe_unused]] DBusConnection *conn) {
 #ifdef HAVE_DBUS
