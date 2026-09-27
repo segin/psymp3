@@ -24,8 +24,6 @@
 #ifndef FINAL_BUILD
 #include "psymp3.h"
 #else
-#include <algorithm>
-#include <cmath>
 #include "core/utility/utility.h"
 #endif
 

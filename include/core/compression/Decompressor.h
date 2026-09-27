@@ -19,10 +19,6 @@
 #ifndef PSYMP3_CORE_COMPRESSION_DECOMPRESSOR_H
 #define PSYMP3_CORE_COMPRESSION_DECOMPRESSOR_H
 
-#include <vector>
-#include <cstdint>
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Core {
 namespace Compression {

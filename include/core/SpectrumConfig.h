@@ -1,8 +1,6 @@
 #ifndef SPECTRUM_CONFIG_H
 #define SPECTRUM_CONFIG_H
 
-#include <cstdint>
-
 namespace PsyMP3 {
 namespace Core {
 

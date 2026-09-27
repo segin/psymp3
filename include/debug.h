@@ -10,15 +10,6 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#include <iostream>
-#include <fstream>
-#include <mutex>
-#include <string>
-#include <vector>
-#include <unordered_set>
-#include <sstream>
-#include <atomic>
-
 class Debug {
 public:
     static void init(const std::string& logfile, const std::vector<std::string>& channels);

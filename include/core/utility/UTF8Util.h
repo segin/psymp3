@@ -24,10 +24,6 @@
 #ifndef PSYMP3_CORE_UTILITY_UTF8UTIL_H
 #define PSYMP3_CORE_UTILITY_UTF8UTIL_H
 
-#include <cstdint>
-#include <string>
-#include <vector>
-
 namespace PsyMP3 {
 namespace Core {
 namespace Utility {

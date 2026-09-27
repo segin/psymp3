@@ -25,11 +25,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 #include "core/rect.h"
-#include <algorithm>
-#include <cstdint>
-#include <limits>
-#include <sstream>
-#include <utility>
 
 namespace PsyMP3 {
 namespace Core {

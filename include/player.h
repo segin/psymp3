@@ -24,8 +24,6 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include <random>
-
 // No direct includes - all includes should be in psymp3.h
 
 #ifdef HAVE_DBUS

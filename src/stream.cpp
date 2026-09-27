@@ -23,10 +23,6 @@
 
 #include "psymp3.h"
 
-#if defined(__GNUG__)
-#include <cxxabi.h>
-#endif
-
 // Static NullTag instance for returning when no tag is available
 static const PsyMP3::Tag::NullTag s_stream_null_tag;
 

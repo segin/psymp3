@@ -22,15 +22,7 @@
  */
 
 #include "psymp3.h"
-#include <utility>
-#include <random>
 #include "core/SpectrumConfig.h"
-
-#ifndef _WIN32
-#include <sys/types.h>
-#include <sys/stat.h>
-#endif
-
 
 std::atomic<bool> Player::guiRunning{false};
 std::atomic<bool> Player::dialogOpen{false};

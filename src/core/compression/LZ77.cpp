@@ -16,9 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "psymp3.h"
 #include "core/compression/LZ77.h"
-#include <algorithm>
-#include <stdexcept>
 
 namespace PsyMP3 {
 namespace Core {

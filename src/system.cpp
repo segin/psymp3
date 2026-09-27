@@ -22,27 +22,6 @@
  */
 
 #include "psymp3.h"
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
-#include <sys/mman.h>
-#include <cstring>
-#include <cerrno>
-#endif
-// CPU affinity headers (see pinThreadToRole). Each OS has its own API:
-//   Linux         : cpu_set_t / CPU_SET / pthread_setaffinity_np (behind
-//                   _GNU_SOURCE, which g++/clang++ define by default on glibc).
-//   FreeBSD/DFly  : cpuset_t (sys/cpuset.h) + pthread_setaffinity_np (pthread_np.h).
-//   NetBSD        : opaque cpuset_t via cpuset_create()/cpuset_set() in sched.h.
-#if defined(__linux__)
-#include <sched.h>
-#include <pthread.h>
-#elif defined(__FreeBSD__) || defined(__DragonFly__)
-#include <sys/param.h>
-#include <sys/cpuset.h>
-#include <pthread_np.h>
-#elif defined(__NetBSD__)
-#include <sched.h>
-#include <pthread.h>
-#endif
 
 #ifdef _WIN32
 // For setting thread name in the Visual Studio debugger

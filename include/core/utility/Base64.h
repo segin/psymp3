@@ -10,10 +10,6 @@
 #ifndef PSYMP3_CORE_UTILITY_BASE64_H
 #define PSYMP3_CORE_UTILITY_BASE64_H
 
-#include <string>
-#include <vector>
-#include <cstdint>
-
 namespace PsyMP3 {
 namespace Core {
 namespace Utility {

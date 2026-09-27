@@ -10,8 +10,6 @@
 #ifndef PSYMP3_CORE_UTILITY_G711_H
 #define PSYMP3_CORE_UTILITY_G711_H
 
-#include <cstdint>
-
 namespace PsyMP3 {
 namespace Core {
 namespace Utility {

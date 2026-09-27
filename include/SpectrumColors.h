@@ -1,9 +1,6 @@
 #ifndef SPECTRUM_COLORS_H
 #define SPECTRUM_COLORS_H
 
-#include <cstdint>
-#include <cmath>
-
 namespace PsyMP3 {
 
 struct SpectrumColorConfig {
