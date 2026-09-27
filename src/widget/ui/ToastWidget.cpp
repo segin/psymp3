@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <sstream>
 
 namespace PsyMP3 {
 namespace Widget {

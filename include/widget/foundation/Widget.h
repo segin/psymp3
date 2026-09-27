@@ -24,10 +24,6 @@
 #ifndef WIDGET_H
 #define WIDGET_H
 
-#include <mutex>
-#include <vector>
-#include <memory>
-
 namespace PsyMP3 {
 namespace Widget {
 namespace Foundation {

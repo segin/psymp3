@@ -24,8 +24,6 @@
 #ifndef DRAWABLEWIDGET_H
 #define DRAWABLEWIDGET_H
 
-#include <atomic>
-
 namespace PsyMP3 {
 namespace Widget {
 namespace Foundation {
