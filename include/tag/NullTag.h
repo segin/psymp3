@@ -19,8 +19,6 @@
 #ifndef PSYMP3_TAG_NULLTAG_H
 #define PSYMP3_TAG_NULLTAG_H
 
-#include "tag/Tag.h"
-
 namespace PsyMP3 {
 namespace Tag {
 

@@ -19,10 +19,6 @@
 #ifndef PSYMP3_TAG_MERGEDID3TAG_H
 #define PSYMP3_TAG_MERGEDID3TAG_H
 
-#include "tag/Tag.h"
-#include "tag/ID3v1Tag.h"
-#include "tag/ID3v2Tag.h"
-
 namespace PsyMP3 {
 namespace Tag {
 
