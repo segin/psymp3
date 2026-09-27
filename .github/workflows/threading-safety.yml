@@ -50,8 +50,6 @@ jobs:
           libopusfile-dev \
           libopus-dev \
           libogg-dev \
-          libflac++-dev \
-          libflac-dev \
           libfreetype6-dev \
           zlib1g-dev \
           libdbus-1-dev \
@@ -129,8 +127,6 @@ jobs:
           libopusfile-dev \
           libopus-dev \
           libogg-dev \
-          libflac++-dev \
-          libflac-dev \
           libfreetype6-dev \
           zlib1g-dev \
           libdbus-1-dev \
@@ -209,8 +205,6 @@ jobs:
           libopusfile-dev \
           libopus-dev \
           libogg-dev \
-          libflac++-dev \
-          libflac-dev \
           libfreetype6-dev \
           zlib1g-dev \
           libdbus-1-dev \
