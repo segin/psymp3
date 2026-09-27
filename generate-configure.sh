@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # generate-configure.sh - Generate configure script from autotools sources
 # This file is part of PsyMP3.
