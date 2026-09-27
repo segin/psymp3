@@ -2,7 +2,7 @@
 
 A simplistic audio media player with a flashy Fourier transform.
 
-![PsyMP3 playing "Forty Six & 2" by TOOL, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
+![PsyMP3 2.0 playing "I Think We're Alone Now" by Tiffany, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
 
 ## Table of Contents
 
