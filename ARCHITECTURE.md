@@ -28,6 +28,21 @@ This file is the compact architectural map, and reflects the tree as of 2.0-RC5.
 └── ARCHITECTURE.md
 ```
 
+## Headers
+
+Every source file in `src/` includes `psymp3.h` and nothing else, and the headers in `include/` include nothing. `psymp3.h` brings in the system, library and project headers once, and the project headers in dependency order, so each header relies on what it needs appearing above it there. A new header goes into `psymp3.h` after the headers it uses.
+
+A few files keep includes of their own, each for a reason:
+
+- `src/psymp3.final.cpp`, the `--enable-final` unity build, includes the sources themselves.
+- `src/core/FileDialog.cpp` and its header confine the Qt or GTK headers, which collide with SDL, X11 and TagLib.
+- `src/codecs/aac/fdk_aac.cpp` confines FDK-AAC, whose headers define `ID_SCE`, `ID_CPE`, `ID_LFE` and more.
+- `src/core/font.cpp` confines HarfBuzz and SheenBidi, so that nothing else needs their headers or flags.
+- `src/main.cpp` includes `SDL3/SDL_main.h`, which belongs only in the file that defines `main()`.
+- `ALACCodec.cpp`, `MP2Codec.cpp`, `VorbisCodec.cpp` and `mlp_decoder_impl.cpp` compile vendored source by including it.
+- The C sources, and everything in `third_party/`, are outside the rule, as are the tests.
+- The `HTTP_CLIENT_STANDALONE` branch of `HTTPClient.cpp` builds without `psymp3.h`.
+
 ## Media Pipeline
 
 ```text
