@@ -285,12 +285,14 @@ void test_performance_benchmarks() {
                 all_results.push_back(result);
                 PerformanceValidator::print_result(result);
                 
-                // Performance expectations (minimum acceptable throughput)
-                double min_throughput = 50.0; // 50 MB/s minimum for local files
-                if (test_file.size_mb >= 100) {
-                    min_throughput = 100.0; // Higher expectation for large files
-                }
-                
+                // A floor to catch the read path breaking, not to rank the
+                // machine: a Pi Zero W reads the 1 MB file through a 4 KB
+                // buffer at 47 MB/s, where this box manages over 1000. The
+                // old 50 MB/s floor failed it, and the 100 MB/s one for the
+                // 100 MB file measured how much of that file the SD card and
+                // 512 MB of RAM could keep cached.
+                const double min_throughput = 5.0;
+
                 PerformanceValidator::assert_performance(result.throughput_mbps, min_throughput, result.test_name);
             }
             
