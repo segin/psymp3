@@ -206,7 +206,7 @@ public:
                 auto peak_stats = IOHandler::getMemoryStats();
                 size_t peak_memory = peak_stats["total_memory_usage"];
                 
-                result.throughput_mbps = (peak_memory - initial_memory) / (1024.0 * 1024.0); // Memory usage in MB
+                result.throughput_mbps = (static_cast<double>(peak_memory) - static_cast<double>(initial_memory)) / (1024.0 * 1024.0); // Memory usage in MB
                 
             } // Handler destroyed here
             
@@ -214,7 +214,7 @@ public:
             auto final_stats = IOHandler::getMemoryStats();
             size_t final_memory = final_stats["total_memory_usage"];
             
-            result.duration_ms = (final_memory - initial_memory) / (1024.0 * 1024.0); // Memory leak in MB
+            result.duration_ms = (static_cast<double>(final_memory) - static_cast<double>(initial_memory)) / (1024.0 * 1024.0); // Memory leak in MB
             result.passed = true;
             
             if (result.duration_ms > 1.0) { // More than 1MB leak
@@ -377,7 +377,7 @@ void test_memory_usage_validation() {
         std::cout << "    Memory after cleanup: " << (cleanup_memory / (1024.0 * 1024.0)) << " MB" << std::endl;
         
         // Check for memory leaks
-        double memory_leak_mb = (cleanup_memory - baseline_memory) / (1024.0 * 1024.0);
+        double memory_leak_mb = (static_cast<double>(cleanup_memory) - static_cast<double>(baseline_memory)) / (1024.0 * 1024.0);
         std::cout << "    Memory leak: " << memory_leak_mb << " MB" << std::endl;
         
         PerformanceValidator::assert_true(memory_leak_mb < 1.0, "Memory leak should be less than 1 MB");
@@ -412,7 +412,9 @@ void test_memory_usage_validation() {
         auto after_large_ops = IOHandler::getMemoryStats();
         size_t after_memory = after_large_ops["total_memory_usage"];
         
-        double memory_increase_mb = (after_memory - before_memory) / (1024.0 * 1024.0);
+        // Subtract as doubles: the count can go down between the two
+        // readings, and as size_t that wraps -- to 4096 MB on a 32-bit build.
+        double memory_increase_mb = (static_cast<double>(after_memory) - static_cast<double>(before_memory)) / (1024.0 * 1024.0);
         std::cout << "    Memory increase during large operations: " << memory_increase_mb << " MB" << std::endl;
         
         // Memory increase should be reasonable (less than 10MB for buffering)
