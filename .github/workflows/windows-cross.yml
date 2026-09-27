@@ -24,7 +24,7 @@ concurrency:
 env:
   LLVM_MINGW_TAG: "20260826"
   # Bump DEPS_REV to force a dependency-stack rebuild without version changes.
-  DEPS_REV: "1"
+  DEPS_REV: "2"
   ZLIB_VER: "1.3.2"
   OPENSSL_VER: "4.0.2"
   CURL_VER: "8.21.0"
@@ -171,10 +171,13 @@ jobs:
         curl -fsSLO "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VER}/openssl-${OPENSSL_VER}.tar.gz"
         tar xf "openssl-${OPENSSL_VER}.tar.gz"
         cd "openssl-${OPENSSL_VER}"
+        # no-asm, as build-win.sh builds OpenSSL for the release executables,
+        # so that these match them. The assembly routines only speed up TLS,
+        # which the player uses for a few HTTPS requests.
         ./Configure "${{ matrix.openssl_target }}" \
           --cross-compile-prefix="$TUPLE-" \
           --prefix="$PREFIX" --libdir=lib \
-          no-shared no-tests no-apps no-docs
+          no-asm no-shared no-tests no-apps no-docs
         make -j"$(nproc)"
         make install_sw
         cd ..
