@@ -1,10 +1,6 @@
 #ifndef METHODHANDLER_H
 #define METHODHANDLER_H
 
-#include <string>
-#include <map>
-#include <mutex>
-#include <functional>
 #include "MPRISTypes.h"
 
 // Forward declarations
@@ -20,9 +16,7 @@ namespace MPRIS {
 }
 
 // D-Bus handler result type
-#ifdef HAVE_DBUS
-#include <dbus/dbus.h>
-#else
+#ifndef HAVE_DBUS
 // Define our own enum for when D-Bus is not available
 enum DBusHandlerResult {
     DBUS_HANDLER_RESULT_HANDLED,

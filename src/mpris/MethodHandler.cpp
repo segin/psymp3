@@ -9,25 +9,12 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
-#include <iostream>
-#include <string>
-#include <vector>
-#include <map>
-#include <memory>
-#include <stdexcept>
-#include <cmath>
-#include <cstring>
-#include <utility>
 #endif // !FINAL_BUILD
 
 #include "player.h"
 #include "mpris/MethodHandler.h"
 #include "mpris/MPRISTypes.h"
 #include "mpris/PropertyManager.h"
-
-#ifdef HAVE_DBUS
-#include <dbus/dbus.h>
-#endif
 
 namespace PsyMP3 {
 namespace MPRIS {

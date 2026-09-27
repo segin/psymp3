@@ -3,13 +3,6 @@
 
 #include "mpris/MPRISTypes.h"
 #include "mpris/DBusConnectionManager.h"
-#include <mutex>
-#include <thread>
-#include <queue>
-#include <condition_variable>
-#include <atomic>
-#include <functional>
-#include <chrono>
 
 // Forward declarations for D-Bus types
 struct DBusConnection;

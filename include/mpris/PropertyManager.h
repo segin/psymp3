@@ -1,12 +1,6 @@
 #ifndef PROPERTYMANAGER_H
 #define PROPERTYMANAGER_H
 
-#include <string>
-#include <map>
-#include <mutex>
-#include <chrono>
-#include <atomic>
-
 // Forward declarations
 class Player;
 

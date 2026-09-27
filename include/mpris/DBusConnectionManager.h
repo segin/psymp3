@@ -2,9 +2,6 @@
 #define DBUSCONNECTIONMANAGER_H
 
 #include "mpris/MPRISTypes.h"
-#include <mutex>
-#include <chrono>
-#include <atomic>
 
 // Forward declarations for D-Bus types
 struct DBusConnection;

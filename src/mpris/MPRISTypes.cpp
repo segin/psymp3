@@ -13,10 +13,6 @@
 
 #include "mpris/MPRISTypes.h"
 
-#ifdef HAVE_DBUS
-#include <dbus/dbus.h>
-#endif
-
 namespace PsyMP3 {
 namespace MPRIS {
 

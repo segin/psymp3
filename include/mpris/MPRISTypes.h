@@ -1,23 +1,6 @@
 #ifndef MPRISTYPES_H
 #define MPRISTYPES_H
 
-#include <string>
-#include <vector>
-#include <map>
-#include <variant>
-#include <memory>
-#include <exception>
-#include <chrono>
-#include <functional>
-#include <atomic>
-#include <mutex>
-#include <set>
-#include <sstream>
-#include <algorithm>
-#include <thread>
-#include <ctime>
-#include <cstdio>
-
 // Forward declarations for D-Bus types
 struct DBusConnection;
 struct DBusMessage;
