@@ -10,11 +10,6 @@
 #ifndef PSYMP3_CODECS_AC3_AC3FRAMEDECODER_H
 #define PSYMP3_CODECS_AC3_AC3FRAMEDECODER_H
 
-#include <cstdint>
-#include <cstddef>
-#include <memory>
-#include <vector>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace AC3 {

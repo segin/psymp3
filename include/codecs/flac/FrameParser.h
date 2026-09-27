@@ -1,8 +1,6 @@
 #ifndef FRAMEPARSER_H
 #define FRAMEPARSER_H
 
-#include <cstdint>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

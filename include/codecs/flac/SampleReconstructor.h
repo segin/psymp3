@@ -1,9 +1,6 @@
 #ifndef PSYMP3_CODECS_FLAC_SAMPLERECONSTRUCTOR_H
 #define PSYMP3_CODECS_FLAC_SAMPLERECONSTRUCTOR_H
 
-#include <cstdint>
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

@@ -26,8 +26,6 @@
 
 #ifdef HAVE_FLAC
 
-#include <string>
-
 /**
  * @brief Lightweight RFC 9639 compliance validation for runtime use
  * 

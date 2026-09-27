@@ -10,8 +10,6 @@
 #ifndef FINAL_BUILD
 #include "psymp3.h"
 #else
-#include <cstdint>
-#include <vector>
 #include "debug.h"
 #include "codecs/flac/BitstreamReader.h"
 #endif

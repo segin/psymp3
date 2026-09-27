@@ -25,7 +25,6 @@
 #define OGGCODECS_H
 
 // No direct includes - all includes should be in psymp3.h
-#include <memory>
 
 // clang's -Wunused-private-field warns on the Speex stub fields below, so they
 // need [[maybe_unused]]; but GCC (through at least GCC 10, e.g. NetBSD's base

@@ -1,10 +1,6 @@
 #ifndef BITSTREAMREADER_H
 #define BITSTREAMREADER_H
 
-#include <cstdint>
-#include <cstddef>
-#include <vector>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

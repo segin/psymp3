@@ -5,9 +5,6 @@
 #ifndef CHANNEL_DECORRELATOR_H
 #define CHANNEL_DECORRELATOR_H
 
-#include <cstdint>
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

@@ -22,8 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <chrono>
-#include <algorithm>
 
 #ifdef HAVE_NATIVE_FLAC
 

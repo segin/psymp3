@@ -10,8 +10,6 @@
 #ifndef PSYMP3_CODECS_AC3_EAC3SPECTRALEXTENSION_H
 #define PSYMP3_CODECS_AC3_EAC3SPECTRALEXTENSION_H
 
-#include <cstdint>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace AC3 {

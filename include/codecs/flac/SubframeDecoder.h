@@ -1,9 +1,6 @@
 #ifndef SUBFRAME_DECODER_H
 #define SUBFRAME_DECODER_H
 
-#include <cstdint>
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

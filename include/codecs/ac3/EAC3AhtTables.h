@@ -20,8 +20,6 @@
 #ifndef PSYMP3_CODECS_AC3_EAC3AHTTABLES_H
 #define PSYMP3_CODECS_AC3_EAC3AHTTABLES_H
 
-#include <cstdint>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace AC3 {

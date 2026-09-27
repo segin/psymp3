@@ -24,9 +24,6 @@
 #ifndef MD5VALIDATOR_H
 #define MD5VALIDATOR_H
 
-#include <cstdint>
-#include <vector>
-
 // Forward declaration for OpenSSL EVP context
 struct evp_md_ctx_st;
 typedef struct evp_md_ctx_st EVP_MD_CTX;

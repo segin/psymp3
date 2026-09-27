@@ -1,10 +1,6 @@
 #ifndef METADATAPARSER_H
 #define METADATAPARSER_H
 
-#include <cstdint>
-#include <vector>
-#include <string>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

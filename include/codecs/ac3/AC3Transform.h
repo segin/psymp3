@@ -10,8 +10,6 @@
 #ifndef PSYMP3_CODECS_AC3_AC3TRANSFORM_H
 #define PSYMP3_CODECS_AC3_AC3TRANSFORM_H
 
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace AC3 {

@@ -1,9 +1,6 @@
 #ifndef RESIDUAL_DECODER_H
 #define RESIDUAL_DECODER_H
 
-#include <cstdint>
-#include <vector>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

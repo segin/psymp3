@@ -10,9 +10,6 @@
 #ifndef CRCVALIDATOR_H
 #define CRCVALIDATOR_H
 
-#include <cstdint>
-#include <cstddef>
-
 namespace PsyMP3 {
 namespace Codec {
 namespace FLAC {

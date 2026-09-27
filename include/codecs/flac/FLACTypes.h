@@ -24,10 +24,6 @@
 #ifndef FLACTYPES_H
 #define FLACTYPES_H
 
-#include <cstdint>
-#include <cstddef>
-#include <climits>
-
 /**
  * @brief FLAC frame information extracted during decoding
  * 
