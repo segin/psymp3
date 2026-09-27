@@ -14,13 +14,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-// The decoder is its own object rather than being pulled into this translation
-// unit (the ALAC arrangement), because the demuxer needs it too: it decodes the
-// first access unit to learn the rate and channel layout. Compiling it twice
-// would duplicate its symbols, and the --enable-final unity build would make
-// that a link error rather than a warning.
-#include "../../../third_party/mlp/mlp_decoder.h"
-
 namespace PsyMP3 {
 namespace Codec {
 namespace MLP {

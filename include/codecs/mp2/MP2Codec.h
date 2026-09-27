@@ -14,12 +14,6 @@
 #ifndef MP2CODEC_H
 #define MP2CODEC_H
 
-// kjmp2 is a C library; give its declarations C linkage so they match the
-// implementation compiled (with C linkage) in MP2Codec.cpp.
-extern "C" {
-#include "../../../third_party/kjmp2/kjmp2.h"
-}
-
 namespace PsyMP3 {
 namespace Codec {
 namespace MP2 {

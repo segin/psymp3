@@ -9,10 +9,6 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
-#else
-#include "debug.h"
-#include "codecs/flac/ResidualDecoder.h"
-#include "codecs/flac/BitstreamReader.h"
 #endif
 
 namespace PsyMP3 {

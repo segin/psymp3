@@ -10,8 +10,6 @@
 #ifndef MINIMP3CODEC_H
 #define MINIMP3CODEC_H
 
-#include "../../../third_party/minimp3/minimp3.h"
-
 namespace PsyMP3 {
 namespace Codec {
 namespace MP3 {

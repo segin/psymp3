@@ -2,8 +2,6 @@
 // Implements RFC 9639 metadata parsing
 
 #include "psymp3.h"
-#include "codecs/flac/MetadataParser.h"
-#include "codecs/flac/BitstreamReader.h"
 
 namespace PsyMP3 {
 namespace Codec {

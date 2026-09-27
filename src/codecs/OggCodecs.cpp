@@ -49,7 +49,6 @@ bool VorbisPassthroughCodec::canDecode(const StreamInfo& stream_info) const {
 #endif // HAVE_VORBIS
 
 #ifdef HAVE_FLAC
-#include "codecs/flac/NativeFLACCodec.h"
 using FLACCodecImpl = PsyMP3::Codec::FLAC::FLACCodec;
 #endif
 

@@ -10,8 +10,4 @@
 #ifndef FLACCODEC_H
 #define FLACCODEC_H
 
-#ifdef HAVE_FLAC
-#include "codecs/flac/NativeFLACCodec.h"
-#endif
-
 #endif // FLACCODEC_H
