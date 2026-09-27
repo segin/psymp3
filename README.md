@@ -90,7 +90,6 @@ Building from git needs these as well, to generate `configure`:
   with C++17 errors.
 - `pkg-config` again, this time for the `pkg.m4` macros (`PKG_CHECK_MODULES`)
   it installs into aclocal's directory
-- `bash`, which `generate-configure.sh` is written in
 
 `libtool` is not needed.
 - Optional, for `make check`: [RapidCheck](https://github.com/emil-e/rapidcheck)
