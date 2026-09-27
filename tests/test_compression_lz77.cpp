@@ -13,6 +13,7 @@
 // The makefile logic usually handles this, but for safety:
 #undef NDEBUG
 
+#include "psymp3.h"
 #include "core/compression/LZ77.h"
 #include <iostream>
 #include <string>

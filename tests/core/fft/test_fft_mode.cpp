@@ -6,6 +6,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#include "psymp3.h"
 #include "test_framework.h"
 #include "core/fft.h"
 

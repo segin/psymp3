@@ -33,6 +33,7 @@
 #include <string>
 
 // Include ID3v1Tag header
+#include "psymp3.h"
 #include "tag/ID3v1Tag.h"
 
 using namespace PsyMP3::Tag;

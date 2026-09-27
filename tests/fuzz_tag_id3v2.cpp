@@ -36,6 +36,7 @@
 #include <string>
 
 // Include ID3v2 headers
+#include "psymp3.h"
 #include "tag/ID3v2Tag.h"
 #include "tag/ID3v2Utils.h"
 

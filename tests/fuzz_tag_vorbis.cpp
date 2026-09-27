@@ -35,6 +35,7 @@
 #include <string>
 
 // Include VorbisCommentTag header
+#include "psymp3.h"
 #include "tag/VorbisCommentTag.h"
 
 using namespace PsyMP3::Tag;

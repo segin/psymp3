@@ -33,6 +33,7 @@
 #include <string>
 
 // Include tag headers
+#include "psymp3.h"
 #include "tag/ID3v2Tag.h"
 #include "tag/VorbisCommentTag.h"
 #include "tag/Tag.h"

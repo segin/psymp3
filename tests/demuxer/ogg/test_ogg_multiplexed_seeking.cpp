@@ -24,6 +24,7 @@
 #include <vector>
 #include <ogg/ogg.h>
 
+#include "psymp3.h"
 #include "io/IOHandler.h"
 #include "demuxer/ogg/OggSyncManager.h"
 #include "demuxer/ogg/OggStreamManager.h"
