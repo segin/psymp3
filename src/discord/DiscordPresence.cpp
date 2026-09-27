@@ -9,10 +9,6 @@
 
 #include "psymp3.h"
 
-#ifndef _WIN32
-#include <sys/un.h>
-#endif
-
 namespace PsyMP3 {
 namespace Discord {
 
