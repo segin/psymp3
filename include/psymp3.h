@@ -373,6 +373,7 @@ using PsyMP3::Core::Rect;
 #include "font.h"
 #include "truetype.h"
 #include "core/lyrics.h"
+#include "core/SpectrumConfig.h"
 using PsyMP3::Core::Surface;
 using PsyMP3::Core::Display;
 using PsyMP3::Core::Font;
@@ -462,6 +463,9 @@ using PsyMP3::Widget::UI::EqualizerWindow;
 #include "core/utility/utility.h"
 #include "core/utility/UTF8Util.h"
 #include "core/utility/Base64.h"
+#include "core/compression/Compressor.h"
+#include "core/compression/Decompressor.h"
+#include "core/compression/LZ77.h"
 namespace Util = PsyMP3::Core::Utility;
 using PsyMP3::Core::Utility::UTF8Util;
 using PsyMP3::Core::Utility::Base64;
@@ -469,6 +473,7 @@ using PsyMP3::Core::Utility::Base64;
 #include "core/FileDialog.h"
 #include "io/BufferPool.h"
 #include "io/BoundedBuffer.h"
+#include "io/EnhancedTemplateBufferPool.h"
 #include "io/EnhancedBufferPool.h"
 #include "io/EnhancedAudioBufferPool.h"
 #include "io/MemoryTracker.h"
@@ -483,6 +488,7 @@ using PsyMP3::Core::Utility::Base64;
 #include "io/http/HTTPIOHandler.h"
 #include "io/TagLibIOHandlerAdapter.h"
 #include "io/URI.h"
+#include "io/MemoryIOHandler.h"
 
 using PsyMP3::IO::IOHandler;
 using PsyMP3::IO::File::FileIOHandler;
@@ -490,6 +496,34 @@ using PsyMP3::IO::HTTP::HTTPIOHandler;
 using PsyMP3::IO::HTTP::HTTPClient;
 using PsyMP3::IO::TagLibIOHandlerAdapter;
 using PsyMP3::IO::URI;
+
+// Tag subsystem. Ahead of the demuxers, whose base class hands tags out.
+#include "tag/Tag.h"
+#include "tag/TagConstants.h"
+#include "tag/ImageUtils.h"
+#include "tag/NullTag.h"
+#include "tag/VorbisCommentTag.h"
+#include "tag/ID3v1Tag.h"
+#include "tag/ID3v2Tag.h"
+#include "tag/ID3v2Utils.h"
+#include "tag/MergedID3Tag.h"
+#include "tag/TagFactory.h"
+
+// Using declarations for Tag subsystem
+using PsyMP3::Tag::Tag;
+using PsyMP3::Tag::NullTag;
+using PsyMP3::Tag::VorbisCommentTag;
+using PsyMP3::Tag::ID3v1Tag;
+using PsyMP3::Tag::ID3v2Tag;
+using PsyMP3::Tag::MergedID3Tag;
+using PsyMP3::Tag::TagFactory;
+using PsyMP3::Tag::TagFormat;
+using PsyMP3::Tag::ID3v2Frame;
+using PsyMP3::Tag::Picture;
+using PsyMP3::Tag::PictureType;
+using PsyMP3::Tag::PictureType;
+using PsyMP3::Tag::createTagReader;
+using PsyMP3::Tag::createTagReaderFromData;
 
 #include "stream.h"
 #include "BoundedQueue.h"
@@ -601,8 +635,8 @@ using PsyMP3::Codec::AAC::AACCodec;
 #include <ogg/ogg.h>
 #include "demuxer/ogg/OggSyncManager.h"
 #include "demuxer/ogg/OggStreamManager.h"
-#include "demuxer/ogg/OggDemuxer.h"
 #include "demuxer/ogg/CodecHeaderParser.h"
+#include "demuxer/ogg/OggDemuxer.h"
 #include "demuxer/ogg/VorbisHeaderParser.h"
 #include "demuxer/ogg/OpusHeaderParser.h"
 #include "demuxer/ogg/FLACHeaderParser.h"
@@ -624,9 +658,24 @@ using PsyMP3::Codec::AAC::AACCodec;
 #include "demuxer/iso/SeekingEngine.h"
 #include "demuxer/iso/ComplianceValidator.h"
 #include "demuxer/iso/ISODemuxer.h"
+// minimp3 compiles its implementation into whichever file defines
+// MINIMP3_IMPLEMENTATION before including this: MiniMP3Codec.cpp, or the
+// unity build, which includes it again. Everywhere else it is declarations.
+#include "../third_party/minimp3/minimp3.h"
 #include "codecs/mp3/MiniMP3Codec.h"
+// kjmp2 is a C library; give its declarations C linkage so they match the
+// implementation compiled (with C linkage) in MP2Codec.cpp.
+extern "C" {
+#include "../third_party/kjmp2/kjmp2.h"
+}
 #include "codecs/mp2/MP2Codec.h"
 #include "codecs/alac/ALACCodec.h"
+// The MLP decoder is its own object (mlp_decoder_impl.cpp) rather than being
+// compiled into MLPCodec.cpp the way ALAC is, because the demuxer needs it too:
+// it decodes the first access unit to learn the rate and channel layout.
+// Compiling it twice would duplicate its symbols, and the --enable-final unity
+// build would make that a link error rather than a warning.
+#include "../third_party/mlp/mlp_decoder.h"
 #include "codecs/mlp/MLPCodec.h"
 #include "demuxer/mp3/MP3NullDemuxer.h"
 #include "demuxer/mlp/MLPNullDemuxer.h"
@@ -677,6 +726,7 @@ using PsyMP3::Core::FastFourier;
 using PsyMP3::DSP::Equalizer;
 #include "audio.h"
 #include "core/about.h"
+#include "core/third_party_licenses.h"
 using PsyMP3::Core::version_console;
 using PsyMP3::Core::licenses_console;
 using PsyMP3::Core::print_help;
@@ -725,34 +775,6 @@ using PsyMP3::MPRIS::DBusConnectionManager;
 using PsyMP3::MPRIS::MethodHandler;
 using PsyMP3::MPRIS::PropertyManager;
 using PsyMP3::MPRIS::SignalEmitter;
-
-// Tag subsystem
-#include "tag/Tag.h"
-#include "tag/TagConstants.h"
-#include "tag/ImageUtils.h"
-#include "tag/NullTag.h"
-#include "tag/VorbisCommentTag.h"
-#include "tag/ID3v1Tag.h"
-#include "tag/ID3v2Tag.h"
-#include "tag/ID3v2Utils.h"
-#include "tag/MergedID3Tag.h"
-#include "tag/TagFactory.h"
-
-// Using declarations for Tag subsystem
-using PsyMP3::Tag::Tag;
-using PsyMP3::Tag::NullTag;
-using PsyMP3::Tag::VorbisCommentTag;
-using PsyMP3::Tag::ID3v1Tag;
-using PsyMP3::Tag::ID3v2Tag;
-using PsyMP3::Tag::MergedID3Tag;
-using PsyMP3::Tag::TagFactory;
-using PsyMP3::Tag::TagFormat;
-using PsyMP3::Tag::ID3v2Frame;
-using PsyMP3::Tag::Picture;
-using PsyMP3::Tag::PictureType;
-using PsyMP3::Tag::PictureType;
-using PsyMP3::Tag::createTagReader;
-using PsyMP3::Tag::createTagReaderFromData;
 
 #ifdef DEBUG
 #define PSYMP3_DATADIR "/usr/local/share/psymp3/data"
