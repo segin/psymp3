@@ -126,19 +126,31 @@ inline std::ostream& operator<<(std::ostream& os, LoopMode mode) {
 #include <chrono>
 #include <mutex>
 #include <limits>
+#include <array>
+#include <future>
+#include <iterator>
+#include <numeric>
+#include <tuple>
+#include <utility>
+#if defined(__GNUG__)
+#include <cxxabi.h>
+#endif
 
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
 #endif
 
 // C Standard Library (wrapped)
+#include <cctype>
 #include <cerrno>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 
 // System-specific headers
 #include <sys/stat.h>
@@ -207,6 +219,10 @@ inline int closeSocket(int sock) {
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/un.h>
+#include <sys/resource.h>
+#include <dirent.h>
+#include <dlfcn.h>
 
 // Unix socket error helpers for consistency
 inline int getSocketError() {
@@ -240,11 +256,30 @@ inline int closeSocket(int sock) {
 // SDL_GetWindowProperties (SDL_PROP_WINDOW_WIN32_HWND_POINTER) and native
 // messages via SDL_SetWindowsMessageHook — see the Phase 4 migration in
 // system.cpp / player.cpp.
+// CPU affinity headers (see pinThreadToRole in system.cpp). Each OS has its
+// own API:
+//   Linux         : cpu_set_t / CPU_SET / pthread_setaffinity_np (behind
+//                   _GNU_SOURCE, which g++/clang++ define by default on glibc).
+//   FreeBSD/DFly  : cpuset_t (sys/cpuset.h) + pthread_setaffinity_np (pthread_np.h).
+//   NetBSD        : opaque cpuset_t via cpuset_create()/cpuset_set() in sched.h.
 #elif defined(__linux__)
 #include <sys/prctl.h>
-#elif defined(__FreeBSD__)
+#include <sched.h>
+#include <pthread.h>
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+#include <sys/param.h>
+#include <sys/cpuset.h>
 #include <pthread.h>
 #include <pthread_np.h>
+#elif defined(__NetBSD__)
+#include <sched.h>
+#include <pthread.h>
+#endif
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
+#include <sys/mman.h>
+#endif
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+#include <sys/sysctl.h>
 #endif
 
 // OpenSSL headers
