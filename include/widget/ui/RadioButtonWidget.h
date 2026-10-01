@@ -63,6 +63,7 @@ private:
     bool m_selected = false;
     bool m_pressed = false;       // held down, by the mouse or Space
     bool m_key_pressed = false;   // Space is held
+    bool m_mouse_held = false;    // a left press holds the mouse capture
     std::function<void()> m_on_select;
     std::shared_ptr<Group> m_group;
 

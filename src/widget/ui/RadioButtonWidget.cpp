@@ -159,7 +159,7 @@ void RadioButtonWidget::blur()
     }
     if (m_key_pressed) {
         m_key_pressed = false;
-        m_pressed = false;
+        m_pressed = m_mouse_held;
     }
     rebuildSurface();
 }
@@ -223,7 +223,7 @@ bool RadioButtonWidget::handleFocusedKeyUp(const SDL_keysym& keysym)
         return false;
     }
     w->m_key_pressed = false;
-    w->m_pressed = false;
+    w->m_pressed = w->m_mouse_held;
     w->rebuildSurface();
     if (w->isEnabled()) {
         w->choose();
@@ -238,6 +238,7 @@ bool RadioButtonWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
     }
     takeFocus();
     m_pressed = true;
+    m_mouse_held = true;
     captureMouse();
     rebuildSurface();
     return true;
@@ -245,11 +246,15 @@ bool RadioButtonWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
 
 bool RadioButtonWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    if (event.button != SDL_BUTTON_LEFT || !m_pressed) {
+    // Keyed off the mouse's own flag, not m_pressed, which Space's release or
+    // a blur can clear mid-press: the capture taken on the press must always
+    // be released here.
+    if (event.button != SDL_BUTTON_LEFT || !m_mouse_held) {
         return false;
     }
     releaseMouse();
-    m_pressed = false;
+    m_mouse_held = false;
+    m_pressed = m_key_pressed;
     rebuildSurface();
     // Released off the button, the press is cancelled.
     if (hitTest(relative_x, relative_y) && isEnabled()) {
