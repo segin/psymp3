@@ -1,9 +1,5 @@
 # PsyMP3
 
-A music player with a real-time spectrum analyzer.
-
-![PsyMP3 2.0 playing "I Think We're Alone Now" by Tiffany, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
-
 PsyMP3 is a music player written in C++ for Linux, the BSDs and Windows that
 shows a live spectrum analyzer of whatever it is playing. It plays MP3, AAC,
 FLAC, Vorbis, Opus, ALAC, AC-3, Dolby TrueHD and more. Files can be
@@ -15,6 +11,8 @@ shows synced lyrics, scrobbles to Last.fm, and shows what's playing in
 Discord. On Linux and the BSDs, builds with D-Bus support can also be
 controlled from the desktop's media keys and now-playing widgets through
 MPRIS.
+
+![PsyMP3 2.0 playing "I Think We're Alone Now" by Tiffany, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
 
 ## Table of Contents
 
