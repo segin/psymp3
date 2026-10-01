@@ -66,6 +66,14 @@ class Font
         /// stays on one grid. Returns false if the file could not be loaded.
         bool addFallback(const TagLib::String& file);
         bool addFallback(const uint8_t* data, size_t size);
+        /// True when a string needs the shaping and reordering path: Arabic and
+        /// Hebrew must be reordered right to left, Arabic and the Indic scripts
+        /// substitute contextual forms, and combining marks must be positioned.
+        /// Latin, Greek, Cyrillic and CJK need none of that and take the fast
+        /// path, which also keeps their rendering byte-for-byte as it was.
+        /// Public so callers that place marks by measuring substrings (a
+        /// label's mnemonic underline) know when that measuring is wrong.
+        static bool needsComplexLayout(const std::string& utf8_text);
     protected:
     private:
         // Advance width of one codepoint, memoised. A face's advances are fixed
@@ -100,12 +108,6 @@ class Font
         /// glyph id only means anything relative to its face.
         const GlyphBitmap& shapedGlyph(std::size_t face_index, uint32_t glyph_id);
 
-        /// True when a string needs the shaping and reordering path: Arabic and
-        /// Hebrew must be reordered right to left, Arabic and the Indic scripts
-        /// substitute contextual forms, and combining marks must be positioned.
-        /// Latin, Greek, Cyrillic and CJK need none of that and take the fast
-        /// path, which also keeps their rendering byte-for-byte as it was.
-        static bool needsComplexLayout(const std::string& utf8_text);
         static bool needsComplexLayout(uint32_t codepoint);
         /// Lays out @p utf8_text with SheenBidi and HarfBuzz. Emits each glyph
         /// through @p emit as (face index, glyph id, x, y) and returns the total

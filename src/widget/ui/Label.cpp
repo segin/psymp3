@@ -251,6 +251,13 @@ void Label::underlineMnemonic()
     if (m_mnemonic_index >= text.size()) {
         return;
     }
+    // The underline is placed by measuring the text before the marker on its
+    // own, which matches the drawing only on the unshaped path: shaped or
+    // right-to-left text moves glyphs, and could put it under the wrong one.
+    // Such a label keeps its mnemonic key, without the underline.
+    if (Font::needsComplexLayout(text)) {
+        return;
+    }
     // The whole UTF-8 codepoint at the marker.
     size_t end = m_mnemonic_index + 1;
     while (end < text.size() && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) {
