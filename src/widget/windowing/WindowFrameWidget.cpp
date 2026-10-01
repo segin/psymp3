@@ -254,6 +254,14 @@ void WindowFrameWidget::openControlMenu()
             if (s_open_menu_window == this) {
                 s_open_menu_window = nullptr;
             }
+            // Closed any way but by the icon's toggle (a click elsewhere,
+            // which the open menu consumes before this frame sees it, or
+            // Escape, or an item), the next icon click must reopen the menu,
+            // not count as the second half of a double-click and close the
+            // window.
+            if (!m_icon_closing_menu) {
+                m_double_click_pending = false;
+            }
             rebuildSurface(); // un-invert the titlebar icon
         });
         addChild(std::move(menu)); // last child: composites above the client
@@ -403,7 +411,10 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                     m_double_click_pending = true;
 
                     if (m_control_menu && m_control_menu->isOpen()) {
+                        // The icon's own toggle: keep the double-click armed.
+                        m_icon_closing_menu = true;
                         closeControlMenu();
+                        m_icon_closing_menu = false;
                     } else {
                         openControlMenu();
                     }

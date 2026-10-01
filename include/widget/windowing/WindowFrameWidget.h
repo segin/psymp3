@@ -329,6 +329,7 @@ private:
     // Double-click detection for close
     Uint32 m_last_click_time;
     bool m_double_click_pending;
+    bool m_icon_closing_menu = false; // the icon's own toggle is closing the control menu
     
     // Resize state
     bool m_is_resizing;
