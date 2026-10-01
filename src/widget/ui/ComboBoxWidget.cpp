@@ -653,6 +653,12 @@ bool ComboBoxWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
         return false;
     }
     const bool alt = (keysym.mod & SDL_KMOD_ALT) != 0;
+    // Ctrl+F4 closes the active window, not this list: F4 opens or closes
+    // the list only on its own (an open list just closes, unchosen, first).
+    if (keysym.sym == SDLK_F4 && (keysym.mod & SDL_KMOD_CTRL) != 0) {
+        w->close(false);
+        return false;
+    }
     const int count = static_cast<int>(w->m_items.size());
     const int rows = std::max(1, w->visibleRows());
 
