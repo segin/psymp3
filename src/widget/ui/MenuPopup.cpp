@@ -306,7 +306,9 @@ bool MenuPopup::mouseDown(int x, int y)
     int di = itemAt(m_items, m_box, x, y);
     if (di < 0) return false;
     if (!m_items[di].submenu.empty()) {
-        m_open_sub = (m_open_sub == di) ? -1 : di;
+        // Open, never toggle: hovering has usually opened it already, and a
+        // click there must not hide the submenu being reached for.
+        m_open_sub = di;
         m_hover = di;
         m_hover_sub = -1;
         return true;
