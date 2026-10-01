@@ -17,7 +17,16 @@ namespace UI {
 class CheckboxWidget : public Widget {
 public:
     CheckboxWidget(int width, int height, Font* font, const TagLib::String& text = "", bool checked = false);
-    ~CheckboxWidget() override = default;
+    ~CheckboxWidget() override;
+
+    // Keyboard focus, following ButtonWidget's pattern: a click or Tab gives
+    // it focus, shown as the dotted rectangle around the label; Space greys
+    // the box while held and toggles it on release.
+    static CheckboxWidget* focusedWidget() { return s_focused_widget; }
+    static void clearFocusedWidget();
+    static bool handleFocusedKeyPress(const SDL_keysym& keysym);
+    static bool handleFocusedKeyUp(const SDL_keysym& keysym);
+    void takeFocus(); // Tab-traversal entry point
 
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
@@ -31,13 +40,17 @@ public:
 
 private:
     void rebuildSurface();
+    void blur();
 
     Font* m_font;
     TagLib::String m_text;
     bool m_checked;
-    bool m_pressed;
+    bool m_pressed;       // held down, by the mouse or Space: the box greys
+    bool m_key_pressed = false; // Space is held
     bool m_hovered;
     std::function<void(bool)> m_on_toggle;
+
+    static CheckboxWidget* s_focused_widget;
 };
 
 } // namespace UI

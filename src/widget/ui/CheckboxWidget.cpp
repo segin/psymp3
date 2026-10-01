@@ -13,23 +13,7 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
-namespace {
-
-#ifndef PSYMP3_DRAW_WIN31_SUNKEN_FRAME
-#define PSYMP3_DRAW_WIN31_SUNKEN_FRAME
-void drawWin31SunkenFrame(::Surface& surface, int x, int y, int width, int height)
-{
-    surface.box(x, y, x + width - 1, y + height - 1, 255, 255, 255, 255);
-    surface.hline(x, x + width - 1, y, 128, 128, 128, 255);
-    surface.vline(x, y, y + height - 1, 128, 128, 128, 255);
-    surface.hline(x, x + width - 1, y + height - 1, 255, 255, 255, 255);
-    surface.vline(x + width - 1, y, y + height - 1, 255, 255, 255, 255);
-    surface.hline(x + 1, x + width - 2, y + 1, 0, 0, 0, 255);
-    surface.vline(x + 1, y + 1, y + height - 2, 0, 0, 0, 255);
-}
-#endif
-
-} // namespace
+CheckboxWidget* CheckboxWidget::s_focused_widget = nullptr;
 
 CheckboxWidget::CheckboxWidget(int width, int height, Font* font, const TagLib::String& text, bool checked)
     : Widget()
@@ -43,6 +27,75 @@ CheckboxWidget::CheckboxWidget(int width, int height, Font* font, const TagLib::
     rebuildSurface();
 }
 
+CheckboxWidget::~CheckboxWidget()
+{
+    if (s_focused_widget == this) {
+        s_focused_widget = nullptr;
+    }
+}
+
+void CheckboxWidget::takeFocus()
+{
+    if (s_focused_widget == this) {
+        return;
+    }
+    if (s_focused_widget) {
+        s_focused_widget->blur();
+    }
+    s_focused_widget = this;
+    rebuildSurface();
+}
+
+void CheckboxWidget::blur()
+{
+    if (s_focused_widget == this) {
+        s_focused_widget = nullptr;
+    }
+    if (m_key_pressed) {
+        m_key_pressed = false;
+        m_pressed = false;
+    }
+    rebuildSurface();
+}
+
+void CheckboxWidget::clearFocusedWidget()
+{
+    if (s_focused_widget) {
+        s_focused_widget->blur();
+    }
+}
+
+bool CheckboxWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
+{
+    CheckboxWidget* w = s_focused_widget;
+    if (!w || !w->isEnabled() || keysym.sym != SDLK_SPACE) {
+        return false;
+    }
+    // Key auto-repeat lands here again; the flag makes it a no-op.
+    if (!w->m_key_pressed) {
+        w->m_key_pressed = true;
+        w->m_pressed = true;
+        w->rebuildSurface();
+    }
+    return true;
+}
+
+bool CheckboxWidget::handleFocusedKeyUp(const SDL_keysym& keysym)
+{
+    CheckboxWidget* w = s_focused_widget;
+    if (!w || keysym.sym != SDLK_SPACE || !w->m_key_pressed) {
+        return false;
+    }
+    w->m_key_pressed = false;
+    w->m_pressed = false;
+    if (w->isEnabled()) {
+        w->setChecked(!w->m_checked); // rebuilds
+    } else {
+        w->rebuildSurface();
+    }
+    return true;
+}
+
 bool CheckboxWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     if (!isEnabled() || event.button != SDL_BUTTON_LEFT) {
@@ -53,6 +106,7 @@ bool CheckboxWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
         return false;
     }
 
+    takeFocus();
     m_pressed = true;
     captureMouse();
     rebuildSurface();
@@ -119,21 +173,22 @@ void CheckboxWidget::rebuildSurface()
     auto surface = std::make_unique<Surface>(pos.width(), pos.height(), true);
     surface->FillRect(surface->MapRGBA(255, 255, 255, 255));
 
+    // The Windows 3.1 check box: a flat 13x13 box, a 1px black border round
+    // white. Checked, an X runs corner to corner inside the border, its arms
+    // crossing at the single centre pixel. Held down (mouse or Space), the
+    // border thickens to 2px, covering the X's ends.
     const int box_size = 13;
     const int box_y = std::max(0, (pos.height() - box_size) / 2);
-    drawWin31SunkenFrame(*surface, 0, box_y, box_size, box_size);
-
+    const int last = box_size - 1;
     if (m_checked) {
-        // A proper checkmark: a short arm descending into the vertex at (5,8),
-        // then a longer arm rising to the upper right. Each arm is 2px thick.
-        for (int i = 0; i < 4; ++i) { // short arm: (2,5) -> vertex (5,8)
-            surface->pixel(2 + i, box_y + 5 + i, 0, 0, 0, 255);
-            surface->pixel(2 + i, box_y + 6 + i, 0, 0, 0, 255);
+        for (int i = 1; i < last; ++i) {
+            surface->pixel(i, box_y + i, 0, 0, 0, 255);
+            surface->pixel(i, box_y + last - i, 0, 0, 0, 255);
         }
-        for (int i = 0; i < 6; ++i) { // long arm: vertex (5,8) -> (10,3)
-            surface->pixel(5 + i, box_y + 8 - i, 0, 0, 0, 255);
-            surface->pixel(5 + i, box_y + 9 - i, 0, 0, 0, 255);
-        }
+    }
+    surface->rectangle(0, box_y, last, box_y + last, 0, 0, 0, 255);
+    if (m_pressed) {
+        surface->rectangle(1, box_y + 1, last - 1, box_y + last - 1, 0, 0, 0, 255);
     }
 
     if (m_font && !m_text.isEmpty()) {
@@ -144,6 +199,22 @@ void CheckboxWidget::rebuildSurface()
             const int text_x = 18;
             const int text_y = std::max(0, (pos.height() - text_surface->height()) / 2);
             surface->Blit(*text_surface, Rect(text_x, text_y, text_surface->width(), text_surface->height()));
+
+            // Keyboard focus: the classic dotted rectangle around the label.
+            if (s_focused_widget == this) {
+                const int x0 = text_x - 2;
+                const int y0 = std::max(0, text_y - 1);
+                const int x1 = std::min(pos.width() - 1, text_x + text_surface->width() + 1);
+                const int y1 = std::min(pos.height() - 1, text_y + text_surface->height());
+                for (int x = x0; x <= x1; ++x) {
+                    if (((x + y0) & 1) == 0) surface->pixel(x, y0, 0, 0, 0, 255);
+                    if (((x + y1) & 1) == 0) surface->pixel(x, y1, 0, 0, 0, 255);
+                }
+                for (int y = y0 + 1; y < y1; ++y) {
+                    if (((x0 + y) & 1) == 0) surface->pixel(x0, y, 0, 0, 0, 255);
+                    if (((x1 + y) & 1) == 0) surface->pixel(x1, y, 0, 0, 0, 255);
+                }
+            }
         }
     }
 
