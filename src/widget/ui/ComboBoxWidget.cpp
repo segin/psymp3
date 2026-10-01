@@ -734,6 +734,13 @@ bool ComboBoxWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     }
 
     if ((alt && keysym.sym == SDLK_DOWN) || keysym.sym == SDLK_F4) {
+        // Not while another widget's mouse gesture holds the capture (a
+        // scrollbar or title-bar drag, a Move): the open list takes every
+        // motion and the release, so that gesture would never end. The menus
+        // keep the same rule.
+        if (Widget::getMouseCapturedWidget() != nullptr) {
+            return true;
+        }
         w->open();
         w->m_hot_ants = true; // opened from the keyboard
         w->rebuildList();
