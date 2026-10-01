@@ -3173,26 +3173,17 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             }
             break;
 
-        // The H, B, and J keys (test window H, test window B, random windows)
-        // are deliberately disabled: their handlers are intentionally omitted
-        // here. The toggleTestWindowH/toggleTestWindowB/createRandomWindows
-        // methods are kept so the feature can be re-wired quickly if needed.
-
-        case SDLK_M:
-        {
-            if (keysym.mod & SDL_KMOD_SHIFT) {
-                toggleMPRISErrorNotifications();
-            } else {
-                // Toggle between widget-based and legacy mouse handling
-                m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
-                if (m_use_widget_mouse_handling) {
-                    showToast("Mouse: Widget-based handling");
-                } else {
-                    showToast("Mouse: Legacy handling");
-                }
-            }
+        // H toggles test window H, the control demo (labels, a text field, a
+        // checkbox, a button, a scrollbar).
+        case SDLK_H:
+            toggleTestWindowH();
             break;
-        }
+
+        // The B and J keys (test window B, random windows) and M (mouse
+        // handling mode; Shift+M, MPRIS error notifications) are deliberately
+        // disabled: their handlers are intentionally omitted here. The
+        // toggleTestWindowB/createRandomWindows/toggleMPRISErrorNotifications
+        // methods are kept so they can be re-wired quickly if needed.
 
         default:
             // No action for other keys
@@ -4520,16 +4511,16 @@ bool Player::windowOwnsMouseCapture() const
 }
 
 /**
- * @brief Toggles the test window H with the Win3 control demo content.
- *
- * Deliberately unwired: the H key handler was removed in handleKeyPress. This
- * is retained (not dead code) so the debug window can be re-enabled quickly.
+ * @brief Toggles the test window H (the H key) with the Win3 control demo
+ *        content.
  */
 void Player::toggleTestWindowH()
 {
     if (m_test_window_h) {
-        // Close the window
-        m_test_window_h.reset();
+        // Close the window. Deferred, as its own close button does: the key
+        // can arrive while one of its widgets is mid-event.
+        deferWidgetDeletion(std::move(m_test_window_h));
+        m_test_window_h = nullptr;
         showToast("Test Window H: Closed");
     } else {
         // Open the window using the same WindowFrameWidget path as the other test windows,

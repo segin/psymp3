@@ -183,7 +183,7 @@ is also reachable from the keyboard.
 | `N` / `P` | Next / previous track |
 | `Up` / `Down` | Volume up / down |
 | `E` | Cycle loop mode (`Shift+E` opens the Equalizer) |
-| `M` | Playlist Manager |
+| `Shift+P` | Playlist Manager |
 | `F` | Cycle FFT draw mode |
 | `G` | Toggle 2× zoom |
 | `0`–`4` | Spectrum intensity |
