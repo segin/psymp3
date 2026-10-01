@@ -72,6 +72,8 @@ public:
                       const Rect& screen_bounds, const void* owner = nullptr,
                       std::function<void()> on_close = nullptr, const Rect& pass_through = Rect());
     static bool isOpenFor(const void* owner);
+    // Whether any context menu is open, whoever owns it.
+    static bool anyOpen();
     static void closeFor(const void* owner);
     // The owner is being destroyed: forget the menu without running on_close.
     static void forget(const void* owner);

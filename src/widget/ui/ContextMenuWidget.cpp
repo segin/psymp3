@@ -114,6 +114,11 @@ bool ContextMenuWidget::isOpenFor(const void* owner)
     return s_context_menu.popup && s_context_menu.owner == owner && owner != nullptr;
 }
 
+bool ContextMenuWidget::anyOpen()
+{
+    return s_context_menu.popup != nullptr;
+}
+
 void ContextMenuWidget::closeFor(const void* owner)
 {
     if (isOpenFor(owner)) {

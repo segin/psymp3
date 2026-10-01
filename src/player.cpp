@@ -3024,6 +3024,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
     // An open context menu is modal for the keyboard, above everything.
     if (ContextMenuWidget::routeKey(keysym)) {
+        m_swallow_text_input = true;
         return false;
     }
 
@@ -3033,6 +3034,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     // is whichever bar has it open: the main one, the equalizer's, or the
     // Playlist Manager's.
     if (MenuBarWidget::routeKey(keysym)) {
+        m_swallow_text_input = true;
         return false;
     }
 
@@ -3956,15 +3958,17 @@ void Player::EventLoop() {
             {
                 // SDL3 flattened SDL_Keysym onto the event; build our
                 // version-agnostic Keysym from event.key.key / event.key.mod.
+                m_swallow_text_input = false;
                 done = handleKeyPress(Keysym{event.key.key, event.key.mod});
                 break;
             }
             case SDL_EVENT_TEXT_INPUT:
             {
-                // An open dropdown is modal: don't type into a focused text
-                // box sitting underneath it.
-                if ((m_menu_bar && m_menu_bar->isOpen()) ||
-                    (m_eq_client && m_eq_client->isMenuOpen())) {
+                // An open menu is modal: don't type into a focused text box
+                // sitting underneath it, nor the key that a menu just took
+                // (a mnemonic that picked an item and closed it).
+                if (m_swallow_text_input || MenuBarWidget::anyOpen() ||
+                    ContextMenuWidget::anyOpen()) {
                     break;
                 }
                 TextInputWidget::handleFocusedTextInput(event.text.text);

@@ -47,6 +47,8 @@ public:
     // Likewise the keyboard: the bar with a menu open, whichever window it
     // belongs to, takes every key (true when consumed — always, while open).
     static bool routeKey(const SDL_keysym& keysym);
+    // Whether any bar has a menu open.
+    static bool anyOpen() { return s_open_bar && s_open_bar->m_open >= 0; }
 
     void addMenu(std::string name, std::vector<Item> items);
 

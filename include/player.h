@@ -296,6 +296,10 @@ class Player
         void showUrlDialog(const std::string& title, std::function<void(const std::string&)> on_ok);
         void closeUrlDialog();
         WindowFrameWidget* m_url_dialog = nullptr; // owned by m_random_windows
+        // Set when an open menu consumed the current key-down (reset by the
+        // next one): the SDL text input for that key must not reach a text
+        // field, even though picking a mnemonic may have closed the menu.
+        bool m_swallow_text_input = false;
         // Replace the playlist with the given (playlist-expanded) paths and
         // play from the first resulting track; shared tail of the Ctrl+O
         // chooser and drag-and-drop. No-op if the expansion yields nothing.
