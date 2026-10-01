@@ -854,18 +854,9 @@ std::vector<Playlist::Entry> Playlist::resolveInlineSources(const std::vector<Ta
     return resolved_entries;
 }
 
-/**
- * @brief Saves the current playlist to a file in extended M3U format.
- *
- * The saved file will include #EXTINF metadata for each track.
- * @param path The destination file path for the new playlist file.
- */
-namespace {
-// Resolve a stored track path to an absolute local path for saving. URIs
-// (http://, file://, ...) are written unchanged; local paths are made absolute
-// against the current directory (relative playlist/CLI paths are relative to it)
-// and normalized. UTF-8 in and out.
-std::string toAbsoluteLocalPath(const std::string& utf8_path)
+// Relative playlist and command-line paths are relative to the current
+// directory, so that is what local paths are made absolute against.
+std::string Playlist::toAbsoluteLocalPath(const std::string& utf8_path)
 {
     if (utf8_path.empty() || utf8_path.find("://") != std::string::npos) {
         return utf8_path;
@@ -880,8 +871,13 @@ std::string toAbsoluteLocalPath(const std::string& utf8_path)
     auto u8 = abs.lexically_normal().u8string();
     return std::string(u8.begin(), u8.end());
 }
-} // namespace
 
+/**
+ * @brief Saves the current playlist to a file in extended M3U format.
+ *
+ * The saved file will include #EXTINF metadata for each track.
+ * @param path The destination file path for the new playlist file.
+ */
 void Playlist::savePlaylist(TagLib::String path)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);

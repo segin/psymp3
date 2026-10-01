@@ -113,6 +113,10 @@ class Playlist
         static std::vector<Entry> resolveInlineSources(const std::vector<TagLib::String>& sources);
         static std::unique_ptr<Playlist> loadPlaylist(TagLib::String path);
         void savePlaylist(TagLib::String path);
+        // A stored track path as it is written out: URIs (http://, file://, ...)
+        // unchanged, local paths made absolute against the current directory and
+        // normalized. UTF-8 in and out.
+        static std::string toAbsoluteLocalPath(const std::string& utf8_path);
         // Monotonic counter bumped on every change to the track list (add / insert
         // / remove / move / clear). Lets an observer (the Playlist Manager window)
         // cheaply detect external edits and refresh.

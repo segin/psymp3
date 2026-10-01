@@ -366,6 +366,8 @@ public:
             const int last = m_list->getSelectionLast();
             std::vector<ContextMenuWidget::Entry> entries;
             entries.push_back({ "Play", [this, row] { m_player->playlistManagerJumpTo(row); }, true });
+            // One path at a time: greyed out while several rows are selected.
+            entries.push_back({ "Copy Path", [this, row] { m_player->playlistManagerCopyPath(row); }, first == last });
             entries.push_back({ "Delete", [this] { removeSelection(); }, first >= 0 });
             entries.push_back({ "Move Up", [this] { moveSelection(-1); }, first > 0 });
             entries.push_back({ "Move Down", [this] { moveSelection(1); }, last >= 0 && last < count - 1 });
@@ -1802,6 +1804,19 @@ void Player::playlistManagerJumpTo(long index)
     m_skip_attempts = 0;
     requestTrackLoad(playlist->getTrack(index));
     updateInfo();
+}
+
+void Player::playlistManagerCopyPath(long index)
+{
+    const std::string path = Playlist::toAbsoluteLocalPath(playlistPathAt(index).to8Bit(true));
+    if (path.empty()) {
+        return;
+    }
+    if (!SDL_SetClipboardText(path.c_str())) {
+        showToast(std::string("Couldn't copy path: ") + SDL_GetError());
+        return;
+    }
+    showToast("Path copied to clipboard");
 }
 
 void Player::playlistManagerAddNext()

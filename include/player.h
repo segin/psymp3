@@ -214,6 +214,9 @@ class Player
         void playlistManagerMove(long first, long last, long to);
         // Jump playback to the given playlist index (double-click in the manager).
         void playlistManagerJumpTo(long index);
+        // Copy the entry's file path (made absolute) or URL to the clipboard,
+        // as a saved playlist would write it, with a toast saying how it went.
+        void playlistManagerCopyPath(long index);
         // Open the file chooser and queue the chosen track(s) next / at the end.
         // No-ops with a toast when built without native file-dialog support.
         void playlistManagerAddNext();
