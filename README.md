@@ -85,6 +85,8 @@ MPRIS.
 ### Build Requirements
 - C++17 compliant compiler (GCC 9+, Clang 10+, MSVC 2019+)
 - `pkg-config` (or pkgconf)
+- Optional, for `make check`: [RapidCheck](https://github.com/emil-e/rapidcheck)
+  (property-based tests, enabled with `--enable-rapidcheck`)
 
 Building from git needs these as well, to generate `configure`:
 
@@ -98,8 +100,6 @@ Building from git needs these as well, to generate `configure`:
   it installs into aclocal's directory
 
 `libtool` is not needed.
-- Optional, for `make check`: [RapidCheck](https://github.com/emil-e/rapidcheck)
-  (property-based tests, enabled with `--enable-rapidcheck`)
 
 ## Building
 
