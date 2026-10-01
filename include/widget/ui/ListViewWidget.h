@@ -111,6 +111,10 @@ public:
     // widget. Right-clicking a row inside the selection keeps the selection;
     // any other row is selected first.
     void setOnContextMenu(std::function<void(int row, int x, int y)> cb) { m_on_context = std::move(cb); }
+    // Offered each key while the list has focus, before its own handling;
+    // return true to consume it. Lets the owner add keys (the Playlist
+    // Manager's Ctrl+C and Ctrl+Up/Down).
+    void setOnKey(std::function<bool(const SDL_keysym&)> cb) { m_on_key = std::move(cb); }
 
     // Editing helpers operating on the whole selection. Each is a no-op when
     // the operation is not possible (nothing selected, already at an end, etc.)
@@ -173,6 +177,7 @@ private:
     std::function<void(int, int)> m_on_delete;
     std::function<void(int, int, int)> m_on_reorder;
     std::function<void(int, int, int)> m_on_context;
+    std::function<bool(const SDL_keysym&)> m_on_key;
 
     // Drag-to-reorder state. m_drag_first..m_drag_last is the grabbed block
     // (-1 when not dragging); m_dragging becomes true once the pointer passes a

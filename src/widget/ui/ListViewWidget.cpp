@@ -96,6 +96,12 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     if (w.m_items.empty()) {
         return false;
     }
+    if (w.m_on_key) {
+        auto on_key = w.m_on_key; // the callback may replace it
+        if (on_key(keysym)) {
+            return true;
+        }
+    }
     switch (keysym.sym) {
         case SDLK_UP:
         case SDLK_DOWN: {
@@ -110,6 +116,22 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
             // cursor moves alone. Either no-ops at the ends and, via
             // ensureVisible(), scrolls exactly one row when the cursor crosses
             // a viewport edge.
+            if ((keysym.mod & SDL_KMOD_SHIFT) != 0 && w.m_anchor >= 0) {
+                w.setSelectionRange(w.m_anchor, sel);
+            } else {
+                w.setSelectedIndex(sel);
+            }
+            return true;
+        }
+        case SDLK_PAGEUP:
+        case SDLK_PAGEDOWN: {
+            // A page at a time: the cursor moves by one row less than fit, so
+            // the row it leaves stays in view, as in a Windows list box.
+            // Shift extends the selection, like Shift+Up/Down.
+            const int page = std::max(1, w.visibleRows() - 1);
+            int sel = w.m_selected < 0 ? w.m_top : w.m_selected;
+            sel += (keysym.sym == SDLK_PAGEDOWN) ? page : -page;
+            sel = std::max(0, std::min(sel, static_cast<int>(w.m_items.size()) - 1));
             if ((keysym.mod & SDL_KMOD_SHIFT) != 0 && w.m_anchor >= 0) {
                 w.setSelectionRange(w.m_anchor, sel);
             } else {

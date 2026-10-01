@@ -438,6 +438,26 @@ public:
             m_player->playlistManagerMove(first, last, to);
             reloadSelection(anchor, cursor, /*keep_viewport=*/true);
         });
+        // The keys the context menu lists beyond the list's own Enter and
+        // Delete: Ctrl+C copies the cursor row's path (one row selected, as
+        // the menu item requires), Ctrl+Up/Down move the selection like Move
+        // Up and Move Down. (PgUp/PgDn page, as in any list.)
+        m_list->setOnKey([this](const SDL_keysym& keysym) {
+            const bool ctrl = (keysym.mod & SDL_KMOD_CTRL) != 0;
+            const bool other_mods = (keysym.mod & (SDL_KMOD_ALT | SDL_KMOD_SHIFT)) != 0;
+            if (ctrl && !other_mods && keysym.sym == SDLK_C) {
+                const int first = m_list->getSelectionFirst();
+                if (first >= 0 && first == m_list->getSelectionLast()) {
+                    m_player->playlistManagerCopyPath(first);
+                }
+                return true;
+            }
+            if (ctrl && !other_mods && (keysym.sym == SDLK_UP || keysym.sym == SDLK_DOWN)) {
+                moveSelection(keysym.sym == SDLK_UP ? -1 : 1);
+                return true;
+            }
+            return false;
+        });
         // Right-click a row for a context menu of the same actions as the
         // buttons, acting on the selection (the list keeps a multi-row
         // selection when the click lands inside it).
@@ -446,14 +466,16 @@ public:
             const int first = m_list->getSelectionFirst();
             const int last = m_list->getSelectionLast();
             std::vector<MenuItem> entries;
-            entries.push_back(MenuItem::command("Play", [this, row] { m_player->playlistManagerJumpTo(row); }));
+            entries.push_back(MenuItem::command("Play", [this, row] { m_player->playlistManagerJumpTo(row); },
+                                                true, "Enter"));
+            entries.push_back(MenuItem::command("Delete", [this] { removeSelection(); }, first >= 0, "Del"));
+            entries.push_back(MenuItem::command("Move Up", [this] { moveSelection(-1); }, first > 0, "Ctrl+Up"));
+            entries.push_back(MenuItem::command("Move Down", [this] { moveSelection(1); },
+                                                last >= 0 && last < count - 1, "Ctrl+Dn"));
+            entries.push_back(MenuItem::sep());
             // One path at a time: greyed out while several rows are selected.
             entries.push_back(MenuItem::command("Copy Path", [this, row] { m_player->playlistManagerCopyPath(row); },
-                                                first == last));
-            entries.push_back(MenuItem::command("Delete", [this] { removeSelection(); }, first >= 0));
-            entries.push_back(MenuItem::command("Move Up", [this] { moveSelection(-1); }, first > 0));
-            entries.push_back(MenuItem::command("Move Down", [this] { moveSelection(1); },
-                                                last >= 0 && last < count - 1));
+                                                first == last, "Ctrl+C"));
             m_context->setEntries(std::move(entries));
             Rect lp = m_list->getPos();
             m_context->openAt(lp.x() + rx, lp.y() + ry);
