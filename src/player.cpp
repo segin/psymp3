@@ -4979,9 +4979,11 @@ void collectFocusables(Widget* root, std::vector<Widget*>& out)
         Widget* c = child.get();
         if (auto* b = dynamic_cast<ButtonWidget*>(c)) {
             if (b->isFocusable()) out.push_back(c);
+        } else if (auto* r = dynamic_cast<RadioButtonWidget*>(c)) {
+            // A radio group is one tab stop, on its selected button.
+            if (r->isEnabled() && r->isGroupTabStop()) out.push_back(c);
         } else if (dynamic_cast<ListViewWidget*>(c) || dynamic_cast<TextInputWidget*>(c) ||
-                   dynamic_cast<ComboBoxWidget*>(c) || dynamic_cast<CheckboxWidget*>(c) ||
-                   dynamic_cast<RadioButtonWidget*>(c)) {
+                   dynamic_cast<ComboBoxWidget*>(c) || dynamic_cast<CheckboxWidget*>(c)) {
             // A disabled control is no tab stop.
             if (c->isEnabled()) out.push_back(c);
         }

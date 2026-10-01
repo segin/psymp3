@@ -32,6 +32,11 @@ public:
     static void makeGroup(const std::vector<RadioButtonWidget*>& buttons);
 
     bool isSelected() const { return m_selected; }
+    // Whether Tab stops on this button: a group is one tab stop, as in
+    // Windows, on its selected button, or its first enabled one while none
+    // is selected (the arrow keys move within it). An ungrouped button is a
+    // stop of its own.
+    bool isGroupTabStop() const;
     // Select this button (deselecting the rest of its group) without firing
     // any callback.
     void setSelected();

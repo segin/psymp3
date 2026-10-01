@@ -121,6 +121,24 @@ void RadioButtonWidget::makeGroup(const std::vector<RadioButtonWidget*>& buttons
     }
 }
 
+bool RadioButtonWidget::isGroupTabStop() const
+{
+    if (!m_group) {
+        return true;
+    }
+    const RadioButtonWidget* selected = nullptr;
+    const RadioButtonWidget* first_enabled = nullptr;
+    for (const RadioButtonWidget* b : m_group->members) {
+        if (b->m_selected && b->isEnabled() && !selected) {
+            selected = b;
+        }
+        if (b->isEnabled() && !first_enabled) {
+            first_enabled = b;
+        }
+    }
+    return this == (selected ? selected : first_enabled);
+}
+
 void RadioButtonWidget::setSelected()
 {
     if (m_group) {
