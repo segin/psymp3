@@ -397,6 +397,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 // Widget system - UI
 #include "widget/ui/ButtonWidget.h"
 #include "widget/ui/CheckboxWidget.h"
+#include "widget/ui/RadioButtonWidget.h"
 #include "widget/ui/SpectrumAnalyzerWidget.h"
 #include "widget/ui/PlayerProgressBarWidget.h"
 #include "widget/ui/ProgressBarFrameWidget.h"
@@ -430,6 +431,7 @@ using PsyMP3::Widget::Windowing::WindowEventData;
 using PsyMP3::Widget::Windowing::TransparentWindowWidget;
 using PsyMP3::Widget::UI::ButtonWidget;
 using PsyMP3::Widget::UI::CheckboxWidget;
+using PsyMP3::Widget::UI::RadioButtonWidget;
 using PsyMP3::Widget::UI::ButtonSymbol;
 using PsyMP3::Widget::UI::ScrollbarOrientation;
 using PsyMP3::Widget::UI::ScrollbarWidget;

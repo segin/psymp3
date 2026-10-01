@@ -264,6 +264,7 @@
 #include "widget/ui/ApplicationWidget.cpp"
 #include "widget/ui/ButtonWidget.cpp"
 #include "widget/ui/CheckboxWidget.cpp"
+#include "widget/ui/RadioButtonWidget.cpp"
 #include "widget/ui/Label.cpp"
 #include "widget/ui/LyricsWidget.cpp"
 #include "widget/ui/MenuPopup.cpp"

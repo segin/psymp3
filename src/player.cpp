@@ -3002,6 +3002,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     if (CheckboxWidget::handleFocusedKeyPress(keysym)) {
         return false;
     }
+    // A focused radio button claims Space (selecting on release) and the
+    // arrow keys (moving the selection through its group).
+    if (RadioButtonWidget::handleFocusedKeyPress(keysym)) {
+        return false;
+    }
 
     // Enter that no focused control claimed: the active window's default
     // button (the one wearing the bold border) fires.
@@ -3311,8 +3316,12 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
     if (ButtonWidget::handleFocusedKeyUp(keysym)) {
         return;
     }
-    // Likewise a focused checkbox toggles on Space's release.
+    // Likewise a focused checkbox toggles, and a radio button selects, on
+    // Space's release.
     if (CheckboxWidget::handleFocusedKeyUp(keysym)) {
+        return;
+    }
+    if (RadioButtonWidget::handleFocusedKeyUp(keysym)) {
         return;
     }
 
@@ -3936,6 +3945,7 @@ void Player::EventLoop() {
                 ButtonWidget::clearFocusedWidget();
                 ComboBoxWidget::clearFocusedWidget();
                 CheckboxWidget::clearFocusedWidget();
+                RadioButtonWidget::clearFocusedWidget();
 
                 // Dispatch by visual priority: a window-owned mouse capture is
                 // authoritative (routed even while a menu is open, so a drag's
@@ -4862,7 +4872,8 @@ void collectFocusables(Widget* root, std::vector<Widget*>& out)
         } else if (dynamic_cast<ListViewWidget*>(c) ||
                    dynamic_cast<TextInputWidget*>(c)) {
             out.push_back(c);
-        } else if (dynamic_cast<ComboBoxWidget*>(c) || dynamic_cast<CheckboxWidget*>(c)) {
+        } else if (dynamic_cast<ComboBoxWidget*>(c) || dynamic_cast<CheckboxWidget*>(c) ||
+                   dynamic_cast<RadioButtonWidget*>(c)) {
             if (c->isEnabled()) out.push_back(c);
         }
         collectFocusables(c, out);
@@ -4888,6 +4899,7 @@ bool Player::focusNextWidget(bool backwards)
     else if (TextInputWidget::focusedWidget()) current = TextInputWidget::focusedWidget();
     else if (ComboBoxWidget::focusedWidget())  current = ComboBoxWidget::focusedWidget();
     else if (CheckboxWidget::focusedWidget())  current = CheckboxWidget::focusedWidget();
+    else if (RadioButtonWidget::focusedWidget()) current = RadioButtonWidget::focusedWidget();
 
     const int n = static_cast<int>(order.size());
     int idx = -1;
@@ -4911,6 +4923,7 @@ void Player::focusWidget(Widget* target)
     ButtonWidget::clearFocusedWidget();
     ComboBoxWidget::clearFocusedWidget();
     CheckboxWidget::clearFocusedWidget();
+    RadioButtonWidget::clearFocusedWidget();
     if (auto* b = dynamic_cast<ButtonWidget*>(target)) {
         b->takeFocus();
     } else if (auto* l = dynamic_cast<ListViewWidget*>(target)) {
@@ -4921,6 +4934,8 @@ void Player::focusWidget(Widget* target)
         c->takeFocus();
     } else if (auto* k = dynamic_cast<CheckboxWidget*>(target)) {
         k->takeFocus();
+    } else if (auto* r = dynamic_cast<RadioButtonWidget*>(target)) {
+        r->takeFocus();
     }
 }
 
