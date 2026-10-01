@@ -4210,6 +4210,16 @@ void Player::EventLoop() {
             }
             case SDL_EVENT_KEY_UP:
             {
+                // When PsyMP3 loses keyboard focus, SDL releases every held
+                // key with synthetic key-ups, queued before FOCUS_LOST and
+                // handled here once focus is already gone. A Space held on a
+                // button, checkbox or radio is then abandoned, not committed,
+                // as when focus moves within PsyMP3.
+                if (!SDL_GetKeyboardFocus()) {
+                    ButtonWidget::cancelFocusedKeyPress();
+                    CheckboxWidget::cancelFocusedKeyPress();
+                    RadioButtonWidget::cancelFocusedKeyPress();
+                }
                 handleKeyUp(Keysym{event.key.key, event.key.mod});
                 break;
             }

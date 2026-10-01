@@ -97,6 +97,16 @@ bool CheckboxWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     return true;
 }
 
+void CheckboxWidget::cancelFocusedKeyPress()
+{
+    CheckboxWidget* w = s_focused_widget;
+    if (w && w->m_key_pressed) {
+        w->m_key_pressed = false;
+        w->m_pressed = w->m_mouse_held;
+        w->rebuildSurface();
+    }
+}
+
 bool CheckboxWidget::handleFocusedKeyUp(const SDL_keysym& keysym)
 {
     CheckboxWidget* w = s_focused_widget;

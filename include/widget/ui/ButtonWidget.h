@@ -78,6 +78,9 @@ public:
     // activate: the focused button while one has focus, otherwise the
     // window's default button (setDefault).
     static ButtonWidget* focusedWidget() { return s_focused_widget; }
+    // Abandon the focused button's held Space press, uncommitted (the app
+    // lost keyboard focus, and SDL's synthetic release must not click it).
+    static void cancelFocusedKeyPress() { if (s_focused_widget) s_focused_widget->cancelKeyPress(); }
     static void clearFocusedWidget();
     static bool handleFocusedKeyPress(const SDL_keysym& keysym);
     static bool handleFocusedKeyUp(const SDL_keysym& keysym);

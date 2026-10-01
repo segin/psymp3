@@ -44,6 +44,9 @@ public:
 
     // Keyboard focus, following CheckboxWidget's pattern.
     static RadioButtonWidget* focusedWidget() { return s_focused_widget; }
+    // Abandon the focused button's held Space press, uncommitted (the app
+    // lost keyboard focus, and SDL's synthetic release must not select it).
+    static void cancelFocusedKeyPress();
     static void clearFocusedWidget();
     static bool handleFocusedKeyPress(const SDL_keysym& keysym);
     static bool handleFocusedKeyUp(const SDL_keysym& keysym);

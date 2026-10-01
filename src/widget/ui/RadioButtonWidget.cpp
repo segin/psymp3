@@ -247,6 +247,16 @@ bool RadioButtonWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     return true;
 }
 
+void RadioButtonWidget::cancelFocusedKeyPress()
+{
+    RadioButtonWidget* w = s_focused_widget;
+    if (w && w->m_key_pressed) {
+        w->m_key_pressed = false;
+        w->m_pressed = w->m_mouse_held;
+        w->rebuildSurface();
+    }
+}
+
 bool RadioButtonWidget::handleFocusedKeyUp(const SDL_keysym& keysym)
 {
     RadioButtonWidget* w = s_focused_widget;

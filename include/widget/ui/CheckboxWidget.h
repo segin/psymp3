@@ -23,6 +23,9 @@ public:
     // it focus, shown as the dotted rectangle around the label; Space greys
     // the box while held and toggles it on release.
     static CheckboxWidget* focusedWidget() { return s_focused_widget; }
+    // Abandon the focused checkbox's held Space press, uncommitted (the app
+    // lost keyboard focus, and SDL's synthetic release must not toggle it).
+    static void cancelFocusedKeyPress();
     static void clearFocusedWidget();
     static bool handleFocusedKeyPress(const SDL_keysym& keysym);
     static bool handleFocusedKeyUp(const SDL_keysym& keysym);
