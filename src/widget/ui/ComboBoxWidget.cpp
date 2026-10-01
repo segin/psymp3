@@ -272,6 +272,11 @@ void ComboBoxWidget::close(bool commit)
     m_tracking = false;
     m_list_pressed = false;
     m_drag_entered = false;
+    // A scrollbar press still held loses its release with the list (nothing
+    // routes events to it once closed): end it, freeing its mouse capture.
+    if (m_scrollbar_pressed && m_scrollbar) {
+        m_scrollbar->cancelGesture();
+    }
     m_scrollbar_pressed = false;
     m_list_surface.reset();
     rebuildSurface();
@@ -518,8 +523,12 @@ bool ComboBoxWidget::listMouseDown(const SDL_MouseButtonEvent& event, int rx, in
         return true;
     }
     if (hasScrollbar() && rx >= list.x() + list.width() - kScrollbarWidth) {
-        m_scrollbar_pressed = true;
-        m_scrollbar->handleMouseDown(event, rx - (list.x() + list.width() - kScrollbarWidth), ry - list.y());
+        // Only the left button works the scrollbar, and only its release
+        // ends that (the scrollbar ignores the others).
+        if (event.button == SDL_BUTTON_LEFT && !m_scrollbar_pressed) {
+            m_scrollbar_pressed = true;
+            m_scrollbar->handleMouseDown(event, rx - (list.x() + list.width() - kScrollbarWidth), ry - list.y());
+        }
         return true;
     }
     if (event.button == SDL_BUTTON_LEFT) {
@@ -564,8 +573,10 @@ void ComboBoxWidget::listMouseUp(const SDL_MouseButtonEvent& event, int rx, int 
 {
     const Rect list = listRect();
     if (m_scrollbar_pressed) {
-        m_scrollbar_pressed = false;
-        m_scrollbar->handleMouseUp(event, rx - (list.x() + list.width() - kScrollbarWidth), ry - list.y());
+        if (event.button == SDL_BUTTON_LEFT) {
+            m_scrollbar_pressed = false;
+            m_scrollbar->handleMouseUp(event, rx - (list.x() + list.width() - kScrollbarWidth), ry - list.y());
+        }
         return;
     }
     if (!m_tracking && !m_list_pressed) {

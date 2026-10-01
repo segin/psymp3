@@ -47,6 +47,12 @@ public:
     // a container re-lays out a scrollbar in response to a resize.
     void setGeometry(const Rect& bounds);
 
+    // End a press in progress (thumb drag, arrow or track repeat) as if it
+    // were released, without acting on the release: for an owner that stops
+    // routing mouse events to this scrollbar mid-gesture, so the capture it
+    // took is not left behind.
+    void cancelGesture();
+
 private:
     enum class ScrollbarPart {
         None,

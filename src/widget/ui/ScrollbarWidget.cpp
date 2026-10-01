@@ -223,7 +223,15 @@ bool ScrollbarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relat
     if (event.button != SDL_BUTTON_LEFT || !m_pressed) {
         return false;
     }
+    cancelGesture();
+    return true;
+}
 
+void ScrollbarWidget::cancelGesture()
+{
+    if (!m_pressed) {
+        return;
+    }
     if (m_dragging_thumb || m_track_repeating || m_arrow_repeating) {
         releaseMouse();
     }
@@ -234,7 +242,6 @@ bool ScrollbarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relat
     m_arrow_repeating = false;
     m_pressed_part = ScrollbarPart::None;
     rebuildSurface();
-    return true;
 }
 
 void ScrollbarWidget::setGeometry(const Rect& bounds)
