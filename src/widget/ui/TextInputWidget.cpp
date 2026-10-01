@@ -371,6 +371,17 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
             widget.blur();
             if (on_cancel) {
                 on_cancel();
+                return true;
+            }
+            // Without a handler of its own, Escape is the dialog's Cancel,
+            // as from a Windows edit control: close the field's window
+            // through its close request. Merely blurring left the next
+            // Escape to reach the quit key from inside the dialog.
+            for (Widget* p = widget.getParent(); p; p = p->getParent()) {
+                if (auto* frame = dynamic_cast<Windowing::WindowFrameWidget*>(p)) {
+                    frame->requestClose(); // may destroy the field; touch nothing after
+                    break;
+                }
             }
             return true;
         }
