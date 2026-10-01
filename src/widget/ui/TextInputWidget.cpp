@@ -132,6 +132,11 @@ bool TextInputWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rel
     if (!isEnabled() || !handlesPoint(relative_x, relative_y)) {
         return false;
     }
+    // Mid drag-select, other buttons do nothing: a context menu opened now
+    // would take the left release, leaving this field holding the capture.
+    if (m_pressed && event.button != SDL_BUTTON_LEFT) {
+        return true;
+    }
     if (event.button == SDL_BUTTON_RIGHT) {
         // Focus without disturbing the selection, and offer the edit commands.
         if (!m_focused) {
