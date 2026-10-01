@@ -26,38 +26,24 @@ namespace UI {
 class MenuBarWidget : public Widget
 {
 public:
-    // One menu entry. A leaf has an action (and optionally a `checked` predicate
-    // that draws a radio dot); a separator draws a divider; a submenu holds
-    // child items and ignores `action`.
-    // `label` may carry a Win32-style '&' mnemonic marker: the character after
-    // '&' is drawn underlined (an accelerator hint); "&&" is a literal '&'.
-    // `shortcut` is a right-aligned key hint (e.g. "Z") — display only; the
-    // actual key is handled globally by the player.
-    struct Item {
-        std::string label;
-        std::function<void()> action;    // invoked on click for leaf items
-        std::function<bool()> checked;    // optional; draws a radio dot when true
-        std::function<bool()> enabled;    // optional; false => greyed, not clickable
-        std::vector<Item> submenu;        // non-empty => submenu
-        std::string shortcut;             // right-aligned accelerator hint
-        bool separator = false;
-
-        static Item leaf(std::string l, std::function<void()> a,
-                         std::function<bool()> c = nullptr, std::string sc = "",
-                         std::function<bool()> en = nullptr) {
-            Item i; i.label = std::move(l); i.action = std::move(a);
-            i.checked = std::move(c); i.shortcut = std::move(sc);
-            i.enabled = std::move(en); return i;
-        }
-        static Item sep() { Item i; i.separator = true; return i; }
-        static Item sub(std::string l, std::vector<Item> items) {
-            Item i; i.label = std::move(l); i.submenu = std::move(items); return i;
-        }
-        // A leaf with no enabled predicate is always enabled.
-        bool isEnabled() const { return !enabled || enabled(); }
-    };
+    // The items are the same as every other menu's (see MenuPopup.h), and the
+    // open drop-down is a MenuPopup.
+    using Item = MenuItem;
 
     MenuBarWidget(int width, int height, Font* font);
+    ~MenuBarWidget() override;
+
+    // The open menu is drawn by the Player over everything, at screen
+    // coordinates, so an embedded bar's menu (the equalizer's, the Playlist
+    // Manager's) is not clipped by its window. While a menu is open, the
+    // Player hands its bar every mouse event first, in screen coordinates
+    // (true when consumed — always, while open): the bar's titles switch or
+    // close menus, the menu highlights and picks, and a press anywhere else
+    // closes it and is consumed.
+    static void blitOpenMenu(Surface& target);
+    static bool routeMouseDown(const SDL_MouseButtonEvent& event, int x, int y);
+    static bool routeMouseMotion(const SDL_MouseMotionEvent& event, int x, int y);
+    static bool routeMouseUp(const SDL_MouseButtonEvent& event, int x, int y);
 
     void addMenu(std::string name, std::vector<Item> items);
 
@@ -100,50 +86,21 @@ private:
 
     void layoutBar();               // (re)flow the bar titles into rows for the width
     void rebuild();                 // repaint the overlay surface from state
-    // ClearType (LCD) text, pre-blended against bg; the same bg must be painted
-    // underneath before the returned (opaque) surface is blitted.
-    std::unique_ptr<Surface> renderText(const std::string& s, SDL_Color fg, SDL_Color bg) const;
-    int  textWidth(const std::string& s) const;   // cached pixel width
-    mutable std::unordered_map<std::string, int> m_text_w;
-
-    // Strip the '&' mnemonic marker, returning the display string. Sets *mn_off
-    // to the pixel x-offset (within the rendered string) of the underlined
-    // glyph and *mn_w to its width, or *mn_off = -1 when there is no mnemonic.
-    std::string parseMnemonic(const std::string& label, int* mn_off, int* mn_w) const;
-    // Lowercased mnemonic character of a label (char after a single '&'), or 0.
-    static int mnemonicChar(const std::string& label);
-    // First non-separator item index, or -1 if none.
-    static int firstSelectable(const std::vector<Item>& items);
-    // Next non-separator item from `from` stepping by `dir` (+1/-1), wrapping.
-    static int stepSelectable(const std::vector<Item>& items, int from, int dir);
-    void openMenu(int idx);   // open top-level menu `idx`, select its first item
-    // Draw a label (with mnemonic underline) vertically centred in a row.
-    void drawLabel(Surface& surf, const std::string& label, int x, int row_y,
-                   int row_h, SDL_Color fg, SDL_Color bg);
-
-    // Layout / hit-testing (shared by draw and event handling).
-    int  barHitTest(int x, int y) const;                  // top-level index or -1
-    Rect dropdownRect(const Menu& m) const;               // popup box
-    int  itemTopY(const std::vector<Item>& items, int i) const; // y offset within a popup
-    int  popupHeight(const std::vector<Item>& items) const;
-    int  popupWidth(const std::vector<Item>& items) const;
-    int  itemAt(const std::vector<Item>& items, const Rect& box, int x, int y) const; // index or -1
-    Rect submenuRect(const Menu& m, int item_index) const;
+    // Open top-level menu `idx` below its title; from the keyboard, with its
+    // first item highlighted.
+    void openMenu(int idx, bool select_first);
+    int  barHitTest(int x, int y) const; // top-level index or -1 (local coordinates)
+    Rect screenRect() const;            // where the bar is on the screen
 
     Font* m_font;               // non-owning
     std::vector<Menu> m_menus;
-    int m_rows = 1;            // number of bar rows after wrapping
+    int m_rows = 1;             // number of bar rows after wrapping
     int m_open = -1;            // open top-level menu, or -1
-    int m_hover = -1;          // hovered item index in the open dropdown
-    int m_open_sub = -1;       // submenu item index that is expanded, or -1
-    int m_hover_sub = -1;      // hovered item index in the open submenu
+    MenuPopup m_popup;          // its drop-down, in screen coordinates
 
-    static constexpr int ITEM_H = 16;   // dropdown item row height
-    static constexpr int SEP_H = 6;     // separator row height
-    static constexpr int CHECK_COL = 16; // left column for the radio dot
-    static constexpr int ARROW_COL = 14; // right column for the submenu arrow
+    static MenuBarWidget* s_open_bar; // the bar with a menu open, if any
+
     static constexpr int BAR_PAD = 7;    // horizontal padding per bar item
-    static constexpr int SHORTCUT_PAD = 16; // gap between label and shortcut col
 };
 
 } // namespace UI

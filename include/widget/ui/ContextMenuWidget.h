@@ -1,5 +1,5 @@
 /*
- * ContextMenuWidget.h - Lightweight right-click popup menu
+ * ContextMenuWidget.h - Right-click (context) menus
  * This file is part of PsyMP3.
  * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
  *
@@ -20,65 +20,81 @@ using PsyMP3::Widget::Foundation::Widget;
 using PsyMP3::Widget::Foundation::DrawableWidget;
 
 /**
- * @brief A standalone right-click popup menu.
+ * @brief Context menus: a MenuPopup (the same menu as the menu bar's) shown
+ *        over everything, one at a time.
  *
- * Sized to fill its container and added on top of the other children: while
- * closed it is transparent and passes clicks through (returns false); while
- * open it draws a Win3.1-style popup at a stored point, highlights the hovered
- * item, and activates an item (or dismisses on an outside click) on press.
- * Disabled entries are greyed and inert.
+ * The open menu belongs to no window. The Player draws it on top of all else
+ * (blitOpenMenu) and gives it mouse and keyboard events before anything else
+ * (route*), in screen coordinates. A press on an item highlights it and its
+ * release picks it; a press anywhere else closes the menu and is consumed,
+ * except inside the opener's pass-through area (the window control menu's
+ * icon, whose own toggle closes it). Escape closes it; the menu's keys are
+ * the menu bar's.
+ *
+ * Code that opens one from a widget can use popUp() directly with screen
+ * coordinates. A ContextMenuWidget is a handle for owners that keep one
+ * around: it holds the entries and opens them at a point relative to itself,
+ * and draws nothing and takes no clicks of its own.
  */
-class ContextMenuWidget : public DrawableWidget {
+class ContextMenuWidget : public Widget {
 public:
-    struct Entry {
-        std::string label;
-        std::function<void()> action;
-        bool enabled = true;
-        std::string accel;      // optional right-aligned accelerator text
-        bool separator = false; // etched separator row (other fields ignored)
-    };
+    using Entry = MenuItem;
 
     ContextMenuWidget(int width, int height, Core::Font* font);
+    ~ContextMenuWidget() override;
 
-    // Replace the menu contents (and recompute the popup width).
-    void setEntries(std::vector<Entry> entries);
-    // Show the popup with its top-left near (x, y) in this widget's coordinates.
+    // Replace the menu's items (used by the next openAt).
+    void setEntries(std::vector<MenuItem> entries);
+    // Show the menu with its top-left near (x, y), relative to this widget.
     void openAt(int x, int y);
     void close();
-    bool isOpen() const { return m_open; }
-    // Fired whenever the popup closes, by any path (item, dismissal, close()).
+    bool isOpen() const;
+    // Fired whenever the menu closes, by any path (item, dismissal, close()).
     // Owners use it to sync state that mirrors the open menu (e.g. the window
     // frame's inverted titlebar icon).
     void setOnClose(std::function<void()> cb) { m_on_close = std::move(cb); }
-    // Resize the full-window overlay to a new container size.
-    void resize(int width, int height) { onResize(width, height); }
+    // Presses inside `area` (relative to this widget) go to the widgets
+    // beneath while the menu stays open.
+    void setPassThrough(const Rect& area) { m_pass_through = area; }
+    // Size of the handle (it covers its container; nothing is drawn).
+    void resize(int width, int height);
 
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
     bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
 
-protected:
-    void draw(Surface& surface) override;
+    // Open `items` with the menu's top-left near (screen_x, screen_y), kept
+    // within `screen_bounds`. `owner` identifies the opener for isOpenFor /
+    // closeFor (and is dropped silently if it goes away while open); on_close
+    // runs when the menu closes; presses in `pass_through` (screen) go to the
+    // widgets beneath.
+    static void popUp(Core::Font* font, std::vector<MenuItem> items, int screen_x, int screen_y,
+                      const Rect& screen_bounds, const void* owner = nullptr,
+                      std::function<void()> on_close = nullptr, const Rect& pass_through = Rect());
+    static bool isOpenFor(const void* owner);
+    static void closeFor(const void* owner);
+    // The owner is being destroyed: forget the menu without running on_close.
+    static void forget(const void* owner);
+
+    // The Player's hooks: events in screen coordinates, true when consumed.
+    static bool routeMouseDown(const SDL_MouseButtonEvent& event, int x, int y);
+    static bool routeMouseMotion(const SDL_MouseMotionEvent& event, int x, int y);
+    static bool routeMouseUp(const SDL_MouseButtonEvent& event, int x, int y);
+    static bool routeKey(const SDL_keysym& keysym);
+    static void blitOpenMenu(Surface& target);
+    // The screen the menus are kept within; the Player sets it each frame.
+    static void setScreenSize(int width, int height);
+    static Rect screenBounds();
+    // Where a widget is on the screen: its position plus its ancestors'.
+    static Rect screenRectOf(const Widget* widget);
 
 private:
-    static constexpr int ITEM_H = 18;    // item row height
-    static constexpr int SEP_H = 7;      // separator row height
-    static constexpr int PAD = 6;        // horizontal text padding
-    static constexpr int ACCEL_GAP = 16; // min gap between label and accel
-
-    Rect popupRect() const;              // clamped to stay within the widget
-    int itemAt(int x, int y) const;      // entry index under a point, or -1
-    int entryHeight(int i) const;        // row height (item vs separator)
-    int entriesHeight() const;           // sum of all row heights
+    static void closeOpenMenu(); // runs the on_close of the menu that was open
 
     Core::Font* m_font;
-    std::vector<Entry> m_entries;
-    bool m_open = false;
-    int m_x = 0;
-    int m_y = 0;
-    int m_hover = -1;
-    int m_width_px = 40;                 // computed from the entry labels
+    std::vector<MenuItem> m_entries;
     std::function<void()> m_on_close;
+    Rect m_pass_through;
 };
 
 } // namespace UI

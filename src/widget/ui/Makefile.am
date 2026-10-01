@@ -37,6 +37,7 @@ libpsymp3_widget_ui_a_SOURCES = \
 	ProgressBarFrameWidget.cpp \
 	SpectrumAnalyzerWidget.cpp \
 	Label.cpp \
+	MenuPopup.cpp \
 	MenuBarWidget.cpp \
 	LyricsWidget.cpp \
 	TextInputWidget.cpp \

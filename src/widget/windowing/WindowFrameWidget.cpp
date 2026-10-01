@@ -256,13 +256,14 @@ void WindowFrameWidget::openControlMenu()
         m_control_menu->resize(pos.width(), pos.height());
     }
 
-    using Entry = UI::ContextMenuWidget::Entry;
-    std::vector<Entry> entries;
-    entries.push_back(Entry{"Restore", [this] {
+    // Windows' own control-menu labels and mnemonics.
+    using UI::MenuItem;
+    std::vector<MenuItem> entries;
+    entries.push_back(MenuItem::command("&Restore", [this] {
         toggleMaximize();
         if (m_on_maximize) { auto cb = m_on_maximize; cb(); }
-    }, m_maximized});
-    entries.push_back(Entry{"Move", [this] {
+    }, m_maximized));
+    entries.push_back(MenuItem::command("&Move", [this] {
         // The window follows the pointer until the next click settles it
         // (mouse take on the classic keyboard move mode). The baseline is
         // taken from the first motion event, since the menu click that chose
@@ -272,21 +273,22 @@ void WindowFrameWidget::openControlMenu()
         m_is_dragging = true;
         captureMouse();
         if (m_on_drag_start) { m_on_drag_start(); }
-    }, !m_maximized});
-    entries.push_back(Entry{"Minimize", [this] {
+    }, !m_maximized));
+    entries.push_back(MenuItem::command("Mi&nimize", [this] {
         if (m_on_minimize) { auto cb = m_on_minimize; cb(); }
-    }, m_minimizable});
-    entries.push_back(Entry{"Maximize", [this] {
+    }, m_minimizable));
+    entries.push_back(MenuItem::command("Ma&ximize", [this] {
         toggleMaximize();
         if (m_on_maximize) { auto cb = m_on_maximize; cb(); }
-    }, m_maximizable && !m_maximized});
-    Entry sep;
-    sep.separator = true;
-    entries.push_back(std::move(sep));
-    entries.push_back(Entry{"Close", [this] { requestClose(); }, true, "Ctrl+F4"});
+    }, m_maximizable && !m_maximized));
+    entries.push_back(MenuItem::sep());
+    entries.push_back(MenuItem::command("&Close", [this] { requestClose(); }, true, "Ctrl+F4"));
     m_control_menu->setEntries(std::move(entries));
 
+    // The icon stays the frame's while the menu is open: its toggle closes
+    // the menu, and its double-click still closes the window.
     const Rect icon = getControlMenuBounds();
+    m_control_menu->setPassThrough(icon);
     m_control_menu->openAt(icon.x(), icon.y() + icon.height());
     s_open_menu_window = this;
     rebuildSurface(); // invert the titlebar icon

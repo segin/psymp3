@@ -1,5 +1,5 @@
 /*
- * ContextMenuWidget.cpp - Lightweight right-click popup menu
+ * ContextMenuWidget.cpp - Right-click (context) menus
  * This file is part of PsyMP3.
  * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
  *
@@ -13,210 +13,228 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+namespace {
+// The one open context menu.
+struct OpenContextMenu {
+    std::unique_ptr<MenuPopup> popup;
+    const void* owner = nullptr;
+    std::function<void()> on_close;
+    Rect pass_through;
+};
+OpenContextMenu s_context_menu;
+Rect s_context_screen(0, 0, 640, 404);
+} // namespace
+
 ContextMenuWidget::ContextMenuWidget(int width, int height, Core::Font* font)
-    : DrawableWidget(width, height)
+    : Widget()
     , m_font(font)
 {
+    setPos(Rect(0, 0, width, height));
+    setMouseTransparent(true); // a handle: the open menu takes its events itself
 }
 
-void ContextMenuWidget::setEntries(std::vector<Entry> entries)
+ContextMenuWidget::~ContextMenuWidget()
+{
+    forget(this);
+}
+
+void ContextMenuWidget::setEntries(std::vector<MenuItem> entries)
 {
     m_entries = std::move(entries);
-
-    // Popup width = widest label (plus its accelerator column) + padding.
-    int max_w = 0;
-    if (m_font && m_font->isValid()) {
-        for (const auto& e : m_entries) {
-            if (e.separator) continue;
-            int w = 0;
-            auto surf = m_font->RenderLCD(TagLib::String(e.label, TagLib::String::UTF8),
-                                          0, 0, 0, 192, 192, 192);
-            if (surf) w = surf->width();
-            if (!e.accel.empty()) {
-                auto accel = m_font->RenderLCD(TagLib::String(e.accel, TagLib::String::UTF8),
-                                               0, 0, 0, 192, 192, 192);
-                if (accel) w += ACCEL_GAP + accel->width();
-            }
-            if (w > max_w) max_w = w;
-        }
-    }
-    m_width_px = max_w + 2 * PAD + 2; // + the 1px borders
-    if (m_width_px < 40) m_width_px = 40;
-    invalidate();
 }
 
-int ContextMenuWidget::entryHeight(int i) const
+void ContextMenuWidget::resize(int width, int height)
 {
-    return m_entries[static_cast<size_t>(i)].separator ? SEP_H : ITEM_H;
-}
-
-int ContextMenuWidget::entriesHeight() const
-{
-    int h = 0;
-    for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
-        h += entryHeight(i);
-    }
-    return h;
+    const Rect pos = getPos();
+    setPos(Rect(pos.x(), pos.y(), width, height));
 }
 
 void ContextMenuWidget::openAt(int x, int y)
 {
-    m_x = x;
-    m_y = y;
-    m_hover = -1;
-    m_open = true;
-    invalidate();
+    const Rect me = screenRectOf(this);
+    Rect pass_through;
+    if (m_pass_through.width() > 0 && m_pass_through.height() > 0) {
+        pass_through = Rect(me.x() + m_pass_through.x(), me.y() + m_pass_through.y(),
+                            m_pass_through.width(), m_pass_through.height());
+    }
+    popUp(m_font, m_entries, me.x() + x, me.y() + y, screenBounds(), this,
+          [this] {
+              if (m_on_close) {
+                  auto on_close = m_on_close; // the callback may replace it
+                  on_close();
+              }
+          },
+          pass_through);
 }
 
 void ContextMenuWidget::close()
 {
-    if (!m_open) {
+    closeFor(this);
+}
+
+bool ContextMenuWidget::isOpen() const
+{
+    return isOpenFor(this);
+}
+
+// The handle draws nothing and takes no clicks: while open, the menu gets
+// events from the Player before any widget does.
+bool ContextMenuWidget::handleMouseDown(const SDL_MouseButtonEvent&, int, int) { return false; }
+bool ContextMenuWidget::handleMouseMotion(const SDL_MouseMotionEvent&, int, int) { return false; }
+bool ContextMenuWidget::handleMouseUp(const SDL_MouseButtonEvent&, int, int) { return false; }
+
+void ContextMenuWidget::popUp(Core::Font* font, std::vector<MenuItem> items, int screen_x, int screen_y,
+                              const Rect& screen_bounds, const void* owner,
+                              std::function<void()> on_close, const Rect& pass_through)
+{
+    closeOpenMenu();
+    if (items.empty()) {
         return;
     }
-    m_open = false;
-    m_hover = -1;
-    invalidate();
-    if (m_on_close) {
-        // Copy first: the callback belongs to the owner and may mutate us.
-        auto on_close = m_on_close;
+    s_context_menu.popup = std::make_unique<MenuPopup>(font);
+    s_context_menu.popup->open(std::move(items), screen_x, screen_y, screen_bounds);
+    s_context_menu.owner = owner;
+    s_context_menu.on_close = std::move(on_close);
+    s_context_menu.pass_through = pass_through;
+}
+
+bool ContextMenuWidget::isOpenFor(const void* owner)
+{
+    return s_context_menu.popup && s_context_menu.owner == owner && owner != nullptr;
+}
+
+void ContextMenuWidget::closeFor(const void* owner)
+{
+    if (isOpenFor(owner)) {
+        closeOpenMenu();
+    }
+}
+
+void ContextMenuWidget::forget(const void* owner)
+{
+    if (isOpenFor(owner)) {
+        s_context_menu = OpenContextMenu();
+    }
+}
+
+void ContextMenuWidget::closeOpenMenu()
+{
+    if (!s_context_menu.popup) {
+        return;
+    }
+    auto on_close = std::move(s_context_menu.on_close);
+    s_context_menu = OpenContextMenu();
+    if (on_close) {
         on_close();
     }
 }
 
-Rect ContextMenuWidget::popupRect() const
-{
-    int w = m_width_px;
-    int h = entriesHeight() + 2; // + 1px borders
-    int x = m_x;
-    int y = m_y;
-    Rect me = getPos();
-    if (x + w > me.width()) x = me.width() - w; // keep the popup on-screen
-    if (y + h > me.height()) y = me.height() - h;
-    if (x < 0) x = 0;
-    if (y < 0) y = 0;
-    return Rect(x, y, w, h);
-}
-
-int ContextMenuWidget::itemAt(int x, int y) const
-{
-    Rect r = popupRect();
-    if (x < r.x() || x >= r.x() + r.width() || y < r.y() || y >= r.y() + r.height()) {
-        return -1;
-    }
-    int rel = y - (r.y() + 1); // items start one pixel below the top border
-    if (rel < 0) {
-        return -1; // on the top border, not an item
-    }
-    int acc = 0;
-    for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
-        const int h = entryHeight(i);
-        if (rel < acc + h) {
-            return m_entries[static_cast<size_t>(i)].separator ? -1 : i;
-        }
-        acc += h;
-    }
-    return -1;
-}
-
-bool ContextMenuWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
-{
-    if (!m_open) {
-        return false; // transparent while closed
-    }
-    // Any press resolves the menu: activate the item under it, or dismiss.
-    int idx = (event.button == SDL_BUTTON_LEFT) ? itemAt(relative_x, relative_y) : -1;
-    std::function<void()> action;
-    if (idx >= 0 && m_entries[idx].enabled) {
-        action = m_entries[idx].action;
-    }
-    close();
-    if (action) {
-        action();
-    }
-    return true;
-}
-
-bool ContextMenuWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
+bool ContextMenuWidget::routeMouseDown(const SDL_MouseButtonEvent& event, int x, int y)
 {
     (void)event;
-    if (!m_open) {
+    MenuPopup* popup = s_context_menu.popup.get();
+    if (!popup) {
         return false;
     }
-    int idx = itemAt(relative_x, relative_y);
-    if (idx >= 0 && !m_entries[idx].enabled) {
-        idx = -1;
+    if (s_context_menu.pass_through.contains(x, y)) {
+        return false; // its owner's to handle, menu still open
     }
-    if (idx != m_hover) {
-        m_hover = idx;
-        invalidate();
+    if (popup->contains(x, y)) {
+        // Any button highlights; the release picks.
+        popup->mouseDown(x, y);
+        return true;
+    }
+    // Anywhere else: close, and eat the click.
+    closeOpenMenu();
+    return true;
+}
+
+bool ContextMenuWidget::routeMouseMotion(const SDL_MouseMotionEvent& event, int x, int y)
+{
+    (void)event;
+    MenuPopup* popup = s_context_menu.popup.get();
+    if (!popup) {
+        return false;
+    }
+    popup->mouseMotion(x, y);
+    return true;
+}
+
+bool ContextMenuWidget::routeMouseUp(const SDL_MouseButtonEvent& event, int x, int y)
+{
+    (void)event;
+    MenuPopup* popup = s_context_menu.popup.get();
+    if (!popup) {
+        return false;
+    }
+    if (s_context_menu.pass_through.contains(x, y)) {
+        return false;
+    }
+    // A release on an item picks it, with either button: a right-button
+    // press that opened the menu can be dragged onto an item and released.
+    // The menu opens with its corner, not an item, under the pointer, so the
+    // release of that press alone picks nothing.
+    std::function<void()> picked;
+    popup->mouseUp(x, y, picked);
+    if (picked) {
+        closeOpenMenu();
+        picked();
     }
     return true;
 }
 
-bool ContextMenuWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
+bool ContextMenuWidget::routeKey(const SDL_keysym& keysym)
 {
-    (void)event;
-    (void)relative_x;
-    (void)relative_y;
-    // Consume releases while open (e.g. the right-button release that opened it)
-    // so they don't fall through to the widgets underneath.
-    return m_open;
+    MenuPopup* popup = s_context_menu.popup.get();
+    if (!popup) {
+        return false;
+    }
+    std::function<void()> picked;
+    switch (popup->key(keysym, picked)) {
+        case MenuPopup::KeyResult::Handled:
+        case MenuPopup::KeyResult::Previous: // no neighbouring menus
+        case MenuPopup::KeyResult::Next:
+            break;
+        case MenuPopup::KeyResult::Close:
+            closeOpenMenu();
+            break;
+        case MenuPopup::KeyResult::Picked:
+            closeOpenMenu();
+            if (picked) {
+                picked();
+            }
+            break;
+    }
+    return true; // the open menu owns the keyboard
 }
 
-void ContextMenuWidget::draw(Surface& surface)
+void ContextMenuWidget::blitOpenMenu(Surface& target)
 {
-    surface.FillRect(surface.MapRGBA(0, 0, 0, 0)); // transparent overlay
-    if (!m_open || m_entries.empty()) {
-        return;
+    if (s_context_menu.popup) {
+        s_context_menu.popup->draw(target);
     }
+}
 
-    Rect r = popupRect();
-    const int x1 = r.x(), y1 = r.y();
-    const int x2 = r.x() + r.width() - 1, y2 = r.y() + r.height() - 1;
+void ContextMenuWidget::setScreenSize(int width, int height)
+{
+    s_context_screen = Rect(0, 0, width, height);
+}
 
-    // Face + raised 3D border.
-    surface.box(x1, y1, x2, y2, 192, 192, 192, 255);
-    surface.hline(x1, x2, y1, 255, 255, 255, 255);
-    surface.vline(x1, y1, y2, 255, 255, 255, 255);
-    surface.hline(x1, x2, y2, 128, 128, 128, 255);
-    surface.vline(x2, y1, y2, 128, 128, 128, 255);
+Rect ContextMenuWidget::screenBounds()
+{
+    return s_context_screen;
+}
 
-    int iy = y1 + 1;
-    for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
-        const Entry& e = m_entries[i];
-        if (e.separator) {
-            // Etched separator: dark line with a white line beneath.
-            const int sy = iy + SEP_H / 2 - 1;
-            surface.hline(x1 + 2, x2 - 2, sy, 128, 128, 128, 255);
-            surface.hline(x1 + 2, x2 - 2, sy + 1, 255, 255, 255, 255);
-            iy += SEP_H;
-            continue;
-        }
-        bool hi = (i == m_hover) && e.enabled;
-        if (hi) {
-            surface.box(x1 + 1, iy, x2 - 1, iy + ITEM_H - 1, 0, 0, 128, 255);
-        }
-        if (m_font && m_font->isValid() && !e.label.empty()) {
-            uint8_t fg = e.enabled ? (hi ? 255 : 0) : 128;
-            uint8_t bg_r = hi ? 0 : 192, bg_g = hi ? 0 : 192, bg_b = hi ? 128 : 192;
-            auto text = m_font->RenderLCD(TagLib::String(e.label, TagLib::String::UTF8),
-                                          fg, fg, fg, bg_r, bg_g, bg_b);
-            if (text && text->width() > 0) {
-                int ty = iy + (ITEM_H - text->height()) / 2;
-                surface.Blit(*text, Rect(x1 + PAD, ty, text->width(), text->height()));
-            }
-            if (!e.accel.empty()) {
-                auto accel = m_font->RenderLCD(TagLib::String(e.accel, TagLib::String::UTF8),
-                                               fg, fg, fg, bg_r, bg_g, bg_b);
-                if (accel && accel->width() > 0) {
-                    int ay = iy + (ITEM_H - accel->height()) / 2;
-                    surface.Blit(*accel, Rect(x2 - PAD - accel->width(), ay,
-                                              accel->width(), accel->height()));
-                }
-            }
-        }
-        iy += ITEM_H;
+Rect ContextMenuWidget::screenRectOf(const Widget* widget)
+{
+    const Rect pos = widget->getPos();
+    int x = pos.x();
+    int y = pos.y();
+    for (const Widget* p = widget->getParent(); p; p = p->getParent()) {
+        x += p->getPos().x();
+        y += p->getPos().y();
     }
+    return Rect(x, y, pos.width(), pos.height());
 }
 
 } // namespace UI

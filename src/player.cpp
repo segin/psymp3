@@ -364,13 +364,15 @@ public:
             const int count = static_cast<int>(m_list->itemCount());
             const int first = m_list->getSelectionFirst();
             const int last = m_list->getSelectionLast();
-            std::vector<ContextMenuWidget::Entry> entries;
-            entries.push_back({ "Play", [this, row] { m_player->playlistManagerJumpTo(row); }, true });
+            std::vector<MenuItem> entries;
+            entries.push_back(MenuItem::command("Play", [this, row] { m_player->playlistManagerJumpTo(row); }));
             // One path at a time: greyed out while several rows are selected.
-            entries.push_back({ "Copy Path", [this, row] { m_player->playlistManagerCopyPath(row); }, first == last });
-            entries.push_back({ "Delete", [this] { removeSelection(); }, first >= 0 });
-            entries.push_back({ "Move Up", [this] { moveSelection(-1); }, first > 0 });
-            entries.push_back({ "Move Down", [this] { moveSelection(1); }, last >= 0 && last < count - 1 });
+            entries.push_back(MenuItem::command("Copy Path", [this, row] { m_player->playlistManagerCopyPath(row); },
+                                                first == last));
+            entries.push_back(MenuItem::command("Delete", [this] { removeSelection(); }, first >= 0));
+            entries.push_back(MenuItem::command("Move Up", [this] { moveSelection(-1); }, first > 0));
+            entries.push_back(MenuItem::command("Move Down", [this] { moveSelection(1); },
+                                                last >= 0 && last < count - 1));
             m_context->setEntries(std::move(entries));
             Rect lp = m_list->getPos();
             m_context->openAt(lp.x() + rx, lp.y() + ry);
@@ -2418,6 +2420,12 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
     // toast or an open dropdown would be hidden behind a floating window such as
     // the equalizer.
     ApplicationWidget::getInstance().blitTopWindows(*graph);
+
+    // An open menu goes over everything, the menu bar included: a menu bar's
+    // drop-down (not clipped by its window), then a context menu.
+    ContextMenuWidget::setScreenSize(graph->width(), graph->height());
+    MenuBarWidget::blitOpenMenu(*graph);
+    ContextMenuWidget::blitOpenMenu(*graph);
 }
 
 /**
@@ -2825,6 +2833,11 @@ void Player::toggleZoom()
  */
 bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
+    // An open context menu is modal for the keyboard, above everything.
+    if (ContextMenuWidget::routeKey(keysym)) {
+        return false;
+    }
+
     // An open dropdown is modal for the keyboard: it must see keys before Tab
     // cycling and the focused-widget handlers, or a focused text box, list, or
     // button underneath it steals the menu's arrows, Enter, and Escape.
@@ -3757,6 +3770,21 @@ void Player::EventLoop() {
                         static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
                     break;
                 }
+                // So does an open menu-bar menu, which is drawn over
+                // everything: its bar's titles and menu take the press, and a
+                // press anywhere else closes it (an embedded bar — the
+                // equalizer's, the Playlist Manager's — would never see a
+                // press outside its window).
+                if (MenuBarWidget::routeMouseDown(
+                        event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
+                    break;
+                }
+                // An open context menu takes the click next: an item's press,
+                // or a press anywhere else, which closes it.
+                if (ContextMenuWidget::routeMouseDown(
+                        event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
+                    break;
+                }
 
                 TextInputWidget::clearFocusedWidget();
                 ListViewWidget::clearFocusedWidget();
@@ -3812,6 +3840,16 @@ void Player::EventLoop() {
                     }
                 }
 
+                // An open menu-bar menu, or an open context menu, owns hover.
+                if (MenuBarWidget::routeMouseMotion(
+                        event.motion, static_cast<int>(event.motion.x), static_cast<int>(event.motion.y))) {
+                    break;
+                }
+                if (ContextMenuWidget::routeMouseMotion(
+                        event.motion, static_cast<int>(event.motion.x), static_cast<int>(event.motion.y))) {
+                    break;
+                }
+
                 // The legacy seek drag holds no widget capture; keep feeding it
                 // directly so moving over a window mid-drag doesn't freeze it.
                 if (m_is_dragging && !Widget::getMouseCapturedWidget()) {
@@ -3847,6 +3885,17 @@ void Player::EventLoop() {
             }
             case SDL_EVENT_MOUSE_BUTTON_UP:
             {
+                // An open menu (a menu bar's or a context menu) sees the
+                // release first: a release on an item picks it.
+                if (MenuBarWidget::routeMouseUp(
+                        event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
+                    break;
+                }
+                if (ContextMenuWidget::routeMouseUp(
+                        event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
+                    break;
+                }
+
                 // Complete a legacy seek drag no matter what is under the cursor.
                 if (m_is_dragging && !Widget::getMouseCapturedWidget()) {
                     handleMouseButtonUp(event.button);
