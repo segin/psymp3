@@ -269,6 +269,10 @@ void TextInputWidget::clearFocusedWidget()
 
 bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
 {
+    // A field disabled while focused takes no more edits; its focus goes.
+    if (s_focused_widget && !s_focused_widget->isEnabled()) {
+        s_focused_widget->blur();
+    }
     if (!s_focused_widget) {
         return false;
     }
@@ -385,7 +389,7 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
 
 bool TextInputWidget::handleFocusedTextInput(const char* text)
 {
-    if (!s_focused_widget || !text || text[0] == '\0') {
+    if (!s_focused_widget || !s_focused_widget->isEnabled() || !text || text[0] == '\0') {
         return false;
     }
 
