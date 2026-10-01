@@ -44,6 +44,9 @@ public:
     static bool routeMouseDown(const SDL_MouseButtonEvent& event, int x, int y);
     static bool routeMouseMotion(const SDL_MouseMotionEvent& event, int x, int y);
     static bool routeMouseUp(const SDL_MouseButtonEvent& event, int x, int y);
+    // Likewise the keyboard: the bar with a menu open, whichever window it
+    // belongs to, takes every key (true when consumed — always, while open).
+    static bool routeKey(const SDL_keysym& keysym);
 
     void addMenu(std::string name, std::vector<Item> items);
 

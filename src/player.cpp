@@ -3029,15 +3029,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
     // An open dropdown is modal for the keyboard: it must see keys before Tab
     // cycling and the focused-widget handlers, or a focused text box, list, or
-    // button underneath it steals the menu's arrows, Enter, and Escape.
-    if (m_eq_client && m_eq_client->isMenuOpen()) {
-        if (m_eq_client->handleMenuKey(keysym)) {
-            return false;
-        }
-    } else if (m_menu_bar && m_menu_bar->isOpen()) {
-        if (m_menu_bar->handleKey(keysym)) {
-            return false;
-        }
+    // button underneath it steals the menu's arrows, Enter, and Escape. That
+    // is whichever bar has it open: the main one, the equalizer's, or the
+    // Playlist Manager's.
+    if (MenuBarWidget::routeKey(keysym)) {
+        return false;
     }
 
     // Tab / Shift+Tab cycle keyboard focus through the active window's
@@ -3090,16 +3086,13 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     // every motion and the button release, so opening one mid-drag (e.g.
     // Alt+F while scrubbing the seek bar) starves the captured widget of its
     // release and wedges its drag state. Don't let keys OPEN a menu while a
-    // capture is live; an already-open menu still gets its navigation keys.
-    const bool menu_may_take_keys =
-        Widget::getMouseCapturedWidget() == nullptr ||
-        (m_menu_bar && m_menu_bar->isOpen());
+    // capture is live (an already-open menu took its keys above).
+    const bool menu_may_take_keys = Widget::getMouseCapturedWidget() == nullptr;
 
     // Alt+<letter> in the active window: its labels' mnemonics come before the
     // menus, as a Windows dialog's do.
     if ((keysym.mod & SDL_KMOD_ALT) && !(keysym.mod & SDL_KMOD_CTRL) &&
-        menu_may_take_keys && !(m_menu_bar && m_menu_bar->isOpen()) &&
-        focusMnemonicTarget(static_cast<int>(keysym.sym))) {
+        menu_may_take_keys && focusMnemonicTarget(static_cast<int>(keysym.sym))) {
         return false;
     }
 
@@ -3115,10 +3108,8 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
-    // Route keys through the menu bar first. When closed it only claims
-    // Alt+<mnemonic> (to open a menu); while open it captures all navigation
-    // keys (arrows/Enter/Esc/mnemonics) so they don't fall through to the
-    // global shortcuts below.
+    // Then the main menu bar, closed (an open one took its keys above): it
+    // claims only Alt+<mnemonic>, to open a menu.
     if (menu_may_take_keys && m_menu_bar && m_menu_bar->handleKey(keysym)) {
         return false;
     }

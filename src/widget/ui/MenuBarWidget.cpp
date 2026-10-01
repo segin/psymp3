@@ -42,6 +42,16 @@ void MenuBarWidget::blitOpenMenu(Surface& target)
     }
 }
 
+bool MenuBarWidget::routeKey(const SDL_keysym& keysym)
+{
+    MenuBarWidget* bar = s_open_bar;
+    if (!bar || bar->m_open < 0) {
+        return false;
+    }
+    bar->handleKey(keysym);
+    return true;
+}
+
 bool MenuBarWidget::routeMouseDown(const SDL_MouseButtonEvent& event, int x, int y)
 {
     MenuBarWidget* bar = s_open_bar;
