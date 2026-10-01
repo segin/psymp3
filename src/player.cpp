@@ -4006,12 +4006,14 @@ void Player::EventLoop() {
                     break;
                 }
 
-                TextInputWidget::clearFocusedWidget();
-                ListViewWidget::clearFocusedWidget();
-                ButtonWidget::clearFocusedWidget();
-                ComboBoxWidget::clearFocusedWidget();
-                CheckboxWidget::clearFocusedWidget();
-                RadioButtonWidget::clearFocusedWidget();
+                // Focus is settled once the click has been dispatched (see
+                // settleClickFocus), not dropped before it: a click on the
+                // focused text field must still find it focused (Shift+click
+                // extends its selection), and a click on a dialog's title bar
+                // or background must not leave the dialog with no focus.
+                const std::array<Widget*, 6> focus_before = focusedControls();
+                const int click_x = static_cast<int>(event.button.x);
+                const int click_y = static_cast<int>(event.button.y);
 
                 // Dispatch by visual priority: a window-owned mouse capture is
                 // authoritative (routed even while a menu is open, so a drag's
@@ -4043,6 +4045,7 @@ void Player::EventLoop() {
                         handleMouseButtonDown(event.button);
                     }
                 }
+                settleClickFocus(focus_before, click_x, click_y);
                 break;
             }
             case SDL_EVENT_MOUSE_MOTION:
@@ -4985,6 +4988,53 @@ bool Player::focusNextWidget(bool backwards)
 
     focusWidget(order[next]);
     return true;
+}
+
+std::array<Widget*, 6> Player::focusedControls()
+{
+    return {ButtonWidget::focusedWidget(), ListViewWidget::focusedWidget(),
+            TextInputWidget::focusedWidget(), ComboBoxWidget::focusedWidget(),
+            CheckboxWidget::focusedWidget(), RadioButtonWidget::focusedWidget()};
+}
+
+void Player::settleClickFocus(const std::array<Widget*, 6>& before, int x, int y)
+{
+    // Read afresh: the click may have destroyed a control, and destruction
+    // clears its class's pointer, so these are all alive.
+    const std::array<Widget*, 6> after = focusedControls();
+
+    Widget* keep = nullptr;
+    for (size_t i = 0; i < after.size(); ++i) {
+        if (after[i] && after[i] != before[i]) {
+            keep = after[i]; // the click focused this control
+        }
+    }
+    if (!keep) {
+        // Nothing took focus: a control still focused keeps it if the click
+        // landed in its window, which the click left active (a click on an
+        // overlapping window would have activated that one instead).
+        for (Widget* w : after) {
+            if (!w) {
+                continue;
+            }
+            Widget* top = w;
+            while (top->getParent()) {
+                top = top->getParent();
+            }
+            auto* frame = dynamic_cast<WindowFrameWidget*>(top);
+            if (frame && frame == WindowFrameWidget::activeWindow() && frame->getPos().contains(x, y)) {
+                keep = w;
+            }
+            break;
+        }
+    }
+
+    if (after[0] && after[0] != keep) ButtonWidget::clearFocusedWidget();
+    if (after[1] && after[1] != keep) ListViewWidget::clearFocusedWidget();
+    if (after[2] && after[2] != keep) TextInputWidget::clearFocusedWidget();
+    if (after[3] && after[3] != keep) ComboBoxWidget::clearFocusedWidget();
+    if (after[4] && after[4] != keep) CheckboxWidget::clearFocusedWidget();
+    if (after[5] && after[5] != keep) RadioButtonWidget::clearFocusedWidget();
 }
 
 void Player::focusWidget(Widget* target)

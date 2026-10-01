@@ -249,6 +249,14 @@ class Player
         // combo box, checkbox or radio button), taking it from whichever
         // control had it.
         void focusWidget(Widget* target);
+        // The focused control of each focusable class (button, list view,
+        // text input, combo box, checkbox, radio button), or nullptr.
+        static std::array<Widget*, 6> focusedControls();
+        // After a mouse-down has been dispatched, given the focus before it:
+        // a control that took focus keeps it alone; otherwise a control still
+        // focused keeps focus if the click was inside its (active) window,
+        // as in a Windows dialog, and loses it anywhere else.
+        void settleClickFocus(const std::array<Widget*, 6>& before, int x, int y);
 
     protected:
         PlayerState state;
