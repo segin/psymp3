@@ -4185,10 +4185,19 @@ void Player::EventLoop() {
             }
             case SDL_EVENT_MOUSE_WHEEL:
             {
-                int delta = event.wheel.y; // +1 per notch up / away from the user
+                // +1 per notch up / away from the user. Fractions (touchpads,
+                // high-resolution wheels) add up to whole notches, so they
+                // aren't truncated away; reversing drops what was gathered.
+                float y = event.wheel.y;
                 if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
-                    delta = -delta;
+                    y = -y;
                 }
+                if ((y > 0.0f && m_wheel_accum < 0.0f) || (y < 0.0f && m_wheel_accum > 0.0f)) {
+                    m_wheel_accum = 0.0f;
+                }
+                m_wheel_accum += y;
+                const int delta = static_cast<int>(m_wheel_accum); // toward zero
+                m_wheel_accum -= static_cast<float>(delta);
                 if (delta != 0 && ComboBoxWidget::routeOpenListMouseWheel(delta)) {
                     break; // an open combo box list scrolls
                 }

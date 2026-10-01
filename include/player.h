@@ -308,6 +308,10 @@ class Player
         // next one): the SDL text input for that key must not reach a text
         // field, even though picking a mnemonic may have closed the menu.
         bool m_swallow_text_input = false;
+        // SDL3 wheel deltas are floats: a touchpad or high-resolution wheel
+        // sends fractions of a notch, gathered here until they make whole
+        // ones (SDL's own integer_y needs 3.2.12; we accept any SDL 3).
+        float m_wheel_accum = 0.0f;
         // Replace the playlist with the given (playlist-expanded) paths and
         // play from the first resulting track; shared tail of the Ctrl+O
         // chooser and drag-and-drop. No-op if the expansion yields nothing.
