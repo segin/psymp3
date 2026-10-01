@@ -18,7 +18,7 @@ MPRIS.
 
 ## Table of Contents
 
-1. [Overview](#overview)
+1. [Features](#features)
 2. [System Requirements](#system-requirements)
 3. [Building](#building)
 4. [Usage](#usage)
@@ -26,11 +26,7 @@ MPRIS.
 6. [Testing](#testing)
 7. [Notes](#notes)
 
-## Overview
-
-PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x was written in FreeBASIC, 2.x is written in C++17, and is portable!
-
-Highlights:
+## Features
 
 - Real-time FFT spectrum visualizer with adjustable intensity, decay, and draw modes
 - A faithful Windows 3.1-style in-app UI: menu bar, movable windows (Playlist Manager, Equalizer, Media Information, About), buttons, scrollbars, and dialogs — all software-rendered
@@ -313,3 +309,8 @@ How it works alongside `vera.ttf`:
 
 Replacing `vera.ttf` itself still works too. On Windows, a `vera.ttf` next to
 the executable or in the working directory overrides the built-in copy.
+
+### History
+
+PsyMP3 2.x is a complete rewrite. The 1.x series was written in FreeBASIC; 2.x
+is written in C++17 and runs on Linux, the BSDs and Windows.
