@@ -140,6 +140,7 @@ EqualizerWindow::EqualizerWindow(Font* font,
         auto slider = std::make_unique<SliderWidget>(kSliderW, kSliderH, m_min_db, m_max_db,
                                                      m_gains[i], SliderOrientation::Vertical);
         SliderWidget* sp = slider.get();
+        sp->setWheelStep(1.0); // 1 dB a notch, as the readout counts
         const int band = i;
         sp->setOnChange([this, band](double db) {
             m_gains[band] = db;
@@ -179,6 +180,7 @@ EqualizerWindow::EqualizerWindow(Font* font,
         auto vslider = std::make_unique<SliderWidget>(vs_w, 16, 0.0, 1.0, initial_volume,
                                                       SliderOrientation::Horizontal);
         m_volume_slider = vslider.get();
+        m_volume_slider->setWheelStep(0.05); // 5% a notch, like the volume keys
         m_volume_slider->setOnChange([this](double v) {
             if (m_volume_value) m_volume_value->setText(fmtPct(v));
             if (!m_suppress_volume_cb && m_on_volume) m_on_volume(v);

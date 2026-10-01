@@ -36,6 +36,7 @@ SliderWidget::SliderWidget(int width, int height, double min_value, double max_v
 {
     if (m_max < m_min) std::swap(m_min, m_max);
     m_value = clamp(m_value);
+    m_wheel_step = (m_max > m_min) ? (m_max - m_min) / 20.0 : 1.0;
     setPos(Rect(0, 0, width, height));
     rebuildSurface();
 }
@@ -125,6 +126,22 @@ bool SliderWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative
     releaseMouse();
     m_dragging = false;
     rebuildSurface();
+    return true;
+}
+
+bool SliderWidget::handleMouseWheel(int delta, int relative_x, int relative_y)
+{
+    (void)relative_x; (void)relative_y;
+    if (delta == 0 || !isEnabled()) {
+        return false;
+    }
+    // The drag owns the thumb while it lasts; the wheel is still consumed.
+    if (m_dragging) {
+        return true;
+    }
+    // Snap to the step grid first, then move `delta` steps along it.
+    const double steps = std::round((m_value - m_min) / m_wheel_step) + delta;
+    setValue(m_min + steps * m_wheel_step);
     return true;
 }
 

@@ -35,10 +35,17 @@ public:
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
     bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
+    // The wheel moves the value by whole steps (setWheelStep): up raises it,
+    // down lowers it, whatever the orientation.
+    bool handleMouseWheel(int delta, int relative_x, int relative_y) override;
 
     void   setValue(double value);           // clamps, redraws, fires onChange on change
     double getValue() const { return m_value; }
     void   setOnChange(std::function<void(double)> cb) { m_on_change = std::move(cb); }
+    // One wheel notch's change in value; a twentieth of the range by default.
+    // The wheel lands on multiples of it (counted from the minimum), so a
+    // value left between them by a drag snaps to the grid on the first notch.
+    void   setWheelStep(double step) { if (step > 0.0) m_wheel_step = step; }
 
     static constexpr int kThumbLen = 11;     // thumb size along the travel axis (px)
 
@@ -55,6 +62,7 @@ private:
     double m_min;
     double m_max;
     double m_value;
+    double m_wheel_step;
     bool   m_dragging = false;
     int    m_drag_offset = 0;                 // cursor-to-thumb-start offset while dragging
     std::function<void(double)> m_on_change;
