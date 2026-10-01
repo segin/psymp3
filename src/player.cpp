@@ -3116,6 +3116,13 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
+    // An Alt chord nothing above claimed (a mistyped mnemonic, or one made
+    // while a drag holds the mouse) ends here, as in Windows: the global
+    // shortcuts below are bare keys, and Alt+Q must not quit nor Alt+N skip.
+    if (keysym.mod & SDL_KMOD_ALT) {
+        return false;
+    }
+
     // Escape in the URL dialog cancels it, even with its text field unfocused,
     // instead of reaching the quit key below.
     if (keysym.sym == SDLK_ESCAPE && m_url_dialog &&
