@@ -227,8 +227,11 @@ PsyMP3 scrobbles through the Last.fm Web Services API 2.0 with its own
 registered API key. The easiest way to set it up is in the app:
 **Settings → Last.fm Credentials...** — enter your username and password,
 press **Test** to verify, and **OK** to save. The password is only needed
-once: after the first successful authentication PsyMP3 stores a permanent
-session key and wipes the password.
+once: after the first successful login PsyMP3 adds a permanent session key
+to the configuration file. The `password=` line stays in the file (readable
+only by you on Linux/BSD). You can delete it: PsyMP3 only needs it again if
+you revoke its access on Last.fm, after which you re-enter it under
+**Settings → Last.fm Credentials...**.
 
 Configuration lives in:
 - **Linux/Unix**: `~/.config/psymp3/lastfm.conf`
