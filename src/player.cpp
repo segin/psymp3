@@ -3024,6 +3024,12 @@ void Player::toggleZoom()
  */
 bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
+    // A window being moved from its control menu owns the keyboard: Escape
+    // cancels the move (it must not reach the quit key), Enter settles it.
+    if (WindowFrameWidget::routeMenuMoveKey(keysym)) {
+        return false;
+    }
+
     // An open context menu is modal for the keyboard, above everything.
     if (ContextMenuWidget::routeKey(keysym)) {
         m_swallow_text_input = true;

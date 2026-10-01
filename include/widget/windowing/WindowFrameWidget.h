@@ -196,6 +196,10 @@ public:
     // dismissing click is consumed. In-frame clicks are handled by the menu
     // overlay (select/dismiss) and the titlebar icon (toggle) themselves.
     static bool dismissOpenSystemMenuAt(int x, int y);
+    // While a control-menu Move is in progress it owns the keyboard, as in
+    // Windows: Escape puts the window back where it started, Enter settles
+    // it, and every other key is swallowed. True when a move consumed it.
+    static bool routeMenuMoveKey(const SDL_keysym& keysym);
     // Close this window exactly as its titlebar close control would (fires the
     // owner's on-close callback, which typically destroys the widget).
     void requestClose();
@@ -315,6 +319,9 @@ private:
     // m_is_dragging is also set and mouse-up does not end the drag.
     bool m_menu_move_mode = false;
     bool m_menu_move_pending = false; // Move chosen; baseline set on first motion
+    Rect m_menu_move_origin;          // where the window was, for Escape
+    static WindowFrameWidget* s_menu_move_window; // the window in Move mode
+    void endMenuMove();
 
     // Titlebar button press tracking: buttons sink on mouse-down and only fire
     // on release inside their bounds; releasing elsewhere cancels.

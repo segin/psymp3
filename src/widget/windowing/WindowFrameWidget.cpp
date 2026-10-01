@@ -41,6 +41,7 @@ SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
 SDL_Cursor* WindowFrameWidget::s_default_cursor = nullptr;
 WindowFrameWidget* WindowFrameWidget::s_active_window = nullptr;
 WindowFrameWidget* WindowFrameWidget::s_open_menu_window = nullptr;
+WindowFrameWidget* WindowFrameWidget::s_menu_move_window = nullptr;
 // Default maximize area = the full 640x404 base canvas; the Player narrows this
 // to the region below the menu bar via setMaximizeArea().
 Rect WindowFrameWidget::s_maximize_bounds = Rect(0, 0, 640, 404);
@@ -185,6 +186,9 @@ WindowFrameWidget::~WindowFrameWidget()
     if (s_open_menu_window == this) {
         s_open_menu_window = nullptr;
     }
+    if (s_menu_move_window == this) {
+        s_menu_move_window = nullptr;
+    }
     s_instance_count--;
     if (s_instance_count == 0) {
         // The last window standing is usually destroyed during Player teardown,
@@ -214,6 +218,39 @@ WindowFrameWidget::~WindowFrameWidget()
         s_cursor_ew = nullptr;
         s_cursor_ns = nullptr;
     }
+}
+
+void WindowFrameWidget::endMenuMove()
+{
+    m_menu_move_mode = false;
+    m_menu_move_pending = false;
+    m_is_dragging = false;
+    if (s_menu_move_window == this) {
+        s_menu_move_window = nullptr;
+    }
+    releaseMouse();
+}
+
+bool WindowFrameWidget::routeMenuMoveKey(const SDL_keysym& keysym)
+{
+    WindowFrameWidget* w = s_menu_move_window;
+    if (!w || !w->m_menu_move_mode) {
+        return false;
+    }
+    if (keysym.sym == SDLK_ESCAPE) {
+        // Cancelled: back where it started, by the same path a drag takes.
+        const Rect now = w->getPos();
+        const int dx = w->m_menu_move_origin.x() - now.x();
+        const int dy = w->m_menu_move_origin.y() - now.y();
+        w->endMenuMove();
+        if ((dx != 0 || dy != 0) && w->m_on_drag) {
+            auto on_drag = w->m_on_drag;
+            on_drag(dx, dy);
+        }
+    } else if (keysym.sym == SDLK_RETURN || keysym.sym == SDLK_KP_ENTER) {
+        w->endMenuMove();
+    }
+    return true;
 }
 
 bool WindowFrameWidget::dismissOpenSystemMenuAt(int x, int y)
@@ -283,6 +320,8 @@ void WindowFrameWidget::openControlMenu()
         // this item is not a meaningful drag origin.
         m_menu_move_mode = true;
         m_menu_move_pending = true;
+        m_menu_move_origin = getPos();
+        s_menu_move_window = this;
         m_is_dragging = true;
         captureMouse();
         if (m_on_drag_start) { m_on_drag_start(); }
@@ -341,9 +380,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
         // A click while the control-menu "Move" mode is active settles the
         // window at its current position and consumes the click.
         if (m_menu_move_mode) {
-            m_menu_move_mode = false;
-            m_is_dragging = false;
-            releaseMouse();
+            endMenuMove();
             return true;
         }
 
