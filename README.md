@@ -170,9 +170,23 @@ one-liners and how the version label is mapped to a legal package version.
 ## Usage
 
 Pass the paths of audio files or playlists (`.m3u`/`.m3u8`) as program
-arguments; they are played in order. Supported formats include MP3, MP2,
-Ogg Vorbis, Opus, FLAC (native and Ogg), WAV/RIFF, AAC/M4A, xHE-AAC, ALAC, Speex,
-MLP/Dolby TrueHD (`.thd`/`.truehd`/`.mlp`), G.711 (µ-law/A-law), G.722, and raw PCM.
+arguments; they are played in order.
+
+### Supported formats
+
+| Container | Extensions | Audio it can carry |
+|---|---|---|
+| MPEG audio | `.mp3`, `.mp2`, `.mpa` | MP3, MP2 |
+| FLAC | `.flac` | FLAC |
+| Ogg | `.ogg`, `.oga`, `.opus` | Vorbis, Opus, FLAC, Speex |
+| MP4 / QuickTime | `.m4a`, `.mp4`, `.mov`, `.3gp` | AAC (LC, HE-AAC v1/v2, xHE-AAC), ALAC, MP3, FLAC, AC-3, E-AC-3, TrueHD, PCM |
+| Matroska / WebM | `.mka`, `.mkv`, `.webm` | AAC, Vorbis, Opus, FLAC, ALAC, MP2, MP3, AC-3, E-AC-3, MLP / TrueHD, PCM |
+| RIFF | `.wav`, `.bwf`, `.avi` | PCM, G.711, G.722, MP2, MP3, AC-3 (AVI: the audio track only) |
+| AIFF | `.aif`, `.aiff`, `.aifc` | PCM, G.711 |
+| Dolby | `.ac3`, `.eac3`, `.thd`, `.mlp` | AC-3, E-AC-3, MLP / Dolby TrueHD |
+| Raw | `.pcm`, `.raw`, `.al`, `.ul`, `.g722`, `.au` | PCM, G.711 µ-law/A-law, G.722 |
+
+Playlists in `.m3u` and `.m3u8` are read and written.
 
 PsyMP3 has a full mouse-driven UI — a menu bar (`File`, `Playback`,
 `Settings`, `Help` — Alt+F/P/S mnemonics work) plus movable in-app windows
