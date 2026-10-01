@@ -71,8 +71,10 @@ bool CheckboxWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     if (!w || !w->isEnabled() || keysym.sym != SDLK_SPACE) {
         return false;
     }
-    // Key auto-repeat lands here again; the flag makes it a no-op.
-    if (!w->m_key_pressed) {
+    // Key auto-repeat lands here again; the flag makes it a no-op. While the
+    // mouse holds the box, Space is ignored (as in Windows): one press, one
+    // toggle.
+    if (!w->m_key_pressed && !w->m_mouse_held) {
         w->m_key_pressed = true;
         w->m_pressed = true;
         w->rebuildSurface();
@@ -107,6 +109,10 @@ bool CheckboxWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
     }
 
     takeFocus();
+    // Likewise a click while Space holds it does nothing.
+    if (m_key_pressed) {
+        return true;
+    }
     m_pressed = true;
     m_mouse_held = true;
     captureMouse();
