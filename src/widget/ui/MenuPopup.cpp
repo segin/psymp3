@@ -375,6 +375,16 @@ MenuPopup::KeyResult MenuPopup::key(const SDL_keysym& keysym, std::function<void
     std::vector<MenuItem>& list = in_sub ? m_items[m_open_sub].submenu : m_items;
     int& sel = in_sub ? m_hover_sub : m_hover;
 
+    // A submenu the mouse opened stays attached to its parent: once the
+    // top-level selection moves off that parent by key, collapse it, or it
+    // would go on being drawn (and clickable) beside an unrelated item.
+    auto collapseStaleSubmenu = [&] {
+        if (!in_sub && m_open_sub >= 0 && m_open_sub != sel) {
+            m_open_sub = -1;
+            m_hover_sub = -1;
+        }
+    };
+
     auto pick = [&](MenuItem& it) {
         if (!it.isEnabled()) return KeyResult::Handled; // disabled: keep the menu open
         picked = it.action ? it.action : [] {};
@@ -388,10 +398,12 @@ MenuPopup::KeyResult MenuPopup::key(const SDL_keysym& keysym, std::function<void
 
         case SDLK_DOWN:
             sel = stepSelectable(list, sel, +1);
+            collapseStaleSubmenu();
             return KeyResult::Handled;
 
         case SDLK_UP:
             sel = stepSelectable(list, sel, -1);
+            collapseStaleSubmenu();
             return KeyResult::Handled;
 
         case SDLK_RIGHT:
@@ -445,11 +457,13 @@ MenuPopup::KeyResult MenuPopup::key(const SDL_keysym& keysym, std::function<void
                 if (m > sel) { next = m; break; }
             }
             sel = next;
+            collapseStaleSubmenu();
             return KeyResult::Handled;
         }
         if (matches.size() == 1) {
             const int i = matches.front();
             sel = i;
+            collapseStaleSubmenu();
             MenuItem& it = list[i];
             if (!it.submenu.empty()) {
                 if (!in_sub) {
