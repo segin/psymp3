@@ -4174,6 +4174,12 @@ void Player::EventLoop() {
                 if (delta != 0 && ComboBoxWidget::routeOpenListMouseWheel(delta)) {
                     break; // an open combo box list scrolls
                 }
+                // An open menu owns the mouse, the wheel included: nothing
+                // under it (an equalizer slider beneath the Presets menu)
+                // may react. Menus don't scroll, so the wheel does nothing.
+                if (MenuBarWidget::anyOpen() || ContextMenuWidget::anyOpen()) {
+                    break;
+                }
                 if (delta != 0) {
                     // A window under the cursor gets the wheel (its ListView, if
                     // any, scrolls) and occludes the desktop. Over the main player
