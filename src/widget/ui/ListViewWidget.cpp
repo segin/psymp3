@@ -92,7 +92,23 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     }
     ListViewWidget& w = *s_focused_widget;
     if (w.m_items.empty()) {
-        return false;
+        // Nothing to move through, but the list still has focus: the owner's
+        // keys (the Playlist Manager's Ctrl+C, Ctrl+Up/Down) and the cursor
+        // keys stay the list's, doing nothing, rather than reach the global
+        // shortcuts (Up/Down change the volume, C the spectrum decay).
+        if (w.m_on_key) {
+            auto on_key = w.m_on_key; // the callback may replace it
+            if (on_key(keysym)) {
+                return true;
+            }
+        }
+        switch (keysym.sym) {
+            case SDLK_UP: case SDLK_DOWN: case SDLK_PAGEUP: case SDLK_PAGEDOWN:
+            case SDLK_HOME: case SDLK_END:
+                return true;
+            default:
+                return false;
+        }
     }
     // A key during a held drag can change the rows or the selection (Delete,
     // Ctrl+Up/Down, the cursor keys): the drag's recorded block would then
