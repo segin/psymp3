@@ -39,7 +39,7 @@ bool isContinuationByte(char c)
 // Codepoint boundaries in a UTF-8 string.
 size_t previousBoundaryIn(const std::string& s, size_t index)
 {
-    if (index == 0) {
+    if (index == 0 || s.empty()) {
         return 0;
     }
     size_t i = std::min(index, s.size()) - 1;
@@ -63,12 +63,15 @@ size_t nextBoundaryIn(const std::string& s, size_t index)
 
 // Keep printable ASCII (0x20-0x7E) and every UTF-8 multi-byte byte (>= 0x80);
 // drop only C0 controls and DEL. Dropping CR/LF also collapses multi-line
-// clipboard content into the single line this control edits.
+// clipboard content into the single line this control edits. Invalid UTF-8
+// is replaced with U+FFFD first: TagLib empties a string it can't decode,
+// which would wipe the whole field on paste.
 std::string filterPrintable(const std::string& input)
 {
+    const std::string valid = UTF8Util::isValid(input) ? input : UTF8Util::repair(input);
     std::string filtered;
-    filtered.reserve(input.size());
-    for (unsigned char c : input) {
+    filtered.reserve(valid.size());
+    for (unsigned char c : valid) {
         if (c >= 0x20 && c != 0x7F) {
             filtered.push_back(static_cast<char>(c));
         }
@@ -654,7 +657,9 @@ bool TextInputWidget::pasteFromClipboard()
 void TextInputWidget::commitEdit(const std::string& utf8, size_t caret)
 {
     m_text = TagLib::String(utf8, TagLib::String::UTF8);
-    m_caret = m_anchor = std::min(caret, utf8.size());
+    // Clamped against the text as stored, not as given: should the
+    // conversion ever drop bytes, the caret must still lie within it.
+    m_caret = m_anchor = std::min(caret, narrowText(m_text).size());
     resetBlink();
     rebuildSurface();
     if (m_on_change) {
