@@ -638,7 +638,13 @@ int ListViewWidget::rowAt(int relative_y) const
     if (relative_y < BORDER || m_row_height <= 0) {
         return -1;
     }
-    int r = m_top + (relative_y - BORDER) / m_row_height;
+    // Only whole rows are drawn: the strip under the last of them, short of
+    // a row's height, shows no row and must not select (and scroll to) one.
+    const int visible = (relative_y - BORDER) / m_row_height;
+    if (visible >= visibleRows()) {
+        return -1;
+    }
+    int r = m_top + visible;
     return (r >= 0 && r < static_cast<int>(m_items.size())) ? r : -1;
 }
 
