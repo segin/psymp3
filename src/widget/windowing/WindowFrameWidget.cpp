@@ -230,6 +230,11 @@ bool WindowFrameWidget::dismissOpenSystemMenuAt(int x, int y)
         y >= pos.y() && y < pos.y() + pos.height()) {
         return false;
     }
+    // The menu is drawn at screen level and can hang past a short window's
+    // bottom edge: a press on it is the menu's, not a dismissal.
+    if (UI::ContextMenuWidget::openMenuContains(x, y)) {
+        return false;
+    }
     w->closeControlMenu();
     // The dismissing click also breaks the icon's pending double-click, so a
     // later click on the icon reopens the menu instead of closing the window.

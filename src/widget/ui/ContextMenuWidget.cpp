@@ -119,6 +119,11 @@ bool ContextMenuWidget::anyOpen()
     return s_context_menu.popup != nullptr;
 }
 
+bool ContextMenuWidget::openMenuContains(int x, int y)
+{
+    return s_context_menu.popup && s_context_menu.popup->contains(x, y);
+}
+
 void ContextMenuWidget::closeFor(const void* owner)
 {
     if (isOpenFor(owner)) {

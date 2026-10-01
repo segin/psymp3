@@ -74,6 +74,8 @@ public:
     static bool isOpenFor(const void* owner);
     // Whether any context menu is open, whoever owns it.
     static bool anyOpen();
+    // Whether the open menu (submenu included) covers the screen point.
+    static bool openMenuContains(int x, int y);
     static void closeFor(const void* owner);
     // The owner is being destroyed: forget the menu without running on_close.
     static void forget(const void* owner);
