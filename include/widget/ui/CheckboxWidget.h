@@ -47,6 +47,7 @@ private:
     bool m_checked;
     bool m_pressed;       // held down, by the mouse or Space: the box greys
     bool m_key_pressed = false; // Space is held
+    bool m_mouse_held = false;  // a left press holds the mouse capture
     bool m_hovered;
     std::function<void(bool)> m_on_toggle;
 

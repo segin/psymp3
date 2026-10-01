@@ -53,7 +53,7 @@ void CheckboxWidget::blur()
     }
     if (m_key_pressed) {
         m_key_pressed = false;
-        m_pressed = false;
+        m_pressed = m_mouse_held;
     }
     rebuildSurface();
 }
@@ -87,7 +87,7 @@ bool CheckboxWidget::handleFocusedKeyUp(const SDL_keysym& keysym)
         return false;
     }
     w->m_key_pressed = false;
-    w->m_pressed = false;
+    w->m_pressed = w->m_mouse_held;
     if (w->isEnabled()) {
         w->setChecked(!w->m_checked); // rebuilds
     } else {
@@ -108,6 +108,7 @@ bool CheckboxWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
 
     takeFocus();
     m_pressed = true;
+    m_mouse_held = true;
     captureMouse();
     rebuildSurface();
     return true;
@@ -115,12 +116,16 @@ bool CheckboxWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int rela
 
 bool CheckboxWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    if (event.button != SDL_BUTTON_LEFT || !m_pressed) {
+    // Keyed off the mouse's own flag, not m_pressed, which Space's release or
+    // a blur can clear mid-press: the capture taken on the press must always
+    // be released here.
+    if (event.button != SDL_BUTTON_LEFT || !m_mouse_held) {
         return false;
     }
 
     releaseMouse();
-    m_pressed = false;
+    m_mouse_held = false;
+    m_pressed = m_key_pressed;
 
     if (hitTest(relative_x, relative_y) && isEnabled()) {
         setChecked(!m_checked);
