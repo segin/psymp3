@@ -20,6 +20,14 @@ struct OpenContextMenu {
     const void* owner = nullptr;
     std::function<void()> on_close;
     Rect pass_through;
+    // Where the pointer was when the menu opened, and whether a release may
+    // pick yet: only once the pointer has left that spot or pressed in the
+    // menu. Clamped off the screen's bottom or right edge, the menu can open
+    // with an item under the pointer, and the release of the right-click that
+    // opened it must not pick that item.
+    int open_x = 0;
+    int open_y = 0;
+    bool armed = false;
 };
 OpenContextMenu s_context_menu;
 Rect s_context_screen(0, 0, 640, 404);
@@ -96,6 +104,9 @@ void ContextMenuWidget::popUp(Core::Font* font, std::vector<MenuItem> items, int
     s_context_menu.owner = owner;
     s_context_menu.on_close = std::move(on_close);
     s_context_menu.pass_through = pass_through;
+    s_context_menu.open_x = screen_x;
+    s_context_menu.open_y = screen_y;
+    s_context_menu.armed = false;
 }
 
 bool ContextMenuWidget::isOpenFor(const void* owner)
@@ -141,6 +152,7 @@ bool ContextMenuWidget::routeMouseDown(const SDL_MouseButtonEvent& event, int x,
     }
     if (popup->contains(x, y)) {
         // Any button highlights; the release picks.
+        s_context_menu.armed = true;
         popup->mouseDown(x, y);
         return true;
     }
@@ -155,6 +167,9 @@ bool ContextMenuWidget::routeMouseMotion(const SDL_MouseMotionEvent& event, int 
     MenuPopup* popup = s_context_menu.popup.get();
     if (!popup) {
         return false;
+    }
+    if (x != s_context_menu.open_x || y != s_context_menu.open_y) {
+        s_context_menu.armed = true;
     }
     popup->mouseMotion(x, y);
     return true;
@@ -172,8 +187,11 @@ bool ContextMenuWidget::routeMouseUp(const SDL_MouseButtonEvent& event, int x, i
     }
     // A release on an item picks it, with either button: a right-button
     // press that opened the menu can be dragged onto an item and released.
-    // The menu opens with its corner, not an item, under the pointer, so the
-    // release of that press alone picks nothing.
+    // The release of that press without moving picks nothing, even where the
+    // menu was pushed back on-screen with an item under the pointer.
+    if (!s_context_menu.armed) {
+        return true;
+    }
     std::function<void()> picked;
     popup->mouseUp(x, y, picked);
     if (picked) {
