@@ -94,6 +94,20 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     if (w.m_items.empty()) {
         return false;
     }
+    // A key during a held drag can change the rows or the selection (Delete,
+    // Ctrl+Up/Down, the cursor keys): the drag's recorded block would then
+    // name other rows, and its release would move the wrong ones. Abandon
+    // the drag, unless the key is a bare modifier.
+    if (w.m_drag_first >= 0) {
+        switch (keysym.sym) {
+            case SDLK_LSHIFT: case SDLK_RSHIFT: case SDLK_LCTRL: case SDLK_RCTRL:
+            case SDLK_LALT: case SDLK_RALT: case SDLK_LGUI: case SDLK_RGUI:
+                break;
+            default:
+                w.cancelDrag();
+                break;
+        }
+    }
     if (w.m_on_key) {
         auto on_key = w.m_on_key; // the callback may replace it
         if (on_key(keysym)) {
