@@ -199,10 +199,12 @@ bool MenuPopup::contains(int x, int y) const
     return false;
 }
 
+// Separators and disabled items are never keyboard-selected: a disabled item
+// draws no highlight, so selecting one would make the selection vanish.
 int MenuPopup::firstSelectable(const std::vector<MenuItem>& items)
 {
     for (int i = 0; i < static_cast<int>(items.size()); ++i)
-        if (!items[i].separator) return i;
+        if (!items[i].separator && items[i].isEnabled()) return i;
     return -1;
 }
 
@@ -217,7 +219,7 @@ int MenuPopup::stepSelectable(const std::vector<MenuItem>& items, int from, int 
     }
     for (int k = 0; k < n; ++k) {
         from = (from + dir + n) % n;
-        if (!items[from].separator) return from;
+        if (!items[from].separator && items[from].isEnabled()) return from;
     }
     return -1;
 }
