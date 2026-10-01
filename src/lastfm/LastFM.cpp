@@ -251,7 +251,11 @@ bool LastFM::authenticate()
 void LastFM::persistSessionKey()
 {
     // Rewrite lastfm.conf with the fresh session_key= line, preserving every
-    // other line (username=, password=, user comments) verbatim.
+    // other line (username=, user comments) verbatim. A session key never
+    // expires and replaces the password, so once there is one the password=
+    // (and legacy password_hash=) lines are dropped rather than left on disk;
+    // without one (cleared after a revocation) they are kept.
+    const bool drop_password = !m_session_key.empty();
     std::vector<std::string> kept;
     {
         std::ifstream in(System::pathFromUtf8(m_config_file));
@@ -259,6 +263,10 @@ void LastFM::persistSessionKey()
         while (std::getline(in, line)) {
             chompCR(line);
             if (line.rfind("session_key=", 0) == 0) continue;
+            if (drop_password && (line.rfind("password=", 0) == 0 ||
+                                  line.rfind("password_hash=", 0) == 0)) {
+                continue;
+            }
             kept.push_back(line);
         }
     }
