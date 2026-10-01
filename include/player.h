@@ -245,8 +245,8 @@ class Player
         // Alt+<key>: focus the control named by the active window's label
         // whose mnemonic is `key` (Label::setMnemonicTarget). False if none.
         bool focusMnemonicTarget(int key);
-        // Move keyboard focus to `target` (a button, list view or text
-        // input), taking it from whichever control had it.
+        // Move keyboard focus to `target` (a button, list view, text input or
+        // combo box), taking it from whichever control had it.
         void focusWidget(Widget* target);
 
     protected:

@@ -276,6 +276,7 @@
 #include "widget/ui/ScrollbarWidget.cpp"
 #include "widget/ui/ListViewWidget.cpp"
 #include "widget/ui/ContextMenuWidget.cpp"
+#include "widget/ui/ComboBoxWidget.cpp"
 #include "widget/ui/SliderWidget.cpp"
 #include "widget/ui/EqualizerCurveWidget.cpp"
 #include "widget/ui/EqualizerWindow.cpp"

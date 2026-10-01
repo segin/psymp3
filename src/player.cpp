@@ -2530,6 +2530,9 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
     // Render floating windows (test windows, equalizer)
     renderWindows();
 
+    // An open combo box list floats over every window, unclipped by its own.
+    ComboBoxWidget::blitOpenList(*graph);
+
     // Always-on-top windows (toasts and the menu bar) are drawn in the
     // m_ui_root pass (before renderWindows), so re-blit them here — otherwise a
     // toast or an open dropdown would be hidden behind a floating window such as
@@ -2976,6 +2979,10 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     }
 
     if (TextInputWidget::handleFocusedKeyPress(keysym)) {
+        return false;
+    }
+
+    if (ComboBoxWidget::handleFocusedKeyPress(keysym)) {
         return false;
     }
 
@@ -3908,10 +3915,18 @@ void Player::EventLoop() {
                         event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
                     break;
                 }
+                // An open combo box list likewise: it takes the click (picking
+                // an item, or closing on a click anywhere else) before anything
+                // beneath it, and its combo box keeps the focus.
+                if (ComboBoxWidget::routeOpenListMouseDown(
+                        event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
+                    break;
+                }
 
                 TextInputWidget::clearFocusedWidget();
                 ListViewWidget::clearFocusedWidget();
                 ButtonWidget::clearFocusedWidget();
+                ComboBoxWidget::clearFocusedWidget();
 
                 // Dispatch by visual priority: a window-owned mouse capture is
                 // authoritative (routed even while a menu is open, so a drag's
@@ -3972,6 +3987,11 @@ void Player::EventLoop() {
                         event.motion, static_cast<int>(event.motion.x), static_cast<int>(event.motion.y))) {
                     break;
                 }
+                // An open combo box list owns hover (and its scrollbar's drag).
+                if (ComboBoxWidget::routeOpenListMouseMotion(
+                        event.motion, static_cast<int>(event.motion.x), static_cast<int>(event.motion.y))) {
+                    break;
+                }
 
                 // The legacy seek drag holds no widget capture; keep feeding it
                 // directly so moving over a window mid-drag doesn't freeze it.
@@ -4009,12 +4029,18 @@ void Player::EventLoop() {
             case SDL_EVENT_MOUSE_BUTTON_UP:
             {
                 // An open menu (a menu bar's or a context menu) sees the
-                // release first: a release on an item picks it.
+                // release first (a release on an item picks it), then an open
+                // combo box list: the press that opened it can be released on
+                // an item to pick it.
                 if (MenuBarWidget::routeMouseUp(
                         event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
                     break;
                 }
                 if (ContextMenuWidget::routeMouseUp(
+                        event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
+                    break;
+                }
+                if (ComboBoxWidget::routeOpenListMouseUp(
                         event.button, static_cast<int>(event.button.x), static_cast<int>(event.button.y))) {
                     break;
                 }
@@ -4059,6 +4085,9 @@ void Player::EventLoop() {
                 int delta = event.wheel.y; // +1 per notch up / away from the user
                 if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
                     delta = -delta;
+                }
+                if (delta != 0 && ComboBoxWidget::routeOpenListMouseWheel(delta)) {
+                    break; // an open combo box list scrolls
                 }
                 if (delta != 0) {
                     // A window under the cursor gets the wheel (its ListView, if
@@ -4824,6 +4853,8 @@ void collectFocusables(Widget* root, std::vector<Widget*>& out)
         } else if (dynamic_cast<ListViewWidget*>(c) ||
                    dynamic_cast<TextInputWidget*>(c)) {
             out.push_back(c);
+        } else if (dynamic_cast<ComboBoxWidget*>(c)) {
+            if (c->isEnabled()) out.push_back(c);
         }
         collectFocusables(c, out);
     }
@@ -4846,6 +4877,7 @@ bool Player::focusNextWidget(bool backwards)
     if (ButtonWidget::focusedWidget())         current = ButtonWidget::focusedWidget();
     else if (ListViewWidget::focusedWidget())  current = ListViewWidget::focusedWidget();
     else if (TextInputWidget::focusedWidget()) current = TextInputWidget::focusedWidget();
+    else if (ComboBoxWidget::focusedWidget())  current = ComboBoxWidget::focusedWidget();
 
     const int n = static_cast<int>(order.size());
     int idx = -1;
@@ -4862,15 +4894,20 @@ bool Player::focusNextWidget(bool backwards)
 
 void Player::focusWidget(Widget* target)
 {
+    // Clearing the combo box's focus also closes its list, if open; a choice
+    // made in it from the keyboard has already been applied.
     TextInputWidget::clearFocusedWidget();
     ListViewWidget::clearFocusedWidget();
     ButtonWidget::clearFocusedWidget();
+    ComboBoxWidget::clearFocusedWidget();
     if (auto* b = dynamic_cast<ButtonWidget*>(target)) {
         b->takeFocus();
     } else if (auto* l = dynamic_cast<ListViewWidget*>(target)) {
         l->takeFocus();
     } else if (auto* t = dynamic_cast<TextInputWidget*>(target)) {
         t->takeFocus();
+    } else if (auto* c = dynamic_cast<ComboBoxWidget*>(target)) {
+        c->takeFocus();
     }
 }
 
