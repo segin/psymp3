@@ -161,6 +161,13 @@ void RadioButtonWidget::blur()
         m_key_pressed = false;
         m_pressed = m_mouse_held;
     }
+    // Losing focus abandons a mouse press too (an arrow key moved the
+    // selection on, or Tab): its release must not take the selection back.
+    if (m_mouse_held) {
+        m_mouse_held = false;
+        m_pressed = false;
+        releaseMouse();
+    }
     rebuildSurface();
 }
 
