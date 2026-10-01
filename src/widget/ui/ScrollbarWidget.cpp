@@ -50,7 +50,7 @@ void drawArrowGlyph(::Surface& surface, const Rect& rect, ButtonSymbol symbol, u
     // of place next to them.
     const int cx = rect.x() + rect.width() / 2;
     const int cy = rect.y() + rect.height() / 2;
-    const uint8_t c = shade; // 0 = black (enabled), 128 = grey (disabled)
+    const uint8_t c = shade; // 0 = black (enabled); 128 grey over 255 white (disabled, etched)
 
     // Windows 3.1 arrows, pixel-counted from reference screenshots: a 3x3px
     // square stem and a triangular head stepping 7 -> 5 -> 3 -> 1.
@@ -94,6 +94,21 @@ void drawArrowGlyph(::Surface& surface, const Rect& rect, ButtonSymbol symbol, u
         default:
             break;
     }
+}
+
+// The white highlight of a disabled up arrow, pixel-counted from Windows 3.1
+// (cx, cy as in drawArrowGlyph; cy is the head's widest row). Its other
+// arrows' highlight is the glyph itself 1px down and right, but this one is
+// not: under the head it has cx-3..cx-2 and cx+3..cx+4, where a shifted copy
+// would give cx-2 and cx+2..cx+4. The stem's edges do match a shifted copy.
+void drawDisabledUpArrowHighlight(::Surface& surface, const Rect& rect)
+{
+    const int cx = rect.x() + rect.width() / 2;
+    const int cy = rect.y() + rect.height() / 2;
+    surface.hline(cx - 3, cx - 2, cy + 1, 255, 255, 255, 255);
+    surface.hline(cx + 3, cx + 4, cy + 1, 255, 255, 255, 255);
+    surface.vline(cx + 2, cy + 2, cy + 3, 255, 255, 255, 255);
+    surface.hline(cx, cx + 2, cy + 4, 255, 255, 255, 255);
 }
 
 } // namespace
@@ -411,8 +426,8 @@ void ScrollbarWidget::rebuildSurface()
     drawWin31Button(*surface, inc_arrow, inc_pressed);
 
     // Shaft: the Windows 3.1 50% dither of white and face grey — it reads as a
-    // pale grainy grey at native size. Flat grey when there is nothing to
-    // scroll.
+    // pale grainy grey at native size. Plain white when there is nothing to
+    // scroll, as Windows 3.1 draws a disabled scrollbar.
     {
         int x1, y1, x2, y2;
         if (m_orientation == ScrollbarOrientation::Vertical) {
@@ -430,7 +445,7 @@ void ScrollbarWidget::rebuildSurface()
                 }
             }
         } else {
-            surface->box(x1, y1, x2, y2, 192, 192, 192, 255);
+            surface->box(x1, y1, x2, y2, 255, 255, 255, 255);
         }
     }
 
@@ -465,26 +480,35 @@ void ScrollbarWidget::rebuildSurface()
         }
     }
 
-    // Disabled scrollbars have no thumb and grey (not black) arrow glyphs — the
-    // classic "nothing to scroll" look.
+    // Disabled scrollbars have no thumb and etched arrow glyphs — the classic
+    // "nothing to scroll" look.
     if (enabled) {
         drawWin31Button(*surface, thumb, m_dragging_thumb);
     }
 
     // A pressed arrow's glyph sinks 1px down-right with the button face.
-    const uint8_t glyph_shade = enabled ? 0 : 128;
-    Rect dec_glyph = dec_pressed
-        ? Rect(dec_arrow.x() + 1, dec_arrow.y() + 1, dec_arrow.width(), dec_arrow.height())
-        : dec_arrow;
-    Rect inc_glyph = inc_pressed
-        ? Rect(inc_arrow.x() + 1, inc_arrow.y() + 1, inc_arrow.width(), inc_arrow.height())
-        : inc_arrow;
-    drawArrowGlyph(*surface, dec_glyph,
-                   m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollUp : ButtonSymbol::ScrollLeft,
-                   glyph_shade);
-    drawArrowGlyph(*surface, inc_glyph,
-                   m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollDown : ButtonSymbol::ScrollRight,
-                   glyph_shade);
+    const ButtonSymbol dec_symbol =
+        m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollUp : ButtonSymbol::ScrollLeft;
+    const ButtonSymbol inc_symbol =
+        m_orientation == ScrollbarOrientation::Vertical ? ButtonSymbol::ScrollDown : ButtonSymbol::ScrollRight;
+    auto shifted = [](const Rect& r) { return Rect(r.x() + 1, r.y() + 1, r.width(), r.height()); };
+    if (enabled) {
+        drawArrowGlyph(*surface, dec_pressed ? shifted(dec_arrow) : dec_arrow, dec_symbol, 0);
+        drawArrowGlyph(*surface, inc_pressed ? shifted(inc_arrow) : inc_arrow, inc_symbol, 0);
+    } else {
+        // Etched, the Windows disabled-glyph style: a white copy 1px down and
+        // right, then the glyph in grey over it, so only a white edge along
+        // the bottom and right shows. The up arrow's highlight is its own
+        // shape in Windows 3.1 (see drawDisabledUpArrowHighlight).
+        if (dec_symbol == ButtonSymbol::ScrollUp) {
+            drawDisabledUpArrowHighlight(*surface, dec_arrow);
+        } else {
+            drawArrowGlyph(*surface, shifted(dec_arrow), dec_symbol, 255);
+        }
+        drawArrowGlyph(*surface, shifted(inc_arrow), inc_symbol, 255);
+        drawArrowGlyph(*surface, dec_arrow, dec_symbol, 128);
+        drawArrowGlyph(*surface, inc_arrow, inc_symbol, 128);
+    }
 
     // The whole control sits in a 1px black frame, like the Windows 3.1
     // original (the buttons' own outlines merge into it at the ends).
