@@ -273,8 +273,9 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
     client->addChild(std::move(scroll_label));
 
     auto input_label = std::make_unique<Label>(
-        font, Rect(12, 40, 120, 14), TagLib::String("Input:"),
+        font, Rect(12, 40, 120, 14), TagLib::String("&Input:"),
         SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* input_label_ptr = input_label.get();
     client->addChild(std::move(input_label));
 
     auto input_status_label = std::make_unique<Label>(
@@ -285,6 +286,7 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
 
     auto text_input = std::make_unique<TextInputWidget>(118, 20, font, TagLib::String("PsyMP3"));
     text_input->setPos(Rect(12, 56, 118, 20));
+    input_label_ptr->setMnemonicTarget(text_input.get()); // Alt+I
     text_input->setPlaceholder(TagLib::String("Type here"));
     text_input->setOnChange([input_status_label_ptr](const TagLib::String& text) {
         std::string rendered = text.to8Bit(true);
@@ -336,12 +338,15 @@ public:
         // Matches the white the window frame fills the client with on refresh.
         setBackgroundColor(255, 255, 255);
 
-        addChild(std::make_unique<Label>(font, Rect(MARGIN, 13, 34, 14), TagLib::String("URL:"),
-                                         SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255}));
+        auto label = std::make_unique<Label>(font, Rect(MARGIN, 13, 34, 14), TagLib::String("&URL:"),
+                                             SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+        Label* label_ptr = label.get();
+        addChild(std::move(label));
 
         const int input_x = MARGIN + 36;
         auto input = std::make_unique<TextInputWidget>(WIDTH - input_x - MARGIN, 20, font);
         m_input = input.get();
+        label_ptr->setMnemonicTarget(m_input); // Alt+U
         m_input->setPos(Rect(input_x, 10, WIDTH - input_x - MARGIN, 20));
         m_input->setOnSubmit([this] { submit(); });
         m_input->setOnCancel([this] { cancel(); });
@@ -3003,6 +3008,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         Widget::getMouseCapturedWidget() == nullptr ||
         (m_menu_bar && m_menu_bar->isOpen());
 
+    // Alt+<letter> in the active window: its labels' mnemonics come before the
+    // menus, as a Windows dialog's do.
+    if ((keysym.mod & SDL_KMOD_ALT) && !(keysym.mod & SDL_KMOD_CTRL) &&
+        menu_may_take_keys && !(m_menu_bar && m_menu_bar->isOpen()) &&
+        focusMnemonicTarget(static_cast<int>(keysym.sym))) {
+        return false;
+    }
+
     // While the equalizer window is the ACTIVE window, offer keys to its menu
     // first so its Alt+<mnemonic> accelerators and open-menu navigation work.
     // The active-window gate matters: the EQ's "&Presets" mnemonic collides
@@ -4843,10 +4856,15 @@ bool Player::focusNextWidget(bool backwards)
     const int next = (idx < 0) ? (backwards ? n - 1 : 0)
                                : (idx + (backwards ? n - 1 : 1)) % n;
 
+    focusWidget(order[next]);
+    return true;
+}
+
+void Player::focusWidget(Widget* target)
+{
     TextInputWidget::clearFocusedWidget();
     ListViewWidget::clearFocusedWidget();
     ButtonWidget::clearFocusedWidget();
-    Widget* target = order[next];
     if (auto* b = dynamic_cast<ButtonWidget*>(target)) {
         b->takeFocus();
     } else if (auto* l = dynamic_cast<ListViewWidget*>(target)) {
@@ -4854,6 +4872,39 @@ bool Player::focusNextWidget(bool backwards)
     } else if (auto* t = dynamic_cast<TextInputWidget*>(target)) {
         t->takeFocus();
     }
+}
+
+namespace {
+// The enabled target of the first label under `root` whose mnemonic is `key`.
+Widget* findMnemonicTarget(Widget* root, int key)
+{
+    for (const auto& child : root->getChildren()) {
+        Widget* c = child.get();
+        if (auto* label = dynamic_cast<Label*>(c)) {
+            Widget* target = label->mnemonicTarget();
+            if (target && target->isEnabled() && label->mnemonicKey() == key) {
+                return target;
+            }
+        }
+        if (Widget* found = findMnemonicTarget(c, key)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
+bool Player::focusMnemonicTarget(int key)
+{
+    WindowFrameWidget* win = WindowFrameWidget::activeWindow();
+    if (!win || !win->getClientArea()) {
+        return false;
+    }
+    Widget* target = findMnemonicTarget(win->getClientArea(), key);
+    if (!target) {
+        return false;
+    }
+    focusWidget(target);
     return true;
 }
 

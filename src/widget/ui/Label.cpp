@@ -153,6 +153,7 @@ void Label::setBackgroundColor(SDL_Color background_color)
                                            m_background_color.g,
                                            m_background_color.b);
         if (m_text_surface) {
+            underlineMnemonic();
             auto widget_surface = std::make_unique<Surface>(m_text_surface->width(),
                                                             m_text_surface->height(),
                                                             true);
@@ -184,14 +185,106 @@ void Label::setMarqueeEnabled(bool enabled)
     invalidate();
 }
 
+namespace {
+// The label text without its Windows-style mnemonic marker: the first single
+// '&' is dropped and the offset of the character after it stored in *index
+// (npos when there is none); "&&" becomes '&'. UTF-8 in and out.
+std::string stripLabelMnemonic(const std::string& text, size_t* index)
+{
+    *index = std::string::npos;
+    std::string clean;
+    clean.reserve(text.size());
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '&' && i + 1 < text.size()) {
+            if (text[i + 1] == '&') {
+                clean += '&';
+                ++i;
+                continue;
+            }
+            if (*index == std::string::npos) {
+                *index = clean.size();
+                continue;
+            }
+        }
+        clean += text[i];
+    }
+    return clean;
+}
+} // namespace
+
+void Label::setMnemonicTarget(Widget* target)
+{
+    if (target == m_mnemonic_target) {
+        return;
+    }
+    m_mnemonic_target = target;
+    // Re-read the text, which now does (or no longer does) carry a marker.
+    const TagLib::String raw = m_raw_text;
+    m_raw_text = TagLib::String();
+    m_text = TagLib::String();
+    setText(raw);
+}
+
+int Label::mnemonicKey() const
+{
+    if (m_mnemonic_index == std::string::npos) {
+        return 0;
+    }
+    const std::string text = m_text.to8Bit(true);
+    if (m_mnemonic_index >= text.size()) {
+        return 0;
+    }
+    // Any printable ASCII character can be a mnemonic, as in Windows.
+    const unsigned char c = static_cast<unsigned char>(text[m_mnemonic_index]);
+    if (c <= ' ' || c >= 0x7F) {
+        return 0;
+    }
+    return std::tolower(c);
+}
+
+void Label::underlineMnemonic()
+{
+    if (m_mnemonic_index == std::string::npos || !m_text_surface || !m_font) {
+        return;
+    }
+    const std::string text = m_text.to8Bit(true);
+    if (m_mnemonic_index >= text.size()) {
+        return;
+    }
+    // The whole UTF-8 codepoint at the marker.
+    size_t end = m_mnemonic_index + 1;
+    while (end < text.size() && (static_cast<unsigned char>(text[end]) & 0xC0) == 0x80) {
+        ++end;
+    }
+    const int x = m_font->measureWidth(text.substr(0, m_mnemonic_index));
+    const int w = m_font->measureWidth(text.substr(m_mnemonic_index, end - m_mnemonic_index));
+    // Just under the baseline, where the menu bar puts its underlines.
+    const int y = m_text_surface->height() - 2;
+    if (w > 0) {
+        m_text_surface->hline(x, x + w - 1, y, m_color.r, m_color.g, m_color.b, 255);
+    }
+}
+
 void Label::setText(const TagLib::String& text)
 {
     // Avoid re-rendering if the text hasn't changed.
-    if (text == m_text) {
+    if (text == m_raw_text && !m_raw_text.isEmpty()) {
+        return;
+    }
+    m_raw_text = text;
+
+    TagLib::String display = text;
+    size_t mnemonic_index = std::string::npos;
+    if (m_mnemonic_target) {
+        display = TagLib::String(stripLabelMnemonic(text.to8Bit(true), &mnemonic_index),
+                                 TagLib::String::UTF8);
+    }
+    if (display == m_text && mnemonic_index == m_mnemonic_index) {
         return;
     }
 
-    m_text = text;
+    m_text = display;
+    m_mnemonic_index = mnemonic_index;
 
     // A Label may be constructed with a null font; guard the render paths that
     // dereference it rather than crash.
@@ -229,6 +322,7 @@ void Label::setText(const TagLib::String& text)
         std::cerr << "Failed to render text surface for label." << std::endl;
         return;
     }
+    underlineMnemonic();
 
     auto widget_surface = std::make_unique<Surface>(m_text_surface->width(), m_text_surface->height(), true);
     widget_surface->FillRect(widget_surface->MapRGBA(0, 0, 0, 0));
@@ -260,6 +354,7 @@ void Label::setReflow(bool enabled, int wrap_width)
                                            m_background_color.r, m_background_color.g,
                                            m_background_color.b);
         if (m_text_surface) {
+            underlineMnemonic();
             auto ws = std::make_unique<Surface>(m_text_surface->width(), m_text_surface->height(), true);
             ws->FillRect(ws->MapRGBA(0, 0, 0, 0));
             ws->Blit(*m_text_surface, Rect(0, 0, m_text_surface->width(), m_text_surface->height()));

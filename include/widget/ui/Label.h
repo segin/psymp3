@@ -43,6 +43,17 @@ class Label : public Widget
         void setText(const TagLib::String& text);
         void setBackgroundColor(SDL_Color background_color);
 
+        // Make this label a mnemonic for `target` (the control it names), the
+        // Windows way: an '&' in the text marks the next character, which is
+        // drawn underlined, and Alt+that key in the label's window focuses
+        // `target`; "&&" is a literal '&'. Only a label with a target reads
+        // '&' this way, so other labels show it as it is. nullptr undoes it.
+        void setMnemonicTarget(Widget* target);
+        Widget* mnemonicTarget() const { return m_mnemonic_target; }
+        // The mnemonic key, lowercased (an SDL keycode for printable ASCII),
+        // or 0 when there is none.
+        int mnemonicKey() const;
+
         // Enable multi-line reflow: the label word-wraps its text to `wrap_width`
         // pixels and grows its height to fit the wrapped lines (instead of the
         // default single-line render). Re-applies to the current text; call
@@ -68,7 +79,11 @@ class Label : public Widget
         void applyEdgeFade(Surface& surface, float left_fade_strength) const;
 
         Font* m_font; // Non-owning pointer to the global font
-        TagLib::String m_text;
+        TagLib::String m_text;      // as displayed (mnemonic marker removed)
+        TagLib::String m_raw_text;  // as given to setText
+        Widget* m_mnemonic_target = nullptr;
+        size_t m_mnemonic_index = std::string::npos; // byte offset in m_text's UTF-8
+        void underlineMnemonic();   // onto m_text_surface, after each render
         SDL_Color m_color;
         SDL_Color m_background_color;
         Align m_align{Align::Left};

@@ -242,6 +242,12 @@ class Player
         // controls, and Enter's fallback to that window's default button.
         bool focusNextWidget(bool backwards);
         bool activateDefaultButton();
+        // Alt+<key>: focus the control named by the active window's label
+        // whose mnemonic is `key` (Label::setMnemonicTarget). False if none.
+        bool focusMnemonicTarget(int key);
+        // Move keyboard focus to `target` (a button, list view or text
+        // input), taking it from whichever control had it.
+        void focusWidget(Widget* target);
 
     protected:
         PlayerState state;
