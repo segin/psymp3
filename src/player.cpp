@@ -257,7 +257,7 @@ std::pair<std::vector<AudioSample>, bool> primeLoadedStream(Stream* stream)
 
 std::unique_ptr<Widget> createTestWindowHClient(Font* font)
 {
-    auto client = std::make_unique<LayoutWidget>(170, 142, false);
+    auto client = std::make_unique<LayoutWidget>(340, 222, false);
     client->setBackgroundColor(255, 255, 255);
 
     auto status_label = std::make_unique<Label>(
@@ -320,6 +320,55 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
         scroll_label_ptr->setText(TagLib::String("Scroll: " + std::to_string(percent) + "%"));
     });
     client->addChild(std::move(scrollbar));
+
+    // A combo box with more items than its list shows, so the list scrolls.
+    auto country_label = std::make_unique<Label>(
+        font, Rect(12, 146, 146, 14), TagLib::String("&Country:"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* country_label_ptr = country_label.get();
+    client->addChild(std::move(country_label));
+
+    auto picked_label = std::make_unique<Label>(
+        font, Rect(12, 188, 146, 14), TagLib::String("Picked: United States"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* picked_label_ptr = picked_label.get();
+    client->addChild(std::move(picked_label));
+
+    auto combo = std::make_unique<ComboBoxWidget>(146, 20, font);
+    combo->setPos(Rect(12, 162, 146, 20));
+    country_label_ptr->setMnemonicTarget(combo.get()); // Alt+C
+
+    // The right half: a list view of dummy rows (more than fit, so it
+    // scrolls), and a group of radio buttons below it.
+    auto list = std::make_unique<ListViewWidget>(154, 130, font);
+    list->setPos(Rect(176, 10, 154, 130));
+    list->setItems({
+        "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot",
+        "Golf", "Hotel", "India", "Juliett", "Kilo", "Lima",
+    });
+    client->addChild(std::move(list));
+
+    std::vector<RadioButtonWidget*> radios;
+    int radio_y = 146;
+    for (const char* text : {"This", "That", "Whatever"}) {
+        auto radio = std::make_unique<RadioButtonWidget>(140, 18, font, TagLib::String(text));
+        radio->setPos(Rect(176, radio_y, 140, 18));
+        radios.push_back(radio.get());
+        client->addChild(std::move(radio));
+        radio_y += 20;
+    }
+    RadioButtonWidget::makeGroup(radios);
+    radios.front()->setSelected();
+    const std::vector<TagLib::String> countries = {
+        "Australia", "Brazil", "Canada", "France", "Germany", "India",
+        "Japan", "Mexico", "United Kingdom", "United States",
+    };
+    combo->setItems(countries);
+    combo->setSelectedIndex(9);
+    combo->setOnChange([picked_label_ptr, countries](int index) {
+        picked_label_ptr->setText(TagLib::String("Picked: ") + countries[static_cast<size_t>(index)]);
+    });
+    client->addChild(std::move(combo));
 
     return client;
 }
@@ -4608,7 +4657,7 @@ void Player::toggleTestWindowH()
     } else {
         // Open the window using the same WindowFrameWidget path as the other test windows,
         // but preserve H's normal resizable window behavior.
-        m_test_window_h = std::make_unique<WindowFrameWidget>(170, 142, "H", font.get());
+        m_test_window_h = std::make_unique<WindowFrameWidget>(340, 222, "H", font.get());
         m_test_window_h->setMinimizable(false);
         m_test_window_h->setMaximizable(false);
         m_test_window_h->setClientArea(createTestWindowHClient(font.get()));
@@ -4616,7 +4665,8 @@ void Player::toggleTestWindowH()
         
         // Only set position, keep the calculated size from refresh
         Rect calculated_size = m_test_window_h->getPos();
-        m_test_window_h->setPos(Rect(434, 72, calculated_size.width(), calculated_size.height()));
+        // Twice the old width, grown leftward: the right edge stays where it was.
+        m_test_window_h->setPos(Rect(264, 72, calculated_size.width(), calculated_size.height()));
         
         // Set up drag callbacks
         m_test_window_h->setOnDrag([this](int dx, int dy) {
