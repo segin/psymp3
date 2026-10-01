@@ -467,6 +467,15 @@ void TextInputWidget::selectWordAt(size_t index)
         moveCaret(0, false);
         return;
     }
+    // A password is one word, as in a Windows password edit: selecting by
+    // its real words would show where its spaces are.
+    if (m_password_mode) {
+        m_anchor = 0;
+        m_caret = text.size();
+        resetBlink();
+        rebuildSurface();
+        return;
+    }
     // The run under the pointer: the character after `index`, or the last one
     // when the click lands past the end. A run of spaces selects as a run too.
     size_t probe = std::min(index, text.size() - 1);
@@ -497,7 +506,11 @@ size_t TextInputWidget::nextBoundary(size_t index) const
 
 size_t TextInputWidget::previousWordStart(size_t index) const
 {
-    // Spaces are ASCII, so every stop is a codepoint boundary.
+    // Spaces are ASCII, so every stop is a codepoint boundary. A password is
+    // one word (see selectWordAt).
+    if (m_password_mode) {
+        return 0;
+    }
     const std::string text = narrowText(m_text);
     size_t i = std::min(index, text.size());
     while (i > 0 && text[i - 1] == ' ') {
@@ -512,6 +525,9 @@ size_t TextInputWidget::previousWordStart(size_t index) const
 size_t TextInputWidget::nextWordStart(size_t index) const
 {
     const std::string text = narrowText(m_text);
+    if (m_password_mode) {
+        return text.size();
+    }
     size_t i = std::min(index, text.size());
     while (i < text.size() && text[i] != ' ') {
         ++i;
