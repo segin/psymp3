@@ -139,9 +139,13 @@ bool SliderWidget::handleMouseWheel(int delta, int relative_x, int relative_y)
     if (m_dragging) {
         return true;
     }
-    // Snap to the step grid first, then move `delta` steps along it.
-    const double steps = std::round((m_value - m_min) / m_wheel_step) + delta;
-    setValue(m_min + steps * m_wheel_step);
+    // Snap toward the direction of travel, then move `delta` steps along the
+    // grid: up from 2.4 dB lands on 3, down on 2, and an on-grid value moves
+    // exactly a step (the epsilon keeps it on its own grid point).
+    constexpr double kEps = 1e-6;
+    const double pos = (m_value - m_min) / m_wheel_step;
+    const double base = (delta > 0) ? std::floor(pos + kEps) : std::ceil(pos - kEps);
+    setValue(m_min + (base + delta) * m_wheel_step);
     return true;
 }
 
