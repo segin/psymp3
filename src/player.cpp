@@ -412,7 +412,9 @@ public:
     void setOnOk(std::function<void(const std::string&)> cb) { m_on_ok = std::move(cb); }
     // Cancel / Escape.
     void setOnCancel(std::function<void()> cb) { m_on_cancel = std::move(cb); }
-    void focusInput() { m_input->takeFocus(); }
+    // The field, for the Player to focus (through focusWidget, so no control
+    // of another class elsewhere keeps focus too).
+    TextInputWidget* input() const { return m_input; }
 
 private:
     static constexpr int MARGIN = 10;
@@ -5832,7 +5834,7 @@ void Player::showUrlDialog(const std::string& title, std::function<void(const st
 
     fp->bringToFront();
     m_random_windows.push_back(std::move(frame));
-    dialog->focusInput();
+    focusWidget(dialog->input());
 }
 
 void Player::closeUrlDialog()
