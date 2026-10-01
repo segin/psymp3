@@ -37,14 +37,19 @@ constexpr int kGlyphLoadFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_MONO |
                                 FT_LOAD_MONOCHROME | FT_LOAD_FORCE_AUTOHINT;
 
 // Same hinting as kGlyphLoadFlags but WITHOUT FT_LOAD_RENDER: computes the glyph
-// advance without rasterizing. Used for width measurement (the render pre-pass
-// and measureWidth), which previously rasterized every glyph an extra time.
-constexpr int kMeasureLoadFlags = FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME |
-                                  FT_LOAD_FORCE_AUTOHINT;
+// advance without rasterizing, for Render()'s width pre-pass.
+constexpr int kMonoMeasureLoadFlags = FT_LOAD_TARGET_MONO | FT_LOAD_MONOCHROME |
+                                      FT_LOAD_FORCE_AUTOHINT;
 
 // FT_LOAD_TARGET_LCD asks for horizontal RGB-subpixel rendering. The resulting
 // bitmap has FT_PIXEL_MODE_LCD with width tripled (one byte per subpixel).
 constexpr int kLCDRenderFlags = FT_LOAD_RENDER | FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
+// kLCDRenderFlags without FT_LOAD_RENDER, for measureWidth(). The hinting
+// target decides the advances: the autohinter rounds them differently for
+// mono and LCD, so measuring with the mono target (as this once did) put
+// every caret, selection and word-wrap break a few pixels off the text that
+// RenderLCD() actually drew, more so the longer the text.
+constexpr int kLCDMeasureLoadFlags = FT_LOAD_TARGET_LCD | FT_LOAD_FORCE_AUTOHINT;
 // Shaped text is loaded unhinted. The autohinter snaps stems and side bearings
 // to the pixel grid, which for a script whose letters must physically touch
 // moves the joins apart -- badly at small sizes, where a rounding of half a
@@ -133,19 +138,14 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     }
 
     int width = 0;
-    int font_height = (m_face->size->metrics.height) >> 6;
-    int baseline = (m_face->size->metrics.ascender) >> 6;
-    int descender = (m_face->size->metrics.descender) >> 6;
-    
-    if (baseline - descender > font_height) {
-        font_height = baseline - descender;
-    }
+    const int font_height = lineHeight();
+    const int baseline = (m_face->size->metrics.ascender) >> 6;
 
     const std::vector<uint32_t> codepoints = toRenderableCodepoints(text);
     for (uint32_t codepoint : codepoints) {
         // Advance-only load (no rasterization) for the width sum; the glyphs are
         // rasterized once below in the composition loop.
-        if (FT_Load_Char(m_face, codepoint, kMeasureLoadFlags)) {
+        if (FT_Load_Char(m_face, codepoint, kMonoMeasureLoadFlags)) {
             Debug::log("font", "FT_Load_Char failed for codepoint: ", codepoint);
             continue;
         }
@@ -492,7 +492,7 @@ int Font::glyphAdvance(uint32_t codepoint)
     // behaviour of skipping it. Cache that too, so it is not retried.
     int advance = 0;
     FT_Face face = faceFor(codepoint);
-    if (face && FT_Load_Char(face, codepoint, kMeasureLoadFlags) == 0) {
+    if (face && FT_Load_Char(face, codepoint, kLCDMeasureLoadFlags) == 0) {
         advance = face->glyph->advance.x >> 6;
     }
     m_advance_cache.emplace(codepoint, advance);
@@ -591,6 +591,18 @@ int Font::measureWidth(const TagLib::String& text)
     return measureWidth(text.to8Bit(true));
 }
 
+int Font::lineHeight() const
+{
+    if (!m_face) {
+        return 0;
+    }
+    // The face's line spacing, or ascender to descender if that is taller.
+    const int height = (m_face->size->metrics.height) >> 6;
+    const int ascender = (m_face->size->metrics.ascender) >> 6;
+    const int descender = (m_face->size->metrics.descender) >> 6;
+    return std::max(height, ascender - descender);
+}
+
 std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
                                          uint8_t fg_r, uint8_t fg_g, uint8_t fg_b,
                                          uint8_t bg_r, uint8_t bg_g, uint8_t bg_b)
@@ -600,12 +612,8 @@ std::unique_ptr<Surface> Font::RenderLCD(const TagLib::String& text,
     }
 
     int width = 0;
-    int font_height = (m_face->size->metrics.height) >> 6;
-    int baseline = (m_face->size->metrics.ascender) >> 6;
-    int descender = (m_face->size->metrics.descender) >> 6;
-    if (baseline - descender > font_height) {
-        font_height = baseline - descender;
-    }
+    const int font_height = lineHeight();
+    const int baseline = (m_face->size->metrics.ascender) >> 6;
 
     // Complex scripts go through SheenBidi and HarfBuzz; everything else keeps
     // the direct codepoint-to-glyph path, which is both faster and renders
