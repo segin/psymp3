@@ -221,6 +221,9 @@ class Player
         // No-ops with a toast when built without native file-dialog support.
         void playlistManagerAddNext();
         void playlistManagerAddEnd();
+        // Open the URL dialog and queue the entered URL next / at the end.
+        void playlistManagerAddUrlNext();
+        void playlistManagerAddUrlEnd();
         // Load an .m3u/.m3u8 playlist, replacing the current playlist and playing
         // its first track. Save the current playlist as extended M3U8 (UTF-8).
         void playlistManagerLoad();
@@ -264,14 +267,28 @@ class Player
         // "L": single-select native chooser; play the chosen file in place of the
         // current track without modifying the playlist (forgotten on next change).
         void openTemporaryTrackDialog();
-        // Where queued tracks land, resolved AFTER the (blocking) chooser closes
-        // so a track transition during the dialog can't leave a stale index.
+#endif
+        // Where queued tracks land, resolved when they are inserted (after any
+        // chooser or URL dialog closes) so a track transition while it was open
+        // can't leave a stale index.
         enum class QueueMode { AfterCurrent, AtEnd };
-        // Shared chooser for the queue actions: insert the chosen (playlist-
-        // expanded) tracks per `mode`; if nothing is playing, start with the
-        // first queued track, otherwise leave the current track playing.
+#ifdef HAVE_FILEDIALOG
+        // Shared chooser for the queue actions: queuePaths() on the chosen files.
         void queueTracks(QueueMode mode, const char* dialog_title);
 #endif
+        // Insert the (playlist-expanded) paths or URLs per `mode`; if nothing is
+        // playing, start with the first queued track, otherwise leave the
+        // current track playing.
+        void queuePaths(QueueMode mode, const std::vector<std::string>& paths);
+        // File > Open URL...: replace the playlist with the entered URL and play it.
+        void openUrl();
+        // The URL dialog: "URL:", a text field, OK and Cancel. OK (or Enter)
+        // passes the trimmed text to on_ok if it contains "://"; otherwise a
+        // toast says it isn't a URL and the dialog stays open. One at a time: a
+        // second request replaces the first.
+        void showUrlDialog(const std::string& title, std::function<void(const std::string&)> on_ok);
+        void closeUrlDialog();
+        WindowFrameWidget* m_url_dialog = nullptr; // owned by m_random_windows
         // Replace the playlist with the given (playlist-expanded) paths and
         // play from the first resulting track; shared tail of the Ctrl+O
         // chooser and drag-and-drop. No-op if the expansion yields nothing.

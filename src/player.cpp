@@ -322,6 +322,82 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
     return client;
 }
 
+// Client area of the URL dialog (Player::showUrlDialog): "URL:" and a text
+// field on one row, OK and Cancel right-aligned below. Enter in the field is
+// OK and Escape is Cancel.
+class UrlDialogClient : public LayoutWidget {
+public:
+    static constexpr int WIDTH = 360;
+    static constexpr int HEIGHT = 68;
+
+    explicit UrlDialogClient(Font* font)
+        : LayoutWidget(WIDTH, HEIGHT, false)
+    {
+        // Matches the white the window frame fills the client with on refresh.
+        setBackgroundColor(255, 255, 255);
+
+        addChild(std::make_unique<Label>(font, Rect(MARGIN, 13, 34, 14), TagLib::String("URL:"),
+                                         SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255}));
+
+        const int input_x = MARGIN + 36;
+        auto input = std::make_unique<TextInputWidget>(WIDTH - input_x - MARGIN, 20, font);
+        m_input = input.get();
+        m_input->setPos(Rect(input_x, 10, WIDTH - input_x - MARGIN, 20));
+        m_input->setOnSubmit([this] { submit(); });
+        m_input->setOnCancel([this] { cancel(); });
+        addChild(std::move(input));
+
+        const int cancel_x = WIDTH - MARGIN - BUTTON_W;
+        const int ok_x = cancel_x - BUTTON_GAP - BUTTON_W;
+        // OK is the default button: Enter fires it when the field isn't focused.
+        addButton("OK", ok_x, font, [this] { submit(); })->setDefault(true);
+        addButton("Cancel", cancel_x, font, [this] { cancel(); });
+    }
+
+    // OK / Enter, with the field's text (UTF-8).
+    void setOnOk(std::function<void(const std::string&)> cb) { m_on_ok = std::move(cb); }
+    // Cancel / Escape.
+    void setOnCancel(std::function<void()> cb) { m_on_cancel = std::move(cb); }
+    void focusInput() { m_input->takeFocus(); }
+
+private:
+    static constexpr int MARGIN = 10;
+    static constexpr int BUTTON_W = 72;
+    static constexpr int BUTTON_H = 22;
+    static constexpr int BUTTON_GAP = 8;
+
+    ButtonWidget* addButton(const char* label, int x, Font* font, std::function<void()> on_click)
+    {
+        auto button = std::make_unique<ButtonWidget>(BUTTON_W, BUTTON_H);
+        ButtonWidget* ptr = button.get();
+        button->setText(TagLib::String(label), font);
+        button->setPos(Rect(x, HEIGHT - MARGIN - BUTTON_H, BUTTON_W, BUTTON_H));
+        button->setOnClick(std::move(on_click));
+        addChild(std::move(button));
+        return ptr;
+    }
+
+    // Both run the callback through a copy: it may close the dialog.
+    void submit()
+    {
+        if (m_on_ok) {
+            auto on_ok = m_on_ok;
+            on_ok(m_input->getText().to8Bit(true));
+        }
+    }
+    void cancel()
+    {
+        if (m_on_cancel) {
+            auto on_cancel = m_on_cancel;
+            on_cancel();
+        }
+    }
+
+    TextInputWidget* m_input = nullptr; // owned via addChild()
+    std::function<void(const std::string&)> m_on_ok;
+    std::function<void()> m_on_cancel;
+};
+
 // Client area for the "P" (Shift+P) test window: a live view of the running
 // playlist — a scrolling ListViewWidget above a row of edit buttons. The list
 // mirrors the playlist; edits go through the Player (Playlist is the source of
@@ -408,6 +484,10 @@ public:
         using MI = MenuBarWidget::Item;
         auto fd = [this] { return m_player->hasFileDialog(); };
         std::vector<MI> file_items;
+        // URLs need no file chooser, so these are enabled in every build.
+        file_items.push_back(MI::leaf("Add URL &Next...", [this] { m_player->playlistManagerAddUrlNext(); }));
+        file_items.push_back(MI::leaf("Add URL To &End...", [this] { m_player->playlistManagerAddUrlEnd(); }));
+        file_items.push_back(MI::sep());
         file_items.push_back(MI::leaf("&Load Playlist...", [this] {
             m_player->playlistManagerLoad();
             reload(m_player->playlistManagerCurrentIndex());
@@ -1615,15 +1695,23 @@ void Player::queueTracks(QueueMode mode, const char* dialog_title)
     if (paths.empty()) {
         return;
     }
+    queuePaths(mode, paths);
+}
+#endif // HAVE_FILEDIALOG
 
+void Player::queuePaths(QueueMode mode, const std::vector<std::string>& paths)
+{
+    if (!playlist) {
+        return;
+    }
     std::vector<Playlist::Entry> entries = expandChosenPaths(paths);
     if (entries.empty()) {
         return; // e.g. only empty/invalid playlist files were chosen
     }
 
-    // Resolve the insertion index only now that the (blocking) chooser has
-    // closed. Capturing it before the dialog would misplace the tracks if a
-    // track transition advanced the cursor while the dialog was open.
+    // Resolve the insertion index only now that the chooser or URL dialog has
+    // closed. Capturing it before would misplace the tracks if a track
+    // transition advanced the cursor while the dialog was open.
     const long size = playlist->entries();
     long insert_at;
     if (mode == QueueMode::AfterCurrent) {
@@ -1656,6 +1744,7 @@ void Player::queueTracks(QueueMode mode, const char* dialog_title)
     }
 }
 
+#ifdef HAVE_FILEDIALOG
 // "I": queue after the current track (plays next).
 void Player::queueTracksNext()
 {
@@ -1837,6 +1926,27 @@ void Player::playlistManagerAddEnd()
 #else
     showToast("File chooser not available in this build");
 #endif
+}
+
+void Player::playlistManagerAddUrlNext()
+{
+    showUrlDialog("Add URL Next", [this](const std::string& url) {
+        queuePaths(QueueMode::AfterCurrent, {url});
+    });
+}
+
+void Player::playlistManagerAddUrlEnd()
+{
+    showUrlDialog("Add URL To End", [this](const std::string& url) {
+        queuePaths(QueueMode::AtEnd, {url});
+    });
+}
+
+void Player::openUrl()
+{
+    showUrlDialog("Open URL", [this](const std::string& url) {
+        openPathsReplacingPlaylist({url});
+    });
 }
 
 void Player::playlistManagerLoad()
@@ -2913,6 +3023,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         return false;
     }
 
+    // Escape in the URL dialog cancels it, even with its text field unfocused,
+    // instead of reaching the quit key below.
+    if (keysym.sym == SDLK_ESCAPE && m_url_dialog &&
+        WindowFrameWidget::activeWindow() == m_url_dialog) {
+        closeUrlDialog();
+        return false;
+    }
+
     switch (keysym.sym) {
         case SDLK_ESCAPE: // NOLINT(bugprone-branch-clone)
         case SDLK_Q:
@@ -3475,6 +3593,7 @@ bool Player::Initialize(const PlayerOptions& options) {
             openTracksReplacingPlaylist();
 #endif
         }, nullptr, "Ctrl+O", fd_enabled));
+        file_items.push_back(MI::leaf("Open &URL...", [this]{ openUrl(); }));
         file_items.push_back(MI::leaf("&Clear Playlist", [this]{ clearPlaylist(); }, nullptr, "", fd_enabled));
         file_items.push_back(MI::sep());
         file_items.push_back(MI::leaf("Queue Track &Next...", [this]{
@@ -5425,6 +5544,73 @@ void Player::showAboutWindow()
 
     fp->bringToFront();
     m_random_windows.push_back(std::move(frame));
+}
+
+void Player::showUrlDialog(const std::string& title, std::function<void(const std::string&)> on_ok)
+{
+    closeUrlDialog();
+
+    auto client = std::make_unique<UrlDialogClient>(font.get());
+    UrlDialogClient* dialog = client.get();
+
+    auto frame = std::make_unique<WindowFrameWidget>(UrlDialogClient::WIDTH, UrlDialogClient::HEIGHT,
+                                                     title, font.get());
+    frame->setResizable(false);
+    frame->setMinimizable(false);
+    frame->setMaximizable(false);
+    frame->setClientArea(std::move(client));
+    frame->refresh();
+
+    // Centered, and clamped fully on-screen.
+    Rect sz = frame->getPos();
+    int x = (Display::LOGICAL_WIDTH - sz.width()) / 2;
+    int y = (Display::LOGICAL_HEIGHT - sz.height()) / 2;
+    x = std::max(0, std::min(x, Display::LOGICAL_WIDTH - sz.width()));
+    y = std::max(0, std::min(y, Display::LOGICAL_HEIGHT - sz.height()));
+    frame->setPos(Rect(x, y, sz.width(), sz.height()));
+
+    WindowFrameWidget* fp = frame.get();
+    m_url_dialog = fp;
+    frame->setOnDrag([fp](int dx, int dy) {
+        Rect p = fp->getPos(); p.x(p.x() + dx); p.y(p.y() + dy); fp->setPos(p);
+    });
+    frame->setOnDragStart([fp] { fp->bringToFront(); });
+    frame->setOnClose([this] { closeUrlDialog(); });
+    dialog->setOnCancel([this] { closeUrlDialog(); });
+    dialog->setOnOk([this, on_ok = std::move(on_ok)](const std::string& text) {
+        // Pasted URLs often bring a trailing newline or spaces with them.
+        const size_t first = text.find_first_not_of(" \t\r\n");
+        const size_t last = text.find_last_not_of(" \t\r\n");
+        const std::string url = (first == std::string::npos) ? std::string()
+                                                             : text.substr(first, last - first + 1);
+        if (url.find("://") == std::string::npos) {
+            showToast(url.empty() ? "Enter a URL" : "Not a URL: " + url);
+            return;
+        }
+        // on_ok lives in this lambda, which closing the dialog will destroy
+        // (deferred, but don't rely on it).
+        auto callback = on_ok;
+        closeUrlDialog();
+        callback(url);
+    });
+
+    fp->bringToFront();
+    m_random_windows.push_back(std::move(frame));
+    dialog->focusInput();
+}
+
+void Player::closeUrlDialog()
+{
+    if (!m_url_dialog) {
+        return;
+    }
+    auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                           [this](const auto& w) { return w.get() == m_url_dialog; });
+    if (it != m_random_windows.end()) {
+        deferWidgetDeletion(std::move(*it));
+        m_random_windows.erase(it);
+    }
+    m_url_dialog = nullptr;
 }
 
 /**
