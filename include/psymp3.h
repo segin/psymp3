@@ -406,6 +406,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 #include "widget/ui/ToastWidget.h"
 #include "widget/ui/LyricsWidget.h"
 #include "widget/ui/TextInputWidget.h"
+#include "widget/ui/FocusAnts.h"
 #include "widget/ui/ScrollbarWidget.h"
 #include "widget/ui/AboutWindow.h"
 #include "widget/ui/PlaybackIndicatorsWidget.h"

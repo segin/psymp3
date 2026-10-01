@@ -690,20 +690,11 @@ void ListViewWidget::draw(Surface& surface)
         }
 
         // Classic keyboard-focus rectangle: while this list holds keyboard
-        // focus, the cursor row gets a 1px dotted outline over its highlight.
+        // focus, the cursor row gets the focus ants over its fill (the
+        // highlight's navy, or white if the row isn't selected).
         if (index == m_selected && s_focused_widget == this) {
-            const int x0 = BORDER;
-            const int x1 = BORDER + content_w - 1;
-            const int y0 = row_y;
-            const int y1 = row_y + m_row_height - 1;
-            for (int x = x0; x <= x1; ++x) {
-                if (((x + y0) & 1) == 0) surface.pixel(x, y0, 255, 255, 255, 255);
-                if (((x + y1) & 1) == 0) surface.pixel(x, y1, 255, 255, 255, 255);
-            }
-            for (int y = y0 + 1; y < y1; ++y) {
-                if (((x0 + y) & 1) == 0) surface.pixel(x0, y, 255, 255, 255, 255);
-                if (((x1 + y) & 1) == 0) surface.pixel(x1, y, 255, 255, 255, 255);
-            }
+            const SDL_Color under = selected ? SDL_Color{0, 0, 128, 255} : SDL_Color{255, 255, 255, 255};
+            drawFocusAnts(surface, BORDER, row_y, BORDER + content_w - 1, row_y + m_row_height - 1, under);
         }
     }
 

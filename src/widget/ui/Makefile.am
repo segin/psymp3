@@ -41,6 +41,7 @@ libpsymp3_widget_ui_a_SOURCES = \
 	MenuBarWidget.cpp \
 	LyricsWidget.cpp \
 	TextInputWidget.cpp \
+	FocusAnts.cpp \
 	ScrollbarWidget.cpp \
 	ListViewWidget.cpp \
 	ContextMenuWidget.cpp \

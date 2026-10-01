@@ -272,6 +272,7 @@
 #include "widget/ui/PlayerProgressBarWidget.cpp"
 #include "widget/ui/ProgressBarBracketWidget.cpp"
 #include "widget/ui/ProgressBarFrameWidget.cpp"
+#include "widget/ui/FocusAnts.cpp"
 #include "widget/ui/ScrollbarWidget.cpp"
 #include "widget/ui/ListViewWidget.cpp"
 #include "widget/ui/ContextMenuWidget.cpp"
