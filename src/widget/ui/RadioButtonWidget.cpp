@@ -193,8 +193,23 @@ bool RadioButtonWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     } else if (keysym.sym == SDLK_DOWN || keysym.sym == SDLK_RIGHT) {
         step = 1;
     }
-    if (step == 0 || !w->m_group || (keysym.mod & (SDL_KMOD_CTRL | SDL_KMOD_ALT)) != 0) {
-        return false;
+    if (step == 0 || (keysym.mod & (SDL_KMOD_CTRL | SDL_KMOD_ALT)) != 0) {
+        // As the combo box does: Alt chords (mnemonics), Enter (the default
+        // button), Tab and the function keys go on; Escape drops focus rather
+        // than reach the quit key; the rest is swallowed, so the global
+        // shortcuts (Q quits, N skips, ...) don't fire while it has focus.
+        if ((keysym.mod & SDL_KMOD_ALT) != 0 || keysym.sym == SDLK_RETURN ||
+            keysym.sym == SDLK_KP_ENTER || keysym.sym == SDLK_TAB ||
+            (keysym.sym >= SDLK_F1 && keysym.sym <= SDLK_F12)) {
+            return false;
+        }
+        if (keysym.sym == SDLK_ESCAPE) {
+            w->blur();
+        }
+        return true;
+    }
+    if (!w->m_group) {
+        return true;
     }
     const auto& members = w->m_group->members;
     const int n = static_cast<int>(members.size());

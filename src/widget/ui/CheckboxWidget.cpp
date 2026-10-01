@@ -68,8 +68,23 @@ void CheckboxWidget::clearFocusedWidget()
 bool CheckboxWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
 {
     CheckboxWidget* w = s_focused_widget;
-    if (!w || !w->isEnabled() || keysym.sym != SDLK_SPACE) {
+    if (!w || !w->isEnabled()) {
         return false;
+    }
+    if (keysym.sym != SDLK_SPACE) {
+        // As the combo box does: Alt chords (mnemonics), Enter (the default
+        // button), Tab and the function keys go on; Escape drops focus rather
+        // than reach the quit key; the rest is swallowed, so the global
+        // shortcuts (Q quits, N skips, ...) don't fire while it has focus.
+        if ((keysym.mod & SDL_KMOD_ALT) != 0 || keysym.sym == SDLK_RETURN ||
+            keysym.sym == SDLK_KP_ENTER || keysym.sym == SDLK_TAB ||
+            (keysym.sym >= SDLK_F1 && keysym.sym <= SDLK_F12)) {
+            return false;
+        }
+        if (keysym.sym == SDLK_ESCAPE) {
+            w->blur();
+        }
+        return true;
     }
     // Key auto-repeat lands here again; the flag makes it a no-op. While the
     // mouse holds the box, Space is ignored (as in Windows): one press, one
