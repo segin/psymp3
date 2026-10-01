@@ -106,7 +106,16 @@ void RadioButtonWidget::makeGroup(const std::vector<RadioButtonWidget*>& buttons
     auto group = std::make_shared<Group>();
     for (RadioButtonWidget* b : buttons) {
         if (b) {
-            group->members.push_back(b);
+            // Leave any earlier group first, or it would keep a pointer to
+            // this button past its destruction (the destructor leaves only
+            // the current group).
+            if (b->m_group && b->m_group != group) {
+                auto& old = b->m_group->members;
+                old.erase(std::remove(old.begin(), old.end(), b), old.end());
+            }
+            if (std::find(group->members.begin(), group->members.end(), b) == group->members.end()) {
+                group->members.push_back(b);
+            }
             b->m_group = group;
         }
     }
