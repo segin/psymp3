@@ -427,10 +427,26 @@ MenuPopup::KeyResult MenuPopup::key(const SDL_keysym& keysym, std::function<void
 
     // Bare mnemonic key: jump to (and pick / expand) the matching item. Any
     // printable character can be a mnemonic, as in Windows ("&1 file.mp3").
+    // As in Windows too, when several enabled items share it, the key only
+    // moves the selection to the next of them, so each stays reachable
+    // ("&Restart Track" and "&Repeat"); a unique one acts at once.
     if (keysym.sym > ' ' && keysym.sym < 0x7F) {
+        std::vector<int> matches;
         for (int i = 0; i < static_cast<int>(list.size()); ++i) {
-            if (list[i].separator) continue;
+            if (list[i].separator || !list[i].isEnabled()) continue;
             if (mnemonicChar(list[i].label) != static_cast<int>(keysym.sym)) continue;
+            matches.push_back(i);
+        }
+        if (matches.size() > 1) {
+            int next = matches.front();
+            for (int m : matches) {
+                if (m > sel) { next = m; break; }
+            }
+            sel = next;
+            return KeyResult::Handled;
+        }
+        if (matches.size() == 1) {
+            const int i = matches.front();
             sel = i;
             MenuItem& it = list[i];
             if (!it.submenu.empty()) {
