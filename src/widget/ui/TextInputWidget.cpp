@@ -350,8 +350,11 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
             if (widget.m_on_submit) {
                 auto on_submit = widget.m_on_submit;
                 on_submit();
+                return true;
             }
-            return true;
+            // Without a handler of its own, Enter is the dialog's: its
+            // default button fires, as from a Windows edit control.
+            return false;
         case SDLK_ESCAPE: {
             // Blur rather than fall through: the global handler treats a
             // leaked Escape as quit-the-program.
