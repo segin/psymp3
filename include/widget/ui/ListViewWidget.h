@@ -141,8 +141,8 @@ protected:
 
 private:
     static constexpr int SCROLLBAR_WIDTH = 17;
-    static constexpr int BORDER = 1;          // sunken frame thickness
-    static constexpr int ROW_PADDING = 2;     // extra pixels added to glyph height
+    static constexpr int BORDER = 1;          // flat black frame thickness
+    static constexpr int ROW_PADDING = 2;     // extra pixels added to the line height
 
     // Geometry helpers, all derived from the current size.
     int listAreaWidth() const;                // content width, excluding scrollbar

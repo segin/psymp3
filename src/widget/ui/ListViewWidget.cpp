@@ -23,16 +23,14 @@ ListViewWidget::ListViewWidget(int width, int height, Core::Font* font)
     , m_row_height(16)
     , m_scrollbar(nullptr)
 {
-    // Derive the row height from the font so rows fit the glyphs at any point
-    // size; fall back to a sane default if the font can't render.
-    if (m_font && m_font->isValid()) {
-        auto sample = m_font->RenderLCD(TagLib::String(" Agy"), 0, 0, 0, 255, 255, 255);
-        if (sample && sample->height() > 0) {
-            m_row_height = sample->height() + ROW_PADDING;
-        }
+    // Derive the row height from the font's line height, as the combo box's
+    // list does, so the two lists' rows match; fall back to a sane default if
+    // the font can't render.
+    if (m_font && m_font->isValid() && m_font->lineHeight() > 0) {
+        m_row_height = m_font->lineHeight() + ROW_PADDING;
     }
 
-    auto scrollbar = std::make_unique<ScrollbarWidget>(SCROLLBAR_WIDTH, height - 2 * BORDER,
+    auto scrollbar = std::make_unique<ScrollbarWidget>(SCROLLBAR_WIDTH, height,
                                                        ScrollbarOrientation::Vertical);
     m_scrollbar = scrollbar.get();
     m_scrollbar->setValue(0.0);
@@ -163,7 +161,8 @@ bool ListViewWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
 
 int ListViewWidget::listAreaWidth() const
 {
-    return std::max(0, getPos().width() - 2 * BORDER - SCROLLBAR_WIDTH);
+    // From the left border to the scrollbar, whose left outline ends the rows.
+    return std::max(0, getPos().width() - BORDER - SCROLLBAR_WIDTH);
 }
 
 int ListViewWidget::listAreaHeight() const
@@ -185,8 +184,10 @@ int ListViewWidget::maxTop() const
 void ListViewWidget::relayout()
 {
     if (m_scrollbar) {
-        m_scrollbar->setGeometry(Rect(getPos().width() - BORDER - SCROLLBAR_WIDTH, BORDER,
-                                      SCROLLBAR_WIDTH, std::max(2 * SCROLLBAR_WIDTH, listAreaHeight())));
+        // Over the border on the right, top and bottom, as in Windows 3.1:
+        // the scrollbar's own black outline is the list's frame there.
+        m_scrollbar->setGeometry(Rect(getPos().width() - SCROLLBAR_WIDTH, 0,
+                                      SCROLLBAR_WIDTH, std::max(2 * SCROLLBAR_WIDTH, static_cast<int>(getPos().height()))));
     }
     // A resize can leave the previous top scrolled past the new end.
     m_top = std::min(m_top, maxTop());
@@ -731,12 +732,10 @@ void ListViewWidget::draw(Surface& surface)
         surface.hline(BORDER, BORDER + content_w - 1, y0 + 1, 0, 0, 200, 255);
     }
 
-    // Sunken 3D frame (dark top/left, light bottom/right) drawn last so it sits
-    // above the rows at the edges.
-    surface.hline(0, w - 1, 0, 128, 128, 128, 255);
-    surface.vline(0, 0, h - 1, 128, 128, 128, 255);
-    surface.hline(0, w - 1, h - 1, 255, 255, 255, 255);
-    surface.vline(w - 1, 0, h - 1, 255, 255, 255, 255);
+    // The flat 1px black Windows 3.1 frame, drawn last so it sits above the
+    // rows at the edges. The scrollbar, drawn over the right of it, merges
+    // its own outline into it.
+    surface.rectangle(0, 0, w - 1, h - 1, 0, 0, 0, 255);
 }
 
 } // namespace UI
