@@ -677,8 +677,8 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
         }
         
         // Enforce minimum size
-        if (new_width < MIN_CLIENT_WIDTH) new_width = MIN_CLIENT_WIDTH;
-        if (new_height < MIN_CLIENT_HEIGHT) new_height = MIN_CLIENT_HEIGHT;
+        if (new_width < m_min_client_width) new_width = m_min_client_width;
+        if (new_height < m_min_client_height) new_height = m_min_client_height;
         
         // Only resize if size actually changed
         if (new_width != m_client_width || new_height != m_client_height) {
@@ -1093,8 +1093,8 @@ void WindowFrameWidget::setFrameBounds(const Rect& bounds)
         vertical_border_total = TITLEBAR_HEIGHT + 2 + 1;
     }
 
-    m_client_width = std::max(MIN_CLIENT_WIDTH, bounds.width() - horizontal_border_total);
-    m_client_height = std::max(MIN_CLIENT_HEIGHT, bounds.height() - vertical_border_total);
+    m_client_width = std::max(m_min_client_width, bounds.width() - horizontal_border_total);
+    m_client_height = std::max(m_min_client_height, bounds.height() - vertical_border_total);
 
     setPos(Rect(bounds.x(), bounds.y(),
                 m_client_width + horizontal_border_total,

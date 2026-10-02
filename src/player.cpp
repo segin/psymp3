@@ -4768,6 +4768,10 @@ void Player::togglePlaylistManager()
 
     m_test_window_p = std::make_unique<WindowFrameWidget>(client_w, client_h, "Playlist Manager", font.get());
     m_test_window_p->setMinimizable(false); // no minimize; maximize/restore stays
+    // At 150px tall the list keeps about three rows, and room for its
+    // scrollbar's arrows and thumb (the bar, margins and two button rows take
+    // the other 96px).
+    m_test_window_p->setMinClientSize(0, 150);
 
     auto client = std::make_unique<PlaylistManagerClient>(client_w, client_h, font.get(), this);
     PlaylistManagerClient* client_ptr = client.get();

@@ -196,6 +196,14 @@ public:
     // dismissing click is consumed. In-frame clicks are handled by the menu
     // overlay (select/dismiss) and the titlebar icon (toggle) themselves.
     static bool dismissOpenSystemMenuAt(int x, int y);
+    // The smallest client area resizing may leave, for a window whose content
+    // needs more than the default minimum (MIN_CLIENT_WIDTH x
+    // MIN_CLIENT_HEIGHT, which stays the floor).
+    void setMinClientSize(int width, int height)
+    {
+        m_min_client_width = std::max(static_cast<int>(MIN_CLIENT_WIDTH), width);
+        m_min_client_height = std::max(static_cast<int>(MIN_CLIENT_HEIGHT), height);
+    }
     // While a control-menu Move is in progress it owns the keyboard, as in
     // Windows: Escape puts the window back where it started, Enter settles
     // it, and every other key is swallowed. True when a move consumed it.
@@ -317,6 +325,8 @@ private:
     // Control-menu "Move" mode: the window follows the pointer (as a normal
     // titlebar drag does) until the next click settles it. While set,
     // m_is_dragging is also set and mouse-up does not end the drag.
+    int m_min_client_width = MIN_CLIENT_WIDTH;   // see setMinClientSize
+    int m_min_client_height = MIN_CLIENT_HEIGHT;
     bool m_menu_move_mode = false;
     bool m_menu_move_pending = false; // Move chosen; baseline set on first motion
     Rect m_menu_move_origin;          // where the window was, for Escape
