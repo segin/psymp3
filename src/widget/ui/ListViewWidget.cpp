@@ -324,6 +324,15 @@ void ListViewWidget::setSelectionRange(int anchor, int cursor, bool ensure_visib
     }
 }
 
+void ListViewWidget::centerOn(int index)
+{
+    if (index < 0 || index >= static_cast<int>(m_items.size())) {
+        return;
+    }
+    // The row's middle at the area's middle; setScrollPx clamps at the ends.
+    setScrollPx(index * m_row_height + m_row_height / 2 - listAreaHeight() / 2);
+}
+
 void ListViewWidget::ensureVisible(int index)
 {
     if (index < 0 || m_row_height <= 0) return;

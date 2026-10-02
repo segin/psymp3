@@ -589,6 +589,9 @@ public:
 
         reload(m_player->playlistManagerCurrentIndex());
         layout(width, height);
+        // Open on the playing track, about mid-list where the ends allow,
+        // once the list has its size (and so its row count).
+        m_list->centerOn(m_list->getSelectedIndex());
     }
 
     // The list widget, exposed so the Player can drive the external-drop

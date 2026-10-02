@@ -66,6 +66,8 @@ public:
     void setSelectionRange(int anchor, int cursor, bool ensure_visible = true);
     // Scroll so the given row is within the visible area (no-op if already shown).
     void ensureVisible(int index);
+    // Scroll so the given row sits about mid-list, as far as the ends allow.
+    void centerOn(int index);
     // Abandon any in-progress drag-to-reorder (e.g. the list changed underneath).
     void cancelDrag();
     // External file drag-and-drop: show the blue insertion bar at `gap`
