@@ -68,6 +68,8 @@ private:
     Rect getDecrementArrowRect() const;
     Rect getIncrementArrowRect() const;
     Rect getThumbRect() const;
+    int arrowExtent() const; // arrow length along the bar: a bar-width, or half a too-short bar
+    bool thumbFits() const;  // room for the thumb between two full arrows
     void notifyChange();
     double clampValue(double value) const;
     // The value that would centre the thumb under (relative_x, relative_y).

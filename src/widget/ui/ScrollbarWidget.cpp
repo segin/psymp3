@@ -347,6 +347,28 @@ void ScrollbarWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolu
     Widget::recursiveBlitTo(target, parent_absolute_pos);
 }
 
+int ScrollbarWidget::arrowExtent() const
+{
+    // Square arrow buttons, one bar-width long; on a bar too short for two of
+    // those, Windows shrinks both to share its length.
+    Rect pos = getPos();
+    const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
+    const int piece = vert ? pos.width() : pos.height();
+    const int length = vert ? pos.height() : pos.width();
+    return std::min(piece, length / 2);
+}
+
+bool ScrollbarWidget::thumbFits() const
+{
+    // Two full arrows and the thumb, sharing their separator lines (see
+    // getThumbRect); with less room Windows draws no thumb, only the arrows.
+    Rect pos = getPos();
+    const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
+    const int piece = vert ? pos.width() : pos.height();
+    const int length = vert ? pos.height() : pos.width();
+    return length >= 3 * piece - 2;
+}
+
 ScrollbarWidget::ScrollbarPart ScrollbarWidget::hitTestPart(int relative_x, int relative_y) const
 {
     if (getDecrementArrowRect().contains(relative_x, relative_y)) {
@@ -354,6 +376,11 @@ ScrollbarWidget::ScrollbarPart ScrollbarWidget::hitTestPart(int relative_x, int 
     }
     if (getIncrementArrowRect().contains(relative_x, relative_y)) {
         return ScrollbarPart::IncrementArrow;
+    }
+    // Without a thumb, what little shaft there is between the arrows does
+    // nothing: there is no thumb to page toward.
+    if (!thumbFits()) {
+        return ScrollbarPart::None;
     }
 
     Rect thumb = getThumbRect();
@@ -370,7 +397,7 @@ ScrollbarWidget::ScrollbarPart ScrollbarWidget::hitTestPart(int relative_x, int 
 Rect ScrollbarWidget::getDecrementArrowRect() const
 {
     Rect pos = getPos();
-    const int extent = (m_orientation == ScrollbarOrientation::Vertical) ? pos.width() : pos.height();
+    const int extent = arrowExtent();
     return (m_orientation == ScrollbarOrientation::Vertical)
         ? Rect(0, 0, pos.width(), extent)
         : Rect(0, 0, extent, pos.height());
@@ -379,7 +406,7 @@ Rect ScrollbarWidget::getDecrementArrowRect() const
 Rect ScrollbarWidget::getIncrementArrowRect() const
 {
     Rect pos = getPos();
-    const int extent = (m_orientation == ScrollbarOrientation::Vertical) ? pos.width() : pos.height();
+    const int extent = arrowExtent();
     return (m_orientation == ScrollbarOrientation::Vertical)
         ? Rect(0, pos.height() - extent, pos.width(), extent)
         : Rect(pos.width() - extent, 0, extent, pos.height());
@@ -389,7 +416,11 @@ Rect ScrollbarWidget::getThumbRect() const
 {
     // Windows 3.1 thumb: a fixed square piece spanning the full bar width, one
     // bar-width long, sharing its separator lines with the arrow buttons at
-    // the travel ends (so travel = length - 3*piece + 2 shared lines).
+    // the travel ends (so travel = length - 3*piece + 2 shared lines). None
+    // when it doesn't fit (thumbFits): an empty rect.
+    if (!thumbFits()) {
+        return Rect(0, 0, 0, 0);
+    }
     Rect pos = getPos();
     const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
     const int piece = vert ? pos.width() : pos.height();
@@ -489,7 +520,7 @@ void ScrollbarWidget::rebuildSurface()
 
     // Disabled scrollbars have no thumb and etched arrow glyphs — the classic
     // "nothing to scroll" look.
-    if (enabled) {
+    if (enabled && thumbFits()) {
         drawWin31Button(*surface, thumb, m_dragging_thumb);
     }
 

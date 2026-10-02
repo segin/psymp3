@@ -211,8 +211,11 @@ void ListViewWidget::relayout()
     if (m_scrollbar) {
         // Over the border on the right, top and bottom, as in Windows 3.1:
         // the scrollbar's own black outline is the list's frame there.
+        // Exactly the list's height, however short: a scrollbar too short
+        // for its thumb or full arrows drops the thumb and shrinks the
+        // arrows, as Windows does, rather than overhang the list.
         m_scrollbar->setGeometry(Rect(getPos().width() - SCROLLBAR_WIDTH, 0,
-                                      SCROLLBAR_WIDTH, std::max(2 * SCROLLBAR_WIDTH, static_cast<int>(getPos().height()))));
+                                      SCROLLBAR_WIDTH, std::max(1, static_cast<int>(getPos().height()))));
     }
     // A resize (or new items) can leave the offset scrolled past the new end.
     setScrollPx(m_scroll_px);
