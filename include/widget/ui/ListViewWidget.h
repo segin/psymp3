@@ -148,11 +148,17 @@ private:
     int listAreaWidth() const;                // content width, excluding scrollbar
     int listAreaHeight() const;               // content height, excluding borders
     int visibleRows() const;                  // whole rows that fit in the area
-    int maxTop() const;                       // largest valid m_top
+    int maxScrollPx() const;                  // largest scroll offset: content height - area
+    int rowOriginY() const;                   // y of row m_top (at or above the top edge)
 
     void relayout();          // reposition/resize the scrollbar and clamp scroll
-    void syncScrollbar();     // push m_top -> scrollbar value / enabled state
-    void setTop(int top);     // scroll so the given row is first, clamped
+    void syncScrollbar();     // push m_scroll_px -> scrollbar value / enabled state
+    // The list scrolls by pixels, as if its rows were one tall surface (as
+    // the About box's text does): rows show partly at either edge wherever
+    // the offset puts them. setScrollPx() clamps the offset to
+    // [0, maxScrollPx()] and repaints; sync_scrollbar is false only from the
+    // scrollbar's own callback.
+    void setScrollPx(int px, bool sync_scrollbar = true);
     int  rowAt(int relative_y) const; // item index under a y coordinate, or -1
     int  gapAt(int relative_y) const; // insertion gap index (0..count) for a drag
     // `gap`, or -1 when dropping the dragged block there would put it back
@@ -169,7 +175,8 @@ private:
     std::vector<TagLib::String> m_items;
     int m_selected;           // cursor row; -1 = no selection
     int m_anchor = -1;        // other end of the selected run; -1 = none
-    int m_top;                // index of the first visible row
+    int m_top;                // index of the first (possibly partly) visible row: m_scroll_px / row height
+    int m_scroll_px = 0;      // pixels of the rows scrolled off the top
     int m_row_height;
     ScrollbarWidget* m_scrollbar; // owned via addChild(); non-owning pointer
     std::function<void(int)> m_on_selection_changed;

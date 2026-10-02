@@ -35,15 +35,9 @@ ListViewWidget::ListViewWidget(int width, int height, Core::Font* font)
     m_scrollbar = scrollbar.get();
     m_scrollbar->setValue(0.0);
     m_scrollbar->setOnChange([this](double value) {
-        // Map the scrollbar's 0..1 position onto the valid top-row range. Do NOT
-        // call syncScrollbar() here: setValue() would re-enter this callback.
-        int mt = maxTop();
-        int new_top = (mt > 0) ? static_cast<int>(std::lround(value * mt)) : 0;
-        new_top = std::max(0, std::min(new_top, mt));
-        if (new_top != m_top) {
-            m_top = new_top;
-            invalidate();
-        }
+        // Map the scrollbar's 0..1 position onto the pixel range. Do NOT
+        // sync the scrollbar back here: setValue() would re-enter this callback.
+        setScrollPx(static_cast<int>(std::lround(value * maxScrollPx())), /*sync_scrollbar=*/false);
     });
     addChild(std::move(scrollbar));
 
@@ -206,9 +200,10 @@ int ListViewWidget::visibleRows() const
     return listAreaHeight() / m_row_height;
 }
 
-int ListViewWidget::maxTop() const
+int ListViewWidget::maxScrollPx() const
 {
-    return std::max(0, static_cast<int>(m_items.size()) - visibleRows());
+    // Scrolled all the way, the last row's bottom meets the area's bottom.
+    return std::max(0, static_cast<int>(m_items.size()) * m_row_height - listAreaHeight());
 }
 
 void ListViewWidget::relayout()
@@ -219,36 +214,37 @@ void ListViewWidget::relayout()
         m_scrollbar->setGeometry(Rect(getPos().width() - SCROLLBAR_WIDTH, 0,
                                       SCROLLBAR_WIDTH, std::max(2 * SCROLLBAR_WIDTH, static_cast<int>(getPos().height()))));
     }
-    // A resize can leave the previous top scrolled past the new end.
-    m_top = std::min(m_top, maxTop());
-    m_top = std::max(0, m_top);
-    syncScrollbar();
+    // A resize (or new items) can leave the offset scrolled past the new end.
+    setScrollPx(m_scroll_px);
 }
 
 void ListViewWidget::syncScrollbar()
 {
     if (!m_scrollbar) return;
-    int mt = maxTop();
+    const int max_px = maxScrollPx();
     // Nothing to scroll when every item fits: park the thumb and disable it.
-    m_scrollbar->setEnabled(mt > 0);
-    m_scrollbar->setValue(mt > 0 ? static_cast<double>(m_top) / static_cast<double>(mt) : 0.0);
-    // Value spans [0, mt] rows: an arrow click moves one row and a track click
-    // one visible page, so the jump matches the list regardless of its length.
-    if (mt > 0) {
-        double line = 1.0 / static_cast<double>(mt);
-        double page = std::min(1.0, static_cast<double>(std::max(1, visibleRows())) / static_cast<double>(mt));
+    m_scrollbar->setEnabled(max_px > 0);
+    m_scrollbar->setValue(max_px > 0 ? static_cast<double>(m_scroll_px) / static_cast<double>(max_px) : 0.0);
+    // Value spans [0, max_px] pixels: an arrow click moves one row and a
+    // track click one area's height, whatever the list's length.
+    if (max_px > 0) {
+        const double line = std::min(1.0, static_cast<double>(m_row_height) / max_px);
+        const double page = std::min(1.0, static_cast<double>(std::max(1, listAreaHeight())) / max_px);
         m_scrollbar->setSteps(line, page);
     }
 }
 
-void ListViewWidget::setTop(int top)
+void ListViewWidget::setScrollPx(int px, bool sync_scrollbar)
 {
-    top = std::max(0, std::min(top, maxTop()));
-    if (top != m_top) {
-        m_top = top;
+    px = std::max(0, std::min(px, maxScrollPx()));
+    if (px != m_scroll_px) {
+        m_scroll_px = px;
         invalidate();
     }
-    syncScrollbar();
+    m_top = (m_row_height > 0) ? m_scroll_px / m_row_height : 0;
+    if (sync_scrollbar) {
+        syncScrollbar();
+    }
 }
 
 void ListViewWidget::addItem(const TagLib::String& text)
@@ -264,9 +260,9 @@ void ListViewWidget::setItems(const std::vector<TagLib::String>& items, bool pre
     m_selected = -1;
     m_anchor = -1;
     if (!preserve_scroll) {
-        m_top = 0;
+        m_scroll_px = 0;
     }
-    relayout(); // clamps m_top to the new maxTop()
+    relayout(); // clamps the offset to the new maxScrollPx()
     invalidate();
 }
 
@@ -275,7 +271,7 @@ void ListViewWidget::clearItems()
     m_items.clear();
     m_selected = -1;
     m_anchor = -1;
-    m_top = 0;
+    m_scroll_px = 0;
     relayout();
     invalidate();
 }
@@ -330,11 +326,17 @@ void ListViewWidget::setSelectionRange(int anchor, int cursor, bool ensure_visib
 
 void ListViewWidget::ensureVisible(int index)
 {
-    if (index < 0) return;
-    if (index < m_top) {
-        setTop(index);
-    } else if (index >= m_top + visibleRows()) {
-        setTop(index - visibleRows() + 1);
+    if (index < 0 || m_row_height <= 0) return;
+    // Scroll just far enough to show the whole row: revealed from above it
+    // comes in at the top edge, from below at the bottom edge (the row at
+    // the top then shows partly). A row already whole in view stays put.
+    const int row_top = index * m_row_height;
+    const int row_bottom = row_top + m_row_height;
+    const int area = listAreaHeight();
+    if (row_top < m_scroll_px) {
+        setScrollPx(row_top);
+    } else if (row_bottom > m_scroll_px + area) {
+        setScrollPx(row_bottom - area);
     }
 }
 
@@ -626,9 +628,9 @@ void ListViewWidget::autoScrollTick()
         return;
     }
     m_last_autoscroll_ms = now;
-    const int old_top = m_top;
-    setTop(m_top + m_scroll_zone);
-    if (m_top == old_top) {
+    const int old_px = m_scroll_px;
+    setScrollPx(m_scroll_px + m_scroll_zone * m_row_height);
+    if (m_scroll_px == old_px) {
         return; // already at the end in this direction
     }
     // Keep the active insertion marker pinned to the boundary gap.
@@ -649,18 +651,28 @@ void ListViewWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolut
     DrawableWidget::recursiveBlitTo(target, parent_absolute_pos);
 }
 
+namespace {
+// Division rounding toward negative infinity, for offsets above row m_top.
+int floorDiv(int a, int b)
+{
+    return (a >= 0) ? a / b : -((-a + b - 1) / b);
+}
+} // namespace
+
+int ListViewWidget::rowOriginY() const
+{
+    // Row m_top starts at or above the top edge, by however much of it the
+    // pixel offset has scrolled away.
+    return (m_row_height > 0) ? BORDER - m_scroll_px % m_row_height : BORDER;
+}
+
 int ListViewWidget::rowAt(int relative_y) const
 {
-    if (relative_y < BORDER || m_row_height <= 0) {
+    if (relative_y < BORDER || relative_y >= BORDER + listAreaHeight() || m_row_height <= 0) {
         return -1;
     }
-    // Only whole rows are drawn: the strip under the last of them, short of
-    // a row's height, shows no row and must not select (and scroll to) one.
-    const int visible = (relative_y - BORDER) / m_row_height;
-    if (visible >= visibleRows()) {
-        return -1;
-    }
-    int r = m_top + visible;
+    // Partly shown rows count: clicking one selects it and scrolls it whole.
+    const int r = m_top + floorDiv(relative_y - rowOriginY(), m_row_height);
     return (r >= 0 && r < static_cast<int>(m_items.size())) ? r : -1;
 }
 
@@ -677,8 +689,14 @@ int ListViewWidget::gapAt(int relative_y) const
     if (m_row_height <= 0) {
         return 0;
     }
-    int rel = std::max(0, relative_y - BORDER);
-    int gap = m_top + (rel + m_row_height / 2) / m_row_height;
+    // The row boundary nearest the pointer, measured from where rows start,
+    // kept to the boundaries inside the list area: those of a partly shown
+    // row lie past its edge, where no insertion marker could be seen.
+    const int origin = rowOriginY();
+    const int first = -floorDiv(origin - BORDER, m_row_height);                  // ceil
+    const int last = floorDiv(BORDER + listAreaHeight() - origin, m_row_height); // the bottom edge counts
+    int gap = floorDiv(relative_y - origin + m_row_height / 2, m_row_height);
+    gap = m_top + std::max(first, std::min(gap, last));
     return std::max(0, std::min(gap, static_cast<int>(m_items.size())));
 }
 
@@ -689,14 +707,11 @@ bool ListViewWidget::handleMouseWheel(int delta, int relative_x, int relative_y)
     if (!isEnabled() || m_items.empty()) {
         return false;
     }
-    // Scroll three rows per wheel notch; positive delta (wheel up) shows earlier
-    // rows. setTop() clamps and repaints.
+    // Scroll three rows' height per wheel notch, from wherever the offset is
+    // (no snapping to rows); positive delta (wheel up) shows earlier rows.
+    // setScrollPx() clamps and repaints.
     const int kLinesPerNotch = 3;
-    int new_top = m_top - delta * kLinesPerNotch;
-    if (new_top == m_top) {
-        return true;
-    }
-    setTop(new_top);
+    setScrollPx(m_scroll_px - delta * kLinesPerNotch * m_row_height);
     return true;
 }
 
@@ -721,30 +736,37 @@ void ListViewWidget::draw(Surface& surface)
     const int h = getPos().height();
     const int content_w = listAreaWidth();
 
-    // Draw the visible rows.
-    const int rows = visibleRows();
-    for (int i = 0; i < rows; ++i) {
-        int index = m_top + i;
-        if (index >= static_cast<int>(m_items.size())) {
+    // Draw the rows in view, partly shown ones included (see rowOriginY):
+    // each into a row surface, blitted at its place, so a row hanging past
+    // the top or bottom edge is clipped by the blit; the frame, drawn last,
+    // covers what lands on the border. Rendering is just-in-time: only the
+    // rows in view are rendered, on each redraw, into one reused row
+    // surface; nothing rendered outlives the draw, so a long list costs its
+    // strings and this widget's own surface, never a rendering per item.
+    const int count = static_cast<int>(m_items.size());
+    const int origin = rowOriginY();
+    const int area_bottom = BORDER + listAreaHeight();
+    std::unique_ptr<Surface> row_surface;
+    if (m_row_height > 0 && content_w > 0 && count > 0) {
+        row_surface = std::make_unique<Surface>(content_w, m_row_height, true);
+    }
+    for (int index = m_top; row_surface && index < count; ++index) {
+        const int row_y = origin + (index - m_top) * m_row_height;
+        if (row_y >= area_bottom) {
             break;
         }
-        int row_y = BORDER + i * m_row_height;
-        bool selected = isRowSelected(index);
-
-        if (selected) {
-            surface.box(BORDER, row_y, BORDER + content_w - 1, row_y + m_row_height - 1,
-                        0, 0, 128, 255);
-        }
+        const bool selected = isRowSelected(index);
+        const SDL_Color fill = selected ? SDL_Color{0, 0, 128, 255} : SDL_Color{255, 255, 255, 255};
+        Surface& row = *row_surface;
+        row.FillRect(row.MapRGBA(fill.r, fill.g, fill.b, 255));
 
         if (m_font && m_font->isValid() && !m_items[index].isEmpty()) {
             std::unique_ptr<Surface> text = selected
                 ? m_font->RenderLCD(m_items[index], 255, 255, 255, 0, 0, 128)
                 : m_font->RenderLCD(m_items[index], 0, 0, 0, 255, 255, 255);
             if (text && text->width() > 0) {
-                int ty = row_y + (m_row_height - text->height()) / 2;
-                // SDL clips the blit to this surface; the scrollbar column then
-                // covers any overrun past the content width.
-                surface.Blit(*text, Rect(BORDER + 2, ty, text->width(), text->height()));
+                // The blit clips any overrun past the row's width.
+                row.Blit(*text, Rect(2, (m_row_height - text->height()) / 2, text->width(), text->height()));
             }
         }
 
@@ -752,20 +774,24 @@ void ListViewWidget::draw(Surface& surface)
         // focus, the cursor row gets the focus ants over its fill (the
         // highlight's navy, or white if the row isn't selected).
         if (index == m_selected && s_focused_widget == this) {
-            const SDL_Color under = selected ? SDL_Color{0, 0, 128, 255} : SDL_Color{255, 255, 255, 255};
-            drawFocusAnts(surface, BORDER, row_y, BORDER + content_w - 1, row_y + m_row_height - 1, under);
+            drawFocusAnts(row, 0, 0, content_w - 1, m_row_height - 1, fill);
         }
+
+        surface.Blit(row, Rect(BORDER, row_y, content_w, m_row_height));
     }
 
     // Insertion marker (2px blue line at the gap): shown for an internal
     // drag-to-reorder and, identically, for an external file drag hovering over
-    // the list (m_drop_indicator, set via setDropIndicator()).
+    // the list (m_drop_indicator, set via setDropIndicator()). gapAt() only
+    // yields boundaries inside the area; keep the line within it too.
     const int marker_gap = m_dragging ? m_drag_gap : m_drop_indicator;
-    if (marker_gap >= m_top && marker_gap <= m_top + rows) {
-        int my = BORDER + (marker_gap - m_top) * m_row_height;
-        int y0 = std::min(my, h - BORDER - 2);
-        surface.hline(BORDER, BORDER + content_w - 1, y0, 0, 0, 200, 255);
-        surface.hline(BORDER, BORDER + content_w - 1, y0 + 1, 0, 0, 200, 255);
+    if (marker_gap >= 0 && m_row_height > 0) {
+        const int my = origin + (marker_gap - m_top) * m_row_height;
+        if (my >= BORDER && my <= area_bottom) {
+            const int y0 = std::max(BORDER, std::min(my, h - BORDER - 2));
+            surface.hline(BORDER, BORDER + content_w - 1, y0, 0, 0, 200, 255);
+            surface.hline(BORDER, BORDER + content_w - 1, y0 + 1, 0, 0, 200, 255);
+        }
     }
 
     // The flat 1px black Windows 3.1 frame, drawn last so it sits above the
