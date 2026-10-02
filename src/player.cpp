@@ -3284,11 +3284,15 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             }
             break;
 
+#ifndef RELEASE_BUILD
         // H toggles test window H, the control demo (labels, a text field, a
-        // checkbox, a button, a scrollbar).
+        // checkbox, a button, a scrollbar). Development builds only: a release
+        // build (configure --enable-release, the default for release
+        // versions) leaves the key unbound.
         case SDLK_H:
             toggleTestWindowH();
             break;
+#endif
 
         // The B and J keys (test window B, random windows) and M (mouse
         // handling mode; Shift+M, MPRIS error notifications) are deliberately
