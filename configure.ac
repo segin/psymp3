@@ -665,20 +665,36 @@ AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
 AM_CONDITIONAL([ENABLE_UBSAN], [test "x$enable_ubsan" = "xyes"])
 AM_CONDITIONAL([ENABLE_TSAN], [test "x$enable_tsan" = "xyes"])
 
-# Release build optimization
+# Release build: leaves out what only development needs (test window H).
+# The default follows the version: a development snapshot (-CURRENT) is not a
+# release; any other version (a -RELEASE, a BETA or an RC) is.
+case "$PACKAGE_VERSION" in
+  *-CURRENT) release_default=no ;;
+  *)         release_default=yes ;;
+esac
 AC_ARG_ENABLE([release],
-  [AS_HELP_STRING([--enable-release], [Enable release build optimizations (no debug symbols) @<:@default=no@:>@])],
+  [AS_HELP_STRING([--enable-release], [Release build, without the development-only test window @<:@default=yes for release versions, no for -CURRENT@:>@])],
   [enable_release=$enableval],
-  [enable_release=no])
+  [enable_release=$release_default])
 
 if test "x$enable_release" = "xyes"; then
   AC_DEFINE([RELEASE_BUILD], [1], [Define to 1 for release builds])
+fi
+
+AM_CONDITIONAL([RELEASE_BUILD], [test "x$enable_release" = "xyes"])
+
+# Aggressive optimization and stripped binaries, independent of the release
+# setting above, so a release can still be built with its debug symbols.
+AC_ARG_ENABLE([optimize],
+  [AS_HELP_STRING([--enable-optimize], [Optimize aggressively and strip debug symbols (-O3, NDEBUG, stripped) @<:@default=no@:>@])],
+  [enable_optimize=$enableval],
+  [enable_optimize=no])
+
+if test "x$enable_optimize" = "xyes"; then
   CXXFLAGS="$CXXFLAGS -O3 -DNDEBUG -fomit-frame-pointer -s"
   CFLAGS="$CFLAGS -O3 -DNDEBUG -fomit-frame-pointer -s"
   LDFLAGS="$LDFLAGS -s"
 fi
-
-AM_CONDITIONAL([RELEASE_BUILD], [test "x$enable_release" = "xyes"])
 
 # Final build (single compilation unit)
 AC_ARG_ENABLE([final],
@@ -790,6 +806,7 @@ echo "  File dialog (I/L): $filedialog_backend"
 echo "  Test Harness:      $enable_test_harness"
 echo "  RapidCheck (PBT):  $have_rapidcheck"
 echo "  Release Build:     $enable_release"
+echo "  Optimize/Strip:    $enable_optimize"
 echo "  Final Build:       $enable_final"
 echo ""
 echo "Security Testing:"

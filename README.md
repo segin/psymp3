@@ -143,6 +143,12 @@ make -j$(nproc)
 - `--enable-mpris` — MPRIS desktop integration over D-Bus (default: auto)
 - `--enable-final` — unity build: all sources in one translation unit (much
   faster full rebuilds; used for release builds)
+- `--enable-release` — a release build, which leaves out the development-only
+  test window (the `H` key). The default follows the version: yes for a
+  release, beta or RC, no for a `-CURRENT` development snapshot.
+- `--enable-optimize` — optimize aggressively (`-O3`, `NDEBUG`) and strip debug
+  symbols (default: no). Independent of `--enable-release`, so a release can
+  still be built with its symbols.
 - `--enable-static-binary` — fully static, self-contained executable (used for
   the Windows release builds)
 - `--enable-test-harness` — build the test harness (default: yes)
