@@ -4743,6 +4743,21 @@ void Player::toggleTestWindowH()
         });
         
         m_test_window_h->setOnResize([this](int new_width, int new_height) {
+            // The list view keeps its 130px height while it fits, and shrinks
+            // with the window past that, keeping 10px between its bottom and
+            // the window's (it never grows past 130).
+            if (Widget* client = m_test_window_h ? m_test_window_h->getClientArea() : nullptr) {
+                for (const auto& child : client->getChildren()) {
+                    if (auto* list = dynamic_cast<ListViewWidget*>(child.get())) {
+                        const Rect lp = list->getPos();
+                        const int height = std::max(1, std::min(130, new_height - 10 - lp.y()));
+                        if (height != lp.height()) {
+                            list->resize(lp.width(), height);
+                        }
+                        break;
+                    }
+                }
+            }
             showToast("H Window: Resized to " + std::to_string(new_width) + "x" + std::to_string(new_height));
         });
         
