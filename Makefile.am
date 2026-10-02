@@ -202,18 +202,22 @@ EXTRA_DIST = \
 	include/widget/ui/ApplicationWidget.h \
 	include/widget/ui/ButtonWidget.h \
 	include/widget/ui/CheckboxWidget.h \
+	include/widget/ui/ComboBoxWidget.h \
 	include/widget/ui/ContextMenuWidget.h \
 	include/widget/ui/EqualizerCurveWidget.h \
 	include/widget/ui/EqualizerWindow.h \
+	include/widget/ui/FocusAnts.h \
 	include/widget/ui/Label.h \
 	include/widget/ui/ListViewWidget.h \
 	include/widget/ui/LyricsWidget.h \
 	include/widget/ui/MainUIWidget.h \
 	include/widget/ui/MenuBarWidget.h \
+	include/widget/ui/MenuPopup.h \
 	include/widget/ui/PlaybackIndicatorsWidget.h \
 	include/widget/ui/PlayerProgressBarWidget.h \
 	include/widget/ui/ProgressBarBracketWidget.h \
 	include/widget/ui/ProgressBarFrameWidget.h \
+	include/widget/ui/RadioButtonWidget.h \
 	include/widget/ui/ScrollbarWidget.h \
 	include/widget/ui/SliderWidget.h \
 	include/widget/ui/SpectrumAnalyzerWidget.h \
