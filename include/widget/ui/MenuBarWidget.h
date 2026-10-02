@@ -97,7 +97,6 @@ private:
     int  barHitTest(int x, int y) const; // top-level index or -1 (local coordinates)
     Rect screenRect() const;            // where the bar is on the screen
 
-    Font* m_font;               // non-owning
     std::vector<Menu> m_menus;
     int m_rows = 1;             // number of bar rows after wrapping
     int m_open = -1;            // open top-level menu, or -1

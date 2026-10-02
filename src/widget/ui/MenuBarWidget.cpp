@@ -16,8 +16,7 @@ namespace UI {
 MenuBarWidget* MenuBarWidget::s_open_bar = nullptr;
 
 MenuBarWidget::MenuBarWidget(int width, int height, Font* font)
-    : m_font(font)
-    , m_popup(font)
+    : m_popup(font)
 {
     setPos(Rect(0, 0, width, height));
     rebuild();
