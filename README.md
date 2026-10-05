@@ -27,8 +27,9 @@ MPRIS.
 ## Features
 
 - Real-time FFT spectrum visualizer with adjustable intensity, decay, and draw modes
-- A faithful Windows 3.1-style in-app UI: menu bar, movable windows (Playlist Manager, Equalizer, Media Information, About), buttons, scrollbars, and dialogs — all software-rendered
-- Wide format support through a modular demuxer/codec architecture, with several codecs vendored so they work with no external libraries
+- A faithful Windows 3.1-style in-app UI: menu bar, movable windows (Playlist Manager, Equalizer, Media Information, About), buttons, checkboxes, radio buttons, drop-down lists, text fields, scrollbars, and dialogs — all software-rendered, and usable from the keyboard
+- Wide format support through a modular demuxer/codec architecture, with most codecs built in so they work with no external libraries
+- Plays local files, or an `http://` / `https://` address (**File → Open URL...**); files can also be dragged onto the window
 - Synced lyrics display (`.lrc` files)
 - Last.fm scrobbling (Web Services API 2.0), MPRIS desktop control, and Discord Rich Presence
 - Session persistence: with Persist Playlist enabled, PsyMP3 reopens your playlist at the track you were playing
@@ -42,6 +43,8 @@ MPRIS.
 - Official builds are cross-compiled with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw)
   (x86_64, i686, and ARM64), statically linked against SDL3; building under
   MSYS2 is also possible
+- Releases also carry separate builds for Windows XP: `winxp` (32-bit, needs a
+  CPU with SSE2) and `winxp64` (XP x64 and Server 2003 x64)
 
 ### Linux/BSD
 **Core dependencies** (always required):
@@ -53,7 +56,7 @@ MPRIS.
 - libcurl 7.20.0 or later (`libcurl`)
 
 **Optional codec dependencies** (auto-detected; each can be disabled at build time):
-- libogg (`ogg`) — required for Vorbis, Opus, and Ogg FLAC (container parsing)
+- libogg (`ogg`) — required for Vorbis, Opus, Speex and Ogg FLAC (container parsing)
 - libopus (`opus`) — Opus
 - FDK-AAC (`fdk-aac`) — the whole AAC family: AAC-LC, HE-AACv1, HE-AACv2 and
   xHE-AAC / MPEG-D USAC. Note that it is not packaged everywhere: Debian
@@ -70,6 +73,9 @@ MPRIS.
 - ALAC — Apple's reference decoder (`third_party/alac`)
 - MLP / Dolby TrueHD — bundled decoder (`third_party/mlp`), derived from
   [truehdd](https://github.com/truehdd/truehdd) © 2025 Rainbaby (Apache-2.0)
+- AC-3 and E-AC-3 (Dolby Digital and Dolby Digital Plus) — written in tree
+  from ATSC A/52
+- G.722 — written in tree from the ITU-T Recommendation
 - G.711 µ-law/A-law, and raw PCM formats
 
 **Optional integration dependencies**:
@@ -79,11 +85,14 @@ MPRIS.
   **Qt 6** (`Qt6Widgets`) → **Qt 5** (`Qt5Widgets`) → **Qt 4** (`QtGui`) →
   **Qt 3** (no pkg-config; opt in with `--with-qt3-dir=PREFIX`) →
   **GTK 4** (`gtk4`) → **GTK+ 3** (`gtk+-3.0`) → **GTK+ 2** (`gtk+-2.0`).
-  Without any of these, the file dialogs are unavailable but PsyMP3 still
-  builds and plays files given on the command line.
+  Without any of these (or with `--disable-filedialog`), the file dialogs are
+  unavailable but PsyMP3 still builds, and plays files given on the command
+  line, dragged onto it, or opened by URL. Windows builds use the system's own
+  file dialog and need no toolkit.
 
 ### Build Requirements
-- C++17 compliant compiler (GCC 9+, Clang 10+, MSVC 2019+)
+- A C++17 compiler: GCC (10 is the oldest checked) or Clang. The build is
+  autotools only; there is no MSVC project.
 - `pkg-config` (or pkgconf)
 - Optional, for `make check`: [RapidCheck](https://github.com/emil-e/rapidcheck)
   (property-based tests, enabled with `--enable-rapidcheck`)
@@ -132,7 +141,9 @@ make -j$(nproc)
 
 **Build Options:**
 - `--enable-flac` / `--enable-vorbis` / `--enable-opus` / `--enable-aac` /
-  `--enable-speex` / `--enable-g722` / `--enable-g711` — per-codec toggles (default: yes)
+  `--enable-speex` / `--enable-g722` / `--enable-g711` — per-codec toggles
+  (default: yes). `--enable-alaw` and `--enable-mulaw` switch the two G.711
+  codecs separately.
 - `--enable-mp2` / `--enable-ac3` / `--enable-truehd` — the codecs that need
   nothing external: MPEG Layer II through the bundled kjmp2, AC-3 and E-AC-3
   written in tree from ATSC A/52, and MLP/Dolby TrueHD through the vendored
@@ -141,6 +152,9 @@ make -j$(nproc)
 - `--enable-matroska` — the Matroska and WebM container, parsers and all
   (default: yes). Disabling it leaves `.mka`, `.mkv` and `.webm` unreadable.
 - `--enable-mpris` — MPRIS desktop integration over D-Bus (default: auto)
+- `--disable-filedialog` — build without the native file dialog, even if a
+  toolkit is installed
+- `--with-qt3-dir=PREFIX` — use Qt 3 for the file dialog (see above)
 - `--enable-final` — unity build: all sources in one translation unit (much
   faster full rebuilds; used for release builds)
 - `--enable-release` — a release build, which leaves out the development-only
@@ -151,32 +165,40 @@ make -j$(nproc)
   still be built with its symbols.
 - `--enable-static-binary` — fully static, self-contained executable (used for
   the Windows release builds)
-- `--enable-test-harness` — build the test harness (default: yes)
-- `--enable-asan` / `--enable-ubsan` / `--enable-tsan` — sanitizer builds (debug only)
+- `--enable-test-harness` — build the test harness (default: yes on Unix; no
+  on Windows and in `--enable-final` builds)
+- `--enable-rapidcheck` — build the property-based tests, which need RapidCheck
+- `--enable-asan` / `--enable-ubsan` / `--enable-tsan` — sanitizer builds
 
 ### Distribution packages
 
-`package/` holds native packaging, built for every push by the
-[Linux packages](.github/workflows/packages.yml) workflow:
+`package/` holds native packaging. The `.deb` and `.rpm` packages are built
+for every push by the [Linux packages](.github/workflows/packages.yml)
+workflow; the Arch package is built by hand with `makepkg`:
 
 | Format | Targets |
 |---|---|
 | `.deb` | Debian 13 (trixie), Ubuntu 26.04 LTS |
 | `.rpm` | Fedora, openSUSE Tumbleweed |
+| `.pkg.tar.zst` | Arch Linux (`package/arch/PKGBUILD`) |
 
 ```bash
 ./package/dpkg/build-deb.sh      # -> package/dpkg/out/*.deb
 ./package/rpm/build-rpm.sh       # -> package/rpm/out/*.rpm
+(cd package/arch && makepkg)     # -> package/arch/*.pkg.tar.zst
 ```
 
-Both build from a clean export of `HEAD`, so commit before packaging. See
+All three build from what is committed, so commit before packaging. See
 [package/README.md](package/README.md) for the dependency-installation
 one-liners and how the version label is mapped to a legal package version.
 
 ## Usage
 
 Pass the paths of audio files or playlists (`.m3u`/`.m3u8`) as program
-arguments; they are played in order.
+arguments; they are played in order. Once running, open files with
+**File → Open Tracks...**, drag them onto the window, or play an `http://` or
+`https://` address with **File → Open URL...**. Internet radio streams
+(Icecast/SHOUTcast) are not supported.
 
 ### Supported formats
 
@@ -195,7 +217,7 @@ arguments; they are played in order.
 Playlists in `.m3u` and `.m3u8` are read and written.
 
 PsyMP3 has a full mouse-driven UI — a menu bar (`File`, `Playback`,
-`Settings`, `Help` — Alt+F/P/S mnemonics work) plus movable in-app windows
+`Settings`, `Help` — the Alt+F/P/S/H mnemonics work) plus movable in-app windows
 like the Playlist Manager, Equalizer, and Media Information — and everything
 is also reachable from the keyboard.
 
@@ -207,9 +229,12 @@ is also reachable from the keyboard.
 | `Space` | Pause (or resume) playback |
 | `R` | Restart the current track from the beginning |
 | `N` / `P` | Next / previous track |
+| `Left` / `Right` | Seek backward / forward (hold to keep seeking) |
 | `Up` / `Down` | Volume up / down |
+| `S` | Toggle shuffle |
 | `E` | Cycle loop mode (`Shift+E` opens the Equalizer) |
 | `Shift+P` | Playlist Manager |
+| `F1` | About PsyMP3 |
 | `F` | Cycle FFT draw mode |
 | `G` | Toggle 2× zoom |
 | `0`–`4` | Spectrum intensity |
@@ -217,13 +242,25 @@ is also reachable from the keyboard.
 | `Ctrl+O` | Open tracks (replaces playlist) |
 | `I` / `L` | Queue tracks next / play a track now |
 | `Ctrl+S` | Save playlist |
-| `Ctrl+F4` | Close the focused in-app window |
+| `Ctrl+F4` | Close the active in-app window |
+| `Tab` / `Shift+Tab` | Move between the controls of the active window |
+
+`Ctrl+O`, `I` and `L` open a file dialog, so they need a build with one. These
+keys are the player's own: while a text field or another control in a dialog
+has focus, the keys go to it instead.
 
 ### Command-line Options
 
-- `--version` - Print version and licensing information
-- `--debug <channels>` - Enable debug logging (comma-separated channels, or `all`)
-- `--logfile <file>` - Write debug logs to the specified file
+- `-h`, `--help` - Print usage, including the list of debug channels
+- `-v`, `--version` - Print version and licensing information
+- `--licenses` - Print the copyright and third-party license texts
+- `--fft=MODE` - Start in an FFT draw mode: `mat-og`, `vibe-1`, `neomat-in` or `neomat-out`
+- `--scale=FACTOR` - Set the spectrum's scale factor
+- `--decay=FACTOR` - Set the spectrum's decay factor
+- `--debug=CHANNELS` - Enable debug logging (comma-separated channels, or `all`)
+- `--logfile=FILE` - Write debug logs to the specified file
+- `--unattended-quit` - Quit when playback ends
+- `--no-mpris-errors` - Don't show on-screen notifications for MPRIS errors
 
 ## Integrations
 
@@ -239,7 +276,8 @@ revoke PsyMP3's access on Last.fm, enter your password again under
 **Settings → Last.fm Credentials...**.
 
 Configuration lives in:
-- **Linux/Unix**: `~/.config/psymp3/lastfm.conf`
+- **Linux/Unix**: `~/.config/psymp3/lastfm.conf` (or under `$XDG_CONFIG_HOME/psymp3/`
+  when that is set)
 - **Windows**: `%APPDATA%\PsyMP3\lastfm.conf`
 
 and can also be created by hand:
