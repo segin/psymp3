@@ -12,6 +12,7 @@
 #include <cassert>
 #include <chrono>
 #include <fstream>
+#include "flac_test_data_utils.h"
 
 // Simple assertion macro
 #define SIMPLE_ASSERT(condition, message) \
@@ -22,13 +23,18 @@
         } \
     } while(0)
 
-// Test file path
-static const char* TEST_FLAC_FILE = "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac";
+// Test file path: the first FLAC file the suite's shared finder locates
+// (the generated fixture first; see TESTING.md), empty if there is none. No
+// path on any one machine is named here.
+static const std::string TEST_FLAC_FILE = FLACTestDataUtils::findAvailableTestFile();
 
 /**
  * @brief Check if test file exists
  */
 static bool checkTestFileExists() {
+    if (TEST_FLAC_FILE.empty()) {
+        return false;
+    }
     std::ifstream file(TEST_FLAC_FILE);
     return file.good();
 }
