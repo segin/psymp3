@@ -134,17 +134,39 @@ void analyzeFlacHeader(const std::string& filename, const std::string& label) {
     }
 }
 
-int main() {
-    const std::string file1 = "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac";
-    const std::string file2 = "/mnt/c/Users/segin/Downloads/38833FF26BA1D.UnigramPreview_g9c9v27vpyspw!App/RADIO GA GA.flac";
-    
-    // Test both files with our demuxer
-    testFlacFile(file1, "File 1 (almost monday)");
-    testFlacFile(file2, "File 2 (RADIO GA GA)");
-    
+int main(int argc, char* argv[]) {
+    // The files to compare are given on the command line (two, to compare
+    // one that parses with one that doesn't; any number works). Without
+    // any, fall back to the suite's generated fixture (see TESTING.md),
+    // looked for from both tests/ and the top of the tree. No path on any
+    // one machine is named here.
+    std::vector<std::string> files;
+    for (int i = 1; i < argc; ++i) {
+        files.push_back(argv[i]);
+    }
+    if (files.empty()) {
+        for (const char* path : {"data/fixture.flac", "tests/data/fixture.flac"}) {
+            if (std::ifstream(path).good()) {
+                files.push_back(path);
+                break;
+            }
+        }
+    }
+    if (files.empty()) {
+        std::cerr << "No FLAC file given and no fixture found" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <file.flac> [<file.flac>...]" << std::endl;
+        return 1;
+    }
+
+    // Test each file with our demuxer
+    for (size_t i = 0; i < files.size(); ++i) {
+        testFlacFile(files[i], "File " + std::to_string(i + 1) + " (" + files[i] + ")");
+    }
+
     // Analyze raw headers
-    analyzeFlacHeader(file1, "File 1 (almost monday)");
-    analyzeFlacHeader(file2, "File 2 (RADIO GA GA)");
-    
+    for (size_t i = 0; i < files.size(); ++i) {
+        analyzeFlacHeader(files[i], "File " + std::to_string(i + 1) + " (" + files[i] + ")");
+    }
+
     return 0;
 }
