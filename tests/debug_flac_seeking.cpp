@@ -5,20 +5,24 @@
 #include "psymp3.h"
 #include <iostream>
 
-int main() {
+int main(int argc, char* argv[]) {
     std::cout << "FLAC Demuxer Seeking Debug" << std::endl;
     std::cout << "==========================" << std::endl;
-    
+
     // Enable debug logging
     Debug::init("", {"flac", "all"});
-    
-    // Try to find a test file
-    std::vector<std::string> test_files = {
-        "tests/data/11 life goes by.flac",
-        "tests/data/RADIO GA GA.flac",
-        "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac"
-    };
-    
+
+    // The file to examine is given on the command line. Without one, fall
+    // back to the suite's generated fixture (see TESTING.md); it is looked
+    // for from both tests/ and the top of the tree. No path on any one
+    // machine is named here.
+    std::vector<std::string> test_files;
+    if (argc > 1) {
+        test_files.push_back(argv[1]);
+    } else {
+        test_files = {"data/fixture.flac", "tests/data/fixture.flac"};
+    }
+
     std::string test_file;
     for (const auto& path : test_files) {
         std::ifstream file(path);
@@ -27,9 +31,14 @@ int main() {
             break;
         }
     }
-    
+
     if (test_file.empty()) {
-        std::cerr << "No test FLAC file found" << std::endl;
+        if (argc > 1) {
+            std::cerr << "Cannot open " << argv[1] << std::endl;
+        } else {
+            std::cerr << "No FLAC file given and no fixture found" << std::endl;
+            std::cerr << "Usage: " << argv[0] << " <file.flac>" << std::endl;
+        }
         return 1;
     }
     
