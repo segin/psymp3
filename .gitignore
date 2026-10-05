@@ -93,6 +93,11 @@ tests/*_report.txt
 tests/*_report.html
 tests/integration_test.txt
 tests/test-suite.log
+# `make check` writes the harness's program list and status, and tests that
+# name tests/data/... while already running in tests/ leave a tests/tests/.
+tests/check-programs.list
+tests/test-harness.status
+tests/tests/
 
 # Core executable in different locations
 psymp3
