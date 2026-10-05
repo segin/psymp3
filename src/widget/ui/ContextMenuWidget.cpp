@@ -31,6 +31,7 @@ struct OpenContextMenu {
 };
 OpenContextMenu s_context_menu;
 Rect s_context_screen(0, 0, 640, 404);
+Core::Font* s_context_font = nullptr;
 } // namespace
 
 ContextMenuWidget::ContextMenuWidget(int width, int height, Core::Font* font)
@@ -251,6 +252,16 @@ void ContextMenuWidget::setScreenSize(int width, int height)
 Rect ContextMenuWidget::screenBounds()
 {
     return s_context_screen;
+}
+
+void ContextMenuWidget::setDefaultFont(Core::Font* font)
+{
+    s_context_font = font;
+}
+
+Core::Font* ContextMenuWidget::defaultFont()
+{
+    return s_context_font;
 }
 
 Rect ContextMenuWidget::screenRectOf(const Widget* widget)

@@ -855,6 +855,7 @@ std::weak_ptr<LastFmTestState> s_lastfm_test_state;
 
 Player::~Player() {
     saveSettings(); // persist volume + EQ state before teardown
+    ContextMenuWidget::setDefaultFont(nullptr); // ours; it goes with us
 
     // Reap the Last.fm credentials-test worker (bounded by wsCall's 10s
     // timeout; it only blocks when quitting moments after a Test on a dead
@@ -2618,6 +2619,7 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
     // An open menu goes over everything, the menu bar included: a menu bar's
     // drop-down (not clipped by its window), then a context menu.
     ContextMenuWidget::setScreenSize(graph->width(), graph->height());
+    ContextMenuWidget::setDefaultFont(font.get());
     MenuBarWidget::blitOpenMenu(*graph);
     ContextMenuWidget::blitOpenMenu(*graph);
 }

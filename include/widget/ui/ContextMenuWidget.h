@@ -89,6 +89,10 @@ public:
     // The screen the menus are kept within; the Player sets it each frame.
     static void setScreenSize(int width, int height);
     static Rect screenBounds();
+    // The font for menus popped up by widgets that carry none of their own
+    // (a scrollbar); the Player sets it alongside the screen size. Non-owning.
+    static void setDefaultFont(Core::Font* font);
+    static Core::Font* defaultFont();
     // Where a widget is on the screen: its position plus its ancestors'.
     static Rect screenRectOf(const Widget* widget);
 
