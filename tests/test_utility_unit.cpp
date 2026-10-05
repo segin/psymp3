@@ -55,8 +55,13 @@ protected:
         // Test f >= 5 (Loop path)
         // f=5, x=0.0 -> 0
         ASSERT_EQUALS(0.0f, logarithmicScale(5, 0.0f), "f=5, x=0 should be 0");
-        // f=5, x=1.0 -> 1
-        ASSERT_EQUALS(1.0f, logarithmicScale(5, 1.0f), "f=5, x=1 should be 1");
+        // f=5, x=1.0 -> 1. Within a tolerance, not exactly: on 32-bit x86
+        // the loop's result comes back in an x87 register with more than
+        // float precision (FLT_EVAL_METHOD 2), a hair off 1 until something
+        // stores it as a float, so an exact comparison of the returned value
+        // fails there (OpenBSD/i386, clang -O2) though the float is 1.
+        float val_f5_one = logarithmicScale(5, 1.0f);
+        ASSERT_TRUE(std::abs(val_f5_one - 1.0f) < 1e-6f, "f=5, x=1 should be 1");
 
         // f=5, x=0.5
         // We can manually calculate it or trust it increases.
