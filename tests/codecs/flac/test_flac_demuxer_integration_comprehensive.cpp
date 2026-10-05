@@ -146,8 +146,11 @@ protected:
             
             uint64_t actual_pos = demuxer->getPosition();
             uint64_t tolerance = std::max(static_cast<uint64_t>(1000), duration / 100); // 1 second or 1% of duration
-            
-            ASSERT_TRUE(actual_pos >= pos - tolerance && actual_pos <= pos + tolerance,
+            // Unsigned: a target nearer the start than the tolerance must
+            // not wrap the lower bound round to a huge value.
+            uint64_t lowest = (pos > tolerance) ? pos - tolerance : 0;
+
+            ASSERT_TRUE(actual_pos >= lowest && actual_pos <= pos + tolerance,
                        "Seek accuracy should be within tolerance");
             
             // Verify we can read after seeking
@@ -418,8 +421,10 @@ private:
             
             uint64_t actual_pos = demuxer->getPosition();
             uint64_t tolerance = std::max(static_cast<uint64_t>(2000), duration / 50); // 2 seconds or 2% tolerance
-            
-            ASSERT_TRUE(actual_pos >= seek_time - tolerance && actual_pos <= seek_time + tolerance,
+            // Unsigned: see the lower bound in the seeking performance test.
+            uint64_t lowest = (seek_time > tolerance) ? seek_time - tolerance : 0;
+
+            ASSERT_TRUE(actual_pos >= lowest && actual_pos <= seek_time + tolerance,
                        "Seek position should be reasonably accurate");
         }
     }
