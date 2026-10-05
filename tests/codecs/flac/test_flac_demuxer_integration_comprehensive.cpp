@@ -16,29 +16,18 @@
 #include <thread>
 #include <atomic>
 #include <random>
+#include "flac_test_data_utils.h"
 
 using namespace TestFramework;
 
-// Test file paths - try multiple possible locations
-const std::vector<std::string> TEST_FLAC_FILES = {
-    "tests/data/11 life goes by.flac",
-    "tests/data/RADIO GA GA.flac",
-    "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac",  // Fallback to original path
-    "test.flac",
-    "../test.flac"
-};
-
 /**
  * @brief Helper to find an existing test file
+ *
+ * The suite's shared finder: the generated fixture first (see TESTING.md).
+ * No path on any one machine is named here.
  */
 std::string findTestFile() {
-    for (const auto& path : TEST_FLAC_FILES) {
-        std::ifstream file(path);
-        if (file.good()) {
-            return path;
-        }
-    }
-    return "";
+    return FLACTestDataUtils::findAvailableTestFile();
 }
 
 /**
