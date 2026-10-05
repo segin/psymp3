@@ -1,7 +1,12 @@
 AC_PREREQ([2.69])
 AC_INIT([PsyMP3],[2-CURRENT],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
 AC_CANONICAL_HOST
-AM_INIT_AUTOMAKE([1.10 subdir-objects])
+# tar-ustar: `make dist` must not use the old v7 tar format, whose paths stop
+# at 99 characters. The longest path in the tree is 80, so a dist directory
+# name over 18 characters ("psymp3-2.1.1-RELEASE" is 20) left a file out of
+# the tarball with only a warning. Automake 1.18 defaults to ustar; older
+# ones need telling.
+AM_INIT_AUTOMAKE([1.10 subdir-objects tar-ustar])
 
 AU_DEFUN([AX_REQUIRE_CPP], [ax_require_cpp(std_17, reject)])
 
