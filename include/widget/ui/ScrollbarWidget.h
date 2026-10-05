@@ -22,7 +22,7 @@ enum class ScrollbarOrientation {
 class ScrollbarWidget : public Widget {
 public:
     ScrollbarWidget(int width, int height, ScrollbarOrientation orientation = ScrollbarOrientation::Vertical);
-    ~ScrollbarWidget() override = default;
+    ~ScrollbarWidget() override;
 
     bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y) override;
@@ -68,6 +68,12 @@ private:
     Rect getDecrementArrowRect() const;
     Rect getIncrementArrowRect() const;
     Rect getThumbRect() const;
+    // The Windows scrollbar menu, on a right-click at (relative_x,
+    // relative_y): Scroll Here, the two ends, a page and a line each way.
+    void openContextMenu(int relative_x, int relative_y);
+    // Shift+click on the shaft, and the menu's Scroll Here: put the thumb's
+    // middle at the point.
+    void scrollHere(int relative_x, int relative_y);
     int arrowExtent() const; // arrow length along the bar: a bar-width, or half a too-short bar
     bool thumbFits() const;  // room for the thumb between two full arrows
     void notifyChange();

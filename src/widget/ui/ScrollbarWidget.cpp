@@ -128,12 +128,33 @@ ScrollbarWidget::ScrollbarWidget(int width, int height, ScrollbarOrientation ori
 
 bool ScrollbarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    if (!isEnabled() || event.button != SDL_BUTTON_LEFT || !hitTest(relative_x, relative_y)) {
+    if (!isEnabled() || !hitTest(relative_x, relative_y)) {
+        return false;
+    }
+    // Right-click: the scrollbar menu, as in Windows (not mid-gesture, and
+    // not for a scrollbar outside the widget tree, whose screen position is
+    // its owner's business).
+    if (event.button == SDL_BUTTON_RIGHT) {
+        if (!m_pressed && getParent()) {
+            openContextMenu(relative_x, relative_y);
+        }
+        return true;
+    }
+    if (event.button != SDL_BUTTON_LEFT) {
         return false;
     }
 
     m_pressed = true;
     m_pressed_part = hitTestPart(relative_x, relative_y);
+
+    // Shift+click on the shaft jumps the thumb to the pointer instead of
+    // paging toward it, and the held button then drags it, as in Windows.
+    if ((m_pressed_part == ScrollbarPart::TrackBeforeThumb ||
+         m_pressed_part == ScrollbarPart::TrackAfterThumb) &&
+        (SDL_GetModState() & SDL_KMOD_SHIFT) != 0) {
+        scrollHere(relative_x, relative_y);
+        m_pressed_part = ScrollbarPart::Thumb;
+    }
 
     switch (m_pressed_part) {
         case ScrollbarPart::DecrementArrow:
@@ -225,6 +246,47 @@ bool ScrollbarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relat
     }
     cancelGesture();
     return true;
+}
+
+ScrollbarWidget::~ScrollbarWidget()
+{
+    // An open scrollbar menu's items would act on a scrollbar that is gone.
+    ContextMenuWidget::forget(this);
+}
+
+void ScrollbarWidget::scrollHere(int relative_x, int relative_y)
+{
+    setValue(valueAtCoordinate(relative_x, relative_y));
+}
+
+void ScrollbarWidget::openContextMenu(int relative_x, int relative_y)
+{
+    Core::Font* font = ContextMenuWidget::defaultFont();
+    if (!font) {
+        return;
+    }
+    // Windows' scrollbar menu, worded for the bar's direction.
+    const bool vert = (m_orientation == ScrollbarOrientation::Vertical);
+    std::vector<MenuItem> items;
+    items.push_back(MenuItem::command("Scroll Here", [this, relative_x, relative_y] {
+        scrollHere(relative_x, relative_y);
+    }));
+    items.push_back(MenuItem::sep());
+    items.push_back(MenuItem::command(vert ? "Top" : "Left Edge", [this] { setValue(0.0); }));
+    items.push_back(MenuItem::command(vert ? "Bottom" : "Right Edge", [this] { setValue(1.0); }));
+    items.push_back(MenuItem::sep());
+    items.push_back(MenuItem::command(vert ? "Page Up" : "Page Left",
+                                      [this] { setValue(m_value - m_page_step); }));
+    items.push_back(MenuItem::command(vert ? "Page Down" : "Page Right",
+                                      [this] { setValue(m_value + m_page_step); }));
+    items.push_back(MenuItem::sep());
+    items.push_back(MenuItem::command(vert ? "Scroll Up" : "Scroll Left",
+                                      [this] { setValue(m_value - m_line_step); }));
+    items.push_back(MenuItem::command(vert ? "Scroll Down" : "Scroll Right",
+                                      [this] { setValue(m_value + m_line_step); }));
+    const Rect me = ContextMenuWidget::screenRectOf(this);
+    ContextMenuWidget::popUp(font, std::move(items), me.x() + relative_x, me.y() + relative_y,
+                             ContextMenuWidget::screenBounds(), this);
 }
 
 void ScrollbarWidget::cancelGesture()
