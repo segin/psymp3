@@ -23,6 +23,13 @@ else
 SUBDIRS = res src
 endif
 
+# The config header lives in include/, which has no Makefile of its own,
+# so automake emits the rules that regenerate it but nothing that asks for
+# them. Without this, "git pull && make" rebuilds configure and leaves
+# config.h.in as it was: any HAVE_* added since is silently undefined and
+# the feature it guards is compiled out.
+BUILT_SOURCES = include/config.h
+
 
 # Every public header. Sources list only .cpp files, so nothing else
 # distributes these; distcheck (now enforced by CI) keeps the list honest.
