@@ -207,6 +207,7 @@ EXTRA_DIST = \
 	include/widget/foundation/LayoutWidget.h \
 	include/widget/foundation/Widget.h \
 	include/widget/ui/AboutWindow.h \
+	include/widget/ui/AlbumArtWidget.h \
 	include/widget/ui/ApplicationWidget.h \
 	include/widget/ui/ButtonWidget.h \
 	include/widget/ui/CheckboxWidget.h \

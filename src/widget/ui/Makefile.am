@@ -49,6 +49,7 @@ libpsymp3_widget_ui_a_SOURCES = \
 	ComboBoxWidget.cpp \
 	SliderWidget.cpp \
 	EqualizerCurveWidget.cpp \
+	AlbumArtWidget.cpp \
 	EqualizerWindow.cpp \
 	AboutWindow.cpp \
 	PlaybackIndicatorsWidget.cpp \

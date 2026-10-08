@@ -281,6 +281,7 @@
 #include "widget/ui/ComboBoxWidget.cpp"
 #include "widget/ui/SliderWidget.cpp"
 #include "widget/ui/EqualizerCurveWidget.cpp"
+#include "widget/ui/AlbumArtWidget.cpp"
 #include "widget/ui/EqualizerWindow.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
 #include "widget/ui/TextInputWidget.cpp"

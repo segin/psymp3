@@ -418,6 +418,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 #include "widget/ui/SliderWidget.h"
 #include "widget/ui/EqualizerCurveWidget.h"
 #include "core/image_decode.h"
+#include "widget/ui/AlbumArtWidget.h"
 #include "widget/ui/MenuBarWidget.h"
 
 using PsyMP3::Widget::Foundation::Widget;
@@ -443,6 +444,7 @@ using PsyMP3::Widget::UI::ContextMenuWidget;
 using PsyMP3::Widget::UI::ComboBoxWidget;
 using PsyMP3::Widget::UI::SliderWidget;
 using PsyMP3::Widget::UI::EqualizerCurveWidget;
+using PsyMP3::Widget::UI::AlbumArtWidget;
 using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;
 using PsyMP3::Widget::UI::AboutWindow;
 using PsyMP3::Widget::UI::PlaybackIndicatorsWidget;
