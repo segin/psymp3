@@ -2617,18 +2617,23 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
             constexpr int kPadX = 18;
             constexpr int kPadY = 10;
             constexpr int kRadius = 8;
-            const SDL_Color white = {255, 255, 255, 255};
-            Label text(m_large_font.get(), Rect(0, 0, 0, 0), "PAUSED", white);
-            const int bubble_w = text.getPos().width() + kPadX * 2;
-            const int bubble_h = text.getPos().height() + kPadY * 2;
-            m_pause_bubble = std::make_unique<Surface>(bubble_w, bubble_h, true);
-            m_pause_bubble->FillRect(m_pause_bubble->MapRGBA(0, 0, 0, 0));
-            m_pause_bubble->roundedBoxRGBA(0, 0, bubble_w - 1, bubble_h - 1, kRadius,
-                                           100, 100, 100, 255);
-            m_pause_bubble->roundedBoxRGBA(1, 1, bubble_w - 2, bubble_h - 2, kRadius - 1,
-                                           50, 50, 50, 255);
-            text.setPos(Rect(kPadX, kPadY, text.getPos().width(), text.getPos().height()));
-            text.BlitTo(*m_pause_bubble);
+            constexpr uint8_t kFill = 50; // the bubble's inside, as the toasts'
+            // RenderLCD's glyphs come blended into an opaque background, so
+            // that background has to be the bubble's own fill. (A Label
+            // defaults to black, which showed as a black box round the word.)
+            auto text = m_large_font->RenderLCD(TagLib::String("PAUSED"), 255, 255, 255,
+                                                kFill, kFill, kFill);
+            if (text) {
+                const int bubble_w = text->width() + kPadX * 2;
+                const int bubble_h = text->height() + kPadY * 2;
+                m_pause_bubble = std::make_unique<Surface>(bubble_w, bubble_h, true);
+                m_pause_bubble->FillRect(m_pause_bubble->MapRGBA(0, 0, 0, 0));
+                m_pause_bubble->roundedBoxRGBA(0, 0, bubble_w - 1, bubble_h - 1, kRadius,
+                                               100, 100, 100, 255);
+                m_pause_bubble->roundedBoxRGBA(1, 1, bubble_w - 2, bubble_h - 2, kRadius - 1,
+                                               kFill, kFill, kFill, 255);
+                m_pause_bubble->Blit(*text, Rect(kPadX, kPadY, text->width(), text->height()));
+            }
         }
 
         if (opacity > 0.0f && m_pause_bubble) {
