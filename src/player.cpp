@@ -1241,6 +1241,7 @@ void Player::handleTrackSeamlessSwapEvent() {
     // Update stream pointer and start scrobbling for new track
     stream = audio->getCurrentStream();
     refreshMediaInfoWindow();
+    refreshAlbumArt();
 
     // Ensure the audio device is actually running. When the next track's format
     // differs, the branch above constructs a NEW Audio, whose SDL device starts
@@ -2345,6 +2346,7 @@ bool Player::stop(void) {
     }
     updateDiscordPresence();
     refreshMediaInfoWindow();
+    refreshAlbumArt();
     return true;
 }
 
@@ -3199,6 +3201,16 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             }
             break;
 
+        case SDLK_A:
+            // Shift+A opens the Album Art window, shifted like the other
+            // window chords; plain A toggles Album Art Mode.
+            if (keysym.mod & SDL_KMOD_SHIFT) {
+                toggleAlbumArtWindow();
+            } else {
+                toggleAlbumArtMode();
+            }
+            break;
+
         case SDLK_S:
             if (keysym.mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) {
                 synthesizeUserEvent(DO_SAVE_PLAYLIST, nullptr, nullptr);
@@ -3654,6 +3666,21 @@ bool Player::Initialize(const PlayerOptions& options) {
     m_spectrum_widget = spectrum_widget.get(); // Keep raw pointer for updates
     app_widget.addChild(std::move(spectrum_widget)); // ApplicationWidget takes ownership
 
+    // Album Art Mode's canvas, over the part of the same area that the menu
+    // bar leaves showing: the cover at the full height of that (or the full
+    // width, for a wide one) on a blurred copy of itself. The spectrum runs
+    // under the bar; a cover would only lose its top edge there. Hidden until
+    // the mode is on; refreshAlbumArt() swaps it with the spectrum.
+    constexpr int kArtTop = MenuBarWidget::BAR_H;
+    constexpr int kArtHeight = 354 - kArtTop;
+    auto visualizer_art = std::make_unique<AlbumArtWidget>(640, kArtHeight, font.get());
+    visualizer_art->setPos(Rect(0, kArtTop, 640, kArtHeight));
+    visualizer_art->setBackgroundColor(0, 0, 0);
+    visualizer_art->setBackdrop(true);
+    visualizer_art->setVisible(false);
+    m_visualizer_art = visualizer_art.get();
+    app_widget.addChild(std::move(visualizer_art));
+
     // Group the lower HUD under a solid black panel so the entire strip is
     // cleared together before any labels or progress elements repaint.
     auto hud_panel = std::make_unique<LayoutWidget>(640, 50, false);
@@ -3799,6 +3826,9 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("&Equalizer...", [this]{ toggleEqualizerWindow(); }, nullptr, "Shift+E"));
         playback_items.push_back(MI::leaf("Playlist &Manager...", [this]{ togglePlaylistManager(); }, nullptr, "Shift+P"));
+        playback_items.push_back(MI::leaf("View &Album Art...", [this]{ toggleAlbumArtWindow(); }, nullptr, "Shift+A"));
+        playback_items.push_back(MI::leaf("Album Art M&ode", [this]{ toggleAlbumArtMode(); },
+            [this]{ return m_album_art_mode; }, "A"));
         menu_bar->addMenu("&Playback", std::move(playback_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
@@ -3874,6 +3904,9 @@ bool Player::Initialize(const PlayerOptions& options) {
     auto lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
     m_lyrics_widget = lyrics_widget.get();
     app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
+
+    // A persisted Album Art Mode takes the spectrum's place from the start.
+    refreshAlbumArt();
 
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
@@ -4936,6 +4969,8 @@ void Player::loadSettings()
             }
         } else if (key == "show_debug") {
             m_show_debug = (value == "1" || value == "true");
+        } else if (key == "album_art_mode") {
+            m_album_art_mode = (value == "1" || value == "true");
         } else if (key == "zoom") {
             if (parseSettingDouble(value, v)) {
                 m_pending_scale = (static_cast<int>(v) >= 2) ? 2 : 1;
@@ -4987,6 +5022,7 @@ void Player::saveSettings() const
     // position; a settings save with no playlist keeps the loaded value.
     f << "session_track=" << (playlist ? playlist->getPosition() : m_session_track) << "\n";
     f << "show_debug=" << (m_show_debug ? 1 : 0) << "\n";
+    f << "album_art_mode=" << (m_album_art_mode ? 1 : 0) << "\n";
     f << "discord_presence=" << (m_discord_presence ? 1 : 0) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
@@ -5723,6 +5759,101 @@ void Player::toggleMediaInfoWindow()
     m_random_windows.push_back(std::move(frame));
 }
 
+void Player::refreshAlbumArt()
+{
+    AlbumArtWidget* const window_art = m_albumart_window ? m_albumart_widget : nullptr;
+    AlbumArtWidget* const visualizer_art = m_album_art_mode ? m_visualizer_art : nullptr;
+
+    if (window_art || visualizer_art) {
+        const std::optional<PsyMP3::Tag::Picture> cover =
+            stream ? stream->getCoverArt() : std::nullopt;
+        for (AlbumArtWidget* art : {window_art, visualizer_art}) {
+            if (!art) {
+                continue;
+            }
+            if (cover && !cover->isEmpty()) {
+                art->setImage(cover->data.data(), cover->data.size());
+            } else {
+                art->clearImage();
+            }
+        }
+    } else if (m_visualizer_art) {
+        m_visualizer_art->clearImage(); // mode off: don't hold a cover nobody sees
+    }
+
+    // Album Art Mode puts the cover where the spectrum is drawn. A track with
+    // no cover gets the canvas's own message, white on black, not the
+    // spectrum back.
+    const bool show_art = visualizer_art != nullptr;
+    if (m_visualizer_art) {
+        m_visualizer_art->setVisible(show_art);
+    }
+    if (m_spectrum_widget) {
+        m_spectrum_widget->setVisible(!show_art);
+    }
+}
+
+void Player::toggleAlbumArtMode()
+{
+    m_album_art_mode = !m_album_art_mode;
+    saveSettings();
+    refreshAlbumArt();
+    showToast(m_album_art_mode ? "Album Art Mode: On" : "Album Art Mode: Off");
+}
+
+// Playback -> "View Album Art...": the playing track's embedded cover in a
+// fixed 300x300 client area, following the track as it changes.
+void Player::toggleAlbumArtWindow()
+{
+    auto close_window = [this] {
+        if (!m_albumart_window) return;
+        auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                               [this](const auto& w) { return w.get() == m_albumart_window; });
+        if (it != m_random_windows.end()) {
+            deferWidgetDeletion(std::move(*it));
+            m_random_windows.erase(it);
+        }
+        m_albumart_window = nullptr;
+        m_albumart_widget = nullptr;
+        showToast("Album Art: Closed");
+    };
+
+    if (m_albumart_window) {
+        close_window();
+        return;
+    }
+
+    constexpr int kSize = 300;
+
+    auto client = std::make_unique<LayoutWidget>(kSize, kSize, false);
+    client->setBackgroundColor(255, 255, 255);
+    auto art = std::make_unique<AlbumArtWidget>(kSize, kSize, font.get());
+    art->setPos(Rect(0, 0, kSize, kSize));
+    m_albumart_widget = art.get();
+    client->addChild(std::move(art));
+
+    auto frame = std::make_unique<WindowFrameWidget>(kSize, kSize, "Album Art", font.get());
+    frame->setResizable(false);
+    frame->setMinimizable(false);
+    frame->setMaximizable(false);
+    frame->setClientArea(std::move(client));
+    frame->refresh();
+    Rect sz = frame->getPos();
+    frame->setPos(Rect(120, 50, sz.width(), sz.height()));
+
+    WindowFrameWidget* fp = frame.get();
+    m_albumart_window = fp;
+    frame->setOnDrag([fp](int dx, int dy) {
+        Rect p = fp->getPos(); p.x(p.x() + dx); p.y(p.y() + dy); fp->setPos(p);
+    });
+    frame->setOnDragStart([fp] { fp->bringToFront(); });
+    frame->setOnClose(close_window);
+    m_random_windows.push_back(std::move(frame));
+
+    refreshAlbumArt();
+    showToast("Album Art: Opened");
+}
+
 void Player::toggleEqualizerWindow()
 {
     if (m_eq_window) {
@@ -6410,6 +6541,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     }
     stream = audio->getCurrentStream();
     refreshMediaInfoWindow();
+    refreshAlbumArt();
 
     // Replace the playlist entry's metadata with the track's live tags, so any
     // stale EXTINF carried in from an .m3u is corrected once the file loads.

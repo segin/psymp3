@@ -529,6 +529,10 @@ class Player
         WindowFrameWidget* m_lastfm_creds_window = nullptr;
         WindowFrameWidget* m_mediainfo_window = nullptr;
         std::vector<Label*> m_mediainfo_values; // dialog's value column, for live refresh
+        WindowFrameWidget* m_albumart_window = nullptr;
+        AlbumArtWidget* m_albumart_widget = nullptr; // the window's canvas, for live refresh
+        AlbumArtWidget* m_visualizer_art = nullptr;  // Album Art Mode's canvas, over the spectrum
+        bool m_album_art_mode = false;
         EqualizerWindow*   m_eq_client = nullptr;
         std::array<float, Equalizer::kNumBands> m_eq_gains{};
         bool m_eq_enabled = false;
@@ -550,6 +554,14 @@ class Player
         // stream ("---" rows when stopped). No-op while the dialog is closed.
         void refreshMediaInfoWindow();
         std::vector<std::pair<std::string, std::string>> mediaInfoRows();
+        void toggleAlbumArtWindow();
+        // Playback -> Album Art Mode: the cover in place of the spectrum.
+        void toggleAlbumArtMode();
+        // Give the live stream's cover to whichever of the Album Art window
+        // and the Album Art Mode canvas is in use, and show that canvas or
+        // the spectrum accordingly. A cover is decoded only for a view that
+        // is showing, so this costs nothing with both off.
+        void refreshAlbumArt();
         void toggleDiscordPresence();
         void updateDiscordPresence();
         void saveLastFmCredentials(const std::string& username, const std::string& password);
