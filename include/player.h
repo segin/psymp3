@@ -455,7 +455,12 @@ class Player
 
         // Overlay widgets
         LyricsWidget* m_lyrics_widget = nullptr;
-        std::unique_ptr<Label> m_pause_indicator;
+        // The "PAUSED" bubble, text and all, built on first use; and its fade:
+        // which way it is going, since when, and from what opacity (0..1).
+        std::unique_ptr<Surface> m_pause_bubble;
+        bool m_pause_shown = false;
+        Uint32 m_pause_fade_start_ms = 0;
+        float m_pause_fade_anchor = 0.0f;
         FadingWidget* m_seek_left_indicator = nullptr;
         FadingWidget* m_seek_right_indicator = nullptr;
 

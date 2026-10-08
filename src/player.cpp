@@ -2317,7 +2317,6 @@ bool Player::stop(void) {
     m_pending_load_active = false;
     state = PlayerState::Stopped;
     updateTaskbarPlayState();
-    m_pause_indicator.reset();
     // Safely signal to the audio thread that the stream is gone before we destroy it.
     if (audio) {
         audio->setStream(nullptr);
@@ -2372,10 +2371,6 @@ bool Player::pause(void) {
             m_lastfm->unsetNowPlaying();
         }
         updateDiscordPresence();
-        if (!m_pause_indicator) {
-            SDL_Color pause_color = {255, 255, 255, 180}; // Semi-transparent white
-            m_pause_indicator = std::make_unique<Label>(m_large_font.get(), Rect(0,0,0,0), "PAUSED", pause_color);
-        }
         return true;
     } else {
         return false;
@@ -2396,7 +2391,6 @@ bool Player::play(void) {
         }
     } else { // Paused or already Playing
         PlayerState previous_state = state;
-        m_pause_indicator.reset();
         if (audio) audio->play(true);
         state = PlayerState::Playing;
         updateTaskbarPlayState();
@@ -2594,14 +2588,56 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
         m_ui_root->BlitTo(*graph);
     }
     
-    // Render the pause indicator if we're paused
-    if (state == PlayerState::Paused && m_pause_indicator) {
-        // Center the pause indicator in the FFT area (0,0 to 640,354)
-        Rect pos = m_pause_indicator->getPos();
-        pos.x((640 - pos.width()) / 2);
-        pos.y((354 - pos.height()) / 2);
-        m_pause_indicator->setPos(pos);
-        m_pause_indicator->BlitTo(*graph);
+    // The pause indicator: "PAUSED" in a bubble like the toasts' and the
+    // lyrics' (a dark rounded box with a lighter one-pixel edge, so the word
+    // reads over a bright spectrum or a cover as well as over black), fading
+    // in and out as a toast does: linearly, over the toast's own times, to
+    // the toast's opacity.
+    {
+        const bool want_shown = (state == PlayerState::Paused);
+        const Uint32 now = SDL_GetTicks();
+        auto opacity_at = [this](Uint32 t) {
+            const float duration = static_cast<float>(
+                m_pause_shown ? ToastWidget::FADE_IN_MS : ToastWidget::FADE_OUT_MS);
+            const float moved = static_cast<float>(t - m_pause_fade_start_ms) / duration;
+            return std::clamp(m_pause_fade_anchor + (m_pause_shown ? moved : -moved), 0.0f, 1.0f);
+        };
+        if (want_shown != m_pause_shown) {
+            // Start from wherever the fade has got to, so that unpausing
+            // during the fade-in fades out from there, not from full.
+            m_pause_fade_anchor = opacity_at(now);
+            m_pause_fade_start_ms = now;
+            m_pause_shown = want_shown;
+        }
+        const float opacity = opacity_at(now);
+
+        if (opacity > 0.0f && !m_pause_bubble && m_large_font) {
+            constexpr int kPadX = 18;
+            constexpr int kPadY = 10;
+            constexpr int kRadius = 8;
+            const SDL_Color white = {255, 255, 255, 255};
+            Label text(m_large_font.get(), Rect(0, 0, 0, 0), "PAUSED", white);
+            const int bubble_w = text.getPos().width() + kPadX * 2;
+            const int bubble_h = text.getPos().height() + kPadY * 2;
+            m_pause_bubble = std::make_unique<Surface>(bubble_w, bubble_h, true);
+            m_pause_bubble->FillRect(m_pause_bubble->MapRGBA(0, 0, 0, 0));
+            m_pause_bubble->roundedBoxRGBA(0, 0, bubble_w - 1, bubble_h - 1, kRadius,
+                                           100, 100, 100, 255);
+            m_pause_bubble->roundedBoxRGBA(1, 1, bubble_w - 2, bubble_h - 2, kRadius - 1,
+                                           50, 50, 50, 255);
+            text.setPos(Rect(kPadX, kPadY, text.getPos().width(), text.getPos().height()));
+            text.BlitTo(*m_pause_bubble);
+        }
+
+        if (opacity > 0.0f && m_pause_bubble) {
+            // Centred in the FFT area (0,0 to 640,354). 0.85 is the toast's
+            // own peak opacity (ToastWidget's TransparentWindowWidget base).
+            const int w = m_pause_bubble->width();
+            const int h = m_pause_bubble->height();
+            const float alpha = 0.85f * opacity * 255.0f;
+            m_pause_bubble->SetAlpha(static_cast<uint8_t>(std::clamp(alpha, 1.0f, 254.0f)));
+            graph->Blit(*m_pause_bubble, Rect((640 - w) / 2, (354 - h) / 2, w, h));
+        }
     }
     
     // Render floating windows (test windows, equalizer)
