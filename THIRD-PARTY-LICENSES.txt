@@ -15,8 +15,8 @@ elects is stated and only that one is reproduced:
   * TagLib   -- offered under LGPL-2.1 or MPL-1.1; PsyMP3 elects MPL-1.1.
   * FreeType -- offered under the FreeType License or GPLv2; PsyMP3 elects
                 the FreeType License (FTL).
-  * stb_vorbis -- offered as public domain or MIT; PsyMP3 elects the public
-                domain dedication.
+  * stb_vorbis and stb_image -- offered as public domain or MIT; PsyMP3
+                elects the public domain dedication.
 
 Note on patents: the Fraunhofer FDK AAC license below grants copyright
 permissions only and expressly grants no patent license. See section 3 of
@@ -38,7 +38,7 @@ Contents
  12. Speex                                   BSD 3-Clause
  13. libcurl                                 curl License
  14. pugixml                                 MIT License
- 15. stb_vorbis                              Public Domain (Unlicense)
+ 15. stb_vorbis, stb_image                   Public Domain (Unlicense)
  16. minimp3                                 CC0 / Public Domain
  17. DejaVu Sans (embedded UI font)          Bitstream Vera / Arev
 
@@ -1307,12 +1307,15 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 ==============================================================================
-15. stb_vorbis -- Public Domain (Unlicense)
+15. stb_vorbis, stb_image -- Public Domain (Unlicense)
 ==============================================================================
 
-stb_vorbis (third_party/stb/stb_vorbis.c), written by Sean Barrett, is
-offered under a choice of the MIT License or a public domain dedication.
-PsyMP3 elects the public domain dedication, reproduced here.
+stb_vorbis (third_party/stb/stb_vorbis.c), the Ogg Vorbis decoder, and
+stb_image (third_party/stb/stb_image.h), the JPEG and PNG decoder that
+album art is displayed with, were written by Sean Barrett and the stb
+contributors. Each is offered under a choice of the MIT License or a public
+domain dedication. PsyMP3 elects the public domain dedication, reproduced
+here.
 
 Public Domain (www.unlicense.org)
 This is free and unencumbered software released into the public domain.

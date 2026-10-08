@@ -30,6 +30,7 @@
 #include "debug.cpp"
 #include "core/exceptions.cpp"
 #include "core/lyrics.cpp"
+#include "core/image_decode.cpp"
 #include "main.cpp"
 #include "mediafile.cpp"
 #include "player.cpp"

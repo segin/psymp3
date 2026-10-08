@@ -102,6 +102,7 @@ EXTRA_DIST = \
 	include/core/compression/LZ77.h \
 	include/core/exceptions.h \
 	include/core/fft.h \
+	include/core/image_decode.h \
 	include/core/fft_draw.h \
 	include/core/lyrics.h \
 	include/core/nullstream.h \

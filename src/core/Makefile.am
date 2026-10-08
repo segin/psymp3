@@ -19,7 +19,8 @@ libpsymp3_core_a_SOURCES = \
 	fft_draw.cpp \
 	about.cpp \
 	persistentstorage.cpp \
-	lyrics.cpp
+	lyrics.cpp \
+	image_decode.cpp
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS)
 

@@ -40,8 +40,8 @@
     "  * TagLib   -- offered under LGPL-2.1 or MPL-1.1; PsyMP3 elects MPL-1.1.\n" \
     "  * FreeType -- offered under the FreeType License or GPLv2; PsyMP3 elects\n" \
     "                the FreeType License (FTL).\n" \
-    "  * stb_vorbis -- offered as public domain or MIT; PsyMP3 elects the public\n" \
-    "                domain dedication.\n" \
+    "  * stb_vorbis and stb_image -- offered as public domain or MIT; PsyMP3\n" \
+    "                elects the public domain dedication.\n" \
     "\n" \
     "Note on patents: the Fraunhofer FDK AAC license below grants copyright\n" \
     "permissions only and expressly grants no patent license. See section 3 of\n" \
@@ -63,7 +63,7 @@
     " 12. Speex                                   BSD 3-Clause\n" \
     " 13. libcurl                                 curl License\n" \
     " 14. pugixml                                 MIT License\n" \
-    " 15. stb_vorbis                              Public Domain (Unlicense)\n" \
+    " 15. stb_vorbis, stb_image                   Public Domain (Unlicense)\n" \
     " 16. minimp3                                 CC0 / Public Domain\n" \
     " 17. DejaVu Sans (embedded UI font)          Bitstream Vera / Arev\n" \
     "\n" \
@@ -1332,12 +1332,15 @@
     "OTHER DEALINGS IN THE SOFTWARE.\n" \
     "\n" \
     "==============================================================================\n" \
-    "15. stb_vorbis -- Public Domain (Unlicense)\n" \
+    "15. stb_vorbis, stb_image -- Public Domain (Unlicense)\n" \
     "==============================================================================\n" \
     "\n" \
-    "stb_vorbis (third_party/stb/stb_vorbis.c), written by Sean Barrett, is\n" \
-    "offered under a choice of the MIT License or a public domain dedication.\n" \
-    "PsyMP3 elects the public domain dedication, reproduced here.\n" \
+    "stb_vorbis (third_party/stb/stb_vorbis.c), the Ogg Vorbis decoder, and\n" \
+    "stb_image (third_party/stb/stb_image.h), the JPEG and PNG decoder that\n" \
+    "album art is displayed with, were written by Sean Barrett and the stb\n" \
+    "contributors. Each is offered under a choice of the MIT License or a public\n" \
+    "domain dedication. PsyMP3 elects the public domain dedication, reproduced\n" \
+    "here.\n" \
     "\n" \
     "Public Domain (www.unlicense.org)\n" \
     "This is free and unencumbered software released into the public domain.\n" \
