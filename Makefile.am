@@ -366,6 +366,7 @@ EXTRA_DIST = \
 	third_party/sheenbidi/Source/UBA/StatusStack.c \
 	third_party/sheenbidi/Source/UBA/StatusStack.h \
 	third_party/sheenbidi/VERSION \
+	third_party/stb/stb_image.h \
 	third_party/stb/stb_vorbis.c
 
 # Include threading safety makefile

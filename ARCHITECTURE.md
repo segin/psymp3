@@ -20,6 +20,7 @@ This file is the compact architectural map, and reflects the tree as of 2.0-RC5.
 │   ├── tag/         # In-house tag framework (ID3v1/v2, Vorbis comments, cover art)
 │   └── widget/      # UI/widget system
 ├── third_party/     # Vendored: alac, kjmp2, minimp3, mlp, pugixml, sheenbidi, stb
+│                    #   (stb = stb_vorbis, plus stb_image for album art — vendored, not built or used yet)
 ├── include/         # Public/internal interfaces
 ├── tests/           # Custom harness + property / integration tests — see TESTING.md
 ├── scripts/         # Build-support scripts (third-party licence generation)
