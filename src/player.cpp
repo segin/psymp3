@@ -3319,6 +3319,10 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             toggleZoom();
             break;
 
+        case SDLK_Y:
+            toggleShowLyrics();
+            break;
+
         case SDLK_F1:
             showAboutWindow();
             break;
@@ -3878,6 +3882,8 @@ bool Player::Initialize(const PlayerOptions& options) {
         settings_items.push_back(MI::sep());
         settings_items.push_back(MI::leaf("2x &Zoom", [this]{ toggleZoom(); },
             [this]{ return screen && screen->getLogicalScale() == 2; }, "G"));
+        settings_items.push_back(MI::leaf("Show L&yrics", [this]{ toggleShowLyrics(); },
+            [this]{ return m_show_lyrics; }, "Y"));
         settings_items.push_back(MI::leaf("Show &Debug", [this]{ toggleShowDebug(); },
             [this]{ return m_show_debug; }));
         settings_items.push_back(MI::sep());
@@ -3903,6 +3909,7 @@ bool Player::Initialize(const PlayerOptions& options) {
     // Initialize lyrics widget and add to application window system
     auto lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
     m_lyrics_widget = lyrics_widget.get();
+    m_lyrics_widget->setVisible(m_show_lyrics); // persisted Settings -> Show Lyrics
     app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
 
     // A persisted Album Art Mode takes the spectrum's place from the start.
@@ -4969,6 +4976,8 @@ void Player::loadSettings()
             }
         } else if (key == "show_debug") {
             m_show_debug = (value == "1" || value == "true");
+        } else if (key == "show_lyrics") {
+            m_show_lyrics = (value == "1" || value == "true");
         } else if (key == "album_art_mode") {
             m_album_art_mode = (value == "1" || value == "true");
         } else if (key == "zoom") {
@@ -5022,6 +5031,7 @@ void Player::saveSettings() const
     // position; a settings save with no playlist keeps the loaded value.
     f << "session_track=" << (playlist ? playlist->getPosition() : m_session_track) << "\n";
     f << "show_debug=" << (m_show_debug ? 1 : 0) << "\n";
+    f << "show_lyrics=" << (m_show_lyrics ? 1 : 0) << "\n";
     f << "album_art_mode=" << (m_album_art_mode ? 1 : 0) << "\n";
     f << "discord_presence=" << (m_discord_presence ? 1 : 0) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
@@ -5799,6 +5809,16 @@ void Player::toggleAlbumArtMode()
     saveSettings();
     refreshAlbumArt();
     showToast(m_album_art_mode ? "Album Art Mode: On" : "Album Art Mode: Off");
+}
+
+void Player::toggleShowLyrics()
+{
+    m_show_lyrics = !m_show_lyrics;
+    saveSettings();
+    if (m_lyrics_widget) {
+        m_lyrics_widget->setVisible(m_show_lyrics);
+    }
+    showToast(m_show_lyrics ? "Show Lyrics: On" : "Show Lyrics: Off");
 }
 
 // Playback -> "View Album Art...": the playing track's embedded cover in a

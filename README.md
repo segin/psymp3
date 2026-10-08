@@ -240,6 +240,7 @@ everything is also reachable from the keyboard.
 | `F1` | About PsyMP3 |
 | `F` | Cycle FFT draw mode |
 | `G` | Toggle 2× zoom |
+| `Y` | Show or hide lyrics |
 | `0`–`4` | Spectrum intensity |
 | `Z` / `X` / `C` | Spectrum decay (fast/normal/slow) |
 | `Ctrl+O` | Open tracks (replaces playlist) |
@@ -277,7 +278,7 @@ display. Decoding uses the bundled stb_image (`third_party/stb`), so no image
 library is needed.
 
 Synced lyrics, when a track has them, are drawn over the cover as they are
-over the spectrum.
+over the spectrum; `Y` (**Settings → Show Lyrics**) hides them.
 
 ### Command-line Options
 

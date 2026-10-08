@@ -533,6 +533,7 @@ class Player
         AlbumArtWidget* m_albumart_widget = nullptr; // the window's canvas, for live refresh
         AlbumArtWidget* m_visualizer_art = nullptr;  // Album Art Mode's canvas, over the spectrum
         bool m_album_art_mode = false;
+        bool m_show_lyrics = true;
         EqualizerWindow*   m_eq_client = nullptr;
         std::array<float, Equalizer::kNumBands> m_eq_gains{};
         bool m_eq_enabled = false;
@@ -557,6 +558,8 @@ class Player
         void toggleAlbumArtWindow();
         // Playback -> Album Art Mode: the cover in place of the spectrum.
         void toggleAlbumArtMode();
+        // Settings -> Show Lyrics (Y): whether the lyrics overlay is drawn.
+        void toggleShowLyrics();
         // Give the live stream's cover to whichever of the Album Art window
         // and the Album Art Mode canvas is in use, and show that canvas or
         // the spectrum accordingly. A cover is decoded only for a view that

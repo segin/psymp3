@@ -159,7 +159,9 @@ void LyricsWidget::clearLyrics()
 
 void LyricsWidget::BlitTo(Surface& target)
 {
-    if (!hasLyrics() || !hasDisplayText() || m_line_surfaces.empty()) {
+    // Hidden (Settings -> Show Lyrics off) goes the way of having nothing to
+    // show, so the lines last drawn are cleared rather than left behind.
+    if (!isVisible() || !hasLyrics() || !hasDisplayText() || m_line_surfaces.empty()) {
         clearLastDrawnArea(target);
         return;
     }
