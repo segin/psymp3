@@ -27,11 +27,11 @@ MPRIS.
 ## Features
 
 - Real-time FFT spectrum visualizer with adjustable intensity, decay, and draw modes
-- A faithful Windows 3.1-style in-app UI: menu bar, movable windows (Playlist Manager, Equalizer, Media Information, Album Art, About), buttons, checkboxes, radio buttons, drop-down lists, text fields, scrollbars, and dialogs — all software-rendered, and usable from the keyboard
+- A faithful Windows 3.1-style in-app UI: menu bar, movable windows (Playlist Manager, Equalizer, Media Information, About), buttons, checkboxes, radio buttons, drop-down lists, text fields, scrollbars, and dialogs — all software-rendered, and usable from the keyboard
 - Wide format support through a modular demuxer/codec architecture, with most codecs built in so they work with no external libraries
 - Plays local files, or an `http://` / `https://` address (**File → Open URL...**); files can also be dragged onto the window
 - Synced lyrics display (`.lrc` files)
-- Album art from the file's tags, in its own window or in place of the spectrum
+- Album art from the file's tags, shown in place of the spectrum
 - Last.fm scrobbling (Web Services API 2.0), MPRIS desktop control, and Discord Rich Presence
 - Session persistence: with Persist Playlist enabled, PsyMP3 reopens your playlist at the track you were playing
 
@@ -219,8 +219,8 @@ Playlists in `.m3u` and `.m3u8` are read and written.
 
 PsyMP3 has a full mouse-driven UI — a menu bar (`File`, `Playback`,
 `Settings`, `Help` — the Alt+F/P/S/H mnemonics work) plus movable in-app windows
-like the Playlist Manager, Equalizer, Media Information, and Album Art — and
-everything is also reachable from the keyboard.
+like the Playlist Manager, Equalizer, and Media Information — and everything
+is also reachable from the keyboard.
 
 ### Keyboard Controls
 
@@ -236,7 +236,6 @@ everything is also reachable from the keyboard.
 | `E` | Cycle loop mode (`Shift+E` opens the Equalizer) |
 | `Shift+P` | Playlist Manager |
 | `A` | Album Art Mode: the cover in place of the spectrum (see [Album Art](#album-art)) |
-| `Shift+A` | Album Art window |
 | `F1` | About PsyMP3 |
 | `F` | Cycle FFT draw mode |
 | `G` | Toggle 2× zoom |
@@ -255,21 +254,16 @@ has focus, the keys go to it instead.
 
 ### Album Art
 
-PsyMP3 shows the cover embedded in the playing file's tags, in either of two
-places. Both follow the track as it changes.
+PsyMP3 can show the cover embedded in the playing file's tags in place of the
+spectrum analyzer: **Playback → Album Art Mode**, or `A`. The cover is drawn
+at the full height of the area below the menu bar, and the space on either
+side is filled with a heavily blurred copy of the same cover. It follows the
+track as it changes. The setting is remembered between runs; press `A` again
+to get the spectrum back.
 
-- **Album Art window** — **Playback → View Album Art...** or `Shift+A`. A
-  small fixed-size window showing the cover at up to 300×300, which can be
-  moved around like the other in-app windows.
-- **Album Art Mode** — **Playback → Album Art Mode** or `A`. The cover takes
-  the place of the spectrum analyzer, at the full height of the area below the
-  menu bar. The space on either side is filled with a heavily blurred copy of
-  the same cover. The setting is remembered between runs; press `A` again to
-  get the spectrum back.
-
-In both, the cover keeps its proportions: it is scaled, up or down, to the
-largest size that fits, so a cover that is not square is never stretched.
-A track with no cover shows "No album art".
+The cover keeps its proportions: it is scaled, up or down, to the largest
+size that fits, so a cover that is not square is never stretched. A track
+with no cover shows "No album art".
 
 Covers must be JPEG or PNG, and at most 8192 pixels on a side. Only art
 embedded in the file is shown: PsyMP3 does not look for image files such as

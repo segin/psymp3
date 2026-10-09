@@ -3207,11 +3207,10 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_A:
-            // Shift+A opens the Album Art window, shifted like the other
-            // window chords; plain A toggles Album Art Mode.
-            if (keysym.mod & SDL_KMOD_SHIFT) {
-                toggleAlbumArtWindow();
-            } else {
+            // Plain A toggles Album Art Mode. Shift+A, which opened the Album
+            // Art window, is unbound while that window is hidden (see the
+            // Playback menu).
+            if (!(keysym.mod & SDL_KMOD_SHIFT)) {
                 toggleAlbumArtMode();
             }
             break;
@@ -3835,7 +3834,9 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("&Equalizer...", [this]{ toggleEqualizerWindow(); }, nullptr, "Shift+E"));
         playback_items.push_back(MI::leaf("Playlist &Manager...", [this]{ togglePlaylistManager(); }, nullptr, "Shift+P"));
-        playback_items.push_back(MI::leaf("View &Album Art...", [this]{ toggleAlbumArtWindow(); }, nullptr, "Shift+A"));
+        // The Album Art window (toggleAlbumArtWindow) is hidden: it has no
+        // menu item and no key, and Album Art Mode is the way to see a cover.
+        // The window's code is kept so that it can be offered again.
         playback_items.push_back(MI::leaf("Album Art M&ode", [this]{ toggleAlbumArtMode(); },
             [this]{ return m_album_art_mode; }, "A"));
         menu_bar->addMenu("&Playback", std::move(playback_items));
