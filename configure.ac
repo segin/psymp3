@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([PsyMP3],[2-CURRENT],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
+AC_INIT([PsyMP3],[2.2-RELEASE],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
 AC_CANONICAL_HOST
 # tar-ustar: `make dist` must not use the old v7 tar format, whose paths stop
 # at 99 characters. The longest path in the tree is 80, so a dist directory
