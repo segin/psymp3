@@ -471,18 +471,50 @@ public:
         // so match that here to avoid a one-frame mismatch.
         setBackgroundColor(255, 255, 255);
 
+        // The search field (Edit -> Search), above the list when shown.
+        // Created before the list so that Tab reaches it first; hidden and
+        // disabled until asked for, which keeps it out of the tab order and
+        // deaf to clicks. The list is filtered again on every edit.
+        // Its label comes and goes with it, and names it for Alt+A (Alt+S is
+        // the main window's Settings menu).
+        m_search_label_w = font->measureWidth(std::string("Search:")) + SEARCH_LABEL_GAP;
+        auto search_label = std::make_unique<Label>(font, Rect(MARGIN, MARGIN, m_search_label_w, SEARCH_LABEL_H),
+                                                    TagLib::String("Se&arch:"),
+                                                    SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+        m_search_label = search_label.get();
+        m_search_label->setVisible(false);
+        addChild(std::move(search_label));
+
+        auto search = std::make_unique<TextInputWidget>(width - 2 * MARGIN, SEARCH_H, font);
+        m_search = search.get();
+        m_search_label->setMnemonicTarget(m_search);
+        m_search->setVisible(false);
+        m_search->setEnabled(false);
+        m_search->setOnChange([this](const TagLib::String& text) { setFilter(text); });
+        // Escape puts the search away rather than closing the whole window.
+        m_search->setOnCancel([this] { setSearchShown(false); });
+        addChild(std::move(search));
+
         auto list = std::make_unique<ListViewWidget>(width - 2 * MARGIN,
                                                      height - 2 * MARGIN - BUTTON_H - BUTTON_GAP, font);
         m_list = list.get();
         m_list->setPos(Rect(MARGIN, MARGIN, m_list->getPos().width(), m_list->getPos().height()));
         // Double-click a row to jump playback to that track.
-        m_list->setOnActivate([this](int i) { m_player->playlistManagerJumpTo(i); });
+        m_list->setOnActivate([this](int i) { m_player->playlistManagerJumpTo(trackOfRow(i)); });
         // Delete key on the focused list removes the selected rows, like the
         // Delete button.
         m_list->setOnDelete([this](int, int) { removeSelection(); });
         // Drag the selected rows to move them as a block; keep them selected
         // but leave the viewport where the drop happened.
         m_list->setOnReorder([this](int first, int last, int to) {
+            if (isFiltered()) {
+                // The rows shown are not neighbours in the playlist, so there
+                // is no one place "between these two" means. Put the rows
+                // back as they were.
+                reloadRows(m_list->getSelectionAnchor(), m_list->getSelectedIndex(),
+                           /*keep_viewport=*/true);
+                return;
+            }
             const int shift = to - first;
             const int anchor = m_list->getSelectionAnchor() + shift;
             const int cursor = m_list->getSelectedIndex() + shift;
@@ -499,7 +531,7 @@ public:
             if (ctrl && !other_mods && keysym.sym == SDLK_C) {
                 const int first = m_list->getSelectionFirst();
                 if (first >= 0 && first == m_list->getSelectionLast()) {
-                    m_player->playlistManagerCopyPath(first);
+                    m_player->playlistManagerCopyPath(trackOfRow(first));
                 }
                 return true;
             }
@@ -517,15 +549,20 @@ public:
             const int first = m_list->getSelectionFirst();
             const int last = m_list->getSelectionLast();
             std::vector<MenuItem> entries;
-            entries.push_back(MenuItem::command("Play", [this, row] { m_player->playlistManagerJumpTo(row); },
+            const int track = trackOfRow(row);
+            // Moving is for the whole playlist: greyed out while a search
+            // shows only part of it.
+            const bool can_move = !isFiltered();
+            entries.push_back(MenuItem::command("Play", [this, track] { m_player->playlistManagerJumpTo(track); },
                                                 true, "Enter"));
             entries.push_back(MenuItem::command("Delete", [this] { removeSelection(); }, first >= 0, "Del"));
-            entries.push_back(MenuItem::command("Move Up", [this] { moveSelection(-1); }, first > 0, "Ctrl+Up"));
+            entries.push_back(MenuItem::command("Move Up", [this] { moveSelection(-1); },
+                                                can_move && first > 0, "Ctrl+Up"));
             entries.push_back(MenuItem::command("Move Down", [this] { moveSelection(1); },
-                                                last >= 0 && last < count - 1, "Ctrl+Dn"));
+                                                can_move && last >= 0 && last < count - 1, "Ctrl+Dn"));
             entries.push_back(MenuItem::sep());
             // One path at a time: greyed out while several rows are selected.
-            entries.push_back(MenuItem::command("Copy Path", [this, row] { m_player->playlistManagerCopyPath(row); },
+            entries.push_back(MenuItem::command("Copy Path", [this, track] { m_player->playlistManagerCopyPath(track); },
                                                 first == last, "Ctrl+C"));
             m_context->setEntries(std::move(entries));
             Rect lp = m_list->getPos();
@@ -579,6 +616,13 @@ public:
             [this] { m_player->togglePersistPlaylist(); },
             [this] { return m_player->getPersistPlaylist(); }));
         m_menu->addMenu("&File", std::move(file_items));
+        // Edit -> Search shows the search field above the list; choosing it
+        // again puts the field away and gives the list its room back.
+        std::vector<MI> edit_items;
+        edit_items.push_back(MI::leaf("&Search",
+            [this] { setSearchShown(!m_search_shown); },
+            [this] { return m_search_shown; }));
+        m_menu->addMenu("&Edit", std::move(edit_items));
         addChild(std::move(menu));
 
         // Right-click context menu overlay, added last so it sits above
@@ -598,35 +642,75 @@ public:
     // insertion bar (SDL_EVENT_DROP_POSITION) and hit-test the drop point.
     ListViewWidget* list() const { return m_list; }
 
-    // Rebuild the list from the playlist, then select `desired_sel` (clamped).
-    // By default the selection is scrolled into view (open, button edits);
-    // keep_viewport leaves the scroll position strictly alone — used for
-    // refreshes triggered by drag-and-drop and other background changes, where
-    // snapping back to the highlighted row would yank the view away from where
-    // the user just was.
+    // Rebuild the list from the playlist, then select the track at playlist
+    // position `desired_sel` (clamped; with a search on, the nearest row at or
+    // after it). By default the selection is scrolled into view (open, button
+    // edits); keep_viewport leaves the scroll position strictly alone — used
+    // for refreshes triggered by drag-and-drop and other background changes,
+    // where snapping back to the highlighted row would yank the view away
+    // from where the user just was.
     void reload(int desired_sel, bool keep_viewport = false)
     {
         reloadSelection(desired_sel, desired_sel, keep_viewport);
     }
 
-    // The same, selecting the run from `anchor` to `cursor` (each clamped).
+    // The same, selecting the run from `anchor` to `cursor`, both playlist
+    // positions.
     void reloadSelection(int anchor, int cursor, bool keep_viewport = false)
     {
-        std::vector<TagLib::String> labels = m_player->playlistManagerLabels();
-        // Keep the viewport where it is; setSelectionRange() below only scrolls
-        // if the cursor actually falls outside it (and not even then when
-        // keep_viewport is set).
-        m_list->setItems(labels, /*preserve_scroll=*/true);
-        if (!labels.empty()) {
-            const int max_row = static_cast<int>(labels.size()) - 1;
-            auto clamp_row = [max_row](int r) { return std::max(0, std::min(r, max_row)); };
-            m_list->setSelectionRange(clamp_row(anchor), clamp_row(cursor),
-                                      /*ensure_visible=*/!keep_viewport);
+        rebuildRows();
+        selectRows(rowOfTrack(anchor), rowOfTrack(cursor), keep_viewport);
+    }
+
+    // The same again, but selecting by row in the list as shown. The two
+    // differ only while a search is filtering the list.
+    void reloadRows(int anchor_row, int cursor_row, bool keep_viewport = false)
+    {
+        rebuildRows();
+        selectRows(anchor_row, cursor_row, keep_viewport);
+    }
+
+    // Where in the playlist files dropped at `gap` in the list as shown
+    // should go: before the track of the row below the gap, or after the
+    // last row's track.
+    int playlistIndexForGap(int gap) const
+    {
+        const int rows = static_cast<int>(m_row_tracks.size());
+        if (gap < 0) {
+            return gap;
         }
-        updateButtonStates();
-        // Remember the generation we just synced to, so the per-frame check below
-        // doesn't re-reload after our own edits.
-        m_last_generation = m_player->playlistGeneration();
+        if (gap < rows) {
+            return m_row_tracks[gap];
+        }
+        return rows > 0 ? m_row_tracks[rows - 1] + 1 : m_track_count;
+    }
+
+    // Show the search field above the list, or put it away. Putting it away
+    // clears the search, so the whole playlist is listed again.
+    void setSearchShown(bool shown)
+    {
+        if (shown == m_search_shown) {
+            if (shown) m_player->focusWidget(m_search);
+            return;
+        }
+        m_search_shown = shown;
+        m_search_label->setVisible(shown);
+        m_search->setVisible(shown);
+        m_search->setEnabled(shown);
+        const Rect size = getPos();
+        if (shown) {
+            layout(size.width(), size.height());
+            m_player->focusWidget(m_search);
+        } else {
+            // Before the field is cleared and the list refilled: note which
+            // track the cursor is on, to end up on it in the full list.
+            const int track = trackOfRow(m_list->getSelectedIndex());
+            m_search->setText(TagLib::String());
+            m_filter.clear();
+            layout(size.width(), size.height());
+            reload(track >= 0 ? track : m_player->playlistManagerCurrentIndex());
+            m_player->focusWidget(m_list);
+        }
     }
 
     // Refresh when the playlist changes from outside the manager (Open Track,
@@ -646,8 +730,8 @@ public:
                 // must stay where the user left it, not snap to the selection.
                 m_list->cancelDrag();
                 m_context->close();
-                reloadSelection(m_list->getSelectionAnchor(), m_list->getSelectedIndex(),
-                                /*keep_viewport=*/true);
+                reloadRows(m_list->getSelectionAnchor(), m_list->getSelectedIndex(),
+                           /*keep_viewport=*/true);
                 m_last_reload_ms = now;
             }
         }
@@ -659,9 +743,11 @@ public:
     void updateButtonStates()
     {
         const int count = static_cast<int>(m_list->itemCount());
+        // Moving is for the whole playlist, not for the part a search shows.
+        const bool can_move = count >= 2 && !isFiltered();
         m_buttons[0]->setEnabled(count >= 1); // Delete
-        m_buttons[1]->setEnabled(count >= 2); // Move Up
-        m_buttons[2]->setEnabled(count >= 2); // Move Down
+        m_buttons[1]->setEnabled(can_move);   // Move Up
+        m_buttons[2]->setEnabled(can_move);   // Move Down
     }
 
     // Reposition/resize children for a client area of w x h. Two button rows are
@@ -673,8 +759,17 @@ public:
         m_menu->resize(w, h);    // spans the client; the bar sits along the top
         m_context->resize(w, h); // full-client overlay for the right-click menu
 
-        const int list_top = MenuBarWidget::BAR_H + MARGIN;   // below the menu bar
+        int list_top = MenuBarWidget::BAR_H + MARGIN;         // below the menu bar
         const int avail = std::max(1, w - 2 * MARGIN);
+        // The search field, when shown, takes the top of that and the list
+        // starts below it.
+        m_search_label->setPos(Rect(MARGIN, list_top + (SEARCH_H - SEARCH_LABEL_H) / 2,
+                                    m_search_label_w, SEARCH_LABEL_H));
+        m_search->setGeometry(Rect(MARGIN + m_search_label_w, list_top,
+                                   std::max(1, avail - m_search_label_w), SEARCH_H));
+        if (m_search_shown) {
+            list_top += SEARCH_H + BUTTON_GAP;
+        }
         const int row2_y = h - MARGIN - BUTTON_H;              // Add row (bottom)
         const int row1_y = row2_y - BUTTON_GAP - BUTTON_H;     // edit row
 
@@ -699,6 +794,121 @@ private:
     static constexpr int BUTTON_GAP = 6;
     static constexpr int NUM_BUTTONS = 5;
     static constexpr Uint32 RELOAD_DEBOUNCE_MS = 100; // cap external-refresh rate
+    static constexpr int SEARCH_H = 20;
+    static constexpr int SEARCH_LABEL_H = 14;
+    static constexpr int SEARCH_LABEL_GAP = 6; // between the label and the field
+
+    bool isFiltered() const { return !m_filter.empty(); }
+
+    // Playlist position of the track shown in `row`, or -1 for no such row.
+    int trackOfRow(int row) const
+    {
+        return (row >= 0 && row < static_cast<int>(m_row_tracks.size())) ? m_row_tracks[row] : -1;
+    }
+
+    // The row showing the track at playlist position `track`; when a search
+    // has filtered that track out, the first row after where it would be
+    // (or the last row). Clamped by selectRows().
+    int rowOfTrack(int track) const
+    {
+        const auto it = std::lower_bound(m_row_tracks.begin(), m_row_tracks.end(), track);
+        return static_cast<int>(it - m_row_tracks.begin());
+    }
+
+    // Lowercase one UTF-16 unit for matching: ASCII, Latin-1, Greek and
+    // Cyrillic capitals, by their fixed offsets. Done here, not with
+    // towlower(), whose answer depends on a locale PsyMP3 never sets.
+    static wchar_t foldCase(wchar_t c)
+    {
+        if (c >= L'A' && c <= L'Z') return c + 0x20;
+        if (c >= 0x00C0 && c <= 0x00DE && c != 0x00D7) return c + 0x20;
+        if (c >= 0x0391 && c <= 0x03A9 && c != 0x03A2) return c + 0x20;
+        if (c >= 0x0410 && c <= 0x042F) return c + 0x20;
+        if (c >= 0x0400 && c <= 0x040F) return c + 0x50;
+        return c;
+    }
+
+    static std::wstring foldCase(const TagLib::String& text)
+    {
+        std::wstring folded = text.toWString();
+        for (wchar_t& c : folded) {
+            c = foldCase(c);
+        }
+        return folded;
+    }
+
+    // The search field changed: take its words, and list again. Called for
+    // every character typed or deleted.
+    void setFilter(const TagLib::String& text)
+    {
+        std::vector<std::wstring> words;
+        std::wstring word;
+        for (wchar_t c : foldCase(text)) {
+            if (c == L' ' || c == L'\t') {
+                if (!word.empty()) words.push_back(std::move(word));
+                word.clear();
+            } else {
+                word.push_back(c);
+            }
+        }
+        if (!word.empty()) words.push_back(std::move(word));
+        if (words == m_filter) {
+            return; // only spacing changed
+        }
+        // Stay on the track the cursor is on, if the new search still shows
+        // it; otherwise on the nearest one after it.
+        const int track = trackOfRow(m_list->getSelectedIndex());
+        m_list->cancelDrag();
+        m_context->close();
+        m_filter = std::move(words);
+        reload(std::max(track, 0));
+    }
+
+    // Fill the list from the playlist: every track, or with a search on, the
+    // tracks whose label contains every word of it, in any order and without
+    // regard to case. Rows keep their playlist numbers.
+    void rebuildRows()
+    {
+        std::vector<TagLib::String> labels = m_player->playlistManagerLabels();
+        m_track_count = static_cast<int>(labels.size());
+        m_row_tracks.clear();
+        if (isFiltered()) {
+            std::vector<TagLib::String> shown;
+            for (int i = 0; i < m_track_count; ++i) {
+                const std::wstring label = foldCase(labels[i]);
+                const bool matches = std::all_of(m_filter.begin(), m_filter.end(),
+                    [&label](const std::wstring& w) { return label.find(w) != std::wstring::npos; });
+                if (matches) {
+                    m_row_tracks.push_back(i);
+                    shown.push_back(labels[i]);
+                }
+            }
+            labels = std::move(shown);
+        } else {
+            m_row_tracks.resize(labels.size());
+            std::iota(m_row_tracks.begin(), m_row_tracks.end(), 0);
+        }
+        // Keep the viewport where it is; selectRows() only scrolls if the
+        // cursor actually falls outside it (and not even then when asked to
+        // keep the viewport).
+        m_list->setItems(labels, /*preserve_scroll=*/true);
+        updateButtonStates();
+        // Remember the generation we just synced to, so the per-frame check
+        // doesn't re-reload after our own edits.
+        m_last_generation = m_player->playlistGeneration();
+    }
+
+    // Select the run of rows from `anchor` to `cursor`, each clamped.
+    void selectRows(int anchor, int cursor, bool keep_viewport)
+    {
+        const int rows = static_cast<int>(m_list->itemCount());
+        if (rows <= 0) {
+            return;
+        }
+        auto clamp_row = [rows](int r) { return std::max(0, std::min(r, rows - 1)); };
+        m_list->setSelectionRange(clamp_row(anchor), clamp_row(cursor),
+                                  /*ensure_visible=*/!keep_viewport);
+    }
 
     // Remove every selected row, then select the row that took the first one's
     // place.
@@ -709,14 +919,28 @@ private:
         if (first < 0) {
             return;
         }
-        m_player->playlistManagerRemove(first, last);
-        reload(first);
+        if (isFiltered()) {
+            // Neighbours in the list, not in the playlist: one at a time,
+            // from the bottom so the positions above stay good.
+            for (int row = last; row >= first; --row) {
+                const int track = trackOfRow(row);
+                if (track >= 0) {
+                    m_player->playlistManagerRemove(track, track);
+                }
+            }
+        } else {
+            m_player->playlistManagerRemove(first, last);
+        }
+        reloadRows(first, first);
     }
 
     // Move the selected rows one place up (delta -1) or down (+1) as a block,
     // keeping them selected with the anchor and cursor where they were.
     void moveSelection(int delta)
     {
+        if (isFiltered()) {
+            return; // see updateButtonStates()
+        }
         const int first = m_list->getSelectionFirst();
         const int last = m_list->getSelectionLast();
         if (first < 0 || first + delta < 0 || last + delta >= static_cast<int>(m_list->itemCount())) {
@@ -732,19 +956,19 @@ private:
     // mutation so the same track can be re-selected afterwards.
     TagLib::String selectedTrackPath() const
     {
-        int i = m_list->getSelectedIndex();
-        return i >= 0 ? m_player->playlistPathAt(i) : TagLib::String();
+        const int track = trackOfRow(m_list->getSelectedIndex());
+        return track >= 0 ? m_player->playlistPathAt(track) : TagLib::String();
     }
 
-    // Index to select after a reload: the remembered track's new position if it
-    // still exists, else the current list selection.
+    // Playlist position to select after a reload: the remembered track's new
+    // position if it still exists, else that of the current list selection.
     int reselectIndex(const TagLib::String& keep) const
     {
         if (!keep.isEmpty()) {
             long idx = m_player->playlistIndexOfPath(keep);
             if (idx >= 0) return static_cast<int>(idx);
         }
-        return m_list->getSelectedIndex();
+        return std::max(0, trackOfRow(m_list->getSelectedIndex()));
     }
 
     ButtonWidget* makeButton(const char* label, std::function<void()> on_click)
@@ -762,6 +986,16 @@ private:
     Font* m_font;
     Player* m_player;
     ListViewWidget* m_list = nullptr;
+    TextInputWidget* m_search = nullptr;
+    Label* m_search_label = nullptr;
+    int m_search_label_w = 0;
+    bool m_search_shown = false;
+    // The search in force: its words, case-folded; empty for no search.
+    std::vector<std::wstring> m_filter;
+    // Playlist position of the track in each row of the list, ascending; and
+    // how many tracks the playlist had when the rows were last built.
+    std::vector<int> m_row_tracks;
+    int m_track_count = 0;
     ButtonWidget* m_buttons[NUM_BUTTONS] = { nullptr, nullptr, nullptr, nullptr, nullptr };
     MenuBarWidget* m_menu = nullptr;
     ContextMenuWidget* m_context = nullptr;
@@ -1659,7 +1893,9 @@ void Player::openDroppedPaths()
         // reloads the list view automatically.
         std::vector<Playlist::Entry> entries = expandChosenPaths(paths);
         if (!entries.empty()) {
-            playlist->insertEntries(gap, entries);
+            // The gap is between rows as listed; with a search filtering the
+            // list those are not playlist positions.
+            playlist->insertEntries(m_pm_gap_to_track ? m_pm_gap_to_track(gap) : gap, entries);
         }
         return;
     }
@@ -4860,6 +5096,7 @@ void Player::togglePlaylistManager()
         m_test_window_p = nullptr;
         m_pm_list = nullptr;
         m_pm_drop_gap = -1;
+        m_pm_gap_to_track = nullptr;
         showToast("Playlist Manager: Closed");
         return;
     }
@@ -4880,6 +5117,7 @@ void Player::togglePlaylistManager()
     PlaylistManagerClient* client_ptr = client.get();
     m_pm_list = client_ptr->list();  // for the external-drop insertion bar
     m_pm_drop_gap = -1;
+    m_pm_gap_to_track = [client_ptr](int gap) { return client_ptr->playlistIndexForGap(gap); };
     m_test_window_p->setClientArea(std::move(client));
     m_test_window_p->refresh();
 
@@ -4904,6 +5142,7 @@ void Player::togglePlaylistManager()
         }
         m_pm_list = nullptr;
         m_pm_drop_gap = -1;
+        m_pm_gap_to_track = nullptr;
         showToast("Playlist Manager: Closed");
     });
 

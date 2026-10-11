@@ -520,6 +520,10 @@ class Player
         // insert, so no client back-pointer is needed.
         ListViewWidget* m_pm_list = nullptr;
         int m_pm_drop_gap = -1;
+        // Playlist position for a gap between rows of that list. The two are
+        // the same until a search in the manager filters the list. Set while
+        // the manager is open.
+        std::function<int(int)> m_pm_gap_to_track;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
 
         // Equalizer window (hosted in m_random_windows so it reuses the frame
