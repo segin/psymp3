@@ -780,6 +780,12 @@ bool TextInputWidget::caretPhaseVisible() const
     return ((SDL_GetTicks() - m_blink_epoch) / kBlinkMs) % 2 == 0;
 }
 
+void TextInputWidget::setGeometry(const Rect& bounds)
+{
+    setPos(bounds);
+    rebuildSurface();
+}
+
 void TextInputWidget::rebuildSurface()
 {
     const Rect& pos = getPos();

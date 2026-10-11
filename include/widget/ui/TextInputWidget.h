@@ -35,6 +35,9 @@ public:
     void setText(const TagLib::String& text);
     const TagLib::String& getText() const { return m_text; }
     void setPlaceholder(const TagLib::String& placeholder);
+    // Move and resize the field, for a container that lays itself out again
+    // when its window is resized.
+    void setGeometry(const Rect& bounds);
     // Password echo: render one '*' per typed codepoint (the Windows 3.1
     // masked-edit convention) while the real text stays in m_text. Copy and
     // cut are refused in this mode, as Windows refuses them.
