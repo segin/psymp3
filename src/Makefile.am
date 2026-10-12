@@ -272,7 +272,11 @@ if HAVE_WINDRES
 psymp3_LDADD += ../res/psymp3.res
 endif
 
-# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS)
-AM_CXXFLAGS = $(PSYMP3_CXXFLAGS)
+# Project-owned hardening/ABI C++ flags (see configure.ac PSYMP3_CXXFLAGS).
+# -Wno-multichar is for the final build, whose one translation unit takes in
+# Apple's ALAC sources and their 'alac'-style constants: the pragma in
+# ALACCodec.cpp is enough on current compilers, but GCC before 13 warns from
+# the lexer before the pragma takes effect (see codecs/alac/Makefile.am).
+AM_CXXFLAGS = $(PSYMP3_CXXFLAGS) -Wno-multichar
 # The final build compiles codecs/vorbis/stb_vorbis_impl.c here; same hardening.
 AM_CFLAGS = $(PSYMP3_CXXFLAGS)
