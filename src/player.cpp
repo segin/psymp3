@@ -157,6 +157,15 @@ enum Win32MenuId : unsigned int {
     IDM_INTENSITY_FIRST = 0xE130, // 4 levels: scalefactor 1..4
 };
 } // namespace
+#else
+// Where vera.ttf and the window icon live. The path compiled in is where
+// `make install` put them; a relocatable bundle (an AppImage is mounted at a
+// different path on every run) names its own copy in $PSYMP3_DATADIR instead.
+static std::string dataDir()
+{
+    const char* env = getenv("PSYMP3_DATADIR");
+    return (env && *env) ? std::string(env) : std::string(PSYMP3_DATADIR);
+}
 #endif // _WIN32
 
 bool canReuseAudioForStream(const Audio* audio, Stream* stream)
@@ -3827,7 +3836,7 @@ bool Player::Initialize(const PlayerOptions& options) {
     {
         constexpr int icon_w = 128, icon_h = 128;
         constexpr size_t icon_bytes = static_cast<size_t>(icon_w) * icon_h * 4;
-        for (const char* path : { PSYMP3_DATADIR "/psymp3.rgba", "./res/psymp3.rgba" }) {
+        for (const std::string& path : { dataDir() + "/psymp3.rgba", std::string("./res/psymp3.rgba") }) {
             std::ifstream f(path, std::ios::binary);
             if (!f) continue;
             std::vector<uint8_t> rgba(icon_bytes);
@@ -3863,14 +3872,15 @@ bool Player::Initialize(const PlayerOptions& options) {
     // Create a larger font for status indicators like the pause message.
     m_large_font = loadUiFont(36);
 #else
-    font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 12);
+    const std::string data_dir = dataDir();
+    font = std::make_unique<Font>(TagLib::String(data_dir + "/vera.ttf", TagLib::String::UTF8), 12);
     // Create a larger font for status indicators like the pause message.
-    m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
+    m_large_font = std::make_unique<Font>(TagLib::String(data_dir + "/vera.ttf", TagLib::String::UTF8), 36);
     // An optional extra.ttf supplies scripts DejaVu lacks -- CJK, Kana, Hangul
     // -- which would otherwise draw as rows of .notdef boxes. Absent, nothing
     // changes. The source-tree path keeps this working when running uninstalled.
     for (Font* f : {font.get(), m_large_font.get()}) {
-        if (!f->addFallback(TagLib::String(PSYMP3_DATADIR "/extra.ttf"))) {
+        if (!f->addFallback(TagLib::String(data_dir + "/extra.ttf", TagLib::String::UTF8))) {
             f->addFallback(TagLib::String("res/extra.ttf"));
         }
     }
