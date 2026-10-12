@@ -456,10 +456,30 @@ if test "x$enable_filedialog" != "xno"; then
       # Pick the first available toolkit (existence-only probes; no side effects).
       dialog_pkg=
       PKG_CHECK_EXISTS([Qt6Widgets], [dialog_pkg="Qt6Widgets"; filedialog_backend="Qt6"; psymp3_qt_major=6])
+      # Qt 6 gained its pkg-config files in 6.3; an older one (Ubuntu 22.04
+      # ships 6.2) is only findable by asking its qmake where it lives.
       if test -z "$dialog_pkg"; then
+        AC_PATH_PROGS([QMAKE6], [qmake6 qmake-qt6])
+        if test -n "$QMAKE6"; then
+          psymp3_qt6_inc=`$QMAKE6 -query QT_INSTALL_HEADERS 2>/dev/null`
+          psymp3_qt6_lib=`$QMAKE6 -query QT_INSTALL_LIBS 2>/dev/null`
+          AC_MSG_CHECKING([for Qt 6 Widgets through $QMAKE6])
+          if test -n "$psymp3_qt6_inc" && test -f "$psymp3_qt6_inc/QtWidgets/QFileDialog"; then
+            AC_MSG_RESULT([$psymp3_qt6_inc])
+            have_filedialog=yes
+            filedialog_backend="Qt6"
+            psymp3_qt_major=6
+            DIALOG_CFLAGS="-I$psymp3_qt6_inc -I$psymp3_qt6_inc/QtWidgets -I$psymp3_qt6_inc/QtGui -I$psymp3_qt6_inc/QtCore"
+            DIALOG_LIBS="-L$psymp3_qt6_lib -lQt6Widgets -lQt6Gui -lQt6Core"
+          else
+            AC_MSG_RESULT([no])
+          fi
+        fi
+      fi
+      if test -z "$dialog_pkg" && test "x$have_filedialog" = "xno"; then
         PKG_CHECK_EXISTS([Qt5Widgets], [dialog_pkg="Qt5Widgets"; filedialog_backend="Qt5"; psymp3_qt_major=5])
       fi
-      if test -z "$dialog_pkg"; then
+      if test -z "$dialog_pkg" && test "x$have_filedialog" = "xno"; then
         PKG_CHECK_EXISTS([QtGui], [dialog_pkg="QtGui"; filedialog_backend="Qt4"; psymp3_qt_major=4])
       fi
       # Qt3 has no pkg-config; opt in explicitly with --with-qt3-dir=PREFIX.
