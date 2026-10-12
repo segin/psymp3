@@ -9,6 +9,7 @@ matching machine or container.
 | `dpkg/` | `.deb` | Debian 13 (trixie), Ubuntu 26.04 LTS |
 | `rpm/`  | `.rpm` | Fedora (latest), openSUSE Tumbleweed |
 | `arch/` | `.pkg.tar.zst` | not in CI; built with `makepkg` on Arch |
+| `appimage/` | `.AppImage` | built on Ubuntu 22.04, run on Ubuntu 24.04 |
 
 ## Building by hand
 
@@ -16,6 +17,7 @@ matching machine or container.
 ./package/dpkg/build-deb.sh      # -> package/dpkg/out/*.deb
 ./package/rpm/build-rpm.sh       # -> package/rpm/out/*.rpm
 (cd package/arch && makepkg)     # -> package/arch/*.pkg.tar.zst
+./package/appimage/build-appimage.sh --docker   # -> package/appimage/out/*.AppImage
 ```
 
 The two scripts need the distribution's build dependencies installed first. The
@@ -34,7 +36,8 @@ zypper install $(rpmspec -q --buildrequires --define "psymp3_version 0" \
     package/rpm/psymp3.spec)
 ```
 
-`makepkg -s` installs the Arch ones itself, from the PKGBUILD.
+`makepkg -s` installs the Arch ones itself, from the PKGBUILD. The AppImage's
+are in `appimage/Dockerfile`, which `--docker` builds for you.
 
 ## Versioning
 
@@ -110,3 +113,38 @@ The PKGBUILD takes its source from the repository it sits in, over
 calls `version.sh arch` rather than carrying its own copy of the mapping;
 makepkg will rewrite the `pkgver=` line in the file to match, which is
 expected and need not be committed back.
+
+## Notes on the AppImage
+
+An AppImage is a single executable file carrying PsyMP3 and its libraries; it
+needs no installation. It runs wherever glibc is at least as new as on the
+machine that built it, so it is built on the oldest base worth supporting, not
+on a developer's machine: `appimage/Dockerfile` is Ubuntu 22.04 (glibc 2.35),
+the base of Linux Mint 21. That release has no SDL3 package, so the image
+builds SDL3 from source, at the tag named by `SDL_TAG`.
+
+`build-appimage.sh --docker` builds the image and runs itself inside it.
+Without `--docker` it expects to be on such a machine already, with
+`linuxdeploy` and `linuxdeploy-plugin-qt` on the `PATH`. Like the others it
+packages what is committed.
+
+What is inside, and what is not:
+
+- **Bundled:** SDL3, TagLib, OpenSSL, curl, Ogg, Opus, FDK-AAC, Speex, D-Bus,
+  and Qt 6 with its X11 platform plugin and desktop-portal theme, for the
+  file dialog, plus what those libraries need in turn.
+- **Taken from the machine it runs on:** glibc, libstdc++, FreeType,
+  HarfBuzz, Fontconfig, libX11 and the OpenGL/EGL libraries, which
+  linuxdeploy leaves out as things every desktop has; and the audio and
+  display libraries (PipeWire, PulseAudio, ALSA, X11, Wayland), which SDL
+  loads at run time. Qt's Wayland plugin is not bundled, so on a Wayland
+  session the file dialog runs through XWayland.
+
+The CI job runs the finished AppImage in an Ubuntu 24.04 container, under a
+virtual display, and checks that it starts and loads its bundled font.
+
+The data directory is compiled into the binary as `/usr/share/psymp3/data`,
+which does not exist on the user's machine, since the bundle is mounted at a
+new path on every run. The bundle's start-up script therefore sets
+`PSYMP3_DATADIR` to its own copy, and the player reads that variable in
+preference to the compiled-in path.

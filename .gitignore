@@ -164,6 +164,7 @@ vgcore.2578017
 /debian/
 package/dpkg/out/
 package/rpm/out/
+package/appimage/out/
 # makepkg builds in place: src/ and pkg/ are its work directories, psymp3/ is
 # the clone it makes of this repository, and the package lands beside them.
 package/arch/src/

@@ -173,23 +173,26 @@ make -j$(nproc)
 
 ### Distribution packages
 
-`package/` holds native packaging. The `.deb` and `.rpm` packages are built
-for every push by the [Linux packages](.github/workflows/packages.yml)
-workflow; the Arch package is built by hand with `makepkg`:
+`package/` holds native packaging. The `.deb` and `.rpm` packages and the
+AppImage are built for every push by the
+[Linux packages](.github/workflows/packages.yml) workflow; the Arch package is
+built by hand with `makepkg`:
 
 | Format | Targets |
 |---|---|
 | `.deb` | Debian 13 (trixie), Ubuntu 26.04 LTS |
 | `.rpm` | Fedora, openSUSE Tumbleweed |
 | `.pkg.tar.zst` | Arch Linux (`package/arch/PKGBUILD`) |
+| `.AppImage` | any x86_64 distribution with glibc 2.35 or later (Ubuntu 22.04, Linux Mint 21, and newer) |
 
 ```bash
 ./package/dpkg/build-deb.sh      # -> package/dpkg/out/*.deb
 ./package/rpm/build-rpm.sh       # -> package/rpm/out/*.rpm
 (cd package/arch && makepkg)     # -> package/arch/*.pkg.tar.zst
+./package/appimage/build-appimage.sh --docker   # -> package/appimage/out/*.AppImage
 ```
 
-All three build from what is committed, so commit before packaging. See
+All four build from what is committed, so commit before packaging. See
 [package/README.md](package/README.md) for the dependency-installation
 one-liners and how the version label is mapped to a legal package version.
 
@@ -374,6 +377,12 @@ Where PsyMP3 looks for it:
 |---|---|
 | Windows | next to `psymp3.exe`; otherwise `extra.ttf` or `res\extra.ttf` in the working directory |
 | Linux/BSD | the installed data directory, `$(prefix)/share/psymp3/data/extra.ttf` (`/usr/local/share/psymp3/data` for a default install); otherwise `res/extra.ttf` in the working directory, for running from the source tree |
+
+On Linux/BSD the environment variable `PSYMP3_DATADIR`, when set, names the
+data directory in place of the installed one. The AppImage sets it to the copy
+inside itself, which cannot be written to, so with the AppImage use
+`res/extra.ttf` in the working directory or point `PSYMP3_DATADIR` at a
+directory of your own holding `vera.ttf`, `psymp3.rgba` and your `extra.ttf`.
 
 How it works alongside `vera.ttf`:
 
