@@ -221,9 +221,13 @@ jobs:
         # On a newer release than it was built on, in a container holding only
         # the libraries an AppImage takes from the desktop rather than
         # carrying. There is no FUSE in a container, hence extract-and-run.
-        # The player starts under a virtual display with no audio device and
-        # is stopped after a few seconds; what is checked is that it got as
-        # far as loading the font from the bundle's own data directory.
+        # The player starts on SDL's dummy video and audio drivers and is
+        # stopped after a few seconds; what is checked is that it got as far
+        # as loading the font from the bundle's own data directory. A virtual
+        # X display was used here at first and proved unreliable: one run came
+        # back with none of the player's output, most likely killed through
+        # xvfb-run before its buffered output was written. stdbuf makes each
+        # line reach the pipe at once.
         docker run --rm -v "$PWD/package/appimage/out:/a:ro" \
           -e APPIMAGE_EXTRACT_AND_RUN=1 -e DEBIAN_FRONTEND=noninteractive \
           -e APPIMAGE_NAME="$(basename "$appimage")" ubuntu:24.04 sh -c '
@@ -231,10 +235,10 @@ jobs:
             apt-get update
             apt-get install -y --no-install-recommends \
               libfreetype6 libharfbuzz0b libfontconfig1 libx11-6 libegl1 \
-              libgl1 libglx0 libopengl0 xvfb xauth
+              libgl1 libglx0 libopengl0
             "/a/$APPIMAGE_NAME" --version
-            out=$(SDL_AUDIODRIVER=dummy timeout 10 xvfb-run -a \
-                  "/a/$APPIMAGE_NAME" --debug=font 2>&1 || true)
+            out=$(SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 10 \
+                  stdbuf -oL "/a/$APPIMAGE_NAME" --debug=font 2>&1 || true)
             printf "%s\n" "$out"
             printf "%s\n" "$out" | grep -q "usr/share/psymp3/data/vera.ttf"
             printf "%s\n" "$out" | grep -q "font->isValid(): 1"

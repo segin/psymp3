@@ -140,8 +140,9 @@ What is inside, and what is not:
   loads at run time. Qt's Wayland plugin is not bundled, so on a Wayland
   session the file dialog runs through XWayland.
 
-The CI job runs the finished AppImage in an Ubuntu 24.04 container, under a
-virtual display, and checks that it starts and loads its bundled font.
+The CI job runs the finished AppImage in an Ubuntu 24.04 container, on SDL's
+dummy video and audio drivers, and checks that it starts and loads its bundled
+font.
 
 The data directory is compiled into the binary as `/usr/share/psymp3/data`,
 which does not exist on the user's machine, since the bundle is mounted at a
