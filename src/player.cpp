@@ -827,8 +827,11 @@ private:
     // Lowercase one UTF-16 unit for matching: ASCII, Latin-1, Greek and
     // Cyrillic capitals, by their fixed offsets. Done here, not with
     // towlower(), whose answer depends on a locale PsyMP3 never sets.
+    // Typographic apostrophes (U+2018, U+2019, U+02BC) become the ASCII one,
+    // so "we're" typed on a keyboard finds a tag spelled "We’re".
     static wchar_t foldCase(wchar_t c)
     {
+        if (c == 0x2018 || c == 0x2019 || c == 0x02BC) return L'\'';
         if (c >= L'A' && c <= L'Z') return c + 0x20;
         if (c >= 0x00C0 && c <= 0x00DE && c != 0x00D7) return c + 0x20;
         if (c >= 0x0391 && c <= 0x03A9 && c != 0x03A2) return c + 0x20;
