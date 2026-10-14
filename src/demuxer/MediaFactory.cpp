@@ -1205,7 +1205,7 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
 
 std::unique_ptr<IOHandler> MediaFactory::createIOHandler(const std::string& uri) {
     if (isHttpUri(uri)) {
-        return std::make_unique<HTTPIOHandler>(uri);
+        return IO::HTTP::openHTTPIOHandler(uri);
     } else {
         return std::make_unique<FileIOHandler>(TagLib::String(uri, TagLib::String::UTF8));
     }

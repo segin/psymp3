@@ -308,11 +308,11 @@ void IOHandlerRegistry::registerBuiltInHandlers() {
     
     // Register built-in HTTP handler
     registerIOHandler("http", [](const std::string& uri, const std::map<std::string, std::string>& config) {
-        return std::make_unique<HTTPIOHandler>(uri);
+        return IO::HTTP::openHTTPIOHandler(uri);
     });
-    
+
     registerIOHandler("https", [](const std::string& uri, const std::map<std::string, std::string>& config) {
-        return std::make_unique<HTTPIOHandler>(uri);
+        return IO::HTTP::openHTTPIOHandler(uri);
     });
 }
 

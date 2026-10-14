@@ -40,10 +40,10 @@ bool DemuxedStream::initialize() {
         if (uri.scheme() == "file" || uri.scheme().isEmpty()) {
             handler = std::make_unique<FileIOHandler>(uri.path());
         } else if (uri.scheme() == "http" || uri.scheme() == "https") {
-            // HTTPIOHandler wants the complete URL, not the URI's path part.
+            // The handler wants the complete URL, not the URI's path part.
             // MediaFactory already probed the same URL over HTTP to detect the
             // format; this is what actually lets the stream play from it.
-            handler = std::make_unique<HTTPIOHandler>(m_path.to8Bit(true));
+            handler = IO::HTTP::openHTTPIOHandler(m_path.to8Bit(true));
         } else {
             // Could add support for other schemes later
             Debug::log("demux", "DemuxedStream::initialize() unsupported URI scheme: ", uri.scheme());

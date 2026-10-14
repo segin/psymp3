@@ -221,7 +221,7 @@ bool DemuxerPluginManager::registerCustomDemuxer_unlocked(const std::string& for
             // Create IOHandler for the URI
             std::unique_ptr<IOHandler> handler;
             if (MediaFactory::isHttpUri(uri)) {
-                handler = std::make_unique<HTTPIOHandler>(uri);
+                handler = IO::HTTP::openHTTPIOHandler(uri);
             } else {
                 handler = std::make_unique<FileIOHandler>(TagLib::String(uri, TagLib::String::UTF8));
             }
