@@ -13,7 +13,7 @@
 # belongs in a package build. The Debian and RPM packaging skip it likewise.
 
 pkgname=psymp3
-pkgver=2.0snapshot1818
+pkgver=2.3snapshot1980
 pkgrel=1
 pkgdesc="Audio player with FFT spectrum visualization"
 arch=('x86_64')

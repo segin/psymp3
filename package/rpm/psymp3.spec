@@ -2,7 +2,7 @@
 # psymp3.spec - PsyMP3 RPM packaging (Fedora and openSUSE).
 #
 # The version is injected by package/rpm/build-rpm.sh:
-#   rpmbuild --define "psymp3_version 2.0~snapshot1343" ...
+#   rpmbuild --define "psymp3_version 2.3~snapshot1980" ...
 # because PsyMP3's own version label ("2-CURRENT", "2.0-RC2") is not a legal
 # RPM Version. See package/version.sh for the mapping.
 #

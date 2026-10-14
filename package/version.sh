@@ -14,9 +14,11 @@
 # Mapping:
 #   2.0-RC2    -> 2.0~rc2                    (sorts before 2.0)
 #   2.0-BETA4  -> 2.0~beta4
-#   2-CURRENT  -> 2.0~snapshot<build>        (rolling master; <build> is the
-#                                             monotonic res/psymp3.rc counter,
-#                                             so successive snapshots upgrade)
+#   2-CURRENT  -> 2.3~snapshot<build>        (rolling master; the series is
+#                                             the next release, from the .rc's
+#                                             FILEVERSION 2,3,0,<build>; <build>
+#                                             is its monotonic counter, so
+#                                             successive snapshots upgrade)
 #   1.99.17-RELEASE -> 1.99.17
 #
 # pacman is the exception: its vercmp gives '~' no meaning at all, so
@@ -24,6 +26,7 @@
 # Dropping it gives the ordering back, because a version ending in letters
 # sorts below the bare release under pacman's rules. Measured with vercmp:
 #   2.0beta4  <  2.0rc2  <  2.0snapshot1400  <  2.0
+#   2.2.2  <  2.3snapshot1980  <  2.3
 #
 # Usage: package/version.sh [upstream|build|full|arch]
 #   upstream (default) - the version alone, e.g. 2.0~rc2
@@ -38,16 +41,28 @@ raw=$(sed -n 's/^AC_INIT(\[PsyMP3\],\[\([^]]*\)\].*/\1/p' "$top/configure.ac" | 
 [ -n "$raw" ] || { echo "version.sh: cannot read AC_INIT from configure.ac" >&2; exit 1; }
 
 # res/psymp3.rc has CRLF endings; strip the CR or it lands inside the version.
-build=$(sed -n 's/^FILEVERSION [0-9]*,[0-9]*,[0-9]*,\([0-9]*\).*/\1/p' "$top/res/psymp3.rc" \
-        | tr -d '\r' | head -1)
+fileversion=$(sed -n 's/^FILEVERSION \([0-9]*,[0-9]*,[0-9]*,[0-9]*\).*/\1/p' "$top/res/psymp3.rc" \
+              | tr -d '\r' | head -1)
+build=${fileversion##*,}
 [ -n "$build" ] || build=0
 
 case "$raw" in
     *-CURRENT)
-        # Rolling development build off master. Base it on the next release
-        # series so a later real 2.0 still upgrades cleanly over a snapshot.
-        series=${raw%-CURRENT}
-        case "$series" in *.*) ;; *) series="$series.0" ;; esac
+        # Rolling development build off master. Base it on the release master
+        # is heading for, which the .rc's numeric FILEVERSION names: after
+        # 2.2.2-RELEASE master goes back to 2,3,0, so its snapshots are
+        # 2.3~snapshot<build> -- above 2.2.2, below the 2.3 that follows. A
+        # patch field of 0 is left off (2.3, not 2.3.0), matching the tags.
+        if [ -n "$fileversion" ]; then
+            IFS=, read -r major minor patch _ <<EOF
+$fileversion
+EOF
+            series="$major.$minor"
+            [ "$patch" = 0 ] || series="$series.$patch"
+        else
+            series=${raw%-CURRENT}
+            case "$series" in *.*) ;; *) series="$series.0" ;; esac
+        fi
         upstream="$series~snapshot$build"
         ;;
     *-RELEASE)

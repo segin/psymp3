@@ -50,17 +50,22 @@ maps it:
 | `2.0-RC2` | `2.0~rc2` | sorts *before* `2.0` |
 | `2.0-BETA4` | `2.0~beta4` | sorts before `2.0~rc2` |
 | `1.99.17-RELEASE` | `1.99.17` | |
-| `2-CURRENT` | `2.0~snapshot<build>` | `<build>` is the monotonic counter in `res/psymp3.rc` |
+| `2-CURRENT` | `2.3~snapshot<build>` | the series is the next release, from `FILEVERSION 2,3,0,<build>` in `res/psymp3.rc`; `<build>` is its monotonic counter |
 
 `~` sorts lower than everything in both dpkg and rpm, which is what makes a
 pre-release upgrade cleanly to the final release. Verified ordering:
 
 ```
 2.0~beta4  <  2.0~rc2  <  2.0~snapshot1400  <  2.0
+2.2.2  <  2.3~snapshot1980  <  2.3
 ```
 
-A master snapshot outranking the RC it followed is intentional: master is
-ahead of the tag, and the eventual `2.0` still supersedes every `2.0~*`.
+A master snapshot is named for the release master is heading towards, which
+the release protocol sets in the `.rc`'s numeric version when it puts master
+back to `2-CURRENT`: after 2.2.2-RELEASE that is `2,3,0`, so snapshots are
+`2.3~snapshot<build>`. They outrank the release before and are superseded by
+the next one. Snapshots from before this rule were named `2.0~snapshot<build>`;
+those still upgrade to the new names.
 
 pacman is the exception. Its `vercmp` gives `~` no special meaning, so
 `2.0~rc2` sorts *above* `2.0` there — backwards. Dropping the tilde restores
@@ -69,6 +74,7 @@ under pacman's rules, so `version.sh arch` prints that spelling instead:
 
 ```
 2.0beta4  <  2.0rc2  <  2.0snapshot1400  <  2.0
+2.2.2  <  2.3snapshot1980  <  2.3
 ```
 
 ## Notes on the Debian packaging
