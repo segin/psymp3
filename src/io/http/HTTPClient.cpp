@@ -381,6 +381,13 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+#if defined(_WIN32) && LIBCURL_VERSION_NUM >= 0x074700 /* 7.71.0 */
+    // The Windows builds link curl against OpenSSL, which has no CA bundle of
+    // its own there: without this every HTTPS peer fails verification (curl
+    // error 60). Trust the Windows certificate store instead, as the system
+    // bundle is trusted elsewhere.
+    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_NATIVE_CA));
+#endif
     // Restrict both the initial request and any followed redirect to HTTP/HTTPS,
     // so a malicious 30x redirect can't reach file://, gopher://, etc. as an SSRF
     // primitive. (CURLOPT_*_STR replaced the deprecated bitmask options in 7.85.)
