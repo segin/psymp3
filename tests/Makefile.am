@@ -887,7 +887,8 @@ test_demuxer_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 # its file and its suite; what they no longer have is a link apiece.
 test_http_suite_SOURCES = test_http_suite.cpp \
 	io/http/test_http_client_parse_url.cpp \
-	io/http/test_http_iohandler_validation.cpp
+	io/http/test_http_iohandler_validation.cpp \
+	io/http/test_http_stream_io_handler.cpp
 test_http_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # These two stay programs of their own, and cannot join test_http_suite:

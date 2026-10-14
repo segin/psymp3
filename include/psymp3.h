@@ -497,6 +497,7 @@ using PsyMP3::Core::Utility::Base64;
 #include "io/IOHandler.h"
 #include "io/file/FileIOHandler.h"
 #include "io/http/HTTPIOHandler.h"
+#include "io/http/HTTPStreamIOHandler.h"
 #include "io/TagLibIOHandlerAdapter.h"
 #include "io/URI.h"
 #include "io/MemoryIOHandler.h"

@@ -27,6 +27,7 @@
 
 int test_http_client_parse_url_main();
 int test_http_iohandler_validation_main();
+int test_http_stream_io_handler_main();
 
 namespace {
 
@@ -38,6 +39,7 @@ struct Entry {
 const Entry kEntries[] = {
     {"test_http_client_parse_url",      test_http_client_parse_url_main},
     {"test_http_iohandler_validation",  test_http_iohandler_validation_main},
+    {"test_http_stream_io_handler",     test_http_stream_io_handler_main},
 };
 
 } // namespace
