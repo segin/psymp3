@@ -885,7 +885,8 @@ test_demuxer_suite_SOURCES = test_demuxer_suite.cpp \
 	demuxer/test_demuxed_stream_unit.cpp \
 	demuxer/test_demuxer_integration.cpp \
 	demuxer/test_media_factory_integration.cpp \
-	demuxer/test_demuxer_performance.cpp
+	demuxer/test_demuxer_performance.cpp \
+	demuxer/mp3/test_mp3_live.cpp
 test_demuxer_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # Integration tests

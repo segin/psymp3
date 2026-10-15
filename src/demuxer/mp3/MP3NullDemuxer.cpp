@@ -339,6 +339,28 @@ bool MP3NullDemuxer::parseFirstFrame_unlocked() {
 
         // Valid header found - record the data start
         uint64_t frame_offset = static_cast<uint64_t>(m_handler->tell()) - 4;
+
+        /*
+         * A station is joined mid-frame, and a sync word turns up by chance
+         * in the partial frame often enough; this header picks the codec
+         * (mp3 or mp2) for the whole session, and a false Layer II one left
+         * every real frame refused, in silence. So a live stream's first
+         * header counts only when the next frame's header follows it where
+         * it says, with the same version, layer and sample rate.
+         */
+        if (m_live) {
+            const uint32_t size = getFrameSize(header);
+            uint8_t next[4] = {};
+            const bool confirmed = size >= 4 &&
+                m_handler->seek(static_cast<off_t>(frame_offset + size), SEEK_SET) == 0 &&
+                m_handler->read(next, 1, 4) == 4 && isValidFrameHeader(next) &&
+                (next[1] & 0x1E) == (header[1] & 0x1E) && (next[2] & 0x0C) == (header[2] & 0x0C);
+            if (!confirmed) {
+                m_handler->seek(static_cast<off_t>(frame_offset + 1), SEEK_SET);
+                continue;
+            }
+            m_handler->seek(static_cast<off_t>(frame_offset + 4), SEEK_SET);
+        }
         m_data_start_offset = frame_offset;
 
         uint32_t sample_rate = getFrameSampleRate(header);

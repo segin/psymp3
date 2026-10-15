@@ -31,6 +31,7 @@ int test_demuxed_stream_unit_main();
 int test_demuxer_integration_main();
 int test_media_factory_integration_main();
 int test_demuxer_performance_main();
+int test_mp3_live_main();
 
 namespace {
 
@@ -46,6 +47,7 @@ const Entry kEntries[] = {
     {"test_demuxer_integration",        test_demuxer_integration_main},
     {"test_media_factory_integration",  test_media_factory_integration_main},
     {"test_demuxer_performance",        test_demuxer_performance_main},
+    {"test_mp3_live",                   test_mp3_live_main},
 };
 
 } // namespace
