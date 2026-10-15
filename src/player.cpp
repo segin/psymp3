@@ -2684,6 +2684,13 @@ void Player::seekTo(unsigned long pos)
 void Player::seekToInternal(unsigned long pos, bool monitor_seek_errors)
 {
     std::lock_guard<std::mutex> lock(*mutex);
+    // A track with no length -- internet radio -- plays from where it is.
+    // Every way of seeking (bar, arrow keys, R, Restart Track, Previous at the
+    // start of the playlist, MPRIS) comes through here, so it is refused here.
+    if (stream && !stream->canSeek()) {
+        Debug::log("player", "Player::seekTo: the track has no length; not seeking");
+        return;
+    }
     if (stream) {
         const unsigned long previous_pos_ms = stream->getPosition();
         const unsigned long total_len_ms = stream->getLength();
@@ -3117,12 +3124,17 @@ bool Player::updateGUI()
 
     // Now use the copied data for rendering, outside the lock.
     if(current_stream) {
+        // A track with no length (internet radio) shows how long it has
+        // played, and dashes for the length it does not have.
+        const std::string length_text = total_len_ms == 0
+            ? std::string("--:--.--")
+            : convertInt(total_len_ms / 60000)
+                + ":" + convertInt((total_len_ms / 1000) % 60, 2)
+                + "." + convertInt((total_len_ms / 10) % 100, 2);
         m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
                                 + ":" + convertInt((current_pos_ms / 1000) % 60, 2)
                                 + "." + convertInt((current_pos_ms / 10) % 100, 2)
-                                + "/" + convertInt(total_len_ms / 60000)
-                                + ":" + convertInt((total_len_ms / 1000) % 60, 2)
-                                + "." + convertInt((total_len_ms / 10) % 100, 2));
+                                + "/" + length_text);
         // Stay in TagLib::String space: round-tripping through std::string
         // invoked TagLib's implicit Latin-1 constructor on UTF-8 bytes, so
         // every multi-byte character became mojibake in the titlebar.
@@ -3171,7 +3183,14 @@ bool Player::updateGUI()
 
     // Update progress bar widget
     if (m_progress_widget) {
-        if (total_len_ms > 0) {
+        // A track with no length (internet radio): the bar is drawn full and
+        // cannot be seeked. A drag that was under way when it began is dropped.
+        const bool indefinite = current_stream && total_len_ms == 0;
+        m_progress_widget->setSeekable(!indefinite);
+        if (indefinite) {
+            m_is_dragging = false;
+            m_progress_widget->setProgress(1.0);
+        } else if (total_len_ms > 0) {
             unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : current_pos_ms;
             double progress = static_cast<double>(display_position_ms) / static_cast<double>(total_len_ms);
             if (m_is_dragging) {
@@ -3507,6 +3526,10 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_C: setDelay(2.0f); break;
 
         case SDLK_LEFT:
+            // Nothing to seek in a track with no length: no scrub, no arrow.
+            if (stream && !stream->canSeek()) {
+                break;
+            }
             // On the initial key press, capture the current position to seek from.
             if (m_seek_direction == 0 && stream) {
                 m_seek_position_ms = stream->getPosition();
@@ -3527,6 +3550,10 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_RIGHT:
+            // Nothing to seek in a track with no length: no scrub, no arrow.
+            if (stream && !stream->canSeek()) {
+                break;
+            }
             // On the initial key press, capture the current position to seek from.
             if (m_seek_direction == 0 && stream) {
                 m_seek_position_ms = stream->getPosition();
@@ -3650,7 +3677,8 @@ void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
     if (event.button == SDL_BUTTON_LEFT) {
         if (event.x >= 400 && event.x <= 620 &&
             event.y >= 374 && event.y <= 389) {
-            if (stream) {
+            // A track with no length cannot be seeked: ignore the click.
+            if (stream && stream->canSeek()) {
                 m_is_dragging = true;
                 // Don't seek here, just update the visual position and start the drag.
                 int relative_x = event.x - 400;
