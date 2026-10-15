@@ -300,6 +300,15 @@ protected:
     bool waitOrAbort(double seconds);
 
     /**
+     * @brief Have @p curl open its sockets through this handler, which keeps
+     *        them so abort() can shut them down: a transfer waiting on a
+     *        silent server then ends at once, not at curl's next progress
+     *        tick, about a second later.
+     * @param curl The transfer about to be performed.
+     */
+    void trackSockets(CURL* curl);
+
+    /**
      * @brief Total audio bytes received so far. Caller holds m_buf_mutex.
      * @return The offset just past the newest byte.
      */
@@ -318,6 +327,28 @@ protected:
 
     /** @brief Set by shutdown(): constructors refuse from then on. */
     static std::atomic<bool> s_shut_down;
+
+    /**
+     * @brief libcurl CURLOPT_OPENSOCKETFUNCTION: open the socket and keep it.
+     * @param self The handler.
+     * @param purpose What it is for.
+     * @param address Where it goes.
+     * @return The socket, or CURL_SOCKET_BAD.
+     */
+    static curl_socket_t openSocketCallback(void* self, curlsocktype purpose, struct curl_sockaddr* address);
+
+    /**
+     * @brief libcurl CURLOPT_CLOSESOCKETFUNCTION: forget the socket, close it.
+     * @param self The handler.
+     * @param socket The socket.
+     * @return 0.
+     */
+    static int closeSocketCallback(void* self, curl_socket_t socket);
+
+    /** @brief Guards m_sockets. */
+    std::mutex m_sockets_mutex;
+    /** @brief The sockets curl has open for this handler, for abort() to shut down. */
+    std::set<curl_socket_t> m_sockets;
 
 private:
     /**

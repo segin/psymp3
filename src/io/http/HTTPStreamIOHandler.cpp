@@ -239,6 +239,7 @@ bool HTTPStreamIOHandler::runConnection(std::string& error_text)
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, this);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &HTTPStreamIOHandler::writeCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
+    trackSockets(curl); // so abort() ends a wait on a silent server at once
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &HTTPStreamIOHandler::progressCallback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);

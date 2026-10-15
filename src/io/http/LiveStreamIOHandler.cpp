@@ -200,9 +200,82 @@ void LiveStreamIOHandler::stopWorker()
 void LiveStreamIOHandler::abort()
 {
     m_abort = true;
+    {
+        /*
+         * Wake a transfer waiting on the network now: shutting its sockets
+         * down makes their waits return, where curl would otherwise notice
+         * the abort only at its next progress tick, a second away on a
+         * silent connection. They stay open -- curl closes them.
+         */
+        std::lock_guard<std::mutex> lock(m_sockets_mutex);
+        for (curl_socket_t socket : m_sockets) {
+#ifdef _WIN32
+            ::shutdown(socket, SD_BOTH);
+#else
+            ::shutdown(socket, SHUT_RDWR);
+#endif
+        }
+    }
     std::lock_guard<std::mutex> lock(m_buf_mutex);
     m_space_cv.notify_all();
     m_data_cv.notify_all();
+}
+
+/**
+ * @brief Route @p curl's socket opening and closing through this handler.
+ * @param curl The transfer.
+ */
+void LiveStreamIOHandler::trackSockets(CURL* curl)
+{
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, &LiveStreamIOHandler::openSocketCallback);
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, this);
+    curl_easy_setopt(curl, CURLOPT_CLOSESOCKETFUNCTION, &LiveStreamIOHandler::closeSocketCallback);
+    curl_easy_setopt(curl, CURLOPT_CLOSESOCKETDATA, this);
+}
+
+/**
+ * @brief Open a socket as curl asks, and keep it for abort(). One opened
+ *        after the abort is shut down at once.
+ * @param self The handler.
+ * @param purpose What it is for (unused: every socket is tracked).
+ * @param address Family, type and protocol to open.
+ * @return The socket, or CURL_SOCKET_BAD.
+ */
+curl_socket_t LiveStreamIOHandler::openSocketCallback(void* self, curlsocktype, struct curl_sockaddr* address)
+{
+    auto* handler = static_cast<LiveStreamIOHandler*>(self);
+    const curl_socket_t socket = ::socket(address->family, address->socktype, address->protocol);
+    if (socket == CURL_SOCKET_BAD) return socket;
+    std::lock_guard<std::mutex> lock(handler->m_sockets_mutex);
+    handler->m_sockets.insert(socket);
+    if (handler->m_abort) {
+#ifdef _WIN32
+        ::shutdown(socket, SD_BOTH);
+#else
+        ::shutdown(socket, SHUT_RDWR);
+#endif
+    }
+    return socket;
+}
+
+/**
+ * @brief Forget and close a socket curl is done with.
+ * @param self The handler.
+ * @param socket The socket.
+ * @return 0.
+ */
+int LiveStreamIOHandler::closeSocketCallback(void* self, curl_socket_t socket)
+{
+    auto* handler = static_cast<LiveStreamIOHandler*>(self);
+    {
+        std::lock_guard<std::mutex> lock(handler->m_sockets_mutex);
+        handler->m_sockets.erase(socket);
+    }
+#ifdef _WIN32
+    return ::closesocket(socket);
+#else
+    return ::close(socket);
+#endif
 }
 
 /**

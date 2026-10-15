@@ -664,6 +664,7 @@ bool HLSIOHandler::fetch(const std::string& url, std::string& body, std::string*
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &HLSIOHandler::appendToString);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+    trackSockets(curl); // so abort() ends a wait on a silent server at once
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &HLSIOHandler::abortCheck);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);

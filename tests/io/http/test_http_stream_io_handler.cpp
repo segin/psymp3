@@ -378,7 +378,8 @@ protected:
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start).count();
         ASSERT_EQUALS(size_t(10), got, "the read returns what had arrived");
-        ASSERT_TRUE(ms < 3000, "the read returns promptly after close()");
+        // 200 ms of waiting first; curl's idle progress tick made it a second.
+        ASSERT_TRUE(ms < 600, "the read returns at once after close() (took " + std::to_string(ms) + " ms)");
         ASSERT_TRUE(h.eof(), "closed is EOF");
     }
 };
@@ -1019,7 +1020,8 @@ protected:
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start).count();
         ASSERT_TRUE(threw, "the constructor gives up with InvalidMediaException");
-        ASSERT_TRUE(ms < 3000, "promptly, not after the stall check");
+        // 200 ms of waiting first; curl's idle progress tick made it a second.
+        ASSERT_TRUE(ms < 600, "at once, not after the stall check (took " + std::to_string(ms) + " ms)");
         ASSERT_TRUE(group->isAborted(), "the group says it was aborted");
     }
 };
@@ -1100,7 +1102,8 @@ protected:
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - start).count();
         ASSERT_EQUALS(size_t(3), got, "the read returns what had arrived");
-        ASSERT_TRUE(ms < 3000, "promptly");
+        // 200 ms of waiting first; curl's idle progress tick made it a second.
+        ASSERT_TRUE(ms < 600, "at once (took " + std::to_string(ms) + " ms)");
     }
 };
 
