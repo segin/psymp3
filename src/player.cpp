@@ -1851,6 +1851,11 @@ std::vector<std::string> expandDroppedPaths(const std::vector<std::string>& drop
     const std::vector<std::string> media_exts = lowered(MediaFile::getSupportedExtensions());
     const std::vector<std::string> loose_exts = lowered(chooserExtensions());
     auto has_ext_in = [](const std::string& path, const std::vector<std::string>& exts) {
+        // A URL is taken whatever it is called: radio streams have names like
+        // ".../zc7001", and what they are is found out by opening them.
+        if (path.find("://") != std::string::npos) {
+            return true;
+        }
         const std::string ext = lowerExtension(path);
         return !ext.empty() && std::find(exts.begin(), exts.end(), ext) != exts.end();
     };
