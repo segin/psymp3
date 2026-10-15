@@ -67,6 +67,14 @@ namespace {
 bool isPlaylistPath(const TagLib::String& path)
 {
     std::string path_str = path.to8Bit(true);
+    // Local playlist files only. An http(s) URL is opened as a stream
+    // whatever it is called: radio URLs end in anything, and one ending
+    // .m3u8 is usually an HLS stream, which the file loader cannot fetch.
+    std::string scheme = path_str.substr(0, 8);
+    std::transform(scheme.begin(), scheme.end(), scheme.begin(), ::tolower);
+    if (scheme.compare(0, 7, "http://") == 0 || scheme.compare(0, 8, "https://") == 0) {
+        return false;
+    }
     size_t dot_pos = path_str.find_last_of('.');
     if (dot_pos == std::string::npos) {
         return false;

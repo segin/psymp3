@@ -29,6 +29,7 @@ protected:
         testLoadPlaylistWithComments();
         testResolveInlineSourcesPreservesOrder();
         testResolveInlineSourcesRecursesNestedPlaylists();
+        testResolveInlineSourcesKeepsStreamUrls();
         testLoadPlaylistWithInvalidDuration();
     }
 
@@ -175,6 +176,29 @@ private:
 
         std::remove(inner_playlist.c_str());
         std::remove(outer_playlist.c_str());
+    }
+
+    /**
+     * @brief Stream URLs stay single entries whatever they are called: one
+     *        ending .m3u8 (an HLS stream) is not read as a local playlist
+     *        file, and one with no extension is kept as it is.
+     */
+    void testResolveInlineSourcesKeepsStreamUrls() {
+        std::vector<TagLib::String> sources = {
+            TagLib::String("http://stream.revma.ihrhls.com/zc7001/hls.m3u8", TagLib::String::UTF8),
+            TagLib::String("HTTPS://example.com/list.m3u", TagLib::String::UTF8),
+            TagLib::String("https://cloud.revma.ihrhls.com/zc7001", TagLib::String::UTF8),
+        };
+
+        auto resolved = Playlist::resolveInlineSources(sources);
+
+        ASSERT_EQUALS(3, resolved.size(), "Each URL is one entry");
+        ASSERT_EQUALS(std::string("http://stream.revma.ihrhls.com/zc7001/hls.m3u8"), resolved[0].path.to8Bit(true),
+                      "An .m3u8 URL is kept, not loaded as a playlist file");
+        ASSERT_EQUALS(std::string("HTTPS://example.com/list.m3u"), resolved[1].path.to8Bit(true),
+                      "The scheme is matched without regard to case");
+        ASSERT_EQUALS(std::string("https://cloud.revma.ihrhls.com/zc7001"), resolved[2].path.to8Bit(true),
+                      "A URL without an extension is kept");
     }
 
     void testLoadPlaylistWithInvalidDuration() {
