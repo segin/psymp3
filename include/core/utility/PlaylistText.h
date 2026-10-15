@@ -123,8 +123,9 @@ private:
     static std::vector<PlaylistItem> parseXSPF(const std::string& text);
 
     /**
-     * @brief ASX: each entry's ref href (the first), title and author, and
-     *        each entryref href; element and attribute names in any case.
+     * @brief ASX: each entry's ref href (the first http(s) one or path, else
+     *        the first), title and author, and each entryref href; element
+     *        and attribute names in any case.
      * @param text The playlist.
      * @return Its entries.
      */

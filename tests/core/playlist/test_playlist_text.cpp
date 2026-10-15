@@ -91,7 +91,8 @@ private:
             "<ref href=\"http://stream.example.com/fallback\"/></Entry>\n"
             "<ENTRYREF HREF=\"http://example.com/more.asx\"/>\n</ASX>\n", PlaylistFormat::ASX);
         ASSERT_EQUALS(size_t(2), items.size(), "ASX: an entry and an entryref");
-        ASSERT_EQUALS(std::string("mms://stream.example.com/live"), items[0].location, "ASX: the first ref");
+        ASSERT_EQUALS(std::string("http://stream.example.com/fallback"), items[0].location,
+                      "ASX: the first ref that can be opened, not the mms:// before it");
         ASSERT_EQUALS(std::string("Live"), items[0].title, "ASX: title");
         ASSERT_EQUALS(std::string("DJ"), items[0].artist, "ASX: author is the artist");
         ASSERT_EQUALS(std::string("http://example.com/more.asx"), items[1].location, "ASX: entryref");

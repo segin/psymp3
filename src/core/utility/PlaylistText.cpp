@@ -313,11 +313,21 @@ std::vector<PlaylistItem> PlaylistText::parseASX(const std::string& text)
             return;
         }
         if (name != "entry") return;
+        /*
+         * An entry's refs are alternatives, often mms:// first with an http
+         * fallback: take the first one that can be opened here (http(s), or
+         * a path), else the first there is.
+         */
         PlaylistItem item;
         for (pugi::xml_node child = node.first_child(); child; child = child.next_sibling()) {
-            if (child.type() == pugi::node_element && plLocalName(child) == "ref") {
-                item.location = plAttribute(child, "href");
-                if (!item.location.empty()) break;
+            if (child.type() != pugi::node_element || plLocalName(child) != "ref") continue;
+            const std::string href = plAttribute(child, "href");
+            if (href.empty()) continue;
+            if (item.location.empty()) item.location = href;
+            const std::string scheme = plLower(href.substr(0, 8));
+            if (!isUrl(href) || scheme.compare(0, 7, "http://") == 0 || scheme.compare(0, 8, "https://") == 0) {
+                item.location = href;
+                break;
             }
         }
         if (item.location.empty()) return;
