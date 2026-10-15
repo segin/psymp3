@@ -151,7 +151,13 @@ void HTTPStreamIOHandler::runWorker()
             // that ended. A file served without a length, or a playlist, must
             // not be fetched again from the start. (A first response with an
             // error status fails the constructor, which stops this.)
-            reconnectable = m_headers_ready && m_icy && !m_failed && reconnectAttempts() > 0;
+            /*
+             * Nor when the first reply had a length (m_station), which was a
+             * whole file however it was labelled, nor a reply being read
+             * whole as a playlist.
+             */
+            reconnectable = m_headers_ready && m_station && !m_failed &&
+                            !m_no_reconnect && reconnectAttempts() > 0;
             // A reconnection the station answered with an error -- with or
             // without a body -- is a failed attempt like any other.
             if (reconnectable && m_status >= 400 && error_text.empty()) {
@@ -179,6 +185,11 @@ void HTTPStreamIOHandler::runWorker()
                    error_text.empty() ? std::string("closed") : error_text, "); reconnecting in ",
                    delay, " s, attempt ", failures_in_a_row, " of ", reconnectAttempts());
         if (!waitOrAbort(delay)) break;
+        if (m_no_reconnect) {
+            // Read whole as a playlist after all, while we waited.
+            finishWorker(failed, error_text);
+            return;
+        }
         {
             std::lock_guard<std::mutex> lock(m_buf_mutex);
             startConnection_unlocked();
@@ -436,6 +447,11 @@ void HTTPStreamIOHandler::markHeadersReady_unlocked()
         return;
     }
     m_headers_ready = true;
+    /*
+     * Whether to reconnect is the station's question, settled by its first
+     * answer -- not by a later refusal's own headers.
+     */
+    m_station = m_icy && m_content_length < 0;
     m_data_cv.notify_all();
 }
 
@@ -787,6 +803,14 @@ bool HTTPStreamIOHandler::isLive() const
 }
 
 /**
+ * @brief Read this reply whole and never connect again.
+ */
+void HTTPStreamIOHandler::disableReconnect()
+{
+    m_no_reconnect = true;
+}
+
+/**
  * @brief Content-Type stripped of parameters and lower-cased.
  * @return E.g. "audio/mpeg", or "" when the server sent none.
  */
@@ -925,15 +949,29 @@ std::unique_ptr<IOHandler> openHTTPIOHandlerFollowing(const std::string& url, in
     const size_t dot = path.rfind('.');
     const std::string extension = dot != std::string::npos && (slash == std::string::npos || dot > slash)
                                 ? path.substr(dot + 1) : std::string();
-    PlaylistFormat format = PlaylistText::formatForMimeType(stream->getMimeType());
-    if (format == PlaylistFormat::Unknown) format = PlaylistText::formatForExtension(extension);
-    if (format != PlaylistFormat::Unknown || HLSIOHandler::looksLikeHLS(stream->getMimeType(), url)) {
+    const std::string mime = stream->getMimeType();
+    PlaylistFormat format = PlaylistText::formatForMimeType(mime);
+    /*
+     * The name decides only when the type does not: a reply that says it is
+     * audio is a stream, whatever its URL ends in.
+     */
+    if (format == PlaylistFormat::Unknown && mime.compare(0, 6, "audio/") != 0) {
+        format = PlaylistText::formatForExtension(extension);
+    }
+    if (format != PlaylistFormat::Unknown || HLSIOHandler::looksLikeHLS(mime, url)) {
+        // Read whole: a playlist that ends is not a station that dropped.
+        stream->disableReconnect();
         std::string text;
         char buf[8192];
         while (text.size() < MAX_PLAYLIST_BYTES) {
             const size_t n = stream->read(buf, 1, sizeof buf);
             if (n == 0) break;
             text.append(buf, n);
+        }
+        if (stream->getLastError() != 0) {
+            // Cut off part-way, its last entry may be half a URL.
+            throw InvalidMediaException("Cannot open " + url + ": the playlist could not be read: " +
+                                        std::strerror(stream->getLastError()));
         }
         stream.reset();
         if (text.find("#EXT-X-") != std::string::npos) {

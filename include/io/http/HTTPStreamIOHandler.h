@@ -82,6 +82,12 @@ public:
     bool isLive() const;
 
     /**
+     * @brief Never connect again once this response ends: for a reply being
+     *        read whole (a playlist), which a reconnection would only repeat.
+     */
+    void disableReconnect();
+
+    /**
      * @brief The station's name from its icy-name header, decoded as
      *        decodeIcyText() does.
      * @return The name, or "" when the server gave none.
@@ -307,6 +313,11 @@ private:
     uint64_t m_conn_audio_bytes = 0;  // audio this connection delivered (worker thread)
     filesize_t m_conn_start = 0;      // audio offset this connection's audio begins at
     bool m_conn_titled = false;       // this connection has announced a title
+    /** @brief The first response was an ICY stream without a length: a station worth reconnecting to. */
+    bool m_station = false;
+    /** @brief Set by disableReconnect(): the reply is read whole, not played. */
+    std::atomic<bool> m_no_reconnect{false};
+
     // ICY v1 header block being collected from the front of the body.
     bool m_icy_v1_done = false;
     std::string m_icy_v1_header;

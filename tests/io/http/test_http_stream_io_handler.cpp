@@ -721,6 +721,65 @@ protected:
 };
 
 /**
+ * @brief What openHTTPIOHandler() does with replies that are not quite what
+ *        their labels say: a playlist with ICY headers is fetched once (it
+ *        used to be re-fetched as a dropped station); a playlist cut off
+ *        part-way is refused (its last entry was opened half-written); and
+ *        audio at a URL ending .pls is played (it used to be read as a
+ *        playlist).
+ */
+class ListenLinkLabelTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    ListenLinkLabelTest() : TestCase("Listen links: ICY playlist fetched once, cut playlist refused, audio named .pls") {}
+protected:
+    /** @brief One case each. */
+    void runTest() override {
+        const int saved = HTTPStreamIOHandler::reconnectAttempts();
+        HTTPStreamIOHandler::setReconnectAttempts(2);
+        {
+            const std::string audio = patternBytes(20000);
+            FakeServer station([&](const FakeServer::Send& send) {
+                send("HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: Real FM\r\n\r\n" + audio);
+            });
+            SequenceServer listen([&](int, const FakeServer::Send& send) {
+                send("HTTP/1.0 200 OK\r\nContent-Type: audio/x-scpls\r\nicy-name: Listen\r\n\r\n"
+                     "[playlist]\nFile1=" + station.url() + "\nNumberOfEntries=1\n");
+            });
+            auto h = PsyMP3::IO::HTTP::openHTTPIOHandler(listen.url());
+            ASSERT_TRUE(h->isLiveStream(), "the station behind the playlist opened");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            ASSERT_EQUALS(1, listen.connections(), "the playlist was fetched once, not reconnected to");
+        }
+        {
+            SequenceServer listen([&](int, const FakeServer::Send& send) {
+                send("HTTP/1.1 200 OK\r\nContent-Type: audio/x-scpls\r\nContent-Length: 400\r\n\r\n"
+                     "[playlist]\nFile1=http://exam");
+            });
+            bool refused = false;
+            try {
+                PsyMP3::IO::HTTP::openHTTPIOHandler(listen.url());
+            } catch (const InvalidMediaException& e) {
+                refused = std::string(e.what()).find("could not be read") != std::string::npos;
+            }
+            ASSERT_TRUE(refused, "a playlist cut off part-way is refused");
+        }
+        {
+            const std::string audio = patternBytes(20000);
+            FakeServer station([&](const FakeServer::Send& send) {
+                send("HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: Named FM\r\n\r\n" + audio);
+            });
+            auto h = PsyMP3::IO::HTTP::openHTTPIOHandler(station.url() + ".pls");
+            ASSERT_TRUE(h->isLiveStream(), "audio at a .pls URL is the stream");
+            std::string got(1000, '\0');
+            ASSERT_EQUALS(got.size(), h->read(&got[0], 1, got.size()), "and plays");
+            ASSERT_TRUE(got == audio.substr(0, 1000), "from its first byte");
+        }
+        HTTPStreamIOHandler::setReconnectAttempts(saved);
+    }
+};
+
+/**
  * @brief A stream of silent MPEG-1 Layer III frames (128 kbps, 44.1 kHz).
  * @param frames How many.
  * @return Their bytes.
@@ -1007,6 +1066,7 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<StreamAbortIOTest>());
     suite.addTest(std::make_unique<ShoutcastV1EdgeTest>());
     suite.addTest(std::make_unique<TruncatedV1HeadTest>());
+    suite.addTest(std::make_unique<ListenLinkLabelTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
