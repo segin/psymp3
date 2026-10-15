@@ -80,9 +80,9 @@ bool isPlaylistPath(const TagLib::String& path)
         return false;
     }
 
-    std::string extension = path_str.substr(dot_pos + 1);
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-    return extension == "m3u" || extension == "m3u8";
+    // M3U, PLS, XSPF and ASX (see Core::Utility::PlaylistText).
+    return PsyMP3::Core::Utility::PlaylistText::formatForExtension(path_str.substr(dot_pos + 1)) !=
+           PsyMP3::Core::Utility::PlaylistFormat::Unknown;
 }
 
 std::string buildPlaylistResolutionKey(const TagLib::String& path)
@@ -742,7 +742,7 @@ static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String
 }
 
 /**
- * @brief Loads a playlist from a file (M3U or M3U8 format).
+ * @brief Loads a playlist from a file (M3U/M3U8, PLS, XSPF or ASX).
  *
  * This static factory method parses the specified file, resolving relative paths
  * and reading EXTINF metadata.
@@ -783,68 +783,54 @@ std::vector<Playlist::Entry> Playlist::loadPlaylistEntries(TagLib::String path)
         playlist_dir = TagLib::String("./", TagLib::String::UTF8); // Current directory if no path
     }
 
-    std::string line;
-    TagLib::String next_track_artist;
-    TagLib::String next_track_title;
-    long next_track_duration = 0;
+    // M3U, PLS, XSPF or ASX: by what the text says it is, else by name.
+    using PsyMP3::Core::Utility::PlaylistFormat;
+    using PsyMP3::Core::Utility::PlaylistText;
+    const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.close();
+    const size_t dot = path_str.find_last_of('.');
+    const PlaylistFormat format = PlaylistText::detect(
+        text, PlaylistText::formatForExtension(dot == std::string::npos ? std::string() : path_str.substr(dot + 1)));
 
-    while (std::getline(file, line)) {
-        // Trim whitespace from the line
-        line.erase(0, line.find_first_not_of(" \t\r\n"));
-        line.erase(line.find_last_not_of(" \t\r\n") + 1);
-
-        if (line.empty()) {
-            continue;
-        }
-
-        if (line.rfind("#EXTINF:", 0) == 0) { // Starts with #EXTINF:
-            // Parse #EXTINF:duration,Artist - Title
-            size_t comma_pos = line.find(',');
-            if (comma_pos != std::string::npos) {
-                std::string duration_str = line.substr(8, comma_pos - 8); // Skip "#EXTINF:"
-                try {
-                    next_track_duration = std::stol(duration_str);
-                } catch (const std::exception& e) {
-                    Debug::log("playlist", "Playlist::loadPlaylist(): Invalid duration in EXTINF: ", duration_str);
-                    next_track_duration = 0;
-                }
-
-                std::string title_artist_str = line.substr(comma_pos + 1);
-                size_t dash_pos = title_artist_str.find(" - ");
-                if (dash_pos != std::string::npos) {
-                    next_track_artist = TagLib::String(title_artist_str.substr(0, dash_pos), TagLib::String::UTF8);
-                    next_track_title = TagLib::String(title_artist_str.substr(dash_pos + 3), TagLib::String::UTF8);
-                } else {
-                    next_track_title = TagLib::String(title_artist_str, TagLib::String::UTF8);
-                    next_track_artist = TagLib::String(); // No artist specified
-                }
-            }
-        } else if (line[0] == '#') { // Other comments
-            continue;
-        } else { // It's a track path
-            TagLib::String track_path(line, TagLib::String::UTF8);
-            TagLib::String final_track_path;
-
-            if (isAbsolutePath(track_path)) {
-                final_track_path = track_path;
-            } else {
-                final_track_path = joinPaths(playlist_dir, track_path);
-            }
-            entries.push_back(Entry{
-                final_track_path,
-                next_track_artist,
-                next_track_title,
-                next_track_duration
-            });
-            // Reset EXTINF data for the next track
-            next_track_artist = TagLib::String();
-            next_track_title = TagLib::String();
-            next_track_duration = 0;
+    for (const auto& item : PlaylistText::parse(text, format)) {
+        entries.push_back(Entry{
+            resolvePlaylistLocation(playlist_dir, item.location, format == PlaylistFormat::XSPF),
+            TagLib::String(item.artist, TagLib::String::UTF8),
+            TagLib::String(item.title, TagLib::String::UTF8),
+            item.duration_seconds
+        });
+        if (entries.back().path.isEmpty()) {
+            entries.pop_back(); // a location that tried to leave the playlist's folder
         }
     }
-
-    file.close();
     return entries;
+}
+
+/**
+ * @brief Make a playlist's location something PsyMP3 can open: a URL stays
+ *        as written (internet radio, whatever it is called); a file:// URI
+ *        becomes its path; an absolute path stays; a relative one is taken
+ *        from the playlist's folder (and refused if it climbs out with ..).
+ * @param playlist_dir The playlist's folder, with its trailing separator.
+ * @param location As the playlist writes it.
+ * @param percent_encoded Whether relative locations are URI references with
+ *        %XX escapes (XSPF writes them so).
+ * @return The path or URL, or empty if refused.
+ */
+TagLib::String Playlist::resolvePlaylistLocation(const TagLib::String& playlist_dir,
+                                                 const std::string& location, bool percent_encoded)
+{
+    using PsyMP3::Core::Utility::PlaylistText;
+    if (PlaylistText::isUrl(location)) {
+        const std::string file_path = PlaylistText::fileUriToPath(location);
+        if (file_path.empty()) {
+            return TagLib::String(location, TagLib::String::UTF8);
+        }
+        return TagLib::String(file_path, TagLib::String::UTF8);
+    }
+    const TagLib::String path(percent_encoded ? PlaylistText::percentDecode(location) : location,
+                              TagLib::String::UTF8);
+    return isAbsolutePath(path) ? path : joinPaths(playlist_dir, path);
 }
 
 std::vector<Playlist::Entry> Playlist::resolveInlineSources(const std::vector<TagLib::String>& sources)

@@ -30,6 +30,8 @@ protected:
         testResolveInlineSourcesPreservesOrder();
         testResolveInlineSourcesRecursesNestedPlaylists();
         testResolveInlineSourcesKeepsStreamUrls();
+        testLoadKeepsUrlLines();
+        testLoadOtherFormats();
         testLoadPlaylistWithInvalidDuration();
     }
 
@@ -199,6 +201,56 @@ private:
                       "The scheme is matched without regard to case");
         ASSERT_EQUALS(std::string("https://cloud.revma.ihrhls.com/zc7001"), resolved[2].path.to8Bit(true),
                       "A URL without an extension is kept");
+    }
+
+    /**
+     * @brief A URL line in a local .m3u stays the URL; it used to be glued
+     *        onto the playlist's folder, giving "./http://...".
+     */
+    void testLoadKeepsUrlLines() {
+        std::string filename = createTempM3U(
+            "#EXTM3U\n#EXTINF:-1,Rock 181\nhttps://listen.181fm.com/181-rock_128k.mp3\nlocal.flac\n",
+            "temp_url_lines.m3u");
+        auto entries = Playlist::loadPlaylistEntries(TagLib::String(filename, TagLib::String::UTF8));
+        ASSERT_EQUALS(2, entries.size(), "two entries");
+        ASSERT_EQUALS(std::string("https://listen.181fm.com/181-rock_128k.mp3"), entries[0].path.to8Bit(true),
+                      "the URL as written");
+        ASSERT_EQUALS(std::string("./local.flac"), entries[1].path.to8Bit(true), "a relative path from the folder");
+        std::remove(filename.c_str());
+    }
+
+    /**
+     * @brief .pls, .xspf and .asx files load: URLs kept, file:// URIs made
+     *        paths, XSPF's percent-escaped relative locations decoded.
+     */
+    void testLoadOtherFormats() {
+        std::string pls = createTempM3U(
+            "[playlist]\nFile1=http://ice.example.com/radio\nTitle1=Example FM\nLength1=-1\nNumberOfEntries=1\n",
+            "temp_station.pls");
+        auto entries = Playlist::loadPlaylistEntries(TagLib::String(pls, TagLib::String::UTF8));
+        ASSERT_EQUALS(1, entries.size(), "PLS: one entry");
+        ASSERT_EQUALS(std::string("http://ice.example.com/radio"), entries[0].path.to8Bit(true), "PLS: the URL");
+        ASSERT_EQUALS(std::string("Example FM"), entries[0].title.to8Bit(true), "PLS: the title");
+        std::remove(pls.c_str());
+
+        std::string xspf = createTempM3U(
+            "<?xml version=\"1.0\"?><playlist version=\"1\" xmlns=\"http://xspf.org/ns/0/\"><trackList>"
+            "<track><location>file:///music/a%20b.flac</location></track>"
+            "<track><location>sub/c%20d.mp3</location></track>"
+            "</trackList></playlist>", "temp_list.xspf");
+        entries = Playlist::loadPlaylistEntries(TagLib::String(xspf, TagLib::String::UTF8));
+        ASSERT_EQUALS(2, entries.size(), "XSPF: two entries");
+        ASSERT_EQUALS(std::string("/music/a b.flac"), entries[0].path.to8Bit(true), "XSPF: file URI to path");
+        ASSERT_EQUALS(std::string("./sub/c d.mp3"), entries[1].path.to8Bit(true), "XSPF: relative, decoded");
+        std::remove(xspf.c_str());
+
+        std::string asx = createTempM3U(
+            "<asx version=\"3.0\"><entry><title>Live</title><ref href=\"http://stream.example.com/live\"/></entry></asx>",
+            "temp_station.asx");
+        entries = Playlist::loadPlaylistEntries(TagLib::String(asx, TagLib::String::UTF8));
+        ASSERT_EQUALS(1, entries.size(), "ASX: one entry");
+        ASSERT_EQUALS(std::string("http://stream.example.com/live"), entries[0].path.to8Bit(true), "ASX: the URL");
+        std::remove(asx.c_str());
     }
 
     void testLoadPlaylistWithInvalidDuration() {

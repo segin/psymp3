@@ -110,6 +110,20 @@ class Playlist
         void setShuffle(bool enabled);
         bool isShuffle() const;
         static std::vector<Entry> loadPlaylistEntries(TagLib::String path);
+
+        /**
+         * @brief Make a playlist's location something PsyMP3 can open: a URL
+         *        stays as written, a file:// URI becomes its path, an absolute
+         *        path stays, a relative one is taken from the playlist's folder
+         *        (and refused if it climbs out with "..").
+         * @param playlist_dir The playlist's folder, with its trailing separator.
+         * @param location As the playlist writes it.
+         * @param percent_encoded Whether relative locations carry %XX escapes
+         *        (XSPF writes URI references).
+         * @return The path or URL, or empty if refused.
+         */
+        static TagLib::String resolvePlaylistLocation(const TagLib::String& playlist_dir,
+                                                      const std::string& location, bool percent_encoded);
         static std::vector<Entry> resolveInlineSources(const std::vector<TagLib::String>& sources);
         static std::unique_ptr<Playlist> loadPlaylist(TagLib::String path);
         void savePlaylist(TagLib::String path);
