@@ -175,6 +175,11 @@ private:
     /// Internet radio (Demuxer::isLiveSource()). Its granules restart with
     /// every chained link, so positions are counted from the decoded audio.
     bool m_live = false;
+    /// The current stream's StreamInfo, kept by setupCodec() so the GUI's
+    /// getters need not ask the demuxer: its getStreamInfo() takes the lock
+    /// readChunk() holds while the decoder waits on a stalled station.
+    StreamInfo m_stream_info_cache;
+    mutable std::mutex m_stream_info_cache_mutex;
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real
     // livelock) apart from "decoded to nothing but consumed input" (damage).
@@ -239,6 +244,13 @@ private:
      * @return true to go on decoding; false when the stream has been ended.
      */
     bool restartCodecForNewLink();
+
+    /**
+     * @brief The current stream's StreamInfo as setupCodec() last saw it,
+     *        without asking the demuxer (see m_stream_info_cache).
+     * @return A copy; empty before the first codec was set up.
+     */
+    StreamInfo cachedStreamInfo() const;
 
     /**
      * @brief Fill the chunk buffer by reading compressed bitstream data

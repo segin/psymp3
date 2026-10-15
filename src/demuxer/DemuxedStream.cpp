@@ -121,7 +121,11 @@ bool DemuxedStream::setupCodec() {
         Debug::log("demux", "DemuxedStream::setupCodec() failed: stream_id is 0");
         return false;
     }
-    
+    {
+        std::lock_guard<std::mutex> lock(m_stream_info_cache_mutex);
+        m_stream_info_cache = stream_info;
+    }
+
     m_codec = AudioCodecFactory::createCodec(stream_info);
     if (!m_codec) {
         Debug::log("demux", "DemuxedStream::setupCodec() failed: createCodec returned nullptr for codec_name=", stream_info.codec_name);
@@ -139,6 +143,15 @@ bool DemuxedStream::setupCodec() {
  *        stream if the link cannot continue on the open audio device.
  * @return true to go on decoding the link.
  */
+/**
+ * @brief Copy the StreamInfo setupCodec() last stored.
+ * @return The copy.
+ */
+StreamInfo DemuxedStream::cachedStreamInfo() const {
+    std::lock_guard<std::mutex> lock(m_stream_info_cache_mutex);
+    return m_stream_info_cache;
+}
+
 bool DemuxedStream::restartCodecForNewLink() {
     const long rate = m_rate;
     const int channels = m_channels;
@@ -1040,6 +1053,14 @@ unsigned int DemuxedStream::getLength() {
     if (m_length) {
         return m_length;
     }
+    // Internet radio has no length, and asking would cost more than nothing:
+    // the GUI asks every frame, and the demuxer's getDuration() waits on the
+    // lock its readChunk() holds while the decoder waits for a station that
+    // has gone quiet -- which froze the whole window until the stall check
+    // gave up.
+    if (m_live) {
+        return 0;
+    }
     if (m_demuxer) {
         m_length = static_cast<unsigned int>(m_demuxer->getDuration());
         return m_length;
@@ -1187,6 +1208,12 @@ StreamInfo DemuxedStream::getCurrentStreamInfo() const {
     if (!m_demuxer) {
         return StreamInfo{};
     }
+    // From the copy setupCodec() keeps, once there is one: the GUI calls
+    // this, and the demuxer's own answer can wait on a stalled station.
+    StreamInfo cached = cachedStreamInfo();
+    if (cached.stream_id != 0) {
+        return cached;
+    }
     return m_demuxer->getStreamInfo(m_current_stream_id);
 }
 
@@ -1222,7 +1249,7 @@ TagLib::String DemuxedStream::getArtist() {
         }
 
         // Fall back to StreamInfo metadata (legacy path for Ogg files)
-        StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+        StreamInfo stream_info = getCurrentStreamInfo();
         if (!stream_info.artist.empty()) {
             return TagLib::String(stream_info.artist, TagLib::String::UTF8);
         }
@@ -1316,7 +1343,7 @@ TagLib::String DemuxedStream::getTitle() {
             }
         }
 
-        StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+        StreamInfo stream_info = getCurrentStreamInfo();
         if (!stream_info.title.empty()) {
             return TagLib::String(stream_info.title, TagLib::String::UTF8);
         }
@@ -1335,7 +1362,7 @@ TagLib::String DemuxedStream::getAlbum() {
             }
         }
 
-        StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+        StreamInfo stream_info = getCurrentStreamInfo();
         if (!stream_info.album.empty()) {
             return TagLib::String(stream_info.album, TagLib::String::UTF8);
         }
