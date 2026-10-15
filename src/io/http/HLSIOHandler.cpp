@@ -386,6 +386,31 @@ std::string HLSIOHandler::getMimeType() const
     return m_mime_type;
 }
 
+namespace {
+
+/** @brief The stall limit every HLS handler uses (see setStallSeconds()). */
+std::atomic<int> g_hls_stall_seconds{HLSIOHandler::STALL_SECONDS};
+
+} // namespace
+
+/**
+ * @brief Set the stall limit for every handler from now on.
+ * @param seconds The limit.
+ */
+void HLSIOHandler::setStallSeconds(int seconds)
+{
+    g_hls_stall_seconds = seconds;
+}
+
+/**
+ * @brief The stall limit in effect.
+ * @return It.
+ */
+int HLSIOHandler::stallSeconds()
+{
+    return g_hls_stall_seconds;
+}
+
 /**
  * @brief Download segments in sequence, reloading the media playlist for
  *        more, until it ends, fails or the handler is aborted.
@@ -400,6 +425,8 @@ void HLSIOHandler::runWorker()
     std::string last_uri;
 
     while (!m_abort) {
+        /** @brief When this reload began, which the next one is timed from (RFC 8216 §6.3.4). */
+        const auto reload_started = std::chrono::steady_clock::now();
         body.clear();
         if (!fetch(m_media_url, body, nullptr, &effective, error)) {
             if (m_abort) break;
@@ -414,6 +441,17 @@ void HLSIOHandler::runWorker()
         const Playlist pl = parsePlaylist(body);
         if (!pl.valid || pl.unsupported) {
             finishWorker(true, pl.unsupported ? pl.unsupported_reason : std::string("bad media playlist"));
+            return;
+        }
+        /*
+         * A live playlist that keeps answering but brings no new segment --
+         * a dead encoder, a CDN serving a stale copy -- is a stalled station:
+         * end it, as a silent ICY stream ends, rather than play nothing for
+         * ever.
+         */
+        const int stall_limit = std::max(stallSeconds(), static_cast<int>(3 * pl.target_duration));
+        if (!pl.ended && stalledFor(stall_limit)) {
+            finishWorker(true, "no new segments for " + std::to_string(stall_limit) + " seconds");
             return;
         }
         if (pl.segments.empty()) {
@@ -470,7 +508,17 @@ void HLSIOHandler::runWorker()
             if (seg.sequence < next_sequence) continue;
             std::string data;
             const std::string seg_url = resolveUrl(effective.empty() ? m_media_url : effective, seg.uri);
-            if (!fetch(seg_url, data, &content_type, nullptr, error)) {
+            bool fetched = fetch(seg_url, data, &content_type, nullptr, error);
+            /*
+             * A segment listed before the CDN edge has it, or one slow
+             * request: try again shortly before losing its audio.
+             */
+            for (int retry = 0; !fetched && !m_abort && retry < SEGMENT_RETRIES; ++retry) {
+                if (!waitOrAbort(0.5)) break;
+                data.clear();
+                fetched = fetch(seg_url, data, &content_type, nullptr, error);
+            }
+            if (!fetched) {
                 if (m_abort) break;
                 Debug::log("http", "HLSIOHandler: segment ", seg.sequence, " failed: ", error, "; skipping it");
                 next_sequence = seg.sequence + 1;
@@ -507,8 +555,15 @@ void HLSIOHandler::runWorker()
         }
         if (m_abort) break;
         if (pl.ended && next_sequence > last_seq) break;
-        // Nothing new: wait about half a target duration before asking again.
-        if (!any && !waitOrAbort(std::max(1.0, pl.target_duration / 2))) break;
+        if (pl.ended) continue; // the rest of a finished playlist: no waiting
+        /*
+         * RFC 8216 §6.3.4: after a reload that brought new segments, wait the
+         * target duration from when that reload began; after one that did
+         * not, half of it.
+         */
+        const double interval = std::max(1.0, any ? pl.target_duration : pl.target_duration / 2);
+        const double spent = std::chrono::duration<double>(std::chrono::steady_clock::now() - reload_started).count();
+        if (spent < interval && !waitOrAbort(interval - spent)) break;
     }
     finishWorker(false, std::string());
 }
@@ -608,7 +663,10 @@ bool HLSIOHandler::fetch(const std::string& url, std::string& body, std::string*
         error = "server answered " + std::to_string(status);
         return false;
     }
-    noteActivity();
+    /*
+     * Not noteActivity(): a playlist that answers but never grows is a stall.
+     * Audio arriving is activity, which appendAudio() notes.
+     */
     return true;
 }
 

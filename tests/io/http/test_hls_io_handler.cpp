@@ -160,6 +160,7 @@ public:
         int status = 200;          ///< HTTP status
         std::string type;          ///< Content-Type
         std::string body;          ///< body
+        int fail_first = 0;        ///< answer 404 to this many requests first
     };
 
     /**
@@ -253,7 +254,7 @@ private:
             std::lock_guard<std::mutex> lock(m_mutex);
             ++m_hits[path];
             auto it = m_replies.find(path);
-            if (it == m_replies.end()) {
+            if (it == m_replies.end() || m_hits[path] <= it->second.fail_first) {
                 reply.status = 404;
             } else {
                 reply = it->second;
@@ -457,6 +458,80 @@ protected:
     }
 };
 
+/**
+ * @brief The worker's timing: a station whose playlist answers but never
+ *        grows is given up (it used to play silence for ever, each reload
+ *        counting as activity); a segment that fails once is fetched again
+ *        rather than skipped; and a reload that brought new segments is
+ *        followed by a full target duration's wait (RFC 8216 §6.3.4), not
+ *        another reload at once.
+ */
+class WorkerTimingTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    WorkerTimingTest() : TestCase("HLS: a frozen playlist ends, a failed segment is retried, reloads are paced") {}
+protected:
+    /** @brief One station each. */
+    void runTest() override {
+        {
+            // Never grows; target duration 1, so the 1 s limit gives way to 3 s.
+            const int saved = HLSIOHandler::stallSeconds();
+            HLSIOHandler::setStallSeconds(1);
+            std::map<std::string, PathServer::Reply> replies;
+            for (int n = 0; n < 3; ++n) {
+                replies["/f/seg" + std::to_string(n) + ".aac"] = {200, "audio/aac", servedSegment(n)};
+            }
+            std::string frozen = "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:0\n";
+            for (int n = 0; n < 3; ++n) frozen += "#EXTINF:1,\nseg" + std::to_string(n) + ".aac\n";
+            replies["/f/live.m3u8"] = {200, "application/vnd.apple.mpegurl", frozen};
+            PathServer server(replies);
+            auto handler = PsyMP3::IO::HTTP::openHTTPIOHandler(server.base() + "/f/live.m3u8");
+            ASSERT_EQUALS(size_t(9000), readExactly(*handler, 9000).size(), "the window plays");
+            const auto t0 = std::chrono::steady_clock::now();
+            const std::string rest = readRest(*handler);
+            const auto s = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count();
+            HLSIOHandler::setStallSeconds(saved);
+            ASSERT_TRUE(rest.empty(), "nothing more came");
+            ASSERT_EQUALS(EIO, handler->getLastError(), "the station is given up as an error");
+            ASSERT_TRUE(s <= 10, "within the limit, not never (took " + std::to_string(s) + " s)");
+        }
+        {
+            std::map<std::string, PathServer::Reply> replies;
+            for (int n = 0; n < 3; ++n) {
+                replies["/r/seg" + std::to_string(n) + ".aac"] = {200, "audio/aac", servedSegment(n)};
+            }
+            replies["/r/seg1.aac"].fail_first = 1;
+            replies["/r/live.m3u8"] = {200, "application/vnd.apple.mpegurl", mediaPlaylist(0, {0, 1, 2}, true)};
+            PathServer server(replies);
+            auto handler = PsyMP3::IO::HTTP::openHTTPIOHandler(server.base() + "/r/live.m3u8");
+            ASSERT_TRUE(readRest(*handler) == segmentAudio(0) + segmentAudio(1) + segmentAudio(2),
+                        "the segment that failed once is played, not skipped");
+            ASSERT_EQUALS(2, server.hits("/r/seg1.aac"), "fetched again after the failure");
+        }
+        {
+            std::map<std::string, PathServer::Reply> replies;
+            for (int n = 0; n < 3; ++n) {
+                replies["/p/seg" + std::to_string(n) + ".aac"] = {200, "audio/aac", servedSegment(n)};
+            }
+            replies["/p/live.m3u8"] = {200, "application/vnd.apple.mpegurl", mediaPlaylist(0, {0, 1, 2}, false)};
+            PathServer server(replies);
+            auto handler = PsyMP3::IO::HTTP::openHTTPIOHandler(server.base() + "/p/live.m3u8");
+            readExactly(*handler, 9000);
+            // Opening fetched the playlist already; count only what follows.
+            const int opened = server.hits("/p/live.m3u8");
+            std::this_thread::sleep_for(std::chrono::milliseconds(3500));
+            const int reloads = server.hits("/p/live.m3u8") - opened;
+            /*
+             * The playlist changed (its segments were new), so the next
+             * reload comes a target duration (2 s) after that one began,
+             * then every half of it: about two in 3.5 s. Reloading at once
+             * after new segments, then every second, made it four.
+             */
+            ASSERT_TRUE(reloads <= 2, "reloads paced by the target duration (" + std::to_string(reloads) + ")");
+        }
+    }
+};
+
 /** @brief A plain M3U "listen" link pointing at a stream. */
 class PlainPlaylistTest : public TestFramework::TestCase {
 public:
@@ -505,6 +580,7 @@ int test_hls_io_handler_main()
     suite.addTest(std::make_unique<PlainPlaylistTest>());
     suite.addTest(std::make_unique<SequenceRestartTest>());
     suite.addTest(std::make_unique<UnnumberedWindowTest>());
+    suite.addTest(std::make_unique<WorkerTimingTest>());
 #endif
     auto results = suite.runAll();
     suite.printResults(results);

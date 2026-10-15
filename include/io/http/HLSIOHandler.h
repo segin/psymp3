@@ -142,6 +142,24 @@ public:
     static constexpr long REQUEST_SECONDS = 30;
     // Failed playlist reloads in a row before the stream is given up.
     static constexpr int MAX_RELOAD_FAILURES = 5;
+    /** @brief Default seconds without a new segment before a live station counts as stalled. */
+    static constexpr int STALL_SECONDS = 30;
+
+    /**
+     * @brief How long a live station may bring no new segment before it is
+     *        given up, for every handler from now on -- at least three
+     *        target durations whatever this says. The tests shorten it.
+     * @param seconds The limit.
+     */
+    static void setStallSeconds(int seconds);
+
+    /**
+     * @brief The setting setStallSeconds() made.
+     * @return It; STALL_SECONDS until set.
+     */
+    static int stallSeconds();
+    /** @brief Times a failed segment is fetched again before it is skipped. */
+    static constexpr int SEGMENT_RETRIES = 2;
 
 private:
     /**
