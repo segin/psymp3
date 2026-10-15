@@ -37,8 +37,16 @@ public:
     /** @brief Start the producer. */
     ScriptedLiveHandler() { startWorker(); }
 
-    /** @brief Stop the producer before this class's members go. */
-    ~ScriptedLiveHandler() override { stopWorker(); }
+    /**
+     * @brief Stop the producer before this class's members go. It waits on
+     *        the script's own condition, which abort() does not signal, so
+     *        it is ended through the script first.
+     */
+    ~ScriptedLiveHandler() override
+    {
+        end();
+        stopWorker();
+    }
 
     /**
      * @brief Have the producer append the next @p len bytes of the pattern,
@@ -135,6 +143,31 @@ protected:
     }
 };
 
+/**
+ * @brief Once aborted, a reader that has caught up sees the end at once:
+ *        eof() used to stay false until the producer had wound up, so a
+ *        read-until-eof loop spun meanwhile. And a SEEK_CUR far enough to
+ *        overflow is refused rather than computed.
+ */
+class AbortEofAndSeekRangeTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    AbortEofAndSeekRangeTest() : TestCase("eof() right after abort; SEEK_CUR overflow refused") {}
+protected:
+    /** @brief Read what came, abort, check eof; then the huge seeks. */
+    void runTest() override {
+        ScriptedLiveHandler handler;
+        handler.feed(1000);
+        std::string got(1000, '\0');
+        ASSERT_EQUALS(got.size(), handler.read(&got[0], 1, got.size()), "what arrived is read");
+        ASSERT_EQUALS(-1, handler.seek(std::numeric_limits<int64_t>::max(), SEEK_CUR),
+                      "a SEEK_CUR past the largest offset is refused");
+        ASSERT_EQUALS(int64_t(1000), handler.tell(), "and moves nothing");
+        handler.abort();
+        ASSERT_TRUE(handler.eof(), "aborted and caught up: at the end");
+    }
+};
+
 } // namespace
 
 /**
@@ -145,6 +178,7 @@ int test_live_stream_buffer_main()
 {
     TestFramework::TestSuite suite("Live Stream Buffer Tests");
     suite.addTest(std::make_unique<SeekAheadOfDataTest>());
+    suite.addTest(std::make_unique<AbortEofAndSeekRangeTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return suite.getFailureCount(results);

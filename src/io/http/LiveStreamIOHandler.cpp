@@ -419,7 +419,15 @@ int LiveStreamIOHandler::seek_unlocked(filesize_t offset, int whence)
     filesize_t target;
     switch (whence) {
         case SEEK_SET: target = offset; break;
-        case SEEK_CUR: target = m_read_pos + offset; break;
+        case SEEK_CUR:
+            // Out of filesize_t's range is out of the window anyway.
+            if ((offset > 0 && m_read_pos > std::numeric_limits<filesize_t>::max() - offset) ||
+                (offset < 0 && m_read_pos < std::numeric_limits<filesize_t>::min() - offset)) {
+                updateErrorState(ESPIPE);
+                return -1;
+            }
+            target = m_read_pos + offset;
+            break;
         default:
             // No end to seek from.
             updateErrorState(ESPIPE);
@@ -484,7 +492,11 @@ bool LiveStreamIOHandler::eof()
 {
     if (m_closed) return true;
     std::lock_guard<std::mutex> lock(m_buf_mutex);
-    return m_finished && m_read_pos >= audioEnd_unlocked();
+    /*
+     * Aborted counts as over at once, as read() treats it: the producer may
+     * not have said it finished yet.
+     */
+    return (m_finished || m_abort) && m_read_pos >= audioEnd_unlocked();
 }
 
 /**
