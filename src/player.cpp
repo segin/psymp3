@@ -4712,7 +4712,12 @@ void Player::Cleanup() {
     // the decoder in their reads until its stall check gives up, half a
     // minute later, and every join below would wait for it.
     abortInflightLoad();
-    PsyMP3::IO::HTTP::HTTPStreamIOHandler::abortAll();
+    /*
+     * shutdown(), not abortAll(): the loader may still pick up a queued
+     * request before it is told to stop below, and a station it connected to
+     * then would be outside the abort and hold its join up.
+     */
+    PsyMP3::IO::HTTP::HTTPStreamIOHandler::shutdown();
     if (audio) audio->play(false);
 
     // Stop and join the background threads BEFORE SDL_Quit(): a loader thread
