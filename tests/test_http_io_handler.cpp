@@ -164,13 +164,20 @@ protected:
         // First head fails
         mock_network_error_status = 503; // Service Unavailable
 
-        // Test fast failure since it's hard to test actual backoff/retry in synchronous tests
-        // Actually we can just override max_retries or timeout?
-        HTTPIOHandler handler("http://example.com/error.mp3");
-
-        ASSERT_FALSE(handler.isInitialized(), "Handler should not initialize on permanent error");
-
+        /*
+         * The constructor gives up after its retries and throws, so the
+         * caller sees the failure instead of getting a handler that cannot
+         * read -- as FileIOHandler does for a file that cannot be opened.
+         */
+        bool threw = false;
+        try {
+            HTTPIOHandler handler("http://example.com/error.mp3");
+        } catch (const std::exception&) {
+            threw = true;
+        }
         mock_network_error_status = 0; // reset
+
+        ASSERT_TRUE(threw, "A server that keeps failing makes the constructor throw");
     }
 };
 
