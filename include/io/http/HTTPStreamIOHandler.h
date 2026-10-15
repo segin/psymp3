@@ -70,16 +70,16 @@ public:
     std::string getMimeType() const override;
 
     /** @brief Content-Length, or -1 when the response did not give one. */
-    int64_t getContentLength() const { return m_content_length; }
+    int64_t getContentLength() const;
 
     /** @brief True when the server sent ICY headers (icy-name, icy-metaint...). */
-    bool isIcy() const { return m_icy; }
+    bool isIcy() const;
 
     /**
      * @brief True when the response is a stream rather than a file: it is ICY,
      *        or it has no Content-Length.
      */
-    bool isLive() const { return m_icy || m_content_length < 0; }
+    bool isLive() const;
 
     /**
      * @brief The station's name from its icy-name header, decoded as
@@ -307,7 +307,6 @@ private:
     uint64_t m_conn_audio_bytes = 0;  // audio this connection delivered (worker thread)
     filesize_t m_conn_start = 0;      // audio offset this connection's audio begins at
     bool m_conn_titled = false;       // this connection has announced a title
-
     // ICY v1 header block being collected from the front of the body.
     bool m_icy_v1_done = false;
     std::string m_icy_v1_header;

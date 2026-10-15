@@ -57,32 +57,43 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
     Debug::log("http", "HTTPStreamIOHandler: connecting to ", url);
     startWorker();
 
-    // Wait for the response head. The worker's own stall and connect
-    // timeouts bound this: it always ends up with headers or finished. An
-    // abort() ends it at once.
-    std::unique_lock<std::mutex> lock(m_buf_mutex);
-    m_data_cv.wait(lock, [this] { return m_headers_ready || m_finished || m_abort; });
+    /*
+     * The worker runs this class's code, so it must stop before this class's
+     * members go, whatever leaves the constructor early -- an error status,
+     * or an exception from the waiting below; the base's destructor then
+     * unregisters.
+     */
+    try {
+        /*
+         * Wait for the response head. The worker's own stall and connect
+         * timeouts bound this: it always ends up with headers or finished.
+         * An abort() ends it at once.
+         */
+        std::unique_lock<std::mutex> lock(m_buf_mutex);
+        m_data_cv.wait(lock, [this] { return m_headers_ready || m_finished || m_abort; });
 
-    std::string error;
-    if (m_abort) {
-        error = "aborted";
-    } else if (!m_headers_ready) {
-        error = m_error_text.empty() ? std::string("no response") : m_error_text;
-    } else if (m_status >= 400) {
-        error = "server answered " + std::to_string(m_status);
-    }
-    const int status = m_status;
-    lock.unlock();
-    if (!error.empty()) {
-        // The worker runs this class's code, so it must stop before this
-        // class's members go; the base's destructor then unregisters.
+        std::string error;
+        if (m_abort) {
+            error = "aborted";
+        } else if (!m_headers_ready) {
+            error = m_error_text.empty() ? std::string("no response") : m_error_text;
+        } else if (m_status >= 400) {
+            error = "server answered " + std::to_string(m_status);
+        }
+        const int status = m_status;
+        const int64_t length = m_content_length;
+        const bool icy = m_icy;
+        lock.unlock();
+        if (!error.empty()) {
+            Debug::log("http", "HTTPStreamIOHandler: ", url, " failed: ", error);
+            throw InvalidMediaException("Cannot open " + url + ": " + error);
+        }
+        Debug::log("http", "HTTPStreamIOHandler: ", url, " status ", status,
+                   ", type '", getHeader("content-type"), "', length ", length, icy ? ", ICY" : "");
+    } catch (...) {
         stopWorker();
-        Debug::log("http", "HTTPStreamIOHandler: ", url, " failed: ", error);
-        throw InvalidMediaException("Cannot open " + url + ": " + error);
+        throw;
     }
-    Debug::log("http", "HTTPStreamIOHandler: ", url, " status ", status,
-               ", type '", getHeader("content-type"), "', length ", m_content_length,
-               m_icy ? ", ICY" : "");
 }
 
 /**
@@ -162,7 +173,8 @@ void HTTPStreamIOHandler::runWorker()
                                (error_text.empty() ? std::string("it closed the connection") : error_text));
             return;
         }
-        const int delay = std::min(MAX_RECONNECT_DELAY_SECONDS, 1 << (failures_in_a_row - 1));
+        // Shift no further than the cap needs, whatever the attempt count.
+        const int delay = std::min(MAX_RECONNECT_DELAY_SECONDS, 1 << std::min(failures_in_a_row - 1, 4));
         Debug::log("http", "HTTPStreamIOHandler: ", m_url, " dropped (",
                    error_text.empty() ? std::string("closed") : error_text, "); reconnecting in ",
                    delay, " s, attempt ", failures_in_a_row, " of ", reconnectAttempts());
@@ -742,6 +754,36 @@ std::string HTTPStreamIOHandler::getHeader(const std::string& name) const
     std::lock_guard<std::mutex> lock(m_buf_mutex);
     auto it = m_headers.find(toLower(name));
     return it == m_headers.end() ? std::string() : it->second;
+}
+
+/**
+ * @brief Content-Length, under the lock: each connection rewrites it.
+ * @return It, or -1.
+ */
+int64_t HTTPStreamIOHandler::getContentLength() const
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    return m_content_length;
+}
+
+/**
+ * @brief Whether the reply is ICY, under the lock: each connection rewrites it.
+ * @return true for ICY.
+ */
+bool HTTPStreamIOHandler::isIcy() const
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    return m_icy;
+}
+
+/**
+ * @brief Whether the reply is a stream: ICY, or no Content-Length.
+ * @return true for a stream.
+ */
+bool HTTPStreamIOHandler::isLive() const
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    return m_icy || m_content_length < 0;
 }
 
 /**
