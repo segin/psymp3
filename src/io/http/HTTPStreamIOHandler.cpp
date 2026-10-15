@@ -805,26 +805,6 @@ constexpr int MAX_PLAYLIST_HOPS = 4;
 constexpr size_t MAX_PLAYLIST_BYTES = 256 * 1024;
 
 /**
- * @brief The first entry of a plain M3U playlist: its first line that is
- *        neither empty nor a comment.
- * @param text The playlist.
- * @return The entry as written, or "".
- */
-std::string firstPlaylistEntry(const std::string& text)
-{
-    size_t pos = 0;
-    while (pos < text.size()) {
-        size_t nl = text.find('\n', pos);
-        if (nl == std::string::npos) nl = text.size();
-        std::string line = trim(text.substr(pos, nl - pos));
-        pos = nl + 1;
-        if (line.compare(0, 3, "\xEF\xBB\xBF") == 0) line.erase(0, 3);
-        if (!line.empty() && line[0] != '#') return line;
-    }
-    return std::string();
-}
-
-/**
  * @brief openHTTPIOHandler(), counting the playlists followed to get here.
  * @param url The URL.
  * @param hops Playlists already followed.
@@ -851,10 +831,11 @@ namespace {
 
 /**
  * @brief The work of openHTTPIOHandler(). A live reply keeps the
- *        HTTPStreamIOHandler that made it; a playlist is read whole -- an HLS
- *        one goes to HLSIOHandler, a plain M3U (what radio sites hand out as
- *        "listen" links) has its first entry opened in turn; a file of known
- *        length goes to HTTPIOHandler.
+ *        HTTPStreamIOHandler that made it; a playlist (known by its
+ *        Content-Type or its extension) is read whole -- an HLS one goes to
+ *        HLSIOHandler, an M3U, PLS, XSPF or ASX one (what radio sites hand out
+ *        as "listen" links) has its first entry opened in turn; a file of
+ *        known length goes to HTTPIOHandler.
  * @param url The URL.
  * @param hops Playlists already followed.
  * @return The handler.
@@ -866,7 +847,16 @@ std::unique_ptr<IOHandler> openHTTPIOHandlerFollowing(const std::string& url, in
         return std::make_unique<HTTPIOHandler>(url);
     }
     auto stream = std::make_unique<HTTPStreamIOHandler>(url);
-    if (HLSIOHandler::looksLikeHLS(stream->getMimeType(), url)) {
+    using Core::Utility::PlaylistFormat;
+    using Core::Utility::PlaylistText;
+    const std::string path = url.substr(0, url.find_first_of("?#"));
+    const size_t slash = path.rfind('/');
+    const size_t dot = path.rfind('.');
+    const std::string extension = dot != std::string::npos && (slash == std::string::npos || dot > slash)
+                                ? path.substr(dot + 1) : std::string();
+    PlaylistFormat format = PlaylistText::formatForMimeType(stream->getMimeType());
+    if (format == PlaylistFormat::Unknown) format = PlaylistText::formatForExtension(extension);
+    if (format != PlaylistFormat::Unknown || HLSIOHandler::looksLikeHLS(stream->getMimeType(), url)) {
         std::string text;
         char buf[8192];
         while (text.size() < MAX_PLAYLIST_BYTES) {
@@ -879,7 +869,10 @@ std::unique_ptr<IOHandler> openHTTPIOHandlerFollowing(const std::string& url, in
             Debug::log("http", "openHTTPIOHandler: ", url, " is an HLS playlist");
             return std::make_unique<HLSIOHandler>(url);
         }
-        const std::string entry = firstPlaylistEntry(text);
+        // A playlist of stations -- M3U, PLS, XSPF or ASX, as radio sites
+        // hand them out: open its first entry.
+        const auto items = PlaylistText::parse(text, PlaylistText::detect(text, format));
+        const std::string entry = items.empty() ? std::string() : items.front().location;
         if (entry.empty()) {
             throw InvalidMediaException("Cannot open " + url + ": the playlist is empty");
         }
