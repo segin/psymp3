@@ -676,20 +676,100 @@ private:
 
 } // namespace
 
+namespace {
+
+/// Playlists that point at playlists are followed this deep, no further.
+constexpr int MAX_PLAYLIST_HOPS = 4;
+
+/// Most bytes read from a playlist response before giving up on it.
+constexpr size_t MAX_PLAYLIST_BYTES = 256 * 1024;
+
 /**
- * @brief Open an http(s) URL as a stream or a file: URLs known to be files go
- *        straight to HTTPIOHandler; otherwise one GET decides, a live reply
- *        keeping the HTTPStreamIOHandler that made it.
+ * @brief The first entry of a plain M3U playlist: its first line that is
+ *        neither empty nor a comment.
+ * @param text The playlist.
+ * @return The entry as written, or "".
+ */
+std::string firstPlaylistEntry(const std::string& text)
+{
+    size_t pos = 0;
+    while (pos < text.size()) {
+        size_t nl = text.find('\n', pos);
+        if (nl == std::string::npos) nl = text.size();
+        std::string line = trim(text.substr(pos, nl - pos));
+        pos = nl + 1;
+        if (line.compare(0, 3, "\xEF\xBB\xBF") == 0) line.erase(0, 3);
+        if (!line.empty() && line[0] != '#') return line;
+    }
+    return std::string();
+}
+
+/**
+ * @brief openHTTPIOHandler(), counting the playlists followed to get here.
+ * @param url The URL.
+ * @param hops Playlists already followed.
+ * @return The handler.
+ */
+std::unique_ptr<IOHandler> openHTTPIOHandlerFollowing(const std::string& url, int hops);
+
+} // namespace
+
+/**
+ * @brief Open an http(s) URL as a stream, an HLS station, or a file: URLs
+ *        known to be files go straight to HTTPIOHandler; otherwise one GET
+ *        decides.
  * @param url The URL.
  * @return The handler.
  * @throws InvalidMediaException if the URL cannot be opened.
  */
 std::unique_ptr<IOHandler> openHTTPIOHandler(const std::string& url)
 {
+    return openHTTPIOHandlerFollowing(url, 0);
+}
+
+namespace {
+
+/**
+ * @brief The work of openHTTPIOHandler(). A live reply keeps the
+ *        HTTPStreamIOHandler that made it; a playlist is read whole -- an HLS
+ *        one goes to HLSIOHandler, a plain M3U (what radio sites hand out as
+ *        "listen" links) has its first entry opened in turn; a file of known
+ *        length goes to HTTPIOHandler.
+ * @param url The URL.
+ * @param hops Playlists already followed.
+ * @return The handler.
+ * @throws InvalidMediaException if the URL cannot be opened.
+ */
+std::unique_ptr<IOHandler> openHTTPIOHandlerFollowing(const std::string& url, int hops)
+{
     if (KnownFileURLs::contains(url)) {
         return std::make_unique<HTTPIOHandler>(url);
     }
     auto stream = std::make_unique<HTTPStreamIOHandler>(url);
+    if (HLSIOHandler::looksLikeHLS(stream->getMimeType(), url)) {
+        std::string text;
+        char buf[8192];
+        while (text.size() < MAX_PLAYLIST_BYTES) {
+            const size_t n = stream->read(buf, 1, sizeof buf);
+            if (n == 0) break;
+            text.append(buf, n);
+        }
+        stream.reset();
+        if (text.find("#EXT-X-") != std::string::npos) {
+            Debug::log("http", "openHTTPIOHandler: ", url, " is an HLS playlist");
+            return std::make_unique<HLSIOHandler>(url);
+        }
+        const std::string entry = firstPlaylistEntry(text);
+        if (entry.empty()) {
+            throw InvalidMediaException("Cannot open " + url + ": the playlist is empty");
+        }
+        if (hops >= MAX_PLAYLIST_HOPS) {
+            throw InvalidMediaException("Cannot open " + url + ": playlists nested too deep");
+        }
+        const std::string next = HLSIOHandler::resolveUrl(url, entry);
+        Debug::log("http", "openHTTPIOHandler: ", url, " is a playlist; opening its first entry ", next);
+        return openHTTPIOHandlerFollowing(next, hops + 1);
+    }
     if (stream->isLive()) {
         Debug::log("http", "openHTTPIOHandler: ", url, " is a stream");
         return stream;
@@ -702,6 +782,8 @@ std::unique_ptr<IOHandler> openHTTPIOHandler(const std::string& url)
     Debug::log("http", "openHTTPIOHandler: ", url, " is a file of ", length, " bytes");
     return std::make_unique<HTTPIOHandler>(url);
 }
+
+} // namespace
 
 } // namespace HTTP
 } // namespace IO

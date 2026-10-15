@@ -79,6 +79,7 @@
 #include "io/http/HTTPIOHandler.cpp"
 #include "io/http/LiveStreamIOHandler.cpp"
 #include "io/http/HTTPStreamIOHandler.cpp"
+#include "io/http/HLSIOHandler.cpp"
 
 // ============================================================================
 // Demuxer Subsystem - Core
