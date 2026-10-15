@@ -186,6 +186,18 @@ public:
         return it == m_hits.end() ? 0 : it->second;
     }
 
+    /**
+     * @brief Change or add an answer while serving, as a live station's
+     *        playlist changes.
+     * @param path The path.
+     * @param reply What to answer from now on.
+     */
+    void setReply(const std::string& path, Reply reply)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_replies[path] = std::move(reply);
+    }
+
 private:
     /** @brief Accept connections and answer each on the server thread. */
     void acceptLoop()
@@ -319,6 +331,110 @@ protected:
     }
 };
 
+/**
+ * @brief Read exactly @p n bytes, waiting as a live reader does.
+ * @param handler The stream.
+ * @param n How many.
+ * @return What was read (shorter only if the stream ended).
+ */
+std::string readExactly(PsyMP3::IO::IOHandler& handler, size_t n)
+{
+    std::string got(n, '\0');
+    const size_t r = handler.read(&got[0], 1, n);
+    got.resize(r);
+    return got;
+}
+
+/**
+ * @brief Read until the stream ends.
+ * @param handler The stream.
+ * @return Everything left.
+ */
+std::string readRest(PsyMP3::IO::IOHandler& handler)
+{
+    std::string got;
+    char buf[1000];
+    for (;;) {
+        const size_t n = handler.read(buf, 1, sizeof buf);
+        if (n == 0) break;
+        got.append(buf, n);
+    }
+    return got;
+}
+
+/**
+ * @brief A media playlist of the given segments.
+ * @param sequence Its EXT-X-MEDIA-SEQUENCE, or -1 to leave the tag out.
+ * @param segs The segment numbers, named seg<n>.aac.
+ * @param ended Whether to end it with EXT-X-ENDLIST.
+ * @return The playlist text.
+ */
+std::string mediaPlaylist(long sequence, const std::vector<int>& segs, bool ended)
+{
+    std::string text = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n";
+    if (sequence >= 0) text += "#EXT-X-MEDIA-SEQUENCE:" + std::to_string(sequence) + "\n";
+    for (int n : segs) text += "#EXTINF:2,\nseg" + std::to_string(n) + ".aac\n";
+    if (ended) text += "#EXT-X-ENDLIST\n";
+    return text;
+}
+
+/**
+ * @brief A station whose packager restarts and numbers its segments from 0
+ *        again: the player used to skip every new segment as already played
+ *        and go silent for good.
+ */
+class SequenceRestartTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    SequenceRestartTest() : TestCase("HLS: a station that starts its numbering over plays on") {}
+protected:
+    /** @brief Play segments 5000-5002, then a playlist numbered from 0. */
+    void runTest() override {
+        std::map<std::string, PathServer::Reply> replies;
+        for (int n = 0; n < 6; ++n) {
+            replies["/r/seg" + std::to_string(n) + ".aac"] = {200, "audio/aac", servedSegment(n)};
+        }
+        replies["/r/live.m3u8"] = {200, "application/vnd.apple.mpegurl", mediaPlaylist(5000, {0, 1, 2}, false)};
+        PathServer server(replies);
+        auto handler = PsyMP3::IO::HTTP::openHTTPIOHandler(server.base() + "/r/live.m3u8");
+        ASSERT_NOT_NULL(handler.get(), "opened");
+        const std::string before = readExactly(*handler, 3 * 3000);
+        ASSERT_TRUE(before == segmentAudio(0) + segmentAudio(1) + segmentAudio(2), "the first window");
+        server.setReply("/r/live.m3u8", {200, "application/vnd.apple.mpegurl", mediaPlaylist(0, {3, 4}, true)});
+        const std::string after = readRest(*handler);
+        ASSERT_TRUE(after == segmentAudio(3) + segmentAudio(4), "the restarted numbering is played");
+    }
+};
+
+/**
+ * @brief A sliding window that never says EXT-X-MEDIA-SEQUENCE, so every
+ *        reload numbers its segments from 0: the player follows the
+ *        segments themselves rather than their numbers.
+ */
+class UnnumberedWindowTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    UnnumberedWindowTest() : TestCase("HLS: a window without a media sequence moves on") {}
+protected:
+    /** @brief Play 0-2, then a window of 1-3 that also numbers from 0. */
+    void runTest() override {
+        std::map<std::string, PathServer::Reply> replies;
+        for (int n = 0; n < 6; ++n) {
+            replies["/u/seg" + std::to_string(n) + ".aac"] = {200, "audio/aac", servedSegment(n)};
+        }
+        replies["/u/live.m3u8"] = {200, "application/vnd.apple.mpegurl", mediaPlaylist(-1, {0, 1, 2}, false)};
+        PathServer server(replies);
+        auto handler = PsyMP3::IO::HTTP::openHTTPIOHandler(server.base() + "/u/live.m3u8");
+        ASSERT_NOT_NULL(handler.get(), "opened");
+        const std::string before = readExactly(*handler, 3 * 3000);
+        ASSERT_TRUE(before == segmentAudio(0) + segmentAudio(1) + segmentAudio(2), "the first window");
+        server.setReply("/u/live.m3u8", {200, "application/vnd.apple.mpegurl", mediaPlaylist(-1, {1, 2, 3}, true)});
+        const std::string after = readRest(*handler);
+        ASSERT_TRUE(after == segmentAudio(3), "only the new segment follows");
+        ASSERT_EQUALS(1, server.hits("/u/seg1.aac"), "nothing is fetched twice");
+    }
+};
+
 /** @brief A plain M3U "listen" link pointing at a stream. */
 class PlainPlaylistTest : public TestFramework::TestCase {
 public:
@@ -365,6 +481,8 @@ int test_hls_io_handler_main()
 #ifndef _WIN32
     suite.addTest(std::make_unique<LocalStationTest>());
     suite.addTest(std::make_unique<PlainPlaylistTest>());
+    suite.addTest(std::make_unique<SequenceRestartTest>());
+    suite.addTest(std::make_unique<UnnumberedWindowTest>());
 #endif
     auto results = suite.runAll();
     suite.printResults(results);

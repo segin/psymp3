@@ -363,6 +363,8 @@ void HLSIOHandler::runWorker()
     uint64_t next_sequence = 0;
     int reload_failures = 0;
     std::string body, error, effective, content_type;
+    /** @brief The segment last played (or skipped), to find our place by. */
+    std::string last_uri;
 
     while (!m_abort) {
         body.clear();
@@ -387,14 +389,42 @@ void HLSIOHandler::runWorker()
             continue;
         }
 
-        // Start near the live edge; after that, carry on where we were --
-        // unless the playlist has moved past us, in which case catch up.
+        /*
+         * Start near the live edge; after that, carry on where we were --
+         * unless the playlist has moved past us, in which case catch up.
+         */
         const uint64_t first_seq = pl.segments.front().sequence;
         const uint64_t last_seq = pl.segments.back().sequence;
-        if (!started || next_sequence < first_seq) {
+        bool restart = !started || next_sequence < first_seq;
+        if (started && !restart && !last_uri.empty()) {
+            /*
+             * Where we are is the segment last played, which the numbers
+             * normally find -- but a packager that restarts numbers from 0
+             * again, and a window without EXT-X-MEDIA-SEQUENCE numbers every
+             * reload from 0. Follow the segment itself when the numbers
+             * disagree, and start over at the live edge when it has gone and
+             * the numbers are all behind us.
+             */
+            const Segment* at_number = nullptr;
+            const Segment* at_uri = nullptr;
+            for (const Segment& seg : pl.segments) {
+                if (seg.sequence + 1 == next_sequence) at_number = &seg;
+                if (seg.uri == last_uri) at_uri = &seg;
+            }
+            if (!(at_number && at_number->uri == last_uri)) {
+                if (at_uri) {
+                    next_sequence = at_uri->sequence + 1;
+                } else if (next_sequence > last_seq + 1) {
+                    Debug::log("http", "HLSIOHandler: the playlist started its numbering over; "
+                               "going to the live edge");
+                    restart = true;
+                }
+            }
+        }
+        if (restart) {
             const size_t n = pl.segments.size();
             const size_t from = pl.ended || n <= START_SEGMENTS_FROM_END ? 0 : n - START_SEGMENTS_FROM_END;
-            if (started) {
+            if (started && next_sequence < first_seq) {
                 Debug::log("http", "HLSIOHandler: fell behind the playlist; skipping to the live edge");
             }
             next_sequence = pl.segments[from].sequence;
@@ -411,6 +441,7 @@ void HLSIOHandler::runWorker()
                 if (m_abort) break;
                 Debug::log("http", "HLSIOHandler: segment ", seg.sequence, " failed: ", error, "; skipping it");
                 next_sequence = seg.sequence + 1;
+                last_uri = seg.uri;
                 continue;
             }
             stripLeadingID3(data);
@@ -438,6 +469,7 @@ void HLSIOHandler::runWorker()
                 }
             }
             next_sequence = seg.sequence + 1;
+            last_uri = seg.uri;
             any = true;
         }
         if (m_abort) break;
