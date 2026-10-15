@@ -1018,8 +1018,23 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
                     return info;
                 }
                 
-                // Check for MPEG audio sync after ID3 tag (confirms it's actually MP3)
-                if ((post_id3_buffer[0] == 0xFF) && ((post_id3_buffer[1] & 0xE0) == 0xE0)) {
+                /*
+                 * A sync word after the tag is MPEG audio -- or ADTS AAC,
+                 * whose layer bits are 00 (reserved in MPEG audio), as in an
+                 * .aac file a tagger put an ID3v2 tag on.
+                 */
+                if (post_id3_buffer[0] == 0xFF && (post_id3_buffer[1] & 0xF6) == 0xF0 &&
+                    DemuxerRegistry::getInstance().isFormatSupported("adts")) {
+                    Debug::log("loader", "MediaFactory::detectByMagicBytes found ADTS sync after ID3 tag");
+                    info.detected_format = "adts";
+                    info.confidence = 0.98f;
+                    info.metadata["has_id3"] = "true";
+                    info.metadata["magic_signature"] = "ID3+ADTS";
+                    handler->seek(original_pos, SEEK_SET);
+                    return info;
+                }
+                if (post_id3_buffer[0] == 0xFF && (post_id3_buffer[1] & 0xE0) == 0xE0 &&
+                    (post_id3_buffer[1] & 0x06) != 0) {
                     Debug::log("loader", "MediaFactory::detectByMagicBytes found MPEG sync after ID3 tag");
                     info.detected_format = "mp3";
                     info.confidence = 0.98f;

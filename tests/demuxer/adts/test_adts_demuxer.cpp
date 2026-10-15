@@ -295,6 +295,40 @@ protected:
     }
 };
 
+/**
+ * @brief An .aac file with an ID3v2 tag in front: format detection looked
+ *        past the tag, took ADTS's sync word for MPEG audio, and sent the
+ *        file to the MP3 demuxer.
+ */
+class TaggedFileProbeTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    TaggedFileProbeTest() : TestCase("ADTS after an ID3v2 tag is detected as ADTS, not MP3") {}
+protected:
+    /** @brief Probe a tagged ADTS file, and a tagged MPEG one for contrast. */
+    void runTest() override {
+        const std::string tag = std::string("ID3\x04\x00\x00\x00\x00\x00\x14", 10) + std::string(20, 'x');
+        FrameSpec a, b;
+        b.seed = 3;
+        const std::string aac = tag + makeFrame(a) + makeFrame(b);
+        MemoryIOHandler aac_file(aac.data(), aac.size());
+        ASSERT_EQUALS(std::string("adts"),
+                      PsyMP3::Demuxer::DemuxerFactory::probeFormat(&aac_file, "/music/tagged.aac"),
+                      "tagged .aac is ADTS");
+        MemoryIOHandler aac_noext(aac.data(), aac.size());
+        ASSERT_EQUALS(std::string("adts"),
+                      PsyMP3::Demuxer::DemuxerFactory::probeFormat(&aac_noext, "/music/tagged"),
+                      "by content alone, too");
+
+        // An MPEG-1 Layer III header (128 kbps, 44.1 kHz) after the same tag.
+        const std::string mp3 = tag + std::string("\xFF\xFB\x90\x64", 4) + std::string(413, '\0');
+        MemoryIOHandler mp3_file(mp3.data(), mp3.size());
+        ASSERT_EQUALS(std::string("mp3"),
+                      PsyMP3::Demuxer::DemuxerFactory::probeFormat(&mp3_file, "/music/tagged"),
+                      "tagged MPEG audio is still MP3");
+    }
+};
+
 /** @brief Not ADTS at all. */
 class RejectTest : public TestFramework::TestCase {
 public:
@@ -325,6 +359,7 @@ int test_adts_demuxer_main()
     suite.addTest(std::make_unique<LiveTest>());
     suite.addTest(std::make_unique<MimeFallbackTest>());
     suite.addTest(std::make_unique<RejectTest>());
+    suite.addTest(std::make_unique<TaggedFileProbeTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return suite.getFailureCount(results);

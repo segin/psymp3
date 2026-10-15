@@ -350,8 +350,20 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
                         return "ogg";
                     }
                     
-                    // Check for MPEG audio sync after ID3 tag (confirms it's actually MP3)
-                    if ((post_id3_header[0] == 0xFF) && ((post_id3_header[1] & 0xE0) == 0xE0)) {
+                    /*
+                     * A sync word after the tag is MPEG audio -- or ADTS AAC,
+                     * whose layer bits are 00 (reserved in MPEG audio), as in
+                     * an .aac file a tagger put an ID3v2 tag on.
+                     */
+#ifdef HAVE_AAC
+                    if (post_id3_header[0] == 0xFF && (post_id3_header[1] & 0xF6) == 0xF0) {
+                        Debug::log("demuxer", "DemuxerFactory::probeFormat: Found ADTS sync after ID3 tag");
+                        handler->seek(original_pos, SEEK_SET);
+                        return "adts";
+                    }
+#endif
+                    if (post_id3_header[0] == 0xFF && (post_id3_header[1] & 0xE0) == 0xE0 &&
+                        (post_id3_header[1] & 0x06) != 0) {
                         Debug::log("demuxer", "DemuxerFactory::probeFormat: Found MPEG sync after ID3 tag");
                         handler->seek(original_pos, SEEK_SET);
                         return "mp3";
