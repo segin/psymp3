@@ -140,6 +140,9 @@ void StreamAbortGroup::leave(LiveStreamIOHandler* handler)
  */
 LiveStreamIOHandler::LiveStreamIOHandler()
 {
+    if (s_shut_down) {
+        throw InvalidMediaException("Cannot open stream: shutting down");
+    }
     m_group = StreamAbortGroup::current();
     if (m_group && !m_group->join(this)) {
         m_group.reset();
@@ -148,6 +151,11 @@ LiveStreamIOHandler::LiveStreamIOHandler()
     {
         std::lock_guard<std::mutex> lock(allLiveHandlersMutex());
         allLiveHandlers().insert(this);
+        /*
+         * shutdown() came between the check above and here: it has walked
+         * the registry already, so abort ourselves.
+         */
+        if (s_shut_down) m_abort = true;
     }
     m_last_data_ms = liveSteadyMs();
 }
@@ -207,6 +215,20 @@ void LiveStreamIOHandler::abortAll()
         handler->abort();
     }
 }
+
+/**
+ * @brief Refuse new handlers, then abort every one there is. The flag is
+ *        set first, so a handler made meanwhile either refuses or is
+ *        registered in time to be aborted.
+ */
+void LiveStreamIOHandler::shutdown()
+{
+    s_shut_down = true;
+    abortAll();
+}
+
+/** @brief Set by shutdown(): no new live stream may start. */
+std::atomic<bool> LiveStreamIOHandler::s_shut_down{false};
 
 /**
  * @brief Wait for room, trim the history, append, wake readers.

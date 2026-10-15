@@ -200,6 +200,13 @@ public:
      */
     static void abortAll();
 
+    /**
+     * @brief For quitting: abort every live stream handler, and refuse to
+     *        make new ones from now on, so a load that starts during
+     *        shutdown cannot hold up the threads being joined.
+     */
+    static void shutdown();
+
     // How far behind the reader the buffer keeps data, for backward seeks.
     static constexpr size_t HISTORY_BYTES = 256 * 1024;
     // How far ahead of the reader the producer buffers before it waits.
@@ -308,6 +315,9 @@ protected:
     std::string m_error_text;         // why, for exceptions and the log
 
     std::atomic<bool> m_abort{false};
+
+    /** @brief Set by shutdown(): constructors refuse from then on. */
+    static std::atomic<bool> s_shut_down;
 
 private:
     /**
