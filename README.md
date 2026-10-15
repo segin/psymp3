@@ -30,6 +30,7 @@ MPRIS.
 - A faithful Windows 3.1-style in-app UI: menu bar, movable windows (Playlist Manager, Equalizer, Media Information, About), buttons, checkboxes, radio buttons, drop-down lists, text fields, scrollbars, and dialogs — all software-rendered, and usable from the keyboard
 - Wide format support through a modular demuxer/codec architecture, with most codecs built in so they work with no external libraries
 - Plays local files, or an `http://` / `https://` address (**File → Open URL...**); files can also be dragged onto the window
+- Internet radio: Icecast and SHOUTcast stations, HLS stations, and the `.pls` / `.m3u` / `.xspf` / `.asx` "listen" links stations hand out, with song titles, reconnection after a drop, and per-song scrobbling
 - Synced lyrics display (`.lrc` files)
 - Album art from the file's tags, shown in place of the spectrum
 - Last.fm scrobbling (Web Services API 2.0), MPRIS desktop control, and Discord Rich Presence
@@ -198,11 +199,30 @@ one-liners and how the version label is mapped to a legal package version.
 
 ## Usage
 
-Pass the paths of audio files or playlists (`.m3u`/`.m3u8`) as program
-arguments; they are played in order. Once running, open files with
-**File → Open Tracks...**, drag them onto the window, or play an `http://` or
-`https://` address with **File → Open URL...**. Internet radio streams
-(Icecast/SHOUTcast) are not supported.
+Pass the paths of audio files or playlists (`.m3u`/`.m3u8`, `.pls`, `.xspf`,
+`.asx`) as program arguments; they are played in order. Once running, open
+files with **File → Open Tracks...**, drag them onto the window, or play an
+`http://` or `https://` address with **File → Open URL...**.
+
+### Internet radio
+
+Open a station's address, or its "listen" link, with **File → Open URL...**,
+drag it onto the window, or put it in a playlist.
+
+- **Icecast and SHOUTcast** (including SHOUTcast v1's `ICY 200 OK`) stations
+  sending MP3, AAC (ADTS) or Ogg (Vorbis, Opus, FLAC). The song titles a
+  station announces are shown as they change, also over MPRIS and Discord,
+  and each song is scrobbled to Last.fm on its own. Chained Ogg stations,
+  which start a new stream for each song, play on across the changes.
+- **HLS** stations (`.m3u8`) whose segments are packed AAC or MP3, as iHeart
+  sends. MPEG-TS, fragmented-MP4, byte-range and encrypted segments are not
+  supported.
+- **Listen links** in `.pls`, `.m3u`/`.m3u8`, `.xspf` and `.asx`: the first
+  entry that answers is played.
+- A station that drops is reconnected to, with growing waits, up to five
+  failures in a row; one that goes silent for 30 seconds is given up.
+- A station has no length: the progress bar is drawn full, seeking is off,
+  and the timer shows `elapsed/--:--.--`.
 
 ### Supported formats
 
@@ -216,9 +236,11 @@ arguments; they are played in order. Once running, open files with
 | RIFF | `.wav`, `.bwf`, `.avi` | PCM, G.711, G.722, MP2, MP3, AC-3 (AVI: the audio track only) |
 | AIFF | `.aif`, `.aiff`, `.aifc` | PCM, G.711 |
 | Dolby | `.ac3`, `.eac3`, `.thd`, `.mlp` | AC-3, E-AC-3, MLP / Dolby TrueHD |
+| ADTS | `.aac`, `.adts` | AAC (LC, HE-AAC v1/v2) |
 | Raw | `.pcm`, `.raw`, `.al`, `.ul`, `.g722`, `.au` | PCM, G.711 µ-law/A-law, G.722 |
 
-Playlists in `.m3u` and `.m3u8` are read and written.
+Playlists in `.m3u` and `.m3u8` are read and written; `.pls`, `.xspf` and
+`.asx` (also `.wax`, `.wvx`) are read.
 
 PsyMP3 has a full mouse-driven UI — a menu bar (`File`, `Playback`,
 `Settings`, `Help` — the Alt+F/P/S/H mnemonics work) plus movable in-app windows
