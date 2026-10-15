@@ -75,6 +75,13 @@ public:
     int getNextPage(SafeOggPage* safe_page);
 
     /**
+     * @brief Give up a page search after @p bytes without finding one -- for
+     *        a live stream, which never runs out the way a file does.
+     * @param bytes The limit; 0 (the default) for none.
+     */
+    void setSearchLimit(uint64_t bytes) { m_search_limit = bytes; }
+
+    /**
      * @brief Find the file offset of the page immediately preceding the current file position
      * @return File offset of the page header, or -1 if not found/error
      */
@@ -119,6 +126,8 @@ private:
     PsyMP3::IO::IOHandler* m_io_handler;
     ogg_sync_state m_sync_state;
     int64_t m_logical_offset;
+    /** @brief Bytes a page search may go through before giving up; 0 for no limit. */
+    uint64_t m_search_limit = 0;
 };
 
 } // namespace Ogg

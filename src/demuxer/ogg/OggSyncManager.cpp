@@ -67,7 +67,18 @@ long OggSyncManager::getData(size_t bytes_requested) {
 int OggSyncManager::getNextPage(ogg_page* page) {
     // libopusfile pattern: loop until we get a page or need more data
     int iteration = 0;
+    /** @brief Bytes skipped or read since the last page, against m_search_limit. */
+    uint64_t without_page = 0;
     while (true) {
+        /*
+         * A file runs out; a live stream that is not Ogg at all would be
+         * read for ever. With a limit set, that much without a page is the
+         * end.
+         */
+        if (m_search_limit != 0 && without_page > m_search_limit) {
+            Debug::log("ogg", "OggSyncManager::getNextPage() no page in ", without_page, " bytes; giving up");
+            return 0;
+        }
         // Use pageseek to track exact logical consumption
         int bytes_consumed = ogg_sync_pageseek(&m_sync_state, page);
         
@@ -83,6 +94,7 @@ int OggSyncManager::getNextPage(ogg_page* page) {
         if (bytes_consumed < 0) {
             // -n bytes were skipped to reach the next page sync
             m_logical_offset += (-bytes_consumed);
+            without_page += static_cast<uint64_t>(-bytes_consumed);
             Debug::log("ogg", "OggSyncManager::getNextPage() sync error, skipped ", -bytes_consumed, " bytes, new offset=", m_logical_offset);
             continue; // Continue to try and get the page after skip
         }
@@ -93,6 +105,7 @@ int OggSyncManager::getNextPage(ogg_page* page) {
             Debug::log("ogg", "OggSyncManager::getNextPage() EOF/error after ", iteration, " iterations");
             return 0; // EOF or error
         }
+        without_page += static_cast<uint64_t>(bytes_read);
         iteration++;
     }
 }

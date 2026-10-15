@@ -159,6 +159,11 @@ OggDemuxer::OggDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler)
   // Demuxer base class owns the IOHandler.
   // OggSyncManager takes a raw pointer to use it.
   m_sync = std::make_unique<OggSyncManager>(m_handler.get());
+  /*
+   * A station that sends something other than Ogg must not be searched for
+   * ever: 256 KiB without a page ends it.
+   */
+  if (isLiveSource()) m_sync->setSearchLimit(kLivePageSearchBytes);
 }
 
 OggDemuxer::~OggDemuxer() {
@@ -197,6 +202,18 @@ bool OggDemuxer::parseContainer() {
       return !m_streams.empty(); // OK if we found at least one stream
     }
     page_count++;
+    /*
+     * Headers that never complete -- pages of streams PsyMP3 does not play,
+     * or a parser waiting for a packet that never comes -- would hold a
+     * live load for ever; a megabyte of a station is more than any header
+     * set needs.
+     */
+    if (isLiveSource() && m_sync->getLogicalPosition() > static_cast<int64_t>(kLiveHeaderBytes)) {
+      Debug::log("ogg", "OggDemuxer::parseContainer() no complete headers in ", kLiveHeaderBytes,
+                 " bytes of a live stream; giving up");
+      reportError("Format", "Live Ogg stream's headers never completed", 0, DemuxerErrorRecovery::NONE);
+      return false;
+    }
 
     int serial = ogg_page_serialno(&page);
     Debug::log("ogg", "OggDemuxer::parseContainer() page ", page_count,

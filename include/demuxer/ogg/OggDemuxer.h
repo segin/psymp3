@@ -154,6 +154,10 @@ public:
     void performPeriodicMaintenance_unlocked();
 
     static constexpr size_t MAX_PACKET_QUEUE_SIZE = 100;
+    /** @brief Bytes of a live stream a page search may go through without a page. */
+    static constexpr uint64_t kLivePageSearchBytes = 256 * 1024;
+    /** @brief Bytes of a live stream parseContainer() may read before its headers are complete. */
+    static constexpr uint64_t kLiveHeaderBytes = 1024 * 1024;
 
 private:
     std::map<uint32_t, OggStream> m_test_streams;
