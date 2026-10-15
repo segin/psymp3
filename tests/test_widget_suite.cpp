@@ -29,6 +29,7 @@ int test_widget_rendering_main();
 int test_complex_script_rendering_main();
 int test_widget_event_routing_main();
 int test_list_view_selection_main();
+int test_progress_bar_seekable_main();
 
 namespace {
 
@@ -42,6 +43,7 @@ const Entry kEntries[] = {
     {"test_complex_script_rendering",  test_complex_script_rendering_main},
     {"test_widget_event_routing",      test_widget_event_routing_main},
     {"test_list_view_selection",       test_list_view_selection_main},
+    {"test_progress_bar_seekable",     test_progress_bar_seekable_main},
 };
 
 } // namespace

@@ -47,8 +47,33 @@ PlayerProgressBarWidget::PlayerProgressBarWidget(int width, int height)
     rebuildSurface();
 }
 
+/**
+ * @brief Forbid or allow seeking; forbidding drops a drag under way, without
+ *        a seek and without its end callback.
+ * @param seekable Whether clicks seek.
+ */
+void PlayerProgressBarWidget::setSeekable(bool seekable)
+{
+    if (seekable == m_seekable) {
+        return;
+    }
+    m_seekable = seekable;
+    if (!seekable && m_is_dragging) {
+        m_is_dragging = false;
+        m_drag_display = false;
+        releaseMouse();
+        rebuildSurface();
+    }
+}
+
 bool PlayerProgressBarWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
+    if (!m_seekable) {
+        // Taken, so nothing behind the bar acts on it either, and ignored.
+        return event.button == SDL_BUTTON_LEFT &&
+               relative_x >= 0 && relative_x < m_width &&
+               relative_y >= 0 && relative_y < m_height;
+    }
     if (event.button == SDL_BUTTON_LEFT) {
         // Check if click is within the progress bar area
         if (relative_x >= 0 && relative_x < m_width &&

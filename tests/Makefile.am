@@ -571,7 +571,8 @@ test_widget_suite_SOURCES = test_widget_suite.cpp \
 	widget/test_widget_rendering.cpp \
 	widget/test_complex_script_rendering.cpp \
 	widget/test_widget_event_routing.cpp \
-	widget/test_list_view_selection.cpp
+	widget/test_list_view_selection.cpp \
+	widget/test_progress_bar_seekable.cpp
 test_widget_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 # The bundled font and the script corpus live in the source tree, not
 # beside the test binary.

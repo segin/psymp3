@@ -102,7 +102,24 @@ public:
      * @return true if dragging is in progress
      */
     bool isDragging() const { return m_is_dragging; }
-    
+
+    /**
+     * @brief Allow or forbid seeking with the bar.
+     *
+     * A track with no length -- internet radio -- cannot be seeked: the
+     * player draws the bar full and forbids it. Clicks and drags are then
+     * taken and ignored, and a drag already under way is dropped without a
+     * seek.
+     * @param seekable false to ignore the mouse.
+     */
+    void setSeekable(bool seekable);
+
+    /**
+     * @brief Whether the bar seeks when clicked.
+     * @return true unless setSeekable(false) was called.
+     */
+    bool isSeekable() const { return m_seekable; }
+
     /**
      * @brief Sets the seek start callback.
      * @param callback Function to call when seeking starts
@@ -129,6 +146,7 @@ private:
     double m_progress;          // Actual progress (0.0 to 1.0)
     double m_drag_progress;     // Visual progress during drag (0.0 to 1.0)
     bool m_is_dragging;
+    bool m_seekable = true;     // false: clicks and drags are ignored
     bool m_drag_display;        // Show m_drag_progress even without widget-native drag
                                // (Player's legacy seek path drives setDragProgress
                                //  without ever setting m_is_dragging here).
