@@ -27,6 +27,10 @@ constexpr uint64_t kSamplesPerBlock = 1024;
 
 /// How far to look for the first frame: past junk, or a tag the skip missed.
 constexpr uint64_t kSyncSearchLimit = 64 * 1024;
+/** @brief How much of a live stream a sync search reads at a time. */
+constexpr size_t kLiveSyncReadBytes = 4096;
+/** @brief Frames with several raw data blocks skipped in a row before giving up. */
+constexpr unsigned kMaxSkippedFrames = 64;
 
 /// Sampling frequencies by sampling_frequency_index (ISO/IEC 14496-3
 /// Table 1.18); 13 and 14 are reserved, 15 means an explicit rate, which
@@ -141,28 +145,49 @@ bool ADTSDemuxer::findFrame_unlocked(uint64_t from, uint64_t& found_at, ADTSHead
         if (from >= m_file_size) return false;
         limit = std::min<uint64_t>(m_file_size - from, limit);
     }
-    std::vector<uint8_t> window(static_cast<size_t>(limit));
     if (m_handler->seek(static_cast<off_t>(from), SEEK_SET) != 0) return false;
-    const size_t got = m_handler->read(window.data(), 1, window.size());
 
-    for (size_t i = 0; i + kHeaderBytes <= got; ++i) {
-        ADTSHeader candidate;
-        if (!parseHeader(&window[i], got - i, candidate)) continue;
-        const size_t next = i + candidate.frame_length;
-        ADTSHeader following;
-        bool confirmed = false;
-        if (next + kHeaderBytes <= got) {
-            confirmed = parseHeader(&window[next], got - next, following) &&
-                        following.sf_index == candidate.sf_index &&
-                        following.channel_config == candidate.channel_config;
-        } else if (!m_live && from + next >= m_file_size) {
-            confirmed = true; // a file that ends with this frame
+    /*
+     * A file is read in one go. A live stream's read waits until it is
+     * filled, so it is read a little at a time and searched as it comes:
+     * one 64 KiB read is 16-20 s of a 24-32 kbps station before a note
+     * plays, holding the demuxer's lock all the while.
+     */
+    const size_t step = m_live ? kLiveSyncReadBytes : static_cast<size_t>(limit);
+    std::vector<uint8_t> window;
+    window.reserve(static_cast<size_t>(limit));
+    size_t got = 0;
+    size_t i = 0;
+    while (got < limit) {
+        const size_t want = std::min<size_t>(step, static_cast<size_t>(limit) - got);
+        window.resize(got + want);
+        const size_t n = m_handler->read(window.data() + got, 1, want);
+        got += n;
+        window.resize(got);
+        const bool more = n == want && got < limit; // another read could add to the window
+
+        for (; i + kHeaderBytes <= got; ++i) {
+            ADTSHeader candidate;
+            if (!parseHeader(&window[i], got - i, candidate)) continue;
+            const size_t next = i + candidate.frame_length;
+            ADTSHeader following;
+            bool confirmed = false;
+            if (next + kHeaderBytes <= got) {
+                confirmed = parseHeader(&window[next], got - next, following) &&
+                            following.sf_index == candidate.sf_index &&
+                            following.channel_config == candidate.channel_config;
+            } else if (more) {
+                break; // the confirming header has not arrived yet: read on
+            } else if (!m_live && from + next >= m_file_size) {
+                confirmed = true; // a file that ends with this frame
+            }
+            if (confirmed) {
+                found_at = from + i;
+                found = candidate;
+                return true;
+            }
         }
-        if (confirmed) {
-            found_at = from + i;
-            found = candidate;
-            return true;
-        }
+        if (!more) break;
     }
     return false;
 }
@@ -218,11 +243,21 @@ bool ADTSDemuxer::parseContainer_unlocked()
     }
 
     if (!m_live) {
-        // One pass over the frames: each states its own length.
+        /*
+         * One pass over the frames: each states its own length. Damage in
+         * the middle is searched past, as playback does, so the duration
+         * and seek table cover the frames after it too.
+         */
         uint64_t offset = m_data_start_offset;
         ADTSHeader header;
-        while (readHeaderAt_unlocked(offset, header) &&
-               offset + header.frame_length <= m_file_size) {
+        for (;;) {
+            if (!readHeaderAt_unlocked(offset, header)) {
+                uint64_t resume = 0;
+                if (!findFrame_unlocked(offset + 1, resume, header)) break;
+                Debug::log("adts", "ADTSDemuxer: damage at ", offset, "; frames resume at ", resume);
+                offset = resume;
+            }
+            if (offset + header.frame_length > m_file_size) break;
             m_frame_offsets.push_back(offset);
             m_total_samples += kSamplesPerBlock * header.raw_blocks;
             offset += header.frame_length;
@@ -240,6 +275,7 @@ bool ADTSDemuxer::parseContainer_unlocked()
     m_stream_info.channels = static_cast<uint16_t>(first.channels);
     m_stream_info.bits_per_sample = 16;
     m_stream_info.codec_data = makeAudioSpecificConfig(first);
+    m_config = first;
     m_stream_info.duration_samples = m_total_samples;
     m_duration_ms = m_live ? 0 : (m_total_samples * 1000ULL) / first.sample_rate;
     m_stream_info.duration_ms = m_duration_ms;
@@ -321,7 +357,17 @@ MediaChunk ADTSDemuxer::readChunk_unlocked()
         bool parsed = readHeaderAt_unlocked(m_read_offset, header);
         if (!parsed) {
             uint64_t resume = 0;
-            parsed = findFrame_unlocked(m_read_offset + 1, resume, header);
+            uint64_t from = m_read_offset + 1;
+            for (;;) {
+                parsed = findFrame_unlocked(from, resume, header);
+                /*
+                 * A file ends where no frame follows; a station only ends
+                 * when its stream does -- past garbage (a reconnection's
+                 * join, say), keep looking.
+                 */
+                if (parsed || !m_live || m_handler->eof()) break;
+                from += kSyncSearchLimit - kHeaderBytes;
+            }
             if (parsed) {
                 Debug::log("adts", "ADTSDemuxer: resynchronised from ", m_read_offset, " to ", resume);
                 m_read_offset = resume;
@@ -337,17 +383,49 @@ MediaChunk ADTSDemuxer::readChunk_unlocked()
 
         const uint64_t frame_offset = m_read_offset;
         m_read_offset += header.frame_length;
-        if (header.raw_blocks != 1) {
+        if (header.raw_blocks != 1 || header.channel_config == 0) {
             if (!m_warned_multi_block) {
-                Debug::log("adts", "ADTSDemuxer: skipping frames with ", header.raw_blocks, " raw data blocks");
+                Debug::log("adts", "ADTSDemuxer: skipping frames with ", header.raw_blocks,
+                           " raw data blocks or channel configuration ", header.channel_config);
                 m_warned_multi_block = true;
             }
             m_current_sample += kSamplesPerBlock * header.raw_blocks;
+            /*
+             * A stream made only of frames that cannot be decoded would
+             * otherwise be read here for ever, under the lock, producing
+             * nothing: after enough in a row, it is over.
+             */
+            if (++m_skipped_in_row > kMaxSkippedFrames) {
+                Debug::log("adts", "ADTSDemuxer: ", kMaxSkippedFrames, " frames in a row cannot be decoded; ending");
+                m_eof_flag.store(true);
+                MediaChunk eos;
+                eos.stream_id = 1;
+                eos.end_of_stream = true;
+                return eos;
+            }
             continue;
         }
+        m_skipped_in_row = 0;
 
         MediaChunk chunk;
         chunk.stream_id = 1;
+        /*
+         * The frame's configuration is not what the codec was opened with --
+         * an advert at another rate, a backup encoder, a reconnection to a
+         * re-configured one. The raw AAC decoder cannot tell from the frame
+         * (it never sees the header), so the stream info is rebuilt and the
+         * chunk flagged as a new link, on which the codec is rebuilt from it.
+         */
+        if (header.sf_index != m_config.sf_index || header.channel_config != m_config.channel_config ||
+            header.profile != m_config.profile) {
+            Debug::log("adts", "ADTSDemuxer: configuration changed to ", header.sample_rate, " Hz, ",
+                       header.channels, " ch, object type ", header.profile + 1);
+            m_config = header;
+            m_stream_info.sample_rate = header.sample_rate;
+            m_stream_info.channels = static_cast<uint16_t>(header.channels);
+            m_stream_info.codec_data = makeAudioSpecificConfig(header);
+            chunk.new_link = true;
+        }
         chunk.file_offset = frame_offset;
         chunk.timestamp_samples = m_current_sample;
         chunk.is_keyframe = true;

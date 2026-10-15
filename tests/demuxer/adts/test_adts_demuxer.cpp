@@ -329,6 +329,102 @@ protected:
     }
 };
 
+/** @brief A live handler that notes the largest single read asked of it. */
+class ReadSizeLiveHandler : public LiveMemoryIOHandler {
+public:
+    /** @brief Wrap @p data as a live stream. */
+    explicit ReadSizeLiveHandler(const std::string& data) : LiveMemoryIOHandler(data) {}
+
+    /**
+     * @brief Read, noting the size asked for.
+     * @param buffer Destination.
+     * @param size Element size.
+     * @param count Elements.
+     * @return What MemoryIOHandler::read returns.
+     */
+    size_t read(void* buffer, size_t size, size_t count) override
+    {
+        largest = std::max(largest, size * count);
+        return LiveMemoryIOHandler::read(buffer, size, count);
+    }
+
+    /** @brief The largest read asked for so far. */
+    size_t largest = 0;
+};
+
+/**
+ * @brief What a live stream and a damaged file do to the demuxer:
+ *        - a station's sync search reads a little at a time (one 64 KiB read
+ *          waits 16-20 s for a low-bitrate station before a note plays);
+ *        - a mid-stream change of configuration (an advert at another rate)
+ *          rebuilds the stream info and flags a new link, on which the codec
+ *          is rebuilt (the old one decoded the new frames wrongly);
+ *        - a run of frames that cannot be decoded ends the stream (it was
+ *          read for ever, producing nothing);
+ *        - damage in the middle of a file no longer cuts the duration short.
+ */
+class StreamChangesTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    StreamChangesTest() : TestCase("Live sync in small reads; configuration change; undecodable run; damaged file") {}
+protected:
+    /** @brief One case each. */
+    void runTest() override {
+        {
+            FrameSpec a, b;
+            b.seed = 5;
+            auto handler = std::make_unique<ReadSizeLiveHandler>(makeFrame(a) + makeFrame(b));
+            ReadSizeLiveHandler* raw = handler.get();
+            auto d = std::make_unique<ADTSDemuxer>(std::move(handler));
+            ASSERT_TRUE(d->parseContainer(), "parses");
+            ASSERT_TRUE(raw->largest <= 4096, "live sync reads 4 KiB at a time (largest " +
+                                                  std::to_string(raw->largest) + ")");
+        }
+        {
+            FrameSpec a, b, c, e;
+            b.seed = 2;
+            c.sf_index = 3; c.channels = 1; c.seed = 3; // 48 kHz mono from here
+            e.sf_index = 3; e.channels = 1; e.seed = 4;
+            auto d = std::make_unique<ADTSDemuxer>(
+                std::make_unique<LiveMemoryIOHandler>(makeFrame(a) + makeFrame(b) + makeFrame(c) + makeFrame(e)));
+            ASSERT_TRUE(d->parseContainer(), "parses");
+            ASSERT_FALSE(d->readChunk().new_link, "first frame: no change");
+            ASSERT_FALSE(d->readChunk().new_link, "second: no change");
+            MediaChunk changed = d->readChunk();
+            ASSERT_TRUE(changed.new_link, "the first 48 kHz mono frame is a new link");
+            const auto info = d->getStreams();
+            ASSERT_EQUALS(48000u, info[0].sample_rate, "stream info follows the new rate");
+            ASSERT_EQUALS(uint16_t(1), info[0].channels, "and channels");
+            ASSERT_FALSE(d->readChunk().new_link, "the next is the same link");
+        }
+        {
+            std::string data = makeFrame(FrameSpec());
+            FrameSpec multi;
+            multi.blocks = 2;
+            for (int i = 0; i < 80; ++i) data += makeFrame(multi);
+            data += makeFrame(FrameSpec());
+            auto d = std::make_unique<ADTSDemuxer>(std::make_unique<LiveMemoryIOHandler>(data));
+            ASSERT_TRUE(d->parseContainer(), "parses");
+            (void)d->readChunk();
+            MediaChunk next = d->readChunk();
+            ASSERT_TRUE(next.end_of_stream, "a long run of undecodable frames ends the stream");
+        }
+        {
+            std::vector<FrameSpec> specs(4);
+            std::string data;
+            for (size_t i = 0; i < specs.size(); ++i) {
+                specs[i].seed = static_cast<uint8_t>(i + 1);
+                data += makeFrame(specs[i]);
+                if (i == 1) data += std::string(13, '\x55');
+            }
+            auto d = demuxerFor(data);
+            ASSERT_TRUE(d->parseContainer(), "parses");
+            ASSERT_EQUALS(uint64_t(4 * 1024 * 1000 / 44100), d->getDuration(),
+                          "all four frames count, the two after the damage too");
+        }
+    }
+};
+
 /** @brief Not ADTS at all. */
 class RejectTest : public TestFramework::TestCase {
 public:
@@ -360,6 +456,7 @@ int test_adts_demuxer_main()
     suite.addTest(std::make_unique<MimeFallbackTest>());
     suite.addTest(std::make_unique<RejectTest>());
     suite.addTest(std::make_unique<TaggedFileProbeTest>());
+    suite.addTest(std::make_unique<StreamChangesTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return suite.getFailureCount(results);

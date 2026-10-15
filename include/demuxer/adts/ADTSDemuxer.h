@@ -188,6 +188,10 @@ private:
     uint64_t m_total_samples = 0;       ///< a file's length in samples
     std::vector<uint64_t> m_frame_offsets;  ///< a file's frames, for seeking
     bool m_warned_multi_block = false;  ///< logged a skipped multi-block frame
+    /** @brief Undecodable frames skipped in a row (see kMaxSkippedFrames). */
+    unsigned m_skipped_in_row = 0;
+    /** @brief The configuration the stream info describes: compared with each frame's. */
+    ADTSHeader m_config;
 
     mutable std::mutex m_mutex;
 };
