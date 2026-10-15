@@ -116,6 +116,18 @@ protected:
         ASSERT_TRUE(MediaFactory::extractExtension("file_no_extension").empty(), "No extension should return empty");
         ASSERT_TRUE(MediaFactory::extractExtension("file.").empty(), "Empty extension should return empty");
         ASSERT_TRUE(MediaFactory::extractExtension(".hidden").empty(), "Hidden file should return empty");
+        // Internet radio URLs often have no extension; the host's dots are
+        // not one (this used to give "com/zc7001").
+        ASSERT_TRUE(MediaFactory::extractExtension("https://cloud.revma.ihrhls.com/zc7001").empty(),
+                    "A URL path without a dot has no extension");
+        ASSERT_TRUE(MediaFactory::extractExtension("http://listen.example.com").empty(),
+                    "A URL with no path has no extension");
+        ASSERT_TRUE(MediaFactory::extractExtension("http://radio.example.com/v1.2/stream").empty(),
+                    "A dot in an earlier path segment is not an extension");
+        ASSERT_EQUALS("mp3", MediaFactory::extractExtension("https://listen.181fm.com/181-rock_128k.mp3?x=1.2"),
+                      "Extension of the last segment, query ignored");
+        ASSERT_TRUE(MediaFactory::extractExtension("/music/.hidden").empty(),
+                    "A hidden file inside a directory has no extension");
         
         // Test HTTP URI detection
         ASSERT_TRUE(MediaFactory::isHttpUri("http://example.com/file.mp3"), "HTTP URI should be detected");

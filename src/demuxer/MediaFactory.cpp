@@ -466,10 +466,30 @@ std::string MediaFactory::extractExtension(const std::string& uri) {
         Debug::log("loader", "MediaFactory::extractExtension removed fragment: ", path);
     }
     
-    // Find last dot
-    size_t dot_pos = path.find_last_of('.');
-    if (dot_pos != std::string::npos && dot_pos > 0 && dot_pos < path.length() - 1) {
-        std::string ext = path.substr(dot_pos + 1);
+    // Only the last segment of the path can carry an extension. A URL's host
+    // is not part of it: "https://listen.example.com/stream" has none, where
+    // taking the last dot anywhere made it "com/stream". A URL with no path
+    // at all has none either.
+    size_t segment_start = 0;
+    const size_t scheme_end = path.find("://");
+    if (scheme_end != std::string::npos) {
+        const size_t path_start = path.find('/', scheme_end + 3);
+        if (path_start == std::string::npos) {
+            Debug::log("loader", "MediaFactory::extractExtension no path, so no extension");
+            return "";
+        }
+        segment_start = path_start;
+    }
+    const size_t last_separator = path.find_last_of("/\\");
+    if (last_separator != std::string::npos && last_separator + 1 > segment_start) {
+        segment_start = last_separator + 1;
+    }
+    const std::string segment = path.substr(segment_start);
+
+    // Find last dot; a leading dot is a hidden file's name, not an extension.
+    size_t dot_pos = segment.find_last_of('.');
+    if (dot_pos != std::string::npos && dot_pos > 0 && dot_pos < segment.length() - 1) {
+        std::string ext = segment.substr(dot_pos + 1);
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         Debug::log("loader", "MediaFactory::extractExtension found extension: ", ext);
         return ext;
