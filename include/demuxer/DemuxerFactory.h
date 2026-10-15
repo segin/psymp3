@@ -116,6 +116,17 @@ private:
      * @return The format id, or "".
      */
     static std::string formatForMimeType(const std::string& mime_type);
+
+    /** @brief How much of a live stream's start findAdtsPair() reads. */
+    static constexpr size_t kLiveProbeBytes = 4096;
+
+    /**
+     * @brief Whether two ADTS frames in a row start within the first
+     *        kLiveProbeBytes of a stream joined mid-frame.
+     * @param handler The stream; left where it was.
+     * @return true if found.
+     */
+    static bool findAdtsPair(IOHandler* handler);
     
     // Fast signature matching
     static bool matchSignature(const uint8_t* data, size_t data_size, 

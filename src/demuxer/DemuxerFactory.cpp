@@ -467,6 +467,18 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& f
     // extension, or one unrelated to what it sends; what it says it sends
     // comes before the extension. The demuxers then search for their sync.
     if (handler && handler->isLiveStream()) {
+#ifdef HAVE_AAC
+        /*
+         * What a stream says can be wrong: AAC stations labelled audio/mpeg
+         * are common, and the MP3 demuxer would then search AAC for a sync.
+         * Two ADTS frames in a row -- each header saying where the next
+         * begins -- settle it whatever the label.
+         */
+        if (findAdtsPair(handler)) {
+            Debug::log("demuxer", "DemuxerFactory: live stream, ADTS frames found mid-stream");
+            return "adts";
+        }
+#endif
         const std::string mime = handler->getMimeType();
         const std::string by_mime = formatForMimeType(mime);
         if (!by_mime.empty()) {
@@ -552,6 +564,38 @@ bool DemuxerFactory::matchSignature(const uint8_t* data, size_t data_size,
                    signature.format_id, " - ", e.what());
         return false;
     }
+}
+
+/**
+ * @brief Search the start of a stream for two ADTS frames in a row: a valid
+ *        header (layer 00, a known sample rate, a length longer than the
+ *        header) and another valid header exactly that length further on,
+ *        with the same rate and channels. A chance sync word in other audio
+ *        is not followed by a second where the first says.
+ * @param handler The stream, at its start; left where it was.
+ * @return true if the pair is there.
+ */
+bool DemuxerFactory::findAdtsPair(IOHandler* handler) {
+    const auto original = handler->tell();
+    std::vector<uint8_t> buf(kLiveProbeBytes);
+    const size_t got = handler->read(buf.data(), 1, buf.size());
+    handler->seek(original, SEEK_SET);
+    auto header = [&buf, got](size_t i, unsigned& length, unsigned& config) {
+        if (i + 7 > got || buf[i] != 0xFF || (buf[i + 1] & 0xF6) != 0xF0) return false;
+        const unsigned sf_index = (buf[i + 2] >> 2) & 0x0F;
+        if (sf_index > 12) return false;
+        length = ((buf[i + 3] & 0x03u) << 11) | (static_cast<unsigned>(buf[i + 4]) << 3) | (buf[i + 5] >> 5);
+        if (length <= 7) return false;
+        config = (sf_index << 3) | (((buf[i + 2] & 0x01u) << 2) | (buf[i + 3] >> 6));
+        return true;
+    };
+    for (size_t i = 0; i + 7 <= got; ++i) {
+        unsigned length = 0, config = 0, next_length = 0, next_config = 0;
+        if (header(i, length, config) && header(i + length, next_length, next_config) && config == next_config) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**

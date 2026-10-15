@@ -282,6 +282,13 @@ protected:
                       PsyMP3::Demuxer::DemuxerFactory::probeFormat(&live, "http://radio.example/stream"),
                       "live stream: format from audio/aacp");
 
+        // A station that sends AAC but says audio/mpeg: the frames decide.
+        LiveMemoryIOHandler mislabelled(data, "audio/mpeg");
+        ASSERT_EQUALS(std::string("adts"),
+                      PsyMP3::Demuxer::DemuxerFactory::probeFormat(&mislabelled, "http://radio.example/stream"),
+                      "ADTS frames mid-stream win over an audio/mpeg label");
+        ASSERT_EQUALS(0, static_cast<int>(mislabelled.tell()), "the probe leaves the stream where it was");
+
         MemoryIOHandler file(data.data(), data.size());
         ASSERT_EQUALS(std::string(),
                       PsyMP3::Demuxer::DemuxerFactory::probeFormat(&file, "/music/unknown"),
