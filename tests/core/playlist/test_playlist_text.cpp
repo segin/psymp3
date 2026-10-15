@@ -148,6 +148,13 @@ private:
                       "file URI to path");
         ASSERT_EQUALS(std::string("/x.mp3"), PlaylistText::fileUriToPath("file://localhost/x.mp3"), "localhost");
         ASSERT_EQUALS(std::string(), PlaylistText::fileUriToPath("http://a/b"), "not a file URI");
+#ifdef _WIN32
+        ASSERT_EQUALS(std::string("//nas/music/a b.mp3"), PlaylistText::fileUriToPath("file://nas/music/a%20b.mp3"),
+                      "another machine's file is a UNC path");
+#else
+        ASSERT_EQUALS(std::string(), PlaylistText::fileUriToPath("file://nas/music/a.mp3"),
+                      "another machine's file has no path here");
+#endif
         ASSERT_EQUALS(std::string("caf\xC3\xA9 50%"), PlaylistText::percentDecode("caf%C3%A9 50%"),
                       "escapes decoded, a stray % kept");
     }

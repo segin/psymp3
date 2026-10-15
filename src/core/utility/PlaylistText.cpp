@@ -456,6 +456,19 @@ std::string PlaylistText::fileUriToPath(const std::string& uri)
     std::string rest = uri.substr(7);
     // file://localhost/x and file:///x name the same file.
     if (plLower(rest.substr(0, 10)) == "localhost/") rest.erase(0, 9);
+    if (rest.empty() || rest[0] != '/') {
+        /*
+         * file://server/share/x names a file on another machine. Windows
+         * reaches it as the UNC path //server/share/x; elsewhere there is
+         * no such path, and the entry is refused rather than taken for a
+         * path relative to wherever PsyMP3 was started.
+         */
+#ifdef _WIN32
+        return rest.empty() ? std::string() : "//" + percentDecode(rest);
+#else
+        return std::string();
+#endif
+    }
     std::string path = percentDecode(rest);
 #ifdef _WIN32
     // file:///C:/x -> C:/x

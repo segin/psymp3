@@ -84,9 +84,11 @@ public:
     /**
      * @brief The local path a file:// URI names, percent-decoded
      *        (file:///home/a%20b.mp3 is /home/a b.mp3; on Windows,
-     *        file:///C:/x.mp3 is C:/x.mp3).
+     *        file:///C:/x.mp3 is C:/x.mp3 and file://server/share/x.mp3 the
+     *        UNC path //server/share/x.mp3).
      * @param uri The URI.
-     * @return The path, or "" if it is not a file URI.
+     * @return The path, or "" if it is not a file URI or names another
+     *         machine where there is no way to reach it (not Windows).
      */
     static std::string fileUriToPath(const std::string& uri);
 

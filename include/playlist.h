@@ -120,7 +120,10 @@ class Playlist
          * @param location As the playlist writes it.
          * @param percent_encoded Whether relative locations carry %XX escapes
          *        (XSPF writes URI references).
-         * @return The path or URL, or empty if refused.
+         * @return The path or URL, or empty if refused: one that climbs out
+         *         with "..", a file:// URI naming another machine (off
+         *         Windows), or a name that decodes to a NUL or to bytes that
+         *         are not UTF-8.
          */
         static TagLib::String resolvePlaylistLocation(const TagLib::String& playlist_dir,
                                                       const std::string& location, bool percent_encoded);

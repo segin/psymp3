@@ -244,6 +244,18 @@ private:
         ASSERT_EQUALS(std::string("./sub/c d.mp3"), entries[1].path.to8Bit(true), "XSPF: relative, decoded");
         std::remove(xspf.c_str());
 
+        // Locations that decode to no usable name are dropped, not opened as another.
+        std::string broken = createTempM3U(
+            "<?xml version=\"1.0\"?><playlist version=\"1\" xmlns=\"http://xspf.org/ns/0/\"><trackList>"
+            "<track><location>song.mp3%00.txt</location></track>"
+            "<track><location>bad%FFname.mp3</location></track>"
+            "<track><location>file:///music/ok.flac</location></track>"
+            "</trackList></playlist>", "temp_broken.xspf");
+        entries = Playlist::loadPlaylistEntries(TagLib::String(broken, TagLib::String::UTF8));
+        ASSERT_EQUALS(1, entries.size(), "XSPF: a NUL and a non-UTF-8 byte are dropped");
+        ASSERT_EQUALS(std::string("/music/ok.flac"), entries[0].path.to8Bit(true), "the good entry stays");
+        std::remove(broken.c_str());
+
         std::string asx = createTempM3U(
             "<asx version=\"3.0\"><entry><title>Live</title><ref href=\"http://stream.example.com/live\"/></entry></asx>",
             "temp_station.asx");

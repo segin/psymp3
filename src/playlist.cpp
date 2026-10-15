@@ -815,21 +815,40 @@ std::vector<Playlist::Entry> Playlist::loadPlaylistEntries(TagLib::String path)
  * @param location As the playlist writes it.
  * @param percent_encoded Whether relative locations are URI references with
  *        %XX escapes (XSPF writes them so).
- * @return The path or URL, or empty if refused.
+ * @return The path or URL, or empty if refused: one that climbs out with
+ *         "..", a file:// URI naming another machine (off Windows), or a
+ *         name that decodes to a NUL or to bytes that are not UTF-8.
  */
 TagLib::String Playlist::resolvePlaylistLocation(const TagLib::String& playlist_dir,
                                                  const std::string& location, bool percent_encoded)
 {
     using PsyMP3::Core::Utility::PlaylistText;
+    using PsyMP3::Core::Utility::UTF8Util;
+    /*
+     * A path that percent-decoding made into something no file is called --
+     * a NUL, which would cut it short, or bytes that are not UTF-8 -- is
+     * refused rather than opened as some other name.
+     */
+    auto usable = [](const std::string& decoded) {
+        return decoded.find('\0') == std::string::npos && UTF8Util::isValid(decoded);
+    };
     if (PlaylistText::isUrl(location)) {
-        const std::string file_path = PlaylistText::fileUriToPath(location);
-        if (file_path.empty()) {
+        std::string scheme = location.substr(0, 5);
+        std::transform(scheme.begin(), scheme.end(), scheme.begin(), ::tolower);
+        if (scheme != "file:") {
             return TagLib::String(location, TagLib::String::UTF8);
+        }
+        const std::string file_path = PlaylistText::fileUriToPath(location);
+        if (file_path.empty() || !usable(file_path)) {
+            return TagLib::String(); // another machine's file, or a broken name
         }
         return TagLib::String(file_path, TagLib::String::UTF8);
     }
-    const TagLib::String path(percent_encoded ? PlaylistText::percentDecode(location) : location,
-                              TagLib::String::UTF8);
+    const std::string decoded = percent_encoded ? PlaylistText::percentDecode(location) : location;
+    if (!usable(decoded)) {
+        return TagLib::String();
+    }
+    const TagLib::String path(decoded, TagLib::String::UTF8);
     return isAbsolutePath(path) ? path : joinPaths(playlist_dir, path);
 }
 
