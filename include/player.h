@@ -116,6 +116,15 @@ class Player
         void requestTrackPreload(const TagLib::String& path);
         void requestChainedStreamLoad(const std::vector<TagLib::String>& paths);
         void loaderThreadLoop();
+
+        /**
+         * @brief Give up the load in flight, if any: abort the stream
+         *        connections it has open, so a stalled station does not hold
+         *        the loader until its stall check gives up. Its result then
+         *        arrives as a failure, which the load handlers already treat
+         *        as superseded or cancelled.
+         */
+        void abortInflightLoad();
         void playlistPopulatorLoop(const std::vector<std::string>& args);
 
         void nextTrack(size_t advance_count = 1);
@@ -480,6 +489,10 @@ class Player
         // completing after a stop does not resurrect playback.
         bool m_pending_load_active = false;
         bool m_cancel_inflight_load = false;
+        // The stream connections of the load in flight (loader thread), so
+        // abortInflightLoad() can give them up; null between loads.
+        std::shared_ptr<PsyMP3::IO::HTTP::StreamAbortGroup> m_load_abort_group;
+        std::mutex m_load_abort_mutex;
         TagLib::String m_pending_load_path;
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;

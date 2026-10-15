@@ -1125,6 +1125,8 @@ Player::~Player() {
     }
 #endif
     if (m_loader_active) {
+        // A load stuck on a stalled station must not hold this join.
+        abortInflightLoad();
         // Set the flag under m_loader_queue_mutex (the loader's wait predicate
         // mutex) so a store+notify can't be lost between the loader's predicate
         // check and its block, which would hang join() forever.
@@ -1221,6 +1223,9 @@ Uint32 Player::AppLoopTimer(void* param, SDL_TimerID timerID, Uint32 interval) {
 void Player::requestTrackLoad(TagLib::String path) {
     Debug::log("loader", "Player::requestTrackLoad(", path.to8Bit(true), ") called.");
     m_cursor_unplayed = false;
+    // Whatever is loading now -- a superseded track, or a preload of the next
+    // one -- is no longer wanted; a stalled station must not make this wait.
+    abortInflightLoad();
     if (m_loading_track) {
         // Supersede rather than drop: record the latest requested track and
         // issue it when the in-flight load settles. Dropping it silently left
@@ -1291,6 +1296,17 @@ void Player::requestChainedStreamLoad(const std::vector<TagLib::String>& paths) 
  * and then posts a success or failure event back to the main thread with the result.
  * This design keeps the UI responsive.
  */
+/**
+ * @brief Abort the stream connections of the load in flight, if there is one.
+ */
+void Player::abortInflightLoad() {
+    std::lock_guard<std::mutex> lock(m_load_abort_mutex);
+    if (m_load_abort_group) {
+        Debug::log("loader", "Player: aborting the load in flight");
+        m_load_abort_group->abort();
+    }
+}
+
 void Player::loaderThreadLoop() {
     System::setThisThreadName("track-loader");
     while (m_loader_active) {
@@ -1310,6 +1326,15 @@ void Player::loaderThreadLoop() {
         size_t num_chained = 1;
         std::vector<AudioSample> primed_samples;
         bool primed_eof = false;
+
+        // The stream connections this load opens join this group, so a skip,
+        // stop or quit can abort them instead of waiting out a stalled station.
+        auto abort_group = std::make_shared<PsyMP3::IO::HTTP::StreamAbortGroup>();
+        {
+            std::lock_guard<std::mutex> lock(m_load_abort_mutex);
+            m_load_abort_group = abort_group;
+        }
+        PsyMP3::IO::HTTP::StreamAbortGroup::Scope abort_scope(abort_group);
 
         try {
             // Own the stream via unique_ptr until priming succeeds, so a throw
@@ -1339,6 +1364,20 @@ void Player::loaderThreadLoop() {
         } catch (const std::exception& e) {
             error_msg = e.what();
             new_stream = nullptr; // stream_holder freed by RAII during unwind
+        }
+
+        // The load is over. Its connections now belong to the stream (if
+        // any), which plays on: aborting the group must no longer reach them.
+        // An abort that came in during the load still fails the result.
+        {
+            std::lock_guard<std::mutex> lock(m_load_abort_mutex);
+            if (abort_group->isAborted() && new_stream) {
+                delete new_stream;
+                new_stream = nullptr;
+                error_msg = "load aborted";
+            }
+            abort_group->detach();
+            m_load_abort_group.reset();
         }
 
         // Synthesize event back to main thread
@@ -2563,6 +2602,8 @@ bool Player::stop(void) {
     if (m_loading_track) {
         m_cancel_inflight_load = true;
     }
+    // Nothing is to play now: give up any load, stalled or not.
+    abortInflightLoad();
     m_pending_load_active = false;
     state = PlayerState::Stopped;
     updateTaskbarPlayState();
@@ -4643,6 +4684,11 @@ void Player::Cleanup() {
     if (system) system->updateProgress(0, 0);
     System::setMainWindow(nullptr);
 #endif
+    // A stalled internet radio station would otherwise hold the loader and
+    // the decoder in their reads until its stall check gives up, half a
+    // minute later, and every join below would wait for it.
+    abortInflightLoad();
+    PsyMP3::IO::HTTP::HTTPStreamIOHandler::abortAll();
     if (audio) audio->play(false);
 
     // Stop and join the background threads BEFORE SDL_Quit(): a loader thread
