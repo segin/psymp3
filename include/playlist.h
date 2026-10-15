@@ -85,6 +85,16 @@ class Playlist
         bool updateTrackMetadataAt(long index, const TagLib::String& path,
                                    const TagLib::String& artist, const TagLib::String& title,
                                    const TagLib::String& album, unsigned int length_seconds);
+        /**
+         * @brief Name a station's row for the station: title = name, artist and
+         *        album cleared (not kept, as updateTrackMetadataAt() keeps
+         *        fields left empty). Only if the row still holds @p path.
+         * @param index The row.
+         * @param path The station's URL.
+         * @param name The station's name.
+         * @return true if the row changed (the generation is bumped then).
+         */
+        bool setStationNameAt(long index, const TagLib::String& path, const TagLib::String& name);
         ~Playlist() = default;
         bool addFile(TagLib::String path);
         long getPosition() const;

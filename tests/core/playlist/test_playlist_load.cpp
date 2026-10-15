@@ -32,6 +32,7 @@ protected:
         testResolveInlineSourcesKeepsStreamUrls();
         testLoadKeepsUrlLines();
         testLoadOtherFormats();
+        testStationName();
         testLoadPlaylistWithInvalidDuration();
     }
 
@@ -263,6 +264,27 @@ private:
         ASSERT_EQUALS(1, entries.size(), "ASX: one entry");
         ASSERT_EQUALS(std::string("http://stream.example.com/live"), entries[0].path.to8Bit(true), "ASX: the URL");
         std::remove(asx.c_str());
+    }
+
+    /**
+     * @brief A station row named from its icy-name loses the artist its
+     *        EXTINF gave it ("BBC - Radio 1" became "BBC - <icy-name>").
+     */
+    void testStationName() {
+        std::string filename = createTempM3U("#EXTINF:-1,BBC - Radio 1\nhttp://example.com/radio1\n",
+                                             "temp_station_name.m3u");
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+        std::remove(filename.c_str());
+        const TagLib::String url("http://example.com/radio1", TagLib::String::UTF8);
+        ASSERT_TRUE(playlist->setStationNameAt(0, url, TagLib::String("BBC Radio 1 Live", TagLib::String::UTF8)),
+                    "the row is renamed");
+        const auto info = playlist->getTrackInfo(0);
+        ASSERT_TRUE(info.has_value(), "the row is there");
+        ASSERT_TRUE(info->artist.isEmpty(), "the EXTINF artist is cleared");
+        ASSERT_EQUALS(std::string("BBC Radio 1 Live"), info->title.to8Bit(true), "the title is the station's name");
+        ASSERT_FALSE(playlist->setStationNameAt(0, TagLib::String("http://other/", TagLib::String::UTF8),
+                                                TagLib::String("X", TagLib::String::UTF8)),
+                     "a row holding another URL is left alone");
     }
 
     void testLoadPlaylistWithInvalidDuration() {

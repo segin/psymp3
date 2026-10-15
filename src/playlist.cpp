@@ -366,6 +366,36 @@ bool Playlist::updateTrackMetadataAt(long index, const TagLib::String& path,
     return true;
 }
 
+/**
+ * @brief Name a station's row for the station: the title is its name, and
+ *        nothing else describes it -- unlike updateTrackMetadataAt(), an
+ *        artist the row had (from "#EXTINF:-1,BBC - Radio 1", say) is
+ *        cleared rather than kept beside the new name.
+ * @param index The row.
+ * @param path The station's URL, which the row must still hold.
+ * @param name The station's name.
+ * @return true if the row changed.
+ */
+bool Playlist::setStationNameAt(long index, const TagLib::String& path, const TagLib::String& name)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (index < 0 || static_cast<size_t>(index) >= tracks.size() || name.isEmpty()) {
+        return false;
+    }
+    track& t = tracks[index];
+    if (t.GetFilePath() != path) {
+        return false; // a different entry occupies this slot now
+    }
+    if (t.GetArtist().isEmpty() && t.GetTitle() == name && t.GetAlbum().isEmpty()) {
+        return false; // nothing changed
+    }
+    t.setArtist(TagLib::String());
+    t.setTitle(name);
+    t.setAlbum(TagLib::String());
+    m_generation.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+
 bool Playlist::insertEntries(long position, const std::vector<Entry>& entries)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);

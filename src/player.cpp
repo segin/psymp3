@@ -6639,11 +6639,11 @@ void Player::updatePlaylistRowFromStream()
         return;
     }
     if (stream->isLive()) {
-        const TagLib::String station = stream->getStationName();
-        if (!station.isEmpty()) {
-            playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
-                                            TagLib::String(), station, TagLib::String(), 0);
-        }
+        /*
+         * setStationNameAt(), not the merging update: an artist the row came
+         * with ("#EXTINF:-1,BBC - Radio 1") must not stay beside the name.
+         */
+        playlist->setStationNameAt(playlist->getPosition(), stream->getFilePath(), stream->getStationName());
         return;
     }
     playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
