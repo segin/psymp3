@@ -104,7 +104,18 @@ private:
     static std::map<std::string, DemuxerFactoryFunc> s_demuxer_factories;
     static std::vector<FormatSignature> s_signatures;
     static std::map<std::string, std::string> s_extension_to_format;
+    /** @brief Content-Types a live stream may declare, to the format that plays it. */
+    static std::map<std::string, std::string> s_mime_to_format;
     static std::mutex s_factory_mutex; // Thread safety for factory operations
+
+    /**
+     * @brief The format a live stream's Content-Type names, from this
+     *        factory's own table -- not MediaFactory's, which would pull every
+     *        codec and demuxer into anything that links this factory.
+     * @param mime_type Lower case, without parameters.
+     * @return The format id, or "".
+     */
+    static std::string formatForMimeType(const std::string& mime_type);
     
     // Fast signature matching
     static bool matchSignature(const uint8_t* data, size_t data_size, 

@@ -16,6 +16,7 @@ namespace Demuxer {
 std::map<std::string, DemuxerFactory::DemuxerFactoryFunc> DemuxerFactory::s_demuxer_factories;
 std::vector<FormatSignature> DemuxerFactory::s_signatures;
 std::map<std::string, std::string> DemuxerFactory::s_extension_to_format;
+std::map<std::string, std::string> DemuxerFactory::s_mime_to_format;
 bool DemuxerFactory::s_initialized = false;
 std::mutex DemuxerFactory::s_factory_mutex; // Thread safety for factory operations
 
@@ -131,7 +132,27 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["g722"] = "raw";
     s_extension_to_format["722"] = "raw";
     s_extension_to_format["au"] = "raw";
-    
+
+    /*
+     * What internet radio declares itself as, for a stream whose first bytes
+     * (joined mid-frame) identify nothing: the formats whose demuxers play
+     * live input.
+     */
+    for (const char* type : {"audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3", "audio/x-mpeg", "audio/x-mpeg-3"}) {
+        s_mime_to_format[type] = "mp3";
+    }
+    for (const char* type : {"application/ogg", "audio/ogg", "audio/opus", "audio/vorbis", "audio/x-vorbis", "audio/x-ogg"}) {
+        s_mime_to_format[type] = "ogg";
+    }
+    for (const char* type : {"audio/flac", "audio/x-flac", "application/x-flac"}) {
+        s_mime_to_format[type] = "flac";
+    }
+#ifdef HAVE_AAC
+    for (const char* type : {"audio/aac", "audio/aacp", "audio/x-aac", "audio/vnd.dlna.adts"}) {
+        s_mime_to_format[type] = "adts";
+    }
+#endif
+
     s_initialized = true;
 }
 
@@ -447,7 +468,7 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& f
     // comes before the extension. The demuxers then search for their sync.
     if (handler && handler->isLiveStream()) {
         const std::string mime = handler->getMimeType();
-        const std::string by_mime = MediaFactory::formatForMimeType(mime);
+        const std::string by_mime = formatForMimeType(mime);
         if (!by_mime.empty()) {
             Debug::log("demuxer", "DemuxerFactory: live stream, format ", by_mime,
                        " from its Content-Type ", mime);
@@ -531,6 +552,18 @@ bool DemuxerFactory::matchSignature(const uint8_t* data, size_t data_size,
                    signature.format_id, " - ", e.what());
         return false;
     }
+}
+
+/**
+ * @brief Look a live stream's Content-Type up in this factory's table.
+ * @param mime_type Lower case, without parameters.
+ * @return The format id, or "".
+ */
+std::string DemuxerFactory::formatForMimeType(const std::string& mime_type) {
+    initializeBuiltInFormats();
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
+    auto it = s_mime_to_format.find(mime_type);
+    return it == s_mime_to_format.end() ? std::string() : it->second;
 }
 
 std::string DemuxerFactory::detectFormatFromExtension(const std::string& file_path) {
