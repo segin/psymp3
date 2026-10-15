@@ -88,6 +88,10 @@ protected:
         const auto fmp4 = HLSIOHandler::parsePlaylist(
             "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:10,\na.m4s\n");
         ASSERT_TRUE(fmp4.unsupported, "fragmented MP4 is refused");
+        const auto ranged = HLSIOHandler::parsePlaylist(
+            "#EXTM3U\n#EXTINF:10,\n#EXT-X-BYTERANGE:1000@0\nall.aac\n#EXTINF:10,\n#EXT-X-BYTERANGE:1000\nall.aac\n");
+        ASSERT_TRUE(ranged.unsupported, "byte-range segments are refused, not fetched whole each time");
+
         // RFC 8216 quoted strings have no escapes: a backslash is the title's own.
         const auto slashed = HLSIOHandler::parsePlaylist(
             "#EXTM3U\n#EXTINF:10,title=\"AC\\DC Song\",artist=\"AC\\DC\"\na.aac\n");

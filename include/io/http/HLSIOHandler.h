@@ -44,7 +44,8 @@ namespace HTTP {
  * Supported: "packed audio" segments, which are a raw elementary stream with
  * an ID3 tag in front carrying a timestamp (RFC 8216 §3.4): AAC in ADTS (.aac)
  * and MPEG audio (.mp3). The ID3 tags are removed. Segments in MPEG-TS (.ts)
- * or fragmented MP4 (#EXT-X-MAP) are refused, as is encryption (#EXT-X-KEY).
+ * or fragmented MP4 (#EXT-X-MAP) are refused, as is encryption (#EXT-X-KEY)
+ * and segments that are byte ranges of one resource (#EXT-X-BYTERANGE).
  *
  * Song titles come from #EXTINF: iHeart writes title="..." and artist="..."
  * there (and the kind of spot inside url="..."), others plain "Artist -
@@ -74,7 +75,7 @@ public:
         std::vector<Segment> segments;    ///< a media playlist's segments
         double target_duration = 0.0;     ///< EXT-X-TARGETDURATION
         bool ended = false;               ///< EXT-X-ENDLIST: no more segments will come
-        bool unsupported = false;         ///< encrypted, or fragmented MP4
+        bool unsupported = false;         ///< encrypted, fragmented MP4, or byte ranges
         std::string unsupported_reason;   ///< why
     };
 

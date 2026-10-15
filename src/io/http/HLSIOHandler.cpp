@@ -180,6 +180,10 @@ HLSIOHandler::Playlist HLSIOHandler::parsePlaylist(const std::string& text)
             } else if (line.compare(0, 11, "#EXT-X-MAP:") == 0) {
                 pl.unsupported = true;
                 pl.unsupported_reason = "fragmented MP4 segments";
+            } else if (line.compare(0, 17, "#EXT-X-BYTERANGE:") == 0) {
+                // Parts of one resource: fetched whole, each would repeat it.
+                pl.unsupported = true;
+                pl.unsupported_reason = "byte-range segments";
             }
             continue;
         }
