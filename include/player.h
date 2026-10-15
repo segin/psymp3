@@ -428,6 +428,51 @@ class Player
         std::unique_ptr<DiscordPresence> m_discord;
         Uint32 m_track_start_time = 0;  // SDL ticks when current track started
         bool m_track_scrobbled = false; // Flag to ensure we only scrobble once per track
+
+        // Internet radio: each announced title is scrobbled as a track of
+        // its own. These describe the title playing now.
+        uint64_t m_seen_meta_generation = 0;  // the stream's count when last seen
+        bool m_stream_title_changed = false;  // set under the mutex, handled after it
+        bool m_live_first_title = true;       // joined mid-song: scrobbled only after 4 min
+        bool m_live_awaiting_first_title = false; // opened before any title was announced
+        bool m_live_title_is_music = true;
+        TagLib::String m_live_scrobble_artist;
+        TagLib::String m_live_scrobble_title;
+        TagLib::String m_live_scrobble_album;
+        time_t m_live_title_started_at = 0;   // wall clock, for the scrobble's timestamp
+
+        /**
+         * @brief Note the live stream's current title as the one now playing,
+         *        for scrobbling when it ends.
+         * @param first true for the first title after the stream opened.
+         */
+        void beginLiveTitle(bool first);
+
+        /**
+         * @brief Scrobble the live title that has just finished, if it is
+         *        music with an artist and played long enough: 30 s, or 4 min
+         *        for the first title, which the listener joined mid-song.
+         */
+        void scrobbleFinishedLiveTitle();
+
+        /**
+         * @brief The live stream announced a new title: scrobble the last one,
+         *        then show the new one -- labels, caption, MPRIS, Discord and
+         *        Last.fm now-playing. Runs on the GUI thread, outside the mutex.
+         */
+        void onStreamTitleChanged();
+
+        /**
+         * @brief Write the playing stream's metadata into its playlist row:
+         *        tags for a file, the station's name for internet radio.
+         */
+        void updatePlaylistRowFromStream();
+
+        /**
+         * @brief Start scrobbling for a stream that has just begun playing;
+         *        a live stream's titles each count as a track.
+         */
+        void startScrobblingForStream();
         
         // For progress bar dragging
         bool m_is_dragging = false;

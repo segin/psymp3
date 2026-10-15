@@ -1545,13 +1545,9 @@ void Player::handleTrackSeamlessSwapEvent() {
     // starts by natural end-of-track transition (seamless swap) also refreshes
     // its Playlist Manager row, not just when double-clicked. The cursor was
     // advanced just above, so getPosition() points at the swapped-in track.
-    if (playlist && stream) {
-        playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
-                                        stream->getArtist(), stream->getTitle(),
-                                        stream->getAlbum(), stream->getLength() / 1000);
-    }
+    updatePlaylistRowFromStream();
 
-    startTrackScrobbling();
+    startScrobblingForStream();
 
     // Notify now-playing listeners of the new track. The seamless-swap path
     // (a track ending into a preloaded one) must do this just like the manual
@@ -3005,6 +3001,16 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
         artist = current_stream->getArtist();
         title = current_stream->getTitle();
 
+        // A live stream announced a new title; it is handled once the mutex
+        // is released (updateGUI), as the handler reaches MPRIS and Discord.
+        if (current_stream->isLive()) {
+            const uint64_t generation = current_stream->getMetadataGeneration();
+            if (generation != m_seen_meta_generation) {
+                m_seen_meta_generation = generation;
+                m_stream_title_changed = true;
+            }
+        }
+
         // Check if we should scrobble this track (only check every 30 seconds to avoid spam)
         if (state == PlayerState::Playing) {
             static Uint32 last_scrobble_check = 0;
@@ -3141,6 +3147,10 @@ bool Player::updateGUI()
     {
         std::lock_guard<std::mutex> lock(*mutex);
         updateState(current_stream, current_pos_ms, total_len_ms, artist, title);
+    }
+    if (m_stream_title_changed) {
+        m_stream_title_changed = false;
+        onStreamTitleChanged();
     }
 
     // Render the overlay and widget tree regardless of stream state so
@@ -6566,7 +6576,18 @@ void Player::checkScrobbling()
     if (!stream || !m_lastfm || m_track_scrobbled || m_track_start_time == 0) {
         return;
     }
-    
+
+    // Internet radio has no length to take half of. A title is normally
+    // scrobbled when the next one arrives; one that has already played four
+    // minutes -- Last.fm's ceiling -- is scrobbled now, which also covers the
+    // first title, joined mid-song, and a title the station never follows.
+    if (stream->isLive()) {
+        if (SDL_GetTicks() - m_track_start_time >= 240000) {
+            scrobbleFinishedLiveTitle();
+        }
+        return;
+    }
+
     Uint32 current_time = SDL_GetTicks();
     Uint32 elapsed_ms = current_time - m_track_start_time;
     
@@ -6590,6 +6611,130 @@ void Player::checkScrobbling()
             std::cout << "Player: Scrobbled track: " << stream->getArtist() << " - " << stream->getTitle() << std::endl;
         }
     }
+}
+
+/**
+ * @brief Write the playing stream's metadata into its playlist row. A file's
+ *        tags replace whatever the row had (a stale EXTINF, say); an internet
+ *        radio row is named for the station, which stays while its songs
+ *        change, and keeps what it had if the station gives no name.
+ */
+void Player::updatePlaylistRowFromStream()
+{
+    if (!playlist || !stream) {
+        return;
+    }
+    if (stream->isLive()) {
+        const TagLib::String station = stream->getStationName();
+        if (!station.isEmpty()) {
+            playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
+                                            TagLib::String(), station, TagLib::String(), 0);
+        }
+        return;
+    }
+    playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
+                                    stream->getArtist(), stream->getTitle(),
+                                    stream->getAlbum(), stream->getLength() / 1000);
+}
+
+/**
+ * @brief Start the scrobble clock for a stream that has just begun playing.
+ *        A live stream's titles are tracks of their own: the one playing now
+ *        (if it has said yet) was joined mid-song, and later ones are noticed
+ *        by updateState().
+ */
+void Player::startScrobblingForStream()
+{
+    if (stream && stream->isLive()) {
+        m_seen_meta_generation = stream->getMetadataGeneration();
+        m_stream_title_changed = false;
+        m_live_awaiting_first_title = m_seen_meta_generation == 0;
+        beginLiveTitle(true);
+        submitNowPlaying();
+        return;
+    }
+    startTrackScrobbling();
+}
+
+/**
+ * @brief Take the live stream's current artist and title as the track now
+ *        playing, and restart the scrobble clock for it.
+ * @param first Whether it is the first title since the stream opened.
+ */
+void Player::beginLiveTitle(bool first)
+{
+    if (!stream) {
+        return;
+    }
+    m_live_scrobble_artist = stream->getArtist();
+    m_live_scrobble_title = stream->getTitle();
+    m_live_scrobble_album = TagLib::String();  // a station is not an album
+    m_live_title_is_music = stream->isCurrentTitleMusic();
+    m_live_title_started_at = time(nullptr);
+    m_live_first_title = first;
+    m_track_start_time = SDL_GetTicks();
+    m_track_scrobbled = false;
+}
+
+/**
+ * @brief Scrobble the live title that has been playing, if it qualifies:
+ *        music, an artist and a title, and 30 s played (4 min for the first
+ *        title, which was joined mid-song). Stamped with its start time.
+ */
+void Player::scrobbleFinishedLiveTitle()
+{
+    if (!m_lastfm || m_track_scrobbled || m_track_start_time == 0 || !m_live_title_is_music ||
+        m_live_scrobble_artist.isEmpty() || m_live_scrobble_title.isEmpty()) {
+        return;
+    }
+    const Uint32 played_ms = SDL_GetTicks() - m_track_start_time;
+    const Uint32 required_ms = m_live_first_title ? 240000 : 30000;
+    if (played_ms < required_ms) {
+        return;
+    }
+    track scrobble_track(TagLib::String(""), m_live_scrobble_artist, m_live_scrobble_title);
+    scrobble_track.SetLen(played_ms / 1000);
+    scrobble_track.setAlbum(m_live_scrobble_album);
+    scrobble_track.setScrobbleArtist(m_live_scrobble_artist);
+    if (m_lastfm->scrobbleTrack(scrobble_track, m_live_title_started_at)) {
+        m_track_scrobbled = true;
+        Debug::log("lastfm", "Player: scrobbled stream title ", m_live_scrobble_artist.to8Bit(true),
+                   " - ", m_live_scrobble_title.to8Bit(true));
+    }
+}
+
+/**
+ * @brief Handle a new title on a live stream: scrobble the old one, then
+ *        show the new one everywhere a track is shown.
+ */
+void Player::onStreamTitleChanged()
+{
+    if (!stream || !stream->isLive()) {
+        return;
+    }
+    scrobbleFinishedLiveTitle();
+    const bool first = m_live_awaiting_first_title;
+    m_live_awaiting_first_title = false;
+    beginLiveTitle(first);
+    Debug::log("player", "Player: stream now playing ", stream->getArtist().to8Bit(true), " - ",
+               stream->getTitle().to8Bit(true));
+
+    updateInfo();
+    submitNowPlaying(); // Last.fm now-playing and Discord
+#ifdef HAVE_DBUS
+    if (m_mpris_manager) {
+        m_mpris_manager->updateMetadata(
+            stream->getArtist().to8Bit(true),
+            stream->getTitle().to8Bit(true),
+            stream->getAlbum().to8Bit(true),
+            static_cast<uint64_t>(stream->getLength()) * 1000,
+            mprisArtUrl(stream)
+        );
+    }
+#endif
+#ifdef _WIN32
+    if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
+#endif
 }
 
 /**
@@ -6618,7 +6763,18 @@ void Player::submitNowPlaying()
         return;
     }
 
-    if (m_lastfm) {
+    if (m_lastfm && stream->isLive()) {
+        // Internet radio: only songs with an artist, not the station's own
+        // spots; the station's name is not an album, and the announced
+        // artist is the one to credit (the stream has no tags to take a
+        // primary artist from).
+        if (stream->isCurrentTitleMusic() && !stream->getArtist().isEmpty() &&
+            !stream->getTitle().isEmpty()) {
+            track now_playing_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
+            now_playing_track.setScrobbleArtist(stream->getArtist());
+            m_lastfm->setNowPlaying(now_playing_track);
+        }
+    } else if (m_lastfm) {
         // Create track object from stream data
         // Use a dummy path since we're creating this for metadata only
         track now_playing_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
@@ -6902,11 +7058,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
 
     // Replace the playlist entry's metadata with the track's live tags, so any
     // stale EXTINF carried in from an .m3u is corrected once the file loads.
-    if (playlist && stream) {
-        playlist->updateTrackMetadataAt(playlist->getPosition(), stream->getFilePath(),
-                                        stream->getArtist(), stream->getTitle(),
-                                        stream->getAlbum(), stream->getLength() / 1000);
-    }
+    updatePlaylistRowFromStream();
 
     updateInfo();
     // Ensure audio is unpaused after everything is set up
@@ -6915,7 +7067,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     updateTaskbarPlayState();
 
     // Start scrobbling for the new track
-    startTrackScrobbling();
+    startScrobblingForStream();
 
 #ifdef HAVE_DBUS
     if (m_mpris_manager) {
