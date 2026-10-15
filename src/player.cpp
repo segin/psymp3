@@ -1785,13 +1785,14 @@ void Player::prevTrack(void) {
 
 namespace {
 // Extensions accepted by the open/insert choosers and by drag-and-drop: every
-// demuxable media format plus the playlist containers, so .m3u/.m3u8 files
-// are selectable/droppable too.
+// demuxable media format plus the playlist formats PsyMP3 reads (M3U, PLS,
+// XSPF, ASX), so playlist files are selectable/droppable too.
 std::vector<std::string> chooserExtensions()
 {
     std::vector<std::string> exts = MediaFile::getSupportedExtensions();
-    exts.push_back("m3u");
-    exts.push_back("m3u8");
+    for (const char* playlist : {"m3u", "m3u8", "pls", "xspf", "asx", "wax", "wvx"}) {
+        exts.push_back(playlist);
+    }
     return exts;
 }
 
@@ -2329,7 +2330,8 @@ void Player::playlistManagerLoad()
     std::vector<std::string> paths;
     {
         DialogFlagGuard dialog_guard;
-        paths = PsyMP3::Core::FileDialog::openFiles(false, "Load playlist", {"m3u", "m3u8"});
+        paths = PsyMP3::Core::FileDialog::openFiles(false, "Load playlist",
+                                                    {"m3u", "m3u8", "pls", "xspf", "asx", "wax", "wvx"});
     }
     if (paths.empty()) {
         return;
