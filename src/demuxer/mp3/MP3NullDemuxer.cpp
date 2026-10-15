@@ -108,11 +108,20 @@ bool MP3NullDemuxer::parseContainer_unlocked() {
         return false;
     }
 
-    // Get file size
-    m_handler->seek(0, SEEK_END);
-    m_file_size = static_cast<uint64_t>(m_handler->tell());
-    m_handler->seek(0, SEEK_SET);
-    m_data_end_offset = m_file_size;
+    // A live stream (internet radio) has no size and no end: its frames run
+    // until the station stops. There are no trailing tags to peel and no
+    // duration to estimate, and it cannot be seeked.
+    m_live = m_handler->isLiveStream();
+    if (m_live) {
+        m_file_size = 0;
+        m_data_end_offset = std::numeric_limits<uint64_t>::max();
+    } else {
+        // Get file size
+        m_handler->seek(0, SEEK_END);
+        m_file_size = static_cast<uint64_t>(m_handler->tell());
+        m_handler->seek(0, SEEK_SET);
+        m_data_end_offset = m_file_size;
+    }
 
     // Skip ID3v2 tag if present
     skipID3v2Tag_unlocked();
@@ -124,7 +133,7 @@ bool MP3NullDemuxer::parseContainer_unlocked() {
     // duration estimate and feeding tag bytes to the frame-sync scanner at
     // track end. Mirrors FLACDemuxer::detectTrailingTags_unlocked().
     std::vector<uint8_t> id3v1_data;
-    {
+    if (!m_live) {
         bool changed = true;
         while (changed && m_data_end_offset > m_data_start_offset) {
             changed = false;
@@ -243,8 +252,9 @@ bool MP3NullDemuxer::skipID3v2Tag_unlocked() {
 
     // A declared tag larger than the file is malformed; clamp so the data start
     // never points past EOF (parseFirstFrame then finds no frame and fails
-    // cleanly rather than seeking to a bogus offset).
-    if (m_data_start_offset > m_file_size) {
+    // cleanly rather than seeking to a bogus offset). A live stream has no
+    // size to clamp to; a seek past what it can buffer simply fails.
+    if (!m_live && m_data_start_offset > m_file_size) {
         m_data_start_offset = m_file_size;
     }
 
@@ -267,7 +277,10 @@ void MP3NullDemuxer::parseTags_unlocked(const std::vector<uint8_t>& id3v1_data) 
         // header can't force a huge allocation for a tiny file.
         size_t tag_size = PsyMP3::Tag::ID3v2Tag::getTagSize(header);
         if (tag_size > 10) {
-            if (tag_size > m_file_size) {
+            // A live stream has no size to clamp to; its buffer only keeps
+            // so much behind the reader anyway, and the read below fails
+            // cleanly past that.
+            if (!m_live && tag_size > m_file_size) {
                 tag_size = static_cast<size_t>(m_file_size);
             }
             std::vector<uint8_t> tag_data(tag_size);
@@ -344,8 +357,9 @@ bool MP3NullDemuxer::parseFirstFrame_unlocked() {
         m_stream_info.bits_per_sample = 16;
         m_stream_info.bitrate = bitrate * 1000;
 
-        // Try to parse Xing/LAME VBR header from this frame
-        if (frame_size > 4 && frame_size < 4096) {
+        // Try to parse Xing/LAME VBR header from this frame. A live stream
+        // has none worth believing: a frame count would give it a length.
+        if (!m_live && frame_size > 4 && frame_size < 4096) {
             std::vector<uint8_t> frame_data(frame_size);
             m_handler->seek(static_cast<off_t>(frame_offset), SEEK_SET);
             if (m_handler->read(frame_data.data(), 1, frame_size) == frame_size) {
@@ -362,8 +376,8 @@ bool MP3NullDemuxer::parseFirstFrame_unlocked() {
             }
         }
 
-        // Estimate duration if not from Xing
-        if (m_total_samples == 0 && bitrate > 0) {
+        // Estimate duration if not from Xing. A live stream has none: 0.
+        if (!m_live && m_total_samples == 0 && bitrate > 0) {
             uint64_t audio_bytes = m_data_end_offset - m_data_start_offset;
             m_duration_ms = (audio_bytes * 8) / (bitrate);
             m_stream_info.duration_ms = m_duration_ms;
@@ -597,6 +611,8 @@ MediaChunk MP3NullDemuxer::readChunk_unlocked() {
 
 bool MP3NullDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
     if (!m_parsed || m_stream_info.sample_rate == 0) return false;
+    // Internet radio plays from where it is; there is nothing to seek in.
+    if (m_live) return false;
 
     // Clamp to valid range
     if (timestamp_ms >= m_duration_ms) {

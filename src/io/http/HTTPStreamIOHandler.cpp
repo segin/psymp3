@@ -769,6 +769,15 @@ filesize_t HTTPStreamIOHandler::getFileSize()
 }
 
 /**
+ * @brief This handler always reads its response as a stream.
+ * @return true.
+ */
+bool HTTPStreamIOHandler::isLiveStream() const
+{
+    return true;
+}
+
+/**
  * @brief Look a response header up by name, ignoring case.
  * @param name Header name.
  * @return Its value as sent (not decoded), or "".

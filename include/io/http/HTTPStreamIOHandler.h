@@ -90,6 +90,13 @@ public:
     /** @brief Always -1: a stream has no size, even after it has ended. */
     filesize_t getFileSize() override;
 
+    /**
+     * @brief Always true: whatever the response, this handler reads it as a
+     *        stream, without size or seeking.
+     * @return true.
+     */
+    bool isLiveStream() const override;
+
     /** @brief The value of response header @p name (any case), or "". */
     std::string getHeader(const std::string& name) const;
 

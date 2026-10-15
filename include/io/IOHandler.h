@@ -93,7 +93,19 @@ public:
      * @return Size in bytes, or -1 if unknown
      */
     virtual filesize_t getFileSize();
-    
+
+    /**
+     * @brief Whether the source is a live stream (internet radio): one that
+     *        has no size and no end until the sender stops, and cannot be
+     *        seeked beyond a short buffer.
+     *
+     * Demuxers use it to skip what only a file allows -- reading trailing
+     * tags, measuring the duration, scanning to the end -- and to refuse
+     * seeks. A source of merely unknown size is not live.
+     * @return false here; HTTPStreamIOHandler returns true.
+     */
+    virtual bool isLiveStream() const;
+
     /**
      * @brief Get the last error code
      * @return Error code (0 = no error)

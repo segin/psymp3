@@ -71,6 +71,7 @@ private:
     uint32_t m_total_frames = 0;        // Total frames (if known from Xing)
     uint32_t m_total_bytes = 0;         // Total audio bytes (if known from Xing)
     bool m_is_vbr = false;              // VBR flag from Xing header
+    bool m_live = false;                // internet radio: no end, no duration, no seeking
     std::vector<uint8_t> m_xing_toc;    // Xing TOC for VBR seeking (100 entries)
 
     mutable std::mutex m_mutex;

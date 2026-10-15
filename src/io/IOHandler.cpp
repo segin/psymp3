@@ -213,6 +213,14 @@ filesize_t IOHandler::getFileSize() {
     return -1;
 }
 
+/**
+ * @brief Sources are files unless a subclass says otherwise.
+ * @return false.
+ */
+bool IOHandler::isLiveStream() const {
+    return false;
+}
+
 int IOHandler::getLastError() const {
     // Return the last error code (0 = no error)
     // Thread-safe using atomic load
