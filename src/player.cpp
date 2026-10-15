@@ -2610,6 +2610,13 @@ bool Player::stop(void) {
     m_pending_load_active = false;
     state = PlayerState::Stopped;
     updateTaskbarPlayState();
+    /*
+     * A station that has stalled holds the decoder in a read: abort it first,
+     * or taking the stream away below waits out the stall.
+     */
+    if (stream) {
+        stream->abortIO();
+    }
     // Safely signal to the audio thread that the stream is gone before we destroy it.
     if (audio) {
         audio->setStream(nullptr);
@@ -7012,6 +7019,14 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     // Take ownership of the new stream from the loader thread.
     std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
     const bool recreate_audio = !canReuseAudioForStream(audio.get(), owned_new_stream.get());
+
+    /*
+     * The stream being replaced may be a station stalled in a read, which the
+     * swap below would wait out: abort it, as it is going anyway.
+     */
+    if (stream) {
+        stream->abortIO();
+    }
 
     try {
         if (recreate_audio) {
