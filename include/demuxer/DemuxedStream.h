@@ -139,6 +139,13 @@ public:
 private:
     std::unique_ptr<Demuxer> m_demuxer;
     std::unique_ptr<AudioCodec> m_codec;
+    /**
+     * @brief Held to replace m_codec (the decoder thread, on a chained link)
+     *        and by the GUI's getCodecType()/getCodecProfile() to read it, so
+     *        the GUI never reads a codec being destroyed. Never held across
+     *        decoding or I/O.
+     */
+    mutable std::mutex m_codec_swap_mutex;
     uint32_t m_current_stream_id = 0;
     
     // Bounded buffer management for memory efficiency

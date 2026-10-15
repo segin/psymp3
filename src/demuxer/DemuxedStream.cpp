@@ -138,7 +138,18 @@ bool DemuxedStream::setupCodec() {
         m_stream_info_cache = stream_info;
     }
 
-    m_codec = AudioCodecFactory::createCodec(stream_info);
+    /*
+     * Built apart and swapped in under m_codec_swap_mutex: on a chained
+     * link the decoder thread replaces the codec while the GUI may be asking
+     * it for its name or profile (Media Info), which must not meet one being
+     * destroyed. The old codec goes when this scope's holder does, outside
+     * the lock.
+     */
+    auto created = AudioCodecFactory::createCodec(stream_info);
+    {
+        std::lock_guard<std::mutex> lock(m_codec_swap_mutex);
+        std::swap(m_codec, created);
+    }
     if (!m_codec) {
         Debug::log("demux", "DemuxedStream::setupCodec() failed: createCodec returned nullptr for codec_name=", stream_info.codec_name);
         return false;
@@ -1222,7 +1233,11 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
         }
     } catch (const std::exception& e) {
         Debug::log("demux", "DemuxedStream::switchToStream(): codec setup failed: ", e.what());
-        m_codec.reset();
+        std::unique_ptr<AudioCodec> failed;
+        {
+            std::lock_guard<std::mutex> lock(m_codec_swap_mutex);
+            std::swap(m_codec, failed);
+        }
         return false;
     }
     
@@ -1300,6 +1315,7 @@ std::string DemuxedStream::getDemuxerType() const {
 }
 
 std::string DemuxedStream::getCodecType() const {
+    std::lock_guard<std::mutex> lock(m_codec_swap_mutex); // the GUI asks while a link may swap it
     if (!m_codec) {
         return "unknown";
     }
@@ -1368,6 +1384,7 @@ TagLib::String DemuxedStream::getCodecProfile() {
     // Some decoders only learn the exact profile once they have seen a frame
     // (HE-AAC's SBR/PS are usually signalled implicitly, not in the header),
     // so this is asked of the codec rather than the container.
+    std::lock_guard<std::mutex> lock(m_codec_swap_mutex); // the GUI asks while a link may swap it
     if (!m_codec) {
         return TagLib::String();
     }
