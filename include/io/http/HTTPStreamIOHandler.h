@@ -51,6 +51,11 @@ namespace HTTP {
  * allowed, and then passes the status line and headers through as body bytes.
  * The handler allows HTTP/0.9 and reads such a header block off the front of
  * the body itself, so both kinds of server end up with the same headers.
+ *
+ * It asks for ICY metadata (Icy-MetaData: 1). A server that sends it says how
+ * often in icy-metaint and interleaves the blocks with the audio; the handler
+ * takes them out, so reads see audio alone, and keeps each StreamTitle with
+ * the audio offset it starts at (getStreamTitleAt()).
  */
 class HTTPStreamIOHandler : public IOHandler {
 public:
@@ -102,6 +107,62 @@ public:
      *        or it has no Content-Length.
      */
     bool isLive() const { return m_icy || m_content_length < 0; }
+
+    /**
+     * @brief The station's name from its icy-name header, decoded as
+     *        decodeIcyText() does.
+     * @return The name, or "" when the server gave none.
+     */
+    std::string getStationName() const;
+
+    /**
+     * @brief The title the station announced for the audio at @p offset.
+     *
+     * ICY servers interleave metadata with the audio; the handler takes it
+     * out, so reads return audio alone, and records each StreamTitle with the
+     * audio offset it arrived at. A title applies from there until the next;
+     * the first applies from offset 0.
+     * @param offset Offset into the audio, as tell() counts it.
+     * @return The title in effect there, or "" before the first title (or
+     *         when the station sends none, or announces an empty one).
+     */
+    std::string getStreamTitleAt(filesize_t offset) const;
+
+    /**
+     * @brief How many titles the station has announced so far. A caller can
+     *        compare it with an earlier value to notice a change cheaply.
+     * @return The count, starting at 0.
+     */
+    uint64_t getStreamTitleCount() const;
+
+    /**
+     * @brief Decode text from an ICY server: UTF-8 if it is valid UTF-8,
+     *        otherwise Latin-1, which is what most older stations send.
+     *
+     * The one place PsyMP3 falls back from UTF-8: a station's titles reach
+     * the screen, MPRIS, Discord and Last.fm, and many stations still send
+     * Latin-1.
+     * @param raw The bytes as sent.
+     * @return UTF-8 text.
+     */
+    static std::string decodeIcyText(const std::string& raw);
+
+    /**
+     * @brief Find StreamTitle='...' in an ICY metadata block.
+     *
+     * The value ends at the first "';" after it, so titles that contain an
+     * apostrophe ("Guns N' Roses") survive. Trailing NUL padding is ignored.
+     * @param block The metadata block, as sent.
+     * @param title Set to the raw (undecoded) value when found.
+     * @return true if the block had a StreamTitle.
+     */
+    static bool parseStreamTitle(const std::string& block, std::string& title);
+
+    // Most bytes of audio allowed between metadata blocks; a larger
+    // icy-metaint is taken as nonsense and ignored.
+    static constexpr int64_t MAX_METAINT = 4 * 1024 * 1024;
+    // Titles kept for getStreamTitleAt(); older ones are dropped.
+    static constexpr size_t MAX_TITLES = 16;
 
     // How far behind the reader the buffer keeps data, for backward seeks.
     static constexpr size_t HISTORY_BYTES = 256 * 1024;
@@ -234,6 +295,26 @@ private:
     bool appendBody(const char* data, size_t len);
 
     /**
+     * @brief Split body bytes into audio and ICY metadata.
+     *
+     * With an icy-metaint of N, the body is N audio bytes, a length byte L,
+     * L * 16 bytes of metadata, N audio bytes, and so on. Audio goes to
+     * appendBody(); each finished metadata block goes to onMetadataBlock().
+     * Without icy-metaint everything is audio. Worker thread only.
+     * @param data Body bytes, with any ICY v1 header already taken off.
+     * @param len Their count.
+     * @return false if the transfer was aborted.
+     */
+    bool deliverBody(const char* data, size_t len);
+
+    /**
+     * @brief Record the StreamTitle of a finished metadata block, if it has
+     *        one and it differs from the last, at the current end of the audio.
+     * @param block The block, NUL padding included.
+     */
+    void onMetadataBlock(const std::string& block);
+
+    /**
      * @brief Collect the "ICY 200 OK" header block from the front of an
      *        HTTP/0.9 body and parse it into the status and m_headers.
      *
@@ -285,6 +366,17 @@ private:
     // ICY v1 header block being collected from the front of the body.
     bool m_icy_v1_done = false;
     std::string m_icy_v1_header;
+
+    // Titles announced, with the audio offset each starts at; newest last.
+    std::deque<std::pair<filesize_t, std::string>> m_titles;
+    uint64_t m_title_count = 0;
+
+    // Metadata framing (icy-metaint), used by the worker thread alone once
+    // the headers are known.
+    int64_t m_metaint = 0;            // audio bytes per block; 0 = no metadata
+    int64_t m_audio_left = 0;         // audio bytes before the next length byte
+    int64_t m_meta_left = -1;         // metadata bytes still to come; -1 = length byte next
+    std::string m_meta_block;
 
     // Read by the progress callback on the worker thread.
     std::atomic<bool> m_abort{false};

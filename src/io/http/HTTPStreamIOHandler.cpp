@@ -54,6 +54,13 @@ std::string trim(const std::string& s)
 
 } // namespace
 
+/**
+ * @brief Start the transfer on the worker thread and wait for the response
+ *        head; throw if there is none or it is an error status.
+ * @param url The http(s) URL to stream.
+ * @throws InvalidMediaException on connection failure, an error status, or
+ *         no response before the worker's timeouts.
+ */
 HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
     : m_url(url)
 {
@@ -84,11 +91,19 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
                m_icy ? ", ICY" : "");
 }
 
+/**
+ * @brief Stop the transfer and join the worker thread.
+ */
 HTTPStreamIOHandler::~HTTPStreamIOHandler()
 {
     stopTransfer();
 }
 
+/**
+ * @brief Flag the abort, wake the worker (waiting for room) and any reader
+ *        (waiting for data), and join the worker. libcurl notices the flag at
+ *        its next callback, at most about a second later on an idle line.
+ */
 void HTTPStreamIOHandler::stopTransfer()
 {
     m_abort = true;
@@ -102,6 +117,12 @@ void HTTPStreamIOHandler::stopTransfer()
     }
 }
 
+/**
+ * @brief Worker thread: set up one libcurl GET (redirects followed, HTTP/0.9
+ *        allowed for SHOUTcast v1, ICY metadata requested, no overall
+ *        timeout) and run it to its end, then record how it ended and wake
+ *        the reader and the constructor.
+ */
 void HTTPStreamIOHandler::runTransfer()
 {
     CURL* curl = curl_easy_init();
@@ -149,9 +170,15 @@ void HTTPStreamIOHandler::runTransfer()
     curl_easy_setopt(curl, CURLOPT_HTTP09_ALLOWED, 1L);
 #endif
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "PsyMP3/3.0");
+    // Ask for the song titles. A server that has them answers with an
+    // icy-metaint header and interleaves them with the audio; deliverBody()
+    // takes them out again. One that has none ignores the request.
+    struct curl_slist* request_headers = curl_slist_append(nullptr, "Icy-MetaData: 1");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, request_headers);
 
     const CURLcode rc = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
+    curl_slist_free_all(request_headers);
 
     std::lock_guard<std::mutex> lock(m_buf_mutex);
     if (rc != CURLE_OK && !m_abort) {
@@ -175,21 +202,49 @@ void HTTPStreamIOHandler::runTransfer()
     m_data_cv.notify_all();
 }
 
+/**
+ * @brief libcurl header callback: pass the line to onHeader().
+ * @param data The header line.
+ * @param size Always 1.
+ * @param nmemb Its length.
+ * @param self The handler.
+ * @return What onHeader() returns.
+ */
 size_t HTTPStreamIOHandler::headerCallback(char* data, size_t size, size_t nmemb, void* self)
 {
     return static_cast<HTTPStreamIOHandler*>(self)->onHeader(data, size * nmemb);
 }
 
+/**
+ * @brief libcurl write callback: pass the body bytes to onBody().
+ * @param data Body bytes.
+ * @param size Always 1.
+ * @param nmemb Their count.
+ * @param self The handler.
+ * @return What onBody() returns.
+ */
 size_t HTTPStreamIOHandler::writeCallback(char* data, size_t size, size_t nmemb, void* self)
 {
     return static_cast<HTTPStreamIOHandler*>(self)->onBody(data, size * nmemb);
 }
 
+/**
+ * @brief libcurl progress callback: ask onProgress() whether to go on.
+ * @param self The handler.
+ * @return 0 to continue, 1 to abort.
+ */
 int HTTPStreamIOHandler::progressCallback(void* self, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
 {
     return static_cast<HTTPStreamIOHandler*>(self)->onProgress() ? 0 : 1;
 }
 
+/**
+ * @brief Take one header line: a status line resets the headers and records
+ *        the status; any other line is stored by addHeaderLine_unlocked().
+ * @param data The line, line ending included.
+ * @param len Its length.
+ * @return @p len, or 0 when aborting.
+ */
 size_t HTTPStreamIOHandler::onHeader(const char* data, size_t len)
 {
     if (m_abort) return 0;
@@ -207,6 +262,12 @@ size_t HTTPStreamIOHandler::onHeader(const char* data, size_t len)
     return len;
 }
 
+/**
+ * @brief Store a "Name: value" line under its trimmed, lower-cased name; a
+ *        later line of the same name replaces an earlier one. Caller holds
+ *        m_buf_mutex.
+ * @param line The header line.
+ */
 void HTTPStreamIOHandler::addHeaderLine_unlocked(const std::string& line)
 {
     const size_t colon = line.find(':');
@@ -216,6 +277,12 @@ void HTTPStreamIOHandler::addHeaderLine_unlocked(const std::string& line)
     m_headers[name] = trim(line.substr(colon + 1));
 }
 
+/**
+ * @brief Settle what the headers say -- Content-Length, whether the reply is
+ *        ICY, the icy-metaint framing -- set the metadata state to start
+ *        with audio, and wake the constructor. Once only. Caller holds
+ *        m_buf_mutex.
+ */
 void HTTPStreamIOHandler::markHeadersReady_unlocked()
 {
     if (m_headers_ready) return;
@@ -234,10 +301,32 @@ void HTTPStreamIOHandler::markHeadersReady_unlocked()
             break;
         }
     }
+    m_metaint = 0;
+    it = m_headers.find("icy-metaint");
+    if (it != m_headers.end()) {
+        char* end = nullptr;
+        const long long v = std::strtoll(it->second.c_str(), &end, 10);
+        if (end != it->second.c_str() && v > 0 && v <= MAX_METAINT) {
+            m_metaint = v;
+        } else {
+            Debug::log("http", "HTTPStreamIOHandler: ignoring icy-metaint '", it->second, "'");
+        }
+    }
+    m_audio_left = m_metaint;
+    m_meta_left = -1;
     m_headers_ready = true;
     m_data_cv.notify_all();
 }
 
+/**
+ * @brief Take a chunk of body: while an HTTP/0.9 reply's ICY head is still
+ *        coming, collect it; once the head is known, pass the rest on to
+ *        deliverBody(). Resets the stall timer.
+ * @param data Body bytes.
+ * @param len Their count.
+ * @return @p len, or 0 to abort (stopping, a bad ICY head, or aborted
+ *         while waiting for the reader).
+ */
 size_t HTTPStreamIOHandler::onBody(const char* data, size_t len)
 {
     if (m_abort) return 0;
@@ -258,12 +347,162 @@ size_t HTTPStreamIOHandler::onBody(const char* data, size_t len)
             markHeadersReady_unlocked();
         }
     }
-    if (used < len && !appendBody(data + used, len - used)) {
+    if (used < len && !deliverBody(data + used, len - used)) {
         return 0;
     }
     return len;
 }
 
+/**
+ * @brief Walk the icy-metaint framing (audio, length byte, metadata, audio,
+ *        ...) across chunk boundaries: audio to appendBody(), each complete
+ *        metadata block to onMetadataBlock(). Without icy-metaint, all of it
+ *        is audio. Worker thread only.
+ * @param data Body bytes after any ICY v1 head.
+ * @param len Their count.
+ * @return false if aborted while waiting for the reader.
+ */
+bool HTTPStreamIOHandler::deliverBody(const char* data, size_t len)
+{
+    if (m_metaint == 0) {
+        return appendBody(data, len);
+    }
+    while (len > 0) {
+        if (m_audio_left > 0) {
+            const size_t n = static_cast<size_t>(std::min<int64_t>(m_audio_left, static_cast<int64_t>(len)));
+            if (!appendBody(data, n)) return false;
+            data += n;
+            len -= n;
+            m_audio_left -= static_cast<int64_t>(n);
+            continue;
+        }
+        if (m_meta_left < 0) {
+            // The length byte, in units of 16 bytes; 0 means no block this time.
+            m_meta_left = static_cast<int64_t>(static_cast<uint8_t>(*data)) * 16;
+            ++data;
+            --len;
+            m_meta_block.clear();
+        } else {
+            const size_t n = static_cast<size_t>(std::min<int64_t>(m_meta_left, static_cast<int64_t>(len)));
+            m_meta_block.append(data, n);
+            data += n;
+            len -= n;
+            m_meta_left -= static_cast<int64_t>(n);
+        }
+        if (m_meta_left == 0) {
+            if (!m_meta_block.empty()) onMetadataBlock(m_meta_block);
+            m_meta_left = -1;
+            m_audio_left = m_metaint;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief Decode a block's StreamTitle and, if it differs from the last one,
+ *        record it at the current end of the audio (the first title at 0),
+ *        keeping at most MAX_TITLES.
+ * @param block The metadata block, NUL padding included.
+ */
+void HTTPStreamIOHandler::onMetadataBlock(const std::string& block)
+{
+    std::string raw;
+    if (!parseStreamTitle(block, raw)) return;
+    const std::string title = decodeIcyText(raw);
+
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    if (!m_titles.empty() && m_titles.back().second == title) return;
+    // The audio received so far is what plays before this title. The first
+    // title comes only after the first icy-metaint bytes of audio, which are
+    // the same song: it applies from the start.
+    const filesize_t at = m_titles.empty() && m_title_count == 0
+        ? 0 : m_data_start + static_cast<filesize_t>(m_data.size());
+    m_titles.emplace_back(at, title);
+    if (m_titles.size() > MAX_TITLES) m_titles.pop_front();
+    ++m_title_count;
+    Debug::log("http", "HTTPStreamIOHandler: StreamTitle at ", at, ": '", title, "'");
+}
+
+/**
+ * @brief Extract the raw StreamTitle value: from after "StreamTitle='" to the
+ *        next "';", or failing that the last quote, the padding or the end.
+ * @param block A metadata block.
+ * @param title Receives the value, undecoded.
+ * @return true if the block has a StreamTitle.
+ */
+bool HTTPStreamIOHandler::parseStreamTitle(const std::string& block, std::string& title)
+{
+    static const std::string key = "StreamTitle='";
+    const size_t start = block.find(key);
+    if (start == std::string::npos) return false;
+    const size_t from = start + key.size();
+    size_t end = block.find("';", from);
+    if (end == std::string::npos) {
+        // Unterminated: up to the last quote, or to the padding.
+        end = block.rfind('\'');
+        if (end == std::string::npos || end < from) {
+            end = block.find('\0', from);
+            if (end == std::string::npos) end = block.size();
+        }
+    }
+    title = block.substr(from, end - from);
+    return true;
+}
+
+/**
+ * @brief Text from an ICY server as UTF-8: kept if it is valid UTF-8,
+ *        otherwise converted from Latin-1.
+ * @param raw The bytes as sent.
+ * @return UTF-8 text.
+ */
+std::string HTTPStreamIOHandler::decodeIcyText(const std::string& raw)
+{
+    if (Core::Utility::UTF8Util::isValid(raw)) return raw;
+    return Core::Utility::UTF8Util::fromLatin1(raw);
+}
+
+/**
+ * @brief The icy-name header, decoded.
+ * @return The station's name, or "".
+ */
+std::string HTTPStreamIOHandler::getStationName() const
+{
+    return decodeIcyText(getHeader("icy-name"));
+}
+
+/**
+ * @brief The newest recorded title that starts at or before @p offset.
+ * @param offset Audio offset, as tell() counts it.
+ * @return That title, or "" if none starts that early.
+ */
+std::string HTTPStreamIOHandler::getStreamTitleAt(filesize_t offset) const
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    for (auto it = m_titles.rbegin(); it != m_titles.rend(); ++it) {
+        if (it->first <= offset) return it->second;
+    }
+    return std::string();
+}
+
+/**
+ * @brief Titles recorded since the stream opened, dropped ones included.
+ * @return The count.
+ */
+uint64_t HTTPStreamIOHandler::getStreamTitleCount() const
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    return m_title_count;
+}
+
+/**
+ * @brief Gather an HTTP/0.9 reply's first bytes until it is clear whether
+ *        they are an "ICY nnn" head; if so, parse the head up to its blank
+ *        line (CRLF or bare LF) into the status and headers, and if not,
+ *        hand the bytes on as body. Caller holds m_buf_mutex.
+ * @param data This chunk.
+ * @param len Its length.
+ * @return Bytes of this chunk that were head; the rest is body.
+ */
 size_t HTTPStreamIOHandler::consumeIcyV1Header(const char* data, size_t len)
 {
     // Collect until the blank line that ends the block. Decide early whether
@@ -317,6 +556,14 @@ size_t HTTPStreamIOHandler::consumeIcyV1Header(const char* data, size_t len)
     return block_end - before;
 }
 
+/**
+ * @brief Add audio to the buffer: first wait while the reader is
+ *        READ_AHEAD_BYTES behind, then trim what lies more than
+ *        HISTORY_BYTES behind it (in large steps), append, and wake readers.
+ * @param data Audio bytes.
+ * @param len Their count.
+ * @return false if aborted while waiting.
+ */
 bool HTTPStreamIOHandler::appendBody(const char* data, size_t len)
 {
     std::unique_lock<std::mutex> lock(m_buf_mutex);
@@ -347,6 +594,12 @@ bool HTTPStreamIOHandler::appendBody(const char* data, size_t len)
     return true;
 }
 
+/**
+ * @brief Decide whether the transfer goes on: not when stopping, and not
+ *        after STALL_SECONDS without a byte unless the worker was waiting on
+ *        the reader, which is not the server's fault.
+ * @return true to continue.
+ */
 bool HTTPStreamIOHandler::onProgress()
 {
     if (m_abort) return false;
@@ -360,6 +613,15 @@ bool HTTPStreamIOHandler::onProgress()
     return true;
 }
 
+/**
+ * @brief Copy audio from the buffer, waiting for the worker when the reader
+ *        has caught up, until the request is filled, the transfer ends or
+ *        the handler is stopped. A transfer that failed sets error EIO.
+ * @param buffer Destination.
+ * @param size Element size.
+ * @param count Elements wanted.
+ * @return Whole elements read.
+ */
 size_t HTTPStreamIOHandler::read_unlocked(void* buffer, size_t size, size_t count)
 {
     updateErrorState(0);
@@ -407,6 +669,13 @@ size_t HTTPStreamIOHandler::read_unlocked(void* buffer, size_t size, size_t coun
     return got / size;
 }
 
+/**
+ * @brief Move the reader within [oldest kept byte, newest + FORWARD_SEEK_BYTES].
+ *        A target past what has arrived is reached by later reads waiting.
+ * @param offset Offset from @p whence.
+ * @param whence SEEK_SET or SEEK_CUR; SEEK_END is refused.
+ * @return 0, or -1 with error ESPIPE.
+ */
 int HTTPStreamIOHandler::seek_unlocked(filesize_t offset, int whence)
 {
     updateErrorState(0);
@@ -440,6 +709,10 @@ int HTTPStreamIOHandler::seek_unlocked(filesize_t offset, int whence)
     return 0;
 }
 
+/**
+ * @brief The reader's offset into the audio.
+ * @return The offset, or -1 (error EBADF) once closed.
+ */
 filesize_t HTTPStreamIOHandler::tell_unlocked()
 {
     if (m_closed) {
@@ -450,6 +723,11 @@ filesize_t HTTPStreamIOHandler::tell_unlocked()
     return m_read_pos;
 }
 
+/**
+ * @brief Stop the transfer, which wakes a waiting read so it releases the
+ *        operation lock, then close through the base class.
+ * @return What IOHandler::close() returns.
+ */
 int HTTPStreamIOHandler::close()
 {
     // A read may be waiting for data with the operation lock held; stop the
@@ -458,6 +736,10 @@ int HTTPStreamIOHandler::close()
     return IOHandler::close();
 }
 
+/**
+ * @brief Mark the handler closed and at EOF; the transfer is already stopped.
+ * @return 0.
+ */
 int HTTPStreamIOHandler::close_unlocked()
 {
     updateClosedState(true);
@@ -465,6 +747,10 @@ int HTTPStreamIOHandler::close_unlocked()
     return 0;
 }
 
+/**
+ * @brief Closed, or the transfer has ended and the reader has had every byte.
+ * @return true at the end of the stream.
+ */
 bool HTTPStreamIOHandler::eof()
 {
     if (m_closed) return true;
@@ -472,12 +758,21 @@ bool HTTPStreamIOHandler::eof()
     return m_finished && m_read_pos >= m_data_start + static_cast<filesize_t>(m_data.size());
 }
 
+/**
+ * @brief A stream's size is unknown.
+ * @return -1, always.
+ */
 filesize_t HTTPStreamIOHandler::getFileSize()
 {
     // A stream has no size, even once it has ended.
     return -1;
 }
 
+/**
+ * @brief Look a response header up by name, ignoring case.
+ * @param name Header name.
+ * @return Its value as sent (not decoded), or "".
+ */
 std::string HTTPStreamIOHandler::getHeader(const std::string& name) const
 {
     std::lock_guard<std::mutex> lock(m_buf_mutex);
@@ -485,6 +780,10 @@ std::string HTTPStreamIOHandler::getHeader(const std::string& name) const
     return it == m_headers.end() ? std::string() : it->second;
 }
 
+/**
+ * @brief Content-Type stripped of parameters and lower-cased.
+ * @return E.g. "audio/mpeg", or "" when the server sent none.
+ */
 std::string HTTPStreamIOHandler::getMimeType() const
 {
     std::string type = getHeader("content-type");
@@ -562,6 +861,14 @@ private:
 
 } // namespace
 
+/**
+ * @brief Open an http(s) URL as a stream or a file: URLs known to be files go
+ *        straight to HTTPIOHandler; otherwise one GET decides, a live reply
+ *        keeping the HTTPStreamIOHandler that made it.
+ * @param url The URL.
+ * @return The handler.
+ * @throws InvalidMediaException if the URL cannot be opened.
+ */
 std::unique_ptr<IOHandler> openHTTPIOHandler(const std::string& url)
 {
     if (KnownFileURLs::contains(url)) {

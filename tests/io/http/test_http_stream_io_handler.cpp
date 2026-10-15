@@ -162,6 +162,8 @@ std::string readAll(HTTPStreamIOHandler& h)
     return out;
 }
 
+std::string interleave(const std::string& audio, size_t metaint, const std::vector<std::string>& blocks);
+
 /** @brief An Icecast-style reply: HTTP status line with icy-* headers. */
 class IcecastStreamTest : public TestFramework::TestCase {
 public:
@@ -201,6 +203,8 @@ protected:
         const std::string head = "ICY 200 OK\r\nicy-name: Old Server\r\n"
                                  "content-type: audio/aacp\r\nicy-metaint: 8192\r\n\r\n";
         const std::string body = patternBytes(50000);
+        // Metadata counts from the first byte after the ICY head.
+        const std::string wire = interleave(body, 8192, {"StreamTitle='V1 Song';"});
         FakeServer server([&](const FakeServer::Send& send) {
             // One byte per TCP send, so the block reaches the handler in
             // pieces and has to be put back together.
@@ -208,7 +212,7 @@ protected:
                 if (!send(std::string(1, c))) return;
                 std::this_thread::sleep_for(std::chrono::microseconds(200));
             }
-            send(body);
+            send(wire);
         });
         HTTPStreamIOHandler h(server.url());
         ASSERT_TRUE(h.isIcy(), "an ICY v1 reply is ICY");
@@ -216,8 +220,9 @@ protected:
         ASSERT_EQUALS(std::string("8192"), h.getHeader("icy-metaint"), "icy-metaint from the ICY block");
         ASSERT_EQUALS(std::string("audio/aacp"), h.getMimeType(), "Content-Type from the ICY block");
         const std::string got = readAll(h);
-        ASSERT_EQUALS(body.size(), got.size(), "the header block is not part of the body");
-        ASSERT_TRUE(got == body, "body starts right after the blank line");
+        ASSERT_EQUALS(body.size(), got.size(), "neither the head nor the metadata is in the audio");
+        ASSERT_TRUE(got == body, "audio starts right after the blank line");
+        ASSERT_EQUALS(std::string("V1 Song"), h.getStreamTitleAt(0), "title from a v1 server");
     }
 };
 
@@ -378,6 +383,125 @@ protected:
     }
 };
 
+/**
+ * @brief Interleave ICY metadata blocks into audio, as a server does.
+ * @param audio The audio bytes.
+ * @param metaint Audio bytes between blocks.
+ * @param blocks Metadata for each gap in turn, unpadded; "" sends a zero
+ *        length byte. Gaps past the end of the list also get "".
+ * @return The body as it goes over the wire.
+ */
+std::string interleave(const std::string& audio, size_t metaint, const std::vector<std::string>& blocks)
+{
+    std::string out;
+    size_t gap = 0;
+    for (size_t off = 0; off < audio.size(); off += metaint) {
+        out += audio.substr(off, metaint);
+        if (off + metaint > audio.size()) break; // no block after a short tail
+        const std::string meta = gap < blocks.size() ? blocks[gap] : std::string();
+        ++gap;
+        const size_t units = (meta.size() + 15) / 16;
+        out += static_cast<char>(units);
+        out += meta;
+        out += std::string(units * 16 - meta.size(), '\0');
+    }
+    return out;
+}
+
+/** @brief The pure helpers: StreamTitle parsing and ICY text decoding. */
+class MetadataParsingTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    MetadataParsingTest() : TestCase("StreamTitle parsing and UTF-8/Latin-1 decoding") {}
+protected:
+    /** @brief Check titles with apostrophes, padding, other fields and both encodings. */
+    void runTest() override {
+        std::string t;
+        ASSERT_TRUE(HTTPStreamIOHandler::parseStreamTitle("StreamTitle='A - B';", t), "plain title found");
+        ASSERT_EQUALS(std::string("A - B"), t, "plain title");
+        ASSERT_TRUE(HTTPStreamIOHandler::parseStreamTitle(
+            std::string("StreamTitle='Guns N' Roses - Patience';StreamUrl='x';\0\0\0", 54), t),
+            "title with an apostrophe found");
+        ASSERT_EQUALS(std::string("Guns N' Roses - Patience"), t, "apostrophe kept, other fields ignored");
+        ASSERT_TRUE(HTTPStreamIOHandler::parseStreamTitle("StreamTitle='';", t), "empty title found");
+        ASSERT_EQUALS(std::string(), t, "empty title");
+        ASSERT_TRUE(HTTPStreamIOHandler::parseStreamTitle(std::string("StreamTitle='Cut off\0\0", 22), t),
+                    "unterminated title found");
+        ASSERT_EQUALS(std::string("Cut off"), t, "unterminated title stops at the padding");
+        ASSERT_FALSE(HTTPStreamIOHandler::parseStreamTitle("StreamUrl='x';", t), "no StreamTitle");
+
+        ASSERT_EQUALS(std::string("Beyonc\xC3\xA9"), HTTPStreamIOHandler::decodeIcyText("Beyonc\xC3\xA9"),
+                      "valid UTF-8 is kept");
+        ASSERT_EQUALS(std::string("Beyonc\xC3\xA9"), HTTPStreamIOHandler::decodeIcyText("Beyonc\xE9"),
+                      "invalid UTF-8 is read as Latin-1");
+        ASSERT_EQUALS(std::string("plain"), HTTPStreamIOHandler::decodeIcyText("plain"), "ASCII unchanged");
+    }
+};
+
+/** @brief A stream with icy-metaint: metadata must leave the audio, titles must be kept. */
+class MetadataStreamTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    MetadataStreamTest() : TestCase("icy-metaint stream: blocks stripped, titles at their offsets") {}
+protected:
+    /**
+     * @brief Send audio with titles (one repeated, one Latin-1, gaps with no
+     *        block) in odd-sized pieces; check the audio arrives exactly and
+     *        each title is in effect where it should be.
+     */
+    void runTest() override {
+        const size_t metaint = 1000;
+        const std::string audio = patternBytes(10500);
+        const std::vector<std::string> blocks = {
+            "StreamTitle='First';",           // after audio 1000
+            "",                                // 2000: no block
+            "StreamTitle='First';",           // 3000: same title again
+            "StreamTitle='Caf\xE9 Second';",  // 4000: Latin-1
+            "StreamTitle='Third';StreamUrl='http://x/';",  // 5000
+        };
+        const std::string wire = interleave(audio, metaint, blocks);
+        FakeServer server([&](const FakeServer::Send& send) {
+            send("HTTP/1.0 200 OK\r\nicy-name: Caf\xE9 Radio\r\nicy-metaint: 1000\r\n\r\n");
+            for (size_t off = 0; off < wire.size(); off += 333) {
+                if (!send(wire.substr(off, 333))) return;
+            }
+        });
+        HTTPStreamIOHandler h(server.url());
+        const std::string got = readAll(h);
+        ASSERT_EQUALS(audio.size(), got.size(), "metadata is not left in the audio");
+        ASSERT_TRUE(got == audio, "audio unchanged around the blocks");
+
+        ASSERT_EQUALS(std::string("Caf\xC3\xA9 Radio"), h.getStationName(), "icy-name, Latin-1 decoded");
+        ASSERT_EQUALS(uint64_t(3), h.getStreamTitleCount(), "a repeated title is not a new one");
+        ASSERT_EQUALS(std::string("First"), h.getStreamTitleAt(0), "the first title covers the start");
+        ASSERT_EQUALS(std::string("First"), h.getStreamTitleAt(3999), "still the first before the change");
+        ASSERT_EQUALS(std::string("Caf\xC3\xA9 Second"), h.getStreamTitleAt(4000),
+                      "second title from the audio offset it arrived at");
+        ASSERT_EQUALS(std::string("Third"), h.getStreamTitleAt(5000), "third title");
+        ASSERT_EQUALS(std::string("Third"), h.getStreamTitleAt(10499), "last title holds to the end");
+    }
+};
+
+/** @brief Request headers the handler must send. */
+class MetadataRequestTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    MetadataRequestTest() : TestCase("Asks for ICY metadata") {}
+protected:
+    /** @brief Check the request carries Icy-MetaData: 1. */
+    void runTest() override {
+        FakeServer server([](const FakeServer::Send& send) {
+            send("HTTP/1.0 200 OK\r\nicy-name: R\r\n\r\nabc");
+        });
+        {
+            HTTPStreamIOHandler h(server.url());
+            (void)readAll(h);
+        }
+        ASSERT_TRUE(server.request().find("\r\nIcy-MetaData: 1\r\n") != std::string::npos,
+                    "Icy-MetaData: 1 sent");
+    }
+};
+
 /** @brief What the handler sends. */
 class RequestTest : public TestFramework::TestCase {
 public:
@@ -427,6 +551,9 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<SeekWindowTest>());
     suite.addTest(std::make_unique<CloseWakesReadTest>());
     suite.addTest(std::make_unique<RequestTest>());
+    suite.addTest(std::make_unique<MetadataParsingTest>());
+    suite.addTest(std::make_unique<MetadataStreamTest>());
+    suite.addTest(std::make_unique<MetadataRequestTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
