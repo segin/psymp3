@@ -502,6 +502,126 @@ protected:
     }
 };
 
+/**
+ * @brief A server on 127.0.0.1 that answers any number of connections, each
+ *        with a reply chosen by its number (0, 1, 2...).
+ */
+class SequenceServer {
+public:
+    /**
+     * @brief Listen and serve until destroyed.
+     * @param reply Called with the connection's number and a Send; the
+     *        connection closes when it returns.
+     */
+    explicit SequenceServer(std::function<void(int, const FakeServer::Send&)> reply)
+    {
+        m_listen = ::socket(AF_INET, SOCK_STREAM, 0);
+        int one = 1;
+        ::setsockopt(m_listen, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        ::bind(m_listen, reinterpret_cast<sockaddr*>(&addr), sizeof addr);
+        ::listen(m_listen, 8);
+        socklen_t len = sizeof addr;
+        ::getsockname(m_listen, reinterpret_cast<sockaddr*>(&addr), &len);
+        m_port = ntohs(addr.sin_port);
+        m_thread = std::thread([this, reply] {
+            for (int n = 0;; ++n) {
+                const int fd = ::accept(m_listen, nullptr, nullptr);
+                if (fd < 0) return;
+                char buf[2048];
+                std::string request;
+                while (request.find("\r\n\r\n") == std::string::npos) {
+                    const ssize_t got = ::recv(fd, buf, sizeof buf, 0);
+                    if (got <= 0) break;
+                    request.append(buf, static_cast<size_t>(got));
+                }
+                m_connections = n + 1;
+                reply(n, [fd](const std::string& bytes) {
+                    size_t sent = 0;
+                    while (sent < bytes.size()) {
+                        const ssize_t s = ::send(fd, bytes.data() + sent, bytes.size() - sent, 0);
+                        if (s <= 0) return false;
+                        sent += static_cast<size_t>(s);
+                    }
+                    return true;
+                });
+                ::close(fd);
+            }
+        });
+    }
+
+    /** @brief Stop accepting and wait for the server thread. */
+    ~SequenceServer()
+    {
+        ::shutdown(m_listen, SHUT_RDWR);
+        ::close(m_listen);
+        if (m_thread.joinable()) m_thread.join();
+    }
+
+    /**
+     * @brief The URL that reaches this server.
+     * @return http://127.0.0.1:<port>/stream
+     */
+    std::string url() const { return "http://127.0.0.1:" + std::to_string(m_port) + "/stream"; }
+
+    /**
+     * @brief Connections accepted so far.
+     * @return The count.
+     */
+    int connections() const { return m_connections.load(); }
+
+private:
+    int m_listen = -1;
+    int m_port = 0;
+    std::thread m_thread;
+    std::atomic<int> m_connections{0};
+};
+
+/** @brief A station that drops the connection, comes back, then refuses. */
+class ReconnectTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    ReconnectTest() : TestCase("A dropped ICY stream reconnects, then gives up") {}
+protected:
+    /**
+     * @brief Serve part A, close; serve part B with a new title, close; then
+     *        answer 503. The reader must get A then B, the second title from
+     *        where B starts, and the end after the allowed failures.
+     */
+    void runTest() override {
+        const int saved = HTTPStreamIOHandler::reconnectAttempts();
+        HTTPStreamIOHandler::setReconnectAttempts(2);
+        const std::string a = patternBytes(4000);
+        const std::string b = patternBytes(6000).substr(1000);
+        SequenceServer server([&](int n, const FakeServer::Send& send) {
+            if (n == 0) {
+                send("HTTP/1.0 200 OK\r\nicy-name: Flaky FM\r\nicy-metaint: 1000\r\n\r\n");
+                send(interleave(a, 1000, {"StreamTitle='One - First';"}));
+            } else if (n == 1) {
+                send("HTTP/1.0 200 OK\r\nicy-name: Flaky FM\r\nicy-metaint: 1000\r\n\r\n");
+                send(interleave(b, 1000, {"StreamTitle='Two - Second';"}));
+            } else {
+                send("HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n");
+            }
+        });
+        std::string got;
+        {
+            HTTPStreamIOHandler h(server.url());
+            got = readAll(h);
+            ASSERT_EQUALS(std::string("One - First"), h.getStreamTitleAt(0), "first connection's title");
+            ASSERT_EQUALS(std::string("Two - Second"),
+                          h.getStreamTitleAt(static_cast<PsyMP3::IO::filesize_t>(a.size())),
+                          "second connection's title from where its audio starts");
+            ASSERT_EQUALS(EIO, h.getLastError(), "the end is reported as an error once given up");
+        }
+        HTTPStreamIOHandler::setReconnectAttempts(saved);
+        ASSERT_TRUE(got == a + b, "both connections' audio, in order, metadata removed");
+        ASSERT_TRUE(server.connections() >= 3, "it came back after each drop until refused");
+    }
+};
+
 /** @brief StreamTitles as stations send them, taken apart. */
 class SplitTitleTest : public TestFramework::TestCase {
 public:
@@ -700,6 +820,11 @@ int test_http_stream_io_handler_main()
 #else
     // A server whose client has hung up must get an error, not a signal.
     ::signal(SIGPIPE, SIG_IGN);
+    // These servers close the connection when their reply is done, which an
+    // ICY stream would take for a dropped station and reconnect to; only
+    // ReconnectTest wants that, and turns it on for itself.
+    const int saved_reconnects = HTTPStreamIOHandler::reconnectAttempts();
+    HTTPStreamIOHandler::setReconnectAttempts(0);
 
     TestFramework::TestSuite suite("HTTPStreamIOHandler Tests");
     suite.addTest(std::make_unique<IcecastStreamTest>());
@@ -718,9 +843,11 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<AbortedGroupRefusesTest>());
     suite.addTest(std::make_unique<DetachedGroupTest>());
     suite.addTest(std::make_unique<AbortAllTest>());
+    suite.addTest(std::make_unique<ReconnectTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
+    HTTPStreamIOHandler::setReconnectAttempts(saved_reconnects);
     return suite.getFailureCount(results);
 #endif
 }

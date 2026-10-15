@@ -372,7 +372,7 @@ void HLSIOHandler::runWorker()
                 finishWorker(true, "media playlist: " + error);
                 return;
             }
-            if (!pause(2.0)) break;
+            if (!waitOrAbort(2.0)) break;
             continue;
         }
         reload_failures = 0;
@@ -383,7 +383,7 @@ void HLSIOHandler::runWorker()
         }
         if (pl.segments.empty()) {
             if (pl.ended) break;
-            if (!pause(std::max(1.0, pl.target_duration / 2))) break;
+            if (!waitOrAbort(std::max(1.0, pl.target_duration / 2))) break;
             continue;
         }
 
@@ -443,7 +443,7 @@ void HLSIOHandler::runWorker()
         if (m_abort) break;
         if (pl.ended && next_sequence > last_seq) break;
         // Nothing new: wait about half a target duration before asking again.
-        if (!any && !pause(std::max(1.0, pl.target_duration / 2))) break;
+        if (!any && !waitOrAbort(std::max(1.0, pl.target_duration / 2))) break;
     }
     finishWorker(false, std::string());
 }
@@ -545,19 +545,6 @@ bool HLSIOHandler::fetch(const std::string& url, std::string& body, std::string*
     }
     noteActivity();
     return true;
-}
-
-/**
- * @brief Sleep in short steps, giving up at once on abort.
- * @param seconds How long.
- * @return false if aborted.
- */
-bool HLSIOHandler::pause(double seconds)
-{
-    std::unique_lock<std::mutex> lock(m_buf_mutex);
-    m_space_cv.wait_for(lock, std::chrono::milliseconds(static_cast<int64_t>(seconds * 1000)),
-                        [this] { return m_abort.load(); });
-    return !m_abort;
 }
 
 } // namespace HTTP

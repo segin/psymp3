@@ -180,13 +180,6 @@ private:
      */
     static int abortCheck(void* self, curl_off_t, curl_off_t, curl_off_t, curl_off_t);
 
-    /**
-     * @brief Wait up to @p seconds, waking early if the handler is aborted.
-     * @param seconds How long.
-     * @return false if aborted.
-     */
-    bool pause(double seconds);
-
     const std::string m_url;
     std::string m_media_url;          // the media playlist (after variant choice and redirects)
     std::string m_mime_type;          // guarded by m_buf_mutex

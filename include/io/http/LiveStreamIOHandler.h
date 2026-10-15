@@ -254,11 +254,14 @@ protected:
     void insertAudio_unlocked(const char* data, size_t len);
 
     /**
-     * @brief Record @p title as the one playing from the current end of the
-     *        audio (the very first from 0), unless it repeats the last.
+     * @brief Record @p title as the one playing from @p at -- by default the
+     *        current end of the audio (the very first from 0) -- unless it
+     *        repeats the last.
      * @param title The title, decoded to UTF-8.
+     * @param at Where it starts; -1 for the current end. Never placed before
+     *        the last title recorded.
      */
-    void recordTitle(const std::string& title);
+    void recordTitle(const std::string& title, filesize_t at = -1);
 
     /**
      * @brief The producer has finished: record whether it failed and why, and
@@ -280,6 +283,14 @@ protected:
      * @return true if stalled that long.
      */
     bool stalledFor(int seconds) const;
+
+    /**
+     * @brief Wait up to @p seconds on the worker thread, waking at once if
+     *        the handler is aborted.
+     * @param seconds How long.
+     * @return false if aborted.
+     */
+    bool waitOrAbort(double seconds);
 
     /**
      * @brief Total audio bytes received so far. Caller holds m_buf_mutex.

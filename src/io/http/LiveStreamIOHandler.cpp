@@ -256,18 +256,24 @@ void LiveStreamIOHandler::insertAudio_unlocked(const char* data, size_t len)
 }
 
 /**
- * @brief Record a title at the current end of the audio (the first at 0),
- *        unless it repeats the last, keeping at most MAX_TITLES.
+ * @brief Record a title at @p at (default: the current end of the audio, or
+ *        0 for the first), unless it repeats the last, keeping at most
+ *        MAX_TITLES.
  * @param title The title.
+ * @param where Its start, or -1.
  */
-void LiveStreamIOHandler::recordTitle(const std::string& title)
+void LiveStreamIOHandler::recordTitle(const std::string& title, filesize_t where)
 {
     std::lock_guard<std::mutex> lock(m_buf_mutex);
     if (!m_titles.empty() && m_titles.back().second == title) return;
     // The audio received so far is what plays before this title. The first
     // title usually comes only after some audio, which is the same song: it
     // applies from the start.
-    const filesize_t at = m_titles.empty() && m_title_count == 0 ? 0 : audioEnd_unlocked();
+    filesize_t at = where >= 0 ? where
+                  : m_titles.empty() && m_title_count == 0 ? 0 : audioEnd_unlocked();
+    if (!m_titles.empty() && at < m_titles.back().first) {
+        at = m_titles.back().first;
+    }
     m_titles.emplace_back(at, title);
     if (m_titles.size() > MAX_TITLES) m_titles.pop_front();
     ++m_title_count;
@@ -309,6 +315,20 @@ bool LiveStreamIOHandler::stalledFor(int seconds) const
 {
     if (m_waiting_for_reader) return false;
     return liveSteadyMs() - m_last_data_ms > static_cast<int64_t>(seconds) * 1000;
+}
+
+/**
+ * @brief Sleep on the space condition (which abort() signals), so an abort
+ *        ends the wait at once.
+ * @param seconds How long.
+ * @return false if aborted.
+ */
+bool LiveStreamIOHandler::waitOrAbort(double seconds)
+{
+    std::unique_lock<std::mutex> lock(m_buf_mutex);
+    m_space_cv.wait_for(lock, std::chrono::milliseconds(static_cast<int64_t>(seconds * 1000)),
+                        [this] { return m_abort.load(); });
+    return !m_abort;
 }
 
 /**

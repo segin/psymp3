@@ -94,18 +94,118 @@ HTTPStreamIOHandler::~HTTPStreamIOHandler()
     stopWorker();
 }
 
+namespace {
+
+/// Failed reconnections an ICY stream survives in a row (see setReconnectAttempts()).
+std::atomic<int> g_reconnect_attempts{HTTPStreamIOHandler::DEFAULT_RECONNECT_ATTEMPTS};
+
+} // namespace
+
 /**
- * @brief The producer: set up one libcurl GET (redirects followed, HTTP/0.9
- *        allowed for SHOUTcast v1, ICY metadata requested, no overall
- *        timeout) and run it to its end, then record how it ended and wake
- *        the reader and the constructor.
+ * @brief Change how many failed reconnections in a row are allowed.
+ * @param attempts The number; 0 turns reconnecting off.
+ */
+void HTTPStreamIOHandler::setReconnectAttempts(int attempts)
+{
+    g_reconnect_attempts = std::max(0, attempts);
+}
+
+/**
+ * @brief The number of failed reconnections in a row allowed.
+ * @return It.
+ */
+int HTTPStreamIOHandler::reconnectAttempts()
+{
+    return g_reconnect_attempts.load();
+}
+
+/**
+ * @brief Run connections until the stream is over: one for anything but ICY,
+ *        and for ICY as many as it takes, with growing waits between them,
+ *        until reconnectAttempts() fail in a row or the handler is aborted.
  */
 void HTTPStreamIOHandler::runWorker()
 {
+    int failures_in_a_row = 0;
+    for (;;) {
+        const auto started = std::chrono::steady_clock::now();
+        std::string error_text;
+        const bool failed = runConnection(error_text);
+        if (m_abort) break;
+
+        bool reconnectable = false;
+        {
+            std::lock_guard<std::mutex> lock(m_buf_mutex);
+            // Only ICY, once it has played: it is the station, not a file,
+            // that ended. A file served without a length, or a playlist, must
+            // not be fetched again from the start. (A first response with an
+            // error status fails the constructor, which stops this.)
+            reconnectable = m_headers_ready && m_icy && !m_failed && reconnectAttempts() > 0;
+            // A reconnection the station answered with an error -- with or
+            // without a body -- is a failed attempt like any other.
+            if (reconnectable && m_status >= 400 && error_text.empty()) {
+                error_text = "server answered " + std::to_string(m_status);
+            }
+        }
+        if (!reconnectable) {
+            finishWorker(failed, error_text);
+            return;
+        }
+
+        const auto played = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - started).count();
+        if (m_conn_audio_bytes > 0 && played >= RECONNECT_RESET_SECONDS) {
+            failures_in_a_row = 0;
+        }
+        if (++failures_in_a_row > reconnectAttempts()) {
+            finishWorker(true, "the station was lost: " +
+                               (error_text.empty() ? std::string("it closed the connection") : error_text));
+            return;
+        }
+        const int delay = std::min(MAX_RECONNECT_DELAY_SECONDS, 1 << (failures_in_a_row - 1));
+        Debug::log("http", "HTTPStreamIOHandler: ", m_url, " dropped (",
+                   error_text.empty() ? std::string("closed") : error_text, "); reconnecting in ",
+                   delay, " s, attempt ", failures_in_a_row, " of ", reconnectAttempts());
+        if (!waitOrAbort(delay)) break;
+        {
+            std::lock_guard<std::mutex> lock(m_buf_mutex);
+            startConnection_unlocked();
+        }
+        noteActivity();
+    }
+    finishWorker(false, std::string());
+}
+
+/**
+ * @brief Forget the last connection's status, ICY v1 head and metadata
+ *        framing; the headers are re-read from the next response.
+ */
+void HTTPStreamIOHandler::startConnection_unlocked()
+{
+    m_status = 0;
+    m_conn_ready = false;
+    m_conn_failed = false;
+    m_conn_audio_bytes = 0;
+    m_conn_start = audioEnd_unlocked();
+    m_conn_titled = false;
+    m_icy_v1_done = false;
+    m_icy_v1_header.clear();
+    m_meta_left = -1;
+    m_audio_left = m_metaint;
+    m_meta_block.clear();
+}
+
+/**
+ * @brief One GET, run to its end; see the declaration.
+ * @param error_text Why it failed.
+ * @return true if it failed.
+ */
+bool HTTPStreamIOHandler::runConnection(std::string& error_text)
+{
     CURL* curl = curl_easy_init();
     if (!curl) {
-        finishWorker(true, "curl_easy_init failed");
-        return;
+        error_text = "curl_easy_init failed";
+        return true;
     }
 
     char error_buffer[CURL_ERROR_SIZE] = {0};
@@ -153,21 +253,23 @@ void HTTPStreamIOHandler::runWorker()
     curl_easy_cleanup(curl);
     curl_slist_free_all(request_headers);
 
-    const bool failed = rc != CURLE_OK && !m_abort;
-    std::string error_text;
+    const bool failed = (rc != CURLE_OK && !m_abort) || m_conn_failed;
     {
         std::lock_guard<std::mutex> lock(m_buf_mutex);
         if (failed) {
-            error_text = !m_error_text.empty() ? m_error_text
+            // A stall sets m_error_text before it aborts the transfer.
+            error_text = m_conn_failed ? "server answered " + std::to_string(m_status)
+                       : !m_error_text.empty() ? m_error_text
                        : error_buffer[0] ? std::string(error_buffer) : std::string(curl_easy_strerror(rc));
             Debug::log("http", "HTTPStreamIOHandler: ", m_url, " transfer ended: ", error_text);
         } else {
             Debug::log("http", "HTTPStreamIOHandler: ", m_url, " transfer ended after ",
                        audioEnd_unlocked(), " bytes");
         }
+        m_error_text.clear();
         // An HTTP/0.9 reply too short to hold a whole ICY header block still
         // has to release the constructor.
-        if (!m_headers_ready && !failed && !m_failed && !m_abort) {
+        if (!m_conn_ready && !failed && !m_failed && !m_abort) {
             if (!m_icy_v1_header.empty()) {
                 insertAudio_unlocked(m_icy_v1_header.data(), m_icy_v1_header.size());
                 m_icy_v1_header.clear();
@@ -175,7 +277,7 @@ void HTTPStreamIOHandler::runWorker()
             markHeadersReady_unlocked();
         }
     }
-    finishWorker(failed, error_text);
+    return failed;
 }
 
 /**
@@ -254,14 +356,16 @@ void HTTPStreamIOHandler::addHeaderLine_unlocked(const std::string& line)
 }
 
 /**
- * @brief Settle what the headers say -- Content-Length, whether the reply is
- *        ICY, the icy-metaint framing -- set the metadata state to start
- *        with audio, and wake the constructor. Once only. Caller holds
- *        m_buf_mutex.
+ * @brief Settle what this connection's headers say -- Content-Length,
+ *        whether the reply is ICY, the icy-metaint framing -- and set the
+ *        metadata state to start with audio. Once per connection. The first
+ *        connection's wakes the constructor; a reconnection answered with an
+ *        error status is marked failed. Caller holds m_buf_mutex.
  */
 void HTTPStreamIOHandler::markHeadersReady_unlocked()
 {
-    if (m_headers_ready) return;
+    if (m_conn_ready) return;
+    m_conn_ready = true;
     m_content_length = -1;
     auto it = m_headers.find("content-length");
     if (it != m_headers.end()) {
@@ -290,6 +394,13 @@ void HTTPStreamIOHandler::markHeadersReady_unlocked()
     }
     m_audio_left = m_metaint;
     m_meta_left = -1;
+    if (m_headers_ready) {
+        // A reconnection: the stream goes on unless the station refused.
+        if (m_status >= 400) {
+            m_conn_failed = true;
+        }
+        return;
+    }
     m_headers_ready = true;
     m_data_cv.notify_all();
 }
@@ -313,14 +424,17 @@ size_t HTTPStreamIOHandler::onBody(const char* data, size_t len)
         std::lock_guard<std::mutex> lock(m_buf_mutex);
         // Status 0 means no HTTP status line: an HTTP/0.9 reply, which is how
         // a SHOUTcast v1 "ICY 200 OK" header block reaches us.
-        if (!m_headers_ready && m_status == 0 && !m_icy_v1_done) {
+        if (!m_conn_ready && m_status == 0 && !m_icy_v1_done) {
             used = consumeIcyV1Header(data, len);
             if (!m_icy_v1_done) {
                 return m_failed ? 0 : len; // block not finished yet
             }
         }
-        if (!m_headers_ready) {
+        if (!m_conn_ready) {
             markHeadersReady_unlocked();
+        }
+        if (m_conn_failed) {
+            return 0; // a reconnection the station refused
         }
     }
     if (used < len && !deliverBody(data + used, len - used)) {
@@ -341,11 +455,13 @@ size_t HTTPStreamIOHandler::onBody(const char* data, size_t len)
 bool HTTPStreamIOHandler::deliverBody(const char* data, size_t len)
 {
     if (m_metaint == 0) {
+        m_conn_audio_bytes += len;
         return appendAudio(data, len);
     }
     while (len > 0) {
         if (m_audio_left > 0) {
             const size_t n = static_cast<size_t>(std::min<int64_t>(m_audio_left, static_cast<int64_t>(len)));
+            m_conn_audio_bytes += n;
             if (!appendAudio(data, n)) return false;
             data += n;
             len -= n;
@@ -375,15 +491,19 @@ bool HTTPStreamIOHandler::deliverBody(const char* data, size_t len)
 }
 
 /**
- * @brief Decode a block's StreamTitle and record it (recordTitle() places
- *        it, and ignores a repeat).
+ * @brief Decode a block's StreamTitle and record it (recordTitle() ignores a
+ *        repeat). A connection's first title comes only after its first
+ *        icy-metaint bytes of audio, which are the same song, so it is placed
+ *        where the connection's audio began.
  * @param block The metadata block, NUL padding included.
  */
 void HTTPStreamIOHandler::onMetadataBlock(const std::string& block)
 {
     std::string raw;
     if (!parseStreamTitle(block, raw)) return;
-    recordTitle(decodeIcyText(raw));
+    const bool first_of_connection = !m_conn_titled;
+    m_conn_titled = true;
+    recordTitle(decodeIcyText(raw), first_of_connection ? m_conn_start : -1);
 }
 
 /**

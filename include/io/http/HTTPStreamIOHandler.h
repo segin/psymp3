@@ -141,15 +141,53 @@ public:
     static constexpr int STALL_SECONDS = 30;
     // Seconds allowed to establish the connection.
     static constexpr int CONNECT_SECONDS = 10;
+    // Reconnecting after a dropped ICY stream: waits double from 1 s up to
+    // this, and the failure count resets once a connection has played this
+    // long.
+    static constexpr int MAX_RECONNECT_DELAY_SECONDS = 16;
+    static constexpr int RECONNECT_RESET_SECONDS = 10;
+    static constexpr int DEFAULT_RECONNECT_ATTEMPTS = 5;
+
+    /**
+     * @brief How many failed reconnections in a row an ICY stream survives
+     *        before it is given up, for every handler from now on. 0 turns
+     *        reconnecting off (the tests do, whose servers close on purpose).
+     * @param attempts The number.
+     */
+    static void setReconnectAttempts(int attempts);
+
+    /**
+     * @brief The setting setReconnectAttempts() made.
+     * @return It; DEFAULT_RECONNECT_ATTEMPTS until set.
+     */
+    static int reconnectAttempts();
 
 private:
     /**
-     * @brief The producer: set up one libcurl GET (redirects followed,
-     *        HTTP/0.9 allowed for SHOUTcast v1, ICY metadata requested, no
-     *        overall timeout) and run it until the server closes, an error or
-     *        stall ends it, or it is aborted; then record how it ended.
+     * @brief The producer: run connections until the stream is over. An ICY
+     *        stream that drops -- the server closes, an error, or a stall --
+     *        is reconnected after 1, 2, 4... s (MAX_RECONNECT_DELAY_SECONDS at
+     *        most), and given up after reconnectAttempts() failures in a row;
+     *        anything else ends with its connection.
      */
     void runWorker() override;
+
+    /**
+     * @brief One connection: set up one libcurl GET (redirects followed,
+     *        HTTP/0.9 allowed for SHOUTcast v1, ICY metadata requested, no
+     *        overall timeout) and run it until the server closes, an error or
+     *        stall ends it, or it is aborted.
+     * @param error_text Receives why it failed.
+     * @return true if it failed (an abort is not a failure).
+     */
+    bool runConnection(std::string& error_text);
+
+    /**
+     * @brief Reset what belongs to one connection -- status, the ICY v1
+     *        head, the metadata framing -- before the next. Caller holds
+     *        m_buf_mutex.
+     */
+    void startConnection_unlocked();
 
     /**
      * @brief libcurl CURLOPT_HEADERFUNCTION trampoline to onHeader().
@@ -248,9 +286,11 @@ private:
     void addHeaderLine_unlocked(const std::string& line);
 
     /**
-     * @brief The response head is complete: derive the content length,
-     *        whether the reply is ICY and its metadata framing, and wake the
-     *        constructor. Does nothing the second time. Caller holds m_buf_mutex.
+     * @brief A connection's response head is complete: derive the content
+     *        length, whether the reply is ICY and its metadata framing. The
+     *        first connection's wakes the constructor; a reconnection answered
+     *        with an error status is marked failed. Once per connection.
+     *        Caller holds m_buf_mutex.
      */
     void markHeadersReady_unlocked();
 
@@ -261,7 +301,12 @@ private:
     int m_status = 0;                 // HTTP or ICY status code; 0 if none
     int64_t m_content_length = -1;
     bool m_icy = false;
-    bool m_headers_ready = false;     // response head known
+    bool m_headers_ready = false;     // the first response's head known (the constructor waits for it)
+    bool m_conn_ready = false;        // this connection's head known
+    bool m_conn_failed = false;       // this reconnection answered with an error status
+    uint64_t m_conn_audio_bytes = 0;  // audio this connection delivered (worker thread)
+    filesize_t m_conn_start = 0;      // audio offset this connection's audio begins at
+    bool m_conn_titled = false;       // this connection has announced a title
 
     // ICY v1 header block being collected from the front of the body.
     bool m_icy_v1_done = false;
