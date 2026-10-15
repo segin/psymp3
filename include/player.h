@@ -440,6 +440,19 @@ class Player
         TagLib::String m_live_scrobble_title;
         TagLib::String m_live_scrobble_album;
         time_t m_live_title_started_at = 0;   // wall clock, for the scrobble's timestamp
+        /** @brief Samples played when the live title began: paused time does not count toward its scrobble. */
+        uint64_t m_live_title_start_samples = 0;
+        /** @brief The live title last scrobbled, so one re-announced after a spot is not scrobbled again. */
+        TagLib::String m_last_live_scrobble;
+        /** @brief When m_last_live_scrobble was scrobbled (wall clock). */
+        time_t m_last_live_scrobble_at = 0;
+
+        /**
+         * @brief How long the current live title has played -- audio out,
+         *        not wall time, so a pause does not count.
+         * @return Milliseconds.
+         */
+        uint64_t liveTitlePlayedMs() const;
 
         /**
          * @brief Note the live stream's current title as the one now playing,

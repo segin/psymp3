@@ -6596,7 +6596,7 @@ void Player::checkScrobbling()
     // minutes -- Last.fm's ceiling -- is scrobbled now, which also covers the
     // first title, joined mid-song, and a title the station never follows.
     if (stream->isLive()) {
-        if (SDL_GetTicks() - m_track_start_time >= 240000) {
+        if (liveTitlePlayedMs() >= 240000) {
             scrobbleFinishedLiveTitle();
         }
         return;
@@ -6662,7 +6662,14 @@ void Player::startScrobblingForStream()
     if (stream && stream->isLive()) {
         m_seen_meta_generation = stream->getMetadataGeneration();
         m_stream_title_changed = false;
-        m_live_awaiting_first_title = m_seen_meta_generation == 0;
+        /*
+         * Waiting for the first title -- the one joined mid-song -- only when
+         * nothing is known yet: a chained Ogg station's tags name the song
+         * playing at the join, and the title after it is heard whole.
+         */
+        const TagLib::String opening_title = stream->getTitle();
+        m_live_awaiting_first_title = m_seen_meta_generation == 0 && stream->getArtist().isEmpty() &&
+                                      (opening_title.isEmpty() || opening_title == stream->getStationName());
         beginLiveTitle(true);
         submitNowPlaying();
         return;
@@ -6685,9 +6692,23 @@ void Player::beginLiveTitle(bool first)
     m_live_scrobble_album = TagLib::String();  // a station is not an album
     m_live_title_is_music = stream->isCurrentTitleMusic();
     m_live_title_started_at = time(nullptr);
+    m_live_title_start_samples = audio ? audio->getSamplesPlayed() : 0;
     m_live_first_title = first;
     m_track_start_time = SDL_GetTicks();
     m_track_scrobbled = false;
+}
+
+/**
+ * @brief Time the current live title has been heard: samples played since it
+ *        began, so time paused does not count.
+ * @return Milliseconds.
+ */
+uint64_t Player::liveTitlePlayedMs() const
+{
+    if (!audio || audio->getRate() <= 0) return 0;
+    const uint64_t played = audio->getSamplesPlayed();
+    if (played < m_live_title_start_samples) return 0; // the device restarted its count
+    return (played - m_live_title_start_samples) * 1000 / static_cast<uint64_t>(audio->getRate());
 }
 
 /**
@@ -6701,17 +6722,28 @@ void Player::scrobbleFinishedLiveTitle()
         m_live_scrobble_artist.isEmpty() || m_live_scrobble_title.isEmpty()) {
         return;
     }
-    const Uint32 played_ms = SDL_GetTicks() - m_track_start_time;
-    const Uint32 required_ms = m_live_first_title ? 240000 : 30000;
+    const uint64_t played_ms = liveTitlePlayedMs();
+    const uint64_t required_ms = m_live_first_title ? 240000 : 30000;
     if (played_ms < required_ms) {
         return;
     }
+    /*
+     * A title the station announces again after a spot or a blank one is the
+     * same song resumed, not a new play: scrobbled once.
+     */
+    const TagLib::String key = m_live_scrobble_artist + "\n" + m_live_scrobble_title;
+    if (key == m_last_live_scrobble && time(nullptr) - m_last_live_scrobble_at < 600) {
+        m_track_scrobbled = true;
+        return;
+    }
     track scrobble_track(TagLib::String(""), m_live_scrobble_artist, m_live_scrobble_title);
-    scrobble_track.SetLen(played_ms / 1000);
+    scrobble_track.SetLen(static_cast<unsigned int>(played_ms / 1000));
     scrobble_track.setAlbum(m_live_scrobble_album);
     scrobble_track.setScrobbleArtist(m_live_scrobble_artist);
     if (m_lastfm->scrobbleTrack(scrobble_track, m_live_title_started_at)) {
         m_track_scrobbled = true;
+        m_last_live_scrobble = key;
+        m_last_live_scrobble_at = time(nullptr);
         Debug::log("lastfm", "Player: scrobbled stream title ", m_live_scrobble_artist.to8Bit(true),
                    " - ", m_live_scrobble_title.to8Bit(true));
     }
@@ -6787,6 +6819,9 @@ void Player::submitNowPlaying()
             track now_playing_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
             now_playing_track.setScrobbleArtist(stream->getArtist());
             m_lastfm->setNowPlaying(now_playing_track);
+        } else {
+            // A spot, or a title without an artist: the last song is not playing any more.
+            m_lastfm->unsetNowPlaying();
         }
     } else if (m_lastfm) {
         // Create track object from stream data
