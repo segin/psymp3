@@ -1243,7 +1243,8 @@ test_playlist_suite_SOURCES = test_playlist_suite.cpp \
 	core/playlist/test_playlist_block_edits.cpp \
 	core/playlist/test_playlist_load.cpp \
 	core/playlist/test_playlist_shuffle.cpp \
-	core/playlist/test_track_utils.cpp
+	core/playlist/test_track_utils.cpp \
+	core/playlist/test_playlist_text.cpp
 test_playlist_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_verify_random_SOURCES = verify_random.cpp

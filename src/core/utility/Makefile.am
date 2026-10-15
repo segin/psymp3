@@ -13,7 +13,8 @@ libpsymp3_core_utility_a_SOURCES = \
 	UTF8Util.cpp \
 	Base64.cpp \
 	../../../third_party/pugixml/pugixml.cpp \
-	utility.cpp
+	utility.cpp \
+	PlaylistText.cpp
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS)
 

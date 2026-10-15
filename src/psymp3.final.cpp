@@ -57,6 +57,7 @@
 #pragma GCC diagnostic pop
 #endif
 #include "core/utility/utility.cpp"
+#include "core/utility/PlaylistText.cpp"
 
 // ============================================================================
 // I/O Subsystem

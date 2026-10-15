@@ -473,6 +473,7 @@ using PsyMP3::Widget::UI::EqualizerWindow;
 // I/O and utility components (needed by other components)
 #include "core/utility/utility.h"
 #include "core/utility/UTF8Util.h"
+#include "core/utility/PlaylistText.h"
 #include "core/utility/Base64.h"
 #include "core/compression/Compressor.h"
 #include "core/compression/Decompressor.h"

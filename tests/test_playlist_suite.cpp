@@ -29,6 +29,7 @@ int test_playlist_block_edits_main();
 int test_playlist_load_main();
 int test_playlist_shuffle_main();
 int test_track_utils_main();
+int test_playlist_text_main();
 
 namespace {
 
@@ -42,6 +43,7 @@ const Entry kEntries[] = {
     {"test_playlist_load",         test_playlist_load_main},
     {"test_playlist_shuffle",      test_playlist_shuffle_main},
     {"test_track_utils",           test_track_utils_main},
+    {"test_playlist_text",         test_playlist_text_main},
 };
 
 } // namespace
