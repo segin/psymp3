@@ -51,8 +51,14 @@ bool DemuxedStream::initialize() {
         }
         
         m_live_handler = dynamic_cast<IO::HTTP::LiveStreamIOHandler*>(handler.get());
-        // Create demuxer with file path hint for raw format detection
-        m_demuxer = DemuxerFactory::createDemuxer(std::move(handler), uri.path().to8Bit(true));
+        /*
+         * Create demuxer with file path hint for raw format detection: for a
+         * URL, the whole URL, so the hint's extension comes from its path and
+         * never from its host.
+         */
+        const bool remote = uri.scheme() == "http" || uri.scheme() == "https";
+        m_demuxer = DemuxerFactory::createDemuxer(std::move(handler),
+                                                  remote ? m_path.to8Bit(true) : uri.path().to8Bit(true));
         if (!m_demuxer) {
             m_live_handler = nullptr; // went with the handler
             Debug::log("demux", "DemuxedStream::initialize() createDemuxer returned nullptr");

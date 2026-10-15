@@ -567,13 +567,27 @@ std::string DemuxerFactory::formatForMimeType(const std::string& mime_type) {
 }
 
 std::string DemuxerFactory::detectFormatFromExtension(const std::string& file_path) {
-    // Extract extension from file path
-    size_t dot_pos = file_path.find_last_of('.');
-    if (dot_pos == std::string::npos || dot_pos == file_path.length() - 1) {
+    /*
+     * The extension is the last path segment's: for a URL, not the host's
+     * (http://radio.example.com.au is not a .au file) and not the query's.
+     * For "host:port/path" without a scheme -- what a URI's path part
+     * gives -- the first slash starts the path.
+     */
+    std::string path = file_path;
+    const size_t scheme = path.find("://");
+    if (scheme != std::string::npos) {
+        const size_t start = path.find('/', scheme + 3);
+        path = start == std::string::npos ? std::string() : path.substr(start);
+        path = path.substr(0, path.find_first_of("?#"));
+    }
+    const size_t sep = path.find_last_of("/\\");
+    const std::string name = sep == std::string::npos ? path : path.substr(sep + 1);
+    size_t dot_pos = name.find_last_of('.');
+    if (dot_pos == std::string::npos || dot_pos == name.length() - 1) {
         return ""; // No extension
     }
-    
-    std::string extension = file_path.substr(dot_pos + 1);
+
+    std::string extension = name.substr(dot_pos + 1);
     
     // Convert to lowercase
     std::transform(extension.begin(), extension.end(), extension.begin(),

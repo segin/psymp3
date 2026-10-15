@@ -206,6 +206,17 @@ protected:
         // Test unknown extension
         std::string unknown_format = DemuxerFactory::probeFormat(raw_handler.get(), "test.xyz");
         ASSERT_TRUE(unknown_format.empty(), "Unknown extension should return empty string");
+
+        // The extension is the last path segment's, never a host's, a
+        // query's or a directory's ("radio.example.com.au" is no .au file).
+        ASSERT_TRUE(DemuxerFactory::probeFormat(raw_handler.get(), "http://radio.example.com.au").empty(),
+                    "a URL's host has no extension");
+        ASSERT_TRUE(DemuxerFactory::probeFormat(raw_handler.get(), "http://radio.example.com.au/").empty(),
+                    "nor its root path");
+        ASSERT_EQUALS("raw", DemuxerFactory::probeFormat(raw_handler.get(), "http://h.example/x.pcm?u=a.mp3"),
+                      "a URL's extension is its path's, not its query's");
+        ASSERT_TRUE(DemuxerFactory::probeFormat(raw_handler.get(), "/music/dir.au/track").empty(),
+                    "a directory's dot is not the file's extension");
     }
 };
 
