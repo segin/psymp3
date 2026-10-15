@@ -6878,9 +6878,14 @@ void Player::updateDiscordPresence()
                 title = path;
             }
         }
+        /*
+         * A station's name stands in for the album on screen, but it is no
+         * album: Discord would search MusicBrainz for a release of that name
+         * by each song's artist, and show it as the album too.
+         */
         m_discord->setNowPlaying(stream->getArtist().to8Bit(true),
                                  title,
-                                 stream->getAlbum().to8Bit(true),
+                                 stream->isLive() ? std::string() : stream->getAlbum().to8Bit(true),
                                  stream->getLength() / 1000,
                                  static_cast<unsigned int>(pos_ms / 1000),
                                  stream->getMusicBrainzReleaseID().to8Bit(true),
