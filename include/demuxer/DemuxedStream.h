@@ -99,6 +99,30 @@ public:
     virtual TagLib::String getArtist() override;
     virtual TagLib::String getTitle() override;
     virtual TagLib::String getAlbum() override;
+
+    /**
+     * @brief Whether the source is internet radio.
+     * @return The source's answer, taken when the stream opened.
+     */
+    bool isLive() const override { return m_live; }
+
+    /**
+     * @brief Counts the live stream's title changes (see updateLiveTitle()).
+     * @return The count; 0 for a file.
+     */
+    uint64_t getMetadataGeneration() const override { return m_live_meta_generation.load(); }
+
+    /**
+     * @brief The station's name, read when the stream opened.
+     * @return It, or empty.
+     */
+    TagLib::String getStationName() const override;
+
+    /**
+     * @brief Whether the live stream's current title is music.
+     * @return false for a station's own spots.
+     */
+    bool isCurrentTitleMusic() const override;
     virtual TagLib::String getPrimaryArtist() override;
     virtual TagLib::String getMusicBrainzID() override;
     virtual TagLib::String getMusicBrainzReleaseID() override;
@@ -180,6 +204,17 @@ private:
     /// readChunk() holds while the decoder waits on a stalled station.
     StreamInfo m_stream_info_cache;
     mutable std::mutex m_stream_info_cache_mutex;
+
+    /// A live stream's announced title, taken apart, kept by the decoder
+    /// thread (updateLiveTitle()) for the GUI, which must never wait on the
+    /// demuxer. Guarded by m_live_meta_mutex.
+    mutable std::mutex m_live_meta_mutex;
+    std::string m_live_raw_title;       ///< as announced, to notice changes
+    std::string m_live_artist;
+    std::string m_live_title;
+    std::string m_station_name;
+    bool m_live_is_music = true;
+    std::atomic<uint64_t> m_live_meta_generation{0};
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real
     // livelock) apart from "decoded to nothing but consumed input" (damage).
@@ -251,6 +286,16 @@ private:
      * @return A copy; empty before the first codec was set up.
      */
     StreamInfo cachedStreamInfo() const;
+
+    /**
+     * @brief On the decoder thread, after a chunk: ask the demuxer what the
+     *        live stream announces for it -- a chained Ogg link's comments,
+     *        else the source's ICY title at the chunk's offset -- and when
+     *        that has changed, store it taken apart and count a new title.
+     * @param chunk_offset The chunk's file_offset; 0 when the demuxer does
+     *        not track offsets, which asks for the newest title.
+     */
+    void updateLiveTitle(uint64_t chunk_offset);
 
     /**
      * @brief Fill the chunk buffer by reading compressed bitstream data

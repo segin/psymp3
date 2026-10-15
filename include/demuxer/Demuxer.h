@@ -516,6 +516,22 @@ public:
      *         stream announces nothing beyond its tags.
      */
     virtual std::string getStreamTitle() const;
+
+    /**
+     * @brief The title the source itself announced for the audio at
+     *        @p offset (ICY StreamTitle); see IOHandler::getStreamTitleAt().
+     *        Call it from the thread that reads chunks: it does not wait on
+     *        the demuxer's lock, only briefly on the source's.
+     * @param offset Source offset of the audio, a chunk's file_offset.
+     * @return The title, or "".
+     */
+    std::string getSourceStreamTitleAt(uint64_t offset) const;
+
+    /**
+     * @brief The source's own name (ICY icy-name); see IOHandler::getStationName().
+     * @return The name, or "".
+     */
+    std::string getSourceStationName() const;
     
     /**
      * @brief Get the last error that occurred during demuxer operations

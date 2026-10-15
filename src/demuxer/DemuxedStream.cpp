@@ -57,7 +57,11 @@ bool DemuxedStream::initialize() {
             return false;
         }
         m_live = m_demuxer->isLiveSource();
-        
+        if (m_live) {
+            std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+            m_station_name = m_demuxer->getSourceStationName();
+        }
+
         // Parse container
         if (!m_demuxer->parseContainer()) {
             Debug::log("demux", "DemuxedStream::initialize() parseContainer returned false");
@@ -150,6 +154,52 @@ bool DemuxedStream::setupCodec() {
 StreamInfo DemuxedStream::cachedStreamInfo() const {
     std::lock_guard<std::mutex> lock(m_stream_info_cache_mutex);
     return m_stream_info_cache;
+}
+
+/**
+ * @brief Record the live stream's title for the chunk just decoded, if it
+ *        has changed: the chained Ogg link's own, else the source's ICY title
+ *        for that point in the stream.
+ * @param chunk_offset The chunk's source offset, or 0 for "the newest".
+ */
+void DemuxedStream::updateLiveTitle(uint64_t chunk_offset) {
+    std::string raw = m_demuxer->getStreamTitle();
+    if (raw.empty()) {
+        const uint64_t offset = chunk_offset != 0
+            ? chunk_offset
+            : static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+        raw = m_demuxer->getSourceStreamTitleAt(offset);
+    }
+    std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+    if (raw == m_live_raw_title) {
+        return;
+    }
+    const auto parts = PsyMP3::IO::HTTP::HTTPStreamIOHandler::splitStreamTitle(raw);
+    m_live_raw_title = raw;
+    m_live_artist = parts.artist;
+    m_live_title = parts.title;
+    m_live_is_music = parts.is_music;
+    ++m_live_meta_generation;
+    Debug::log("demux", "DemuxedStream: now playing '", m_live_artist, "' - '", m_live_title,
+               "'", m_live_is_music ? "" : " (not music)");
+}
+
+/**
+ * @brief The station's name.
+ * @return It, as UTF-8 text.
+ */
+TagLib::String DemuxedStream::getStationName() const {
+    std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+    return TagLib::String(m_station_name, TagLib::String::UTF8);
+}
+
+/**
+ * @brief Whether the current live title is music.
+ * @return true unless the station marked it otherwise.
+ */
+bool DemuxedStream::isCurrentTitleMusic() const {
+    std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+    return m_live_is_music;
 }
 
 bool DemuxedStream::restartCodecForNewLink() {
@@ -675,6 +725,9 @@ AudioFrame DemuxedStream::getNextFrame() {
         
         AudioFrame frame = m_codec->decode(chunk);
         adoptOutputFormat(frame);
+        if (m_live) {
+            updateLiveTitle(chunk.file_offset);
+        }
         if (m_reanchor_pending) {
             if (!m_seek_base_set) {
                 m_seek_base = chunk.timestamp_samples;
@@ -1173,7 +1226,11 @@ bool DemuxedStream::initializeWithHandler(std::unique_ptr<IOHandler> handler) {
             return false;
         }
         m_live = m_demuxer->isLiveSource();
-        
+        if (m_live) {
+            std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+            m_station_name = m_demuxer->getSourceStationName();
+        }
+
         // Parse container
         if (!m_demuxer->parseContainer()) {
             return false;
@@ -1238,6 +1295,13 @@ const PsyMP3::Tag::Tag& DemuxedStream::getTag() const {
 }
 
 TagLib::String DemuxedStream::getArtist() {
+    if (m_live) {
+        // What the station announces for what plays now, when it does.
+        std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+        if (!m_live_artist.empty() || !m_live_title.empty()) {
+            return TagLib::String(m_live_artist, TagLib::String::UTF8);
+        }
+    }
     if (m_demuxer) {
         // First, try to get artist from the demuxer's Tag framework
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
@@ -1334,6 +1398,14 @@ TagLib::String DemuxedStream::getMusicBrainzReleaseID() {
 }
 
 TagLib::String DemuxedStream::getTitle() {
+    if (m_live) {
+        // The announced title; before there is one, the stream's own tags
+        // below, and failing those the station's name.
+        std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+        if (!m_live_title.empty()) {
+            return TagLib::String(m_live_title, TagLib::String::UTF8);
+        }
+    }
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
         if (!tag.isEmpty()) {
@@ -1348,11 +1420,24 @@ TagLib::String DemuxedStream::getTitle() {
             return TagLib::String(stream_info.title, TagLib::String::UTF8);
         }
     }
+    if (m_live) {
+        std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+        if (!m_station_name.empty()) {
+            return TagLib::String(m_station_name, TagLib::String::UTF8);
+        }
+    }
 
     return Stream::getTitle();
 }
 
 TagLib::String DemuxedStream::getAlbum() {
+    if (m_live) {
+        // A station plays no album; its name is the nearest thing.
+        std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+        if (!m_station_name.empty()) {
+            return TagLib::String(m_station_name, TagLib::String::UTF8);
+        }
+    }
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
         if (!tag.isEmpty()) {

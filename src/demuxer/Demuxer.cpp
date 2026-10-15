@@ -55,6 +55,23 @@ std::string Demuxer::getStreamTitle() const {
     return std::string();
 }
 
+/**
+ * @brief Ask the source for the title at @p offset.
+ * @param offset Source offset.
+ * @return Its title, or "" with no source.
+ */
+std::string Demuxer::getSourceStreamTitleAt(uint64_t offset) const {
+    return m_handler ? m_handler->getStreamTitleAt(static_cast<PsyMP3::IO::filesize_t>(offset)) : std::string();
+}
+
+/**
+ * @brief Ask the source for its name.
+ * @return The name, or "" with no source.
+ */
+std::string Demuxer::getSourceStationName() const {
+    return m_handler ? m_handler->getStationName() : std::string();
+}
+
 // BufferPool implementation
 BufferPool& BufferPool::getInstance() {
     static BufferPool instance;

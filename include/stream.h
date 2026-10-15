@@ -116,6 +116,34 @@ class Stream
         virtual void seekTo(unsigned long pos) = 0;
         virtual bool canSeek() const;
         virtual bool eof() = 0;
+
+        /**
+         * @brief Whether this is a live stream (internet radio), whose
+         *        artist and title change while it plays.
+         * @return false for files.
+         */
+        virtual bool isLive() const { return false; }
+
+        /**
+         * @brief A count that goes up each time the stream announces a new
+         *        title, so the player can notice without comparing strings.
+         *        Safe to call from the GUI thread every frame.
+         * @return 0 for files, whose titles do not change.
+         */
+        virtual uint64_t getMetadataGeneration() const { return 0; }
+
+        /**
+         * @brief The live stream's own name (a radio station's icy-name).
+         * @return The name, or empty.
+         */
+        virtual TagLib::String getStationName() const { return TagLib::String(); }
+
+        /**
+         * @brief Whether what plays now is music, as opposed to a station's
+         *        own announcement or advert, which is not scrobbled.
+         * @return true unless the stream says otherwise.
+         */
+        virtual bool isCurrentTitleMusic() const { return true; }
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer
