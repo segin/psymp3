@@ -39,6 +39,22 @@ const PsyMP3::Tag::Tag& Demuxer::getTag() const {
     return s_null_tag;
 }
 
+/**
+ * @brief Ask the source whether it is internet radio.
+ * @return Its answer, or false with no source.
+ */
+bool Demuxer::isLiveSource() const {
+    return m_handler && m_handler->isLiveStream();
+}
+
+/**
+ * @brief Demuxers whose streams announce nothing mid-stream say so.
+ * @return "".
+ */
+std::string Demuxer::getStreamTitle() const {
+    return std::string();
+}
+
 // BufferPool implementation
 BufferPool& BufferPool::getInstance() {
     static BufferPool instance;

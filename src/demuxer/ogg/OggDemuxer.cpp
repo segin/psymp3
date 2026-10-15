@@ -504,8 +504,124 @@ uint64_t OggDemuxer::getGranulePosition(uint32_t stream_id) const {
   return it->second->getGranulePos();
 }
 
+/**
+ * @brief Map a page's serial to the stream it feeds: a later chained link's
+ *        pages go to the primary stream's key.
+ * @param serial The page's serial number.
+ * @return The key in m_streams.
+ */
+int OggDemuxer::streamKeyForSerial_unlocked(int serial) const {
+  auto it = m_serial_alias.find(serial);
+  return it == m_serial_alias.end() ? serial : it->second;
+}
+
+/**
+ * @brief Set the next chained link up in place of the primary stream. Reads
+ *        pages (skipping other serials) until the link's headers are
+ *        complete, replaces the primary key's stream and parser, records the
+ *        link's artist and title, and arranges for the consumer to rebuild its
+ *        codec: in-band headers (Vorbis) are queued as chunks, the first one
+ *        flagged new_link; otherwise the first audio chunk is flagged.
+ * @param bos_page The link's BOS page.
+ * @return false if the link is unusable; m_eof is set then.
+ */
+bool OggDemuxer::beginNextLink_unlocked(ogg_page* bos_page) {
+  const int serial = ogg_page_serialno(bos_page);
+  auto stream = std::make_unique<OggStreamManager>(serial);
+  stream->submitPage(bos_page);
+
+  ogg_packet packet{};
+  std::unique_ptr<CodecHeaderParser> parser;
+  if (stream->getPacket(&packet) == 1) {
+    parser = CodecHeaderParser::create(&packet);
+  }
+  if (!parser) {
+    Debug::log("ogg", "OggDemuxer: next chained link has no codec PsyMP3 knows (serial ",
+               static_cast<unsigned>(serial), "); ending the stream");
+    m_eof = true;
+    return false;
+  }
+  std::vector<std::vector<uint8_t>> headers;
+  headers.emplace_back(packet.packet, packet.packet + packet.bytes);
+  parser->parseHeader(&packet);
+
+  while (!parser->isHeadersComplete()) {
+    const int result = stream->getPacket(&packet);
+    if (result == 1) {
+      headers.emplace_back(packet.packet, packet.packet + packet.bytes);
+      parser->parseHeader(&packet);
+      continue;
+    }
+    if (result < 0) {
+      continue; // a gap; the next packet follows
+    }
+    ogg_page page;
+    if (m_sync->getNextPage(&page) != 1) {
+      Debug::log("ogg", "OggDemuxer: stream ended inside the next chained link's headers (serial ",
+                 static_cast<unsigned>(serial), ")");
+      m_eof = true;
+      return false;
+    }
+    if (ogg_page_serialno(&page) == serial) {
+      stream->submitPage(&page);
+    }
+  }
+
+  const bool in_band = codecKeepsHeadersInBand(*parser);
+  const int key = m_primary_serial;
+  m_streams[key] = std::move(stream);
+  m_parsers[key] = std::move(parser);
+  m_serial_alias[serial] = key;
+
+  // The tag describes the stream as opened and is handed out by reference,
+  // so it is not replaced here; the link's own artist and title go to
+  // getStreamTitle().
+  const OggVorbisComment comment = m_parsers[key]->getVorbisComment();
+  auto field = [&comment](const char* name) {
+    auto it = comment.fields.find(name);
+    return (it == comment.fields.end() || it->second.empty()) ? std::string() : it->second.front();
+  };
+  const std::string artist = field("ARTIST");
+  const std::string title = field("TITLE");
+  m_link_title = (!artist.empty() && !title.empty()) ? artist + " - " + title : artist + title;
+
+  m_link_chunks.clear();
+  if (in_band) {
+    for (auto& header : headers) {
+      MediaChunk chunk;
+      chunk.stream_id = static_cast<uint32_t>(key);
+      chunk.data = std::move(header);
+      chunk.new_link = m_link_chunks.empty();
+      m_link_chunks.push_back(std::move(chunk));
+    }
+    m_link_flag_pending = false;
+  } else {
+    m_link_flag_pending = true;
+  }
+  Debug::log("ogg", "OggDemuxer: next chained link, ", m_parsers[key]->getCodecInfo().codec_name,
+             ", serial ", static_cast<unsigned>(serial), ": '", m_link_title, "'");
+  return true;
+}
+
+/**
+ * @brief The current chained link's "Artist - Title".
+ * @return It, or "" before the first link change.
+ */
+std::string OggDemuxer::getStreamTitle() const {
+  std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
+  return m_link_title;
+}
+
 MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
   MediaChunk chunk;
+
+  // A new chained link's in-band headers go out before anything else.
+  if (!m_link_chunks.empty() && m_has_primary_serial &&
+      stream_id == static_cast<uint32_t>(m_primary_serial)) {
+    chunk = std::move(m_link_chunks.front());
+    m_link_chunks.pop_front();
+    return chunk;
+  }
 
   auto sit = m_streams.find(stream_id);
   if (sit == m_streams.end()) {
@@ -552,9 +668,25 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     }
 
     int serial = ogg_page_serialno(&page);
-    auto it = m_streams.find(serial);
+    auto it = m_streams.find(streamKeyForSerial_unlocked(serial));
     if (it != m_streams.end()) {
       it->second->submitPage(&page);
+    } else if (ogg_page_bos(&page) && m_has_primary_serial && isLiveSource() &&
+               stream_id == static_cast<uint32_t>(m_primary_serial)) {
+      // The primary stream has run out and a new logical stream begins: the
+      // next link of a chained stream. Every packet of the old link has gone
+      // out already, since pages are read only when the stream has none.
+      // Only for internet radio: a chained file's duration and seeking know
+      // its first link alone, so a file still ends there.
+      if (!beginNextLink_unlocked(&page)) {
+        return chunk;
+      }
+      if (!m_link_chunks.empty()) {
+        chunk = std::move(m_link_chunks.front());
+        m_link_chunks.pop_front();
+        return chunk;
+      }
+      sit = m_streams.find(stream_id);
     }
 
   }
@@ -566,6 +698,11 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
       (packet.granulepos >= 0) ? static_cast<uint64_t>(packet.granulepos)
                                : static_cast<uint64_t>(-1);
   chunk.end_of_stream = packet.e_o_s != 0;
+  if (m_link_flag_pending && m_has_primary_serial &&
+      stream_id == static_cast<uint32_t>(m_primary_serial)) {
+    chunk.new_link = true;
+    m_link_flag_pending = false;
+  }
 
   auto pit = m_parsers.find(stream_id);
   if (pit != m_parsers.end()) {

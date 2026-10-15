@@ -52,6 +52,14 @@ public:
   bool providesGranulePositions() const override { return true; }
   bool granulesArePageEnds() const override { return true; }
 
+    /**
+     * @brief Artist and title from the comments of the chained link playing
+     *        now, once the stream has moved past its first link.
+     * @return "Artist - Title", or the part that is known; "" before the
+     *         first link change.
+     */
+    std::string getStreamTitle() const override;
+
     // Registration
     static bool registerDemuxer();
 
@@ -77,6 +85,33 @@ private:
     // Async duration calculation
     mutable std::atomic<bool> m_calculating_duration{false};
     mutable std::future<void> m_duration_future;
+
+    // Chained Ogg: a radio station that restarts its encoder for each song
+    // sends one logical stream after another. Each later link takes over the
+    // primary stream's key, so the stream id callers hold stays valid.
+    std::map<int, int> m_serial_alias;      // a later link's serial -> the primary key
+    std::deque<MediaChunk> m_link_chunks;   // a new link's in-band headers, sent before its audio
+    bool m_link_flag_pending = false;       // flag the next primary chunk new_link
+    std::string m_link_title;               // the current link's "Artist - Title"
+
+    /**
+     * @brief The key in m_streams/m_parsers that pages of @p serial belong
+     *        to: the primary key for a later chained link, else the serial.
+     * @param serial A page's serial number.
+     * @return The key.
+     */
+    int streamKeyForSerial_unlocked(int serial) const;
+
+    /**
+     * @brief Start the next link of a chained stream from its BOS page: read
+     *        pages until its headers are complete, then put its stream and
+     *        parser in place of the primary's, queue its in-band header
+     *        packets (Vorbis) and flag the first chunk new_link.
+     * @param bos_page The link's first page.
+     * @return false if the link cannot be used (unknown codec, or the stream
+     *         ended inside its headers); m_eof is then set.
+     */
+    bool beginNextLink_unlocked(ogg_page* bos_page);
 
     // Unlocked implementations
     MediaChunk readChunk_unlocked(uint32_t stream_id);

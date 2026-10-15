@@ -56,6 +56,7 @@ bool DemuxedStream::initialize() {
             Debug::log("demux", "DemuxedStream::initialize() createDemuxer returned nullptr");
             return false;
         }
+        m_live = m_demuxer->isLiveSource();
         
         // Parse container
         if (!m_demuxer->parseContainer()) {
@@ -131,6 +132,37 @@ bool DemuxedStream::setupCodec() {
     bool init_result = m_codec->initialize();
     Debug::log("demux", "DemuxedStream::setupCodec() codec->initialize() returned ", init_result);
     return init_result;
+}
+
+/**
+ * @brief Replace the codec for a chained stream's next link, or end the
+ *        stream if the link cannot continue on the open audio device.
+ * @return true to go on decoding the link.
+ */
+bool DemuxedStream::restartCodecForNewLink() {
+    const long rate = m_rate;
+    const int channels = m_channels;
+    bool ok = false;
+    try {
+        ok = setupCodec();
+    } catch (const std::exception& e) {
+        Debug::log("demux", "DemuxedStream: codec for the next link failed: ", e.what());
+    }
+    if (ok) {
+        const StreamInfo& decoded = m_codec->getStreamInfo();
+        const long new_rate = decoded.sample_rate;
+        const int new_channels = decoded.channels;
+        if (new_rate == rate && new_channels == channels) {
+            Debug::log("demux", "DemuxedStream: next chained link, ", m_codec->getCodecName(),
+                       " ", new_rate, " Hz ", new_channels, " ch");
+            return true;
+        }
+        Debug::log("demux", "DemuxedStream: next chained link changes the format from ", rate, " Hz ",
+                   channels, " ch to ", new_rate, " Hz ", new_channels, " ch; ending the stream");
+    }
+    m_eof_reached = true;
+    m_eof = true;
+    return false;
 }
 
 void DemuxedStream::updateStreamProperties() {
@@ -519,7 +551,9 @@ AudioFrame DemuxedStream::getNextFrame() {
     // target and is to be dropped.
     auto stampFrame = [this](AudioFrame& frame, const MediaChunk* source) -> bool {
         const uint64_t raw_granule = source ? source->granule_position : 0;
-        const bool has_granule = raw_granule != 0 && raw_granule != static_cast<uint64_t>(-1);
+        // Internet radio's granules restart with every chained link, and a
+        // listener joins mid-stream anyway: its audio is counted as decoded.
+        const bool has_granule = !m_live && raw_granule != 0 && raw_granule != static_cast<uint64_t>(-1);
         const uint64_t granule = has_granule ? toOutputFrames(raw_granule) : 0;
         if (m_codec->getCodecName() == "opus") {
             if (has_granule) {
@@ -607,7 +641,10 @@ AudioFrame DemuxedStream::getNextFrame() {
     
     // If we have chunks, decode one on-demand
     if (has_chunk) {
-        
+        if (chunk.new_link && !restartCodecForNewLink()) {
+            return AudioFrame{};
+        }
+
         // Special handling for Opus: if codec is initialized, skip any header packets
         // that the demuxer may have included (e.g., after seeking to a page containing headers).
         // We detect headers by their magic signatures, not by is_keyframe flag.
@@ -1114,6 +1151,7 @@ bool DemuxedStream::initializeWithHandler(std::unique_ptr<IOHandler> handler) {
         if (!m_demuxer) {
             return false;
         }
+        m_live = m_demuxer->isLiveSource();
         
         // Parse container
         if (!m_demuxer->parseContainer()) {

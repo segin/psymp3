@@ -172,6 +172,9 @@ private:
     /// The stream is not over before then: a codec can return nothing for the
     /// last chunk it is given and hand the audio over in the flush.
     bool m_codec_drained = false;
+    /// Internet radio (Demuxer::isLiveSource()). Its granules restart with
+    /// every chained link, so positions are counted from the decoded audio.
+    bool m_live = false;
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real
     // livelock) apart from "decoded to nothing but consumed input" (damage).
@@ -226,7 +229,17 @@ private:
      * @brief Setup codec for the current stream
      */
     bool setupCodec();
-    
+
+    /**
+     * @brief A chained stream has moved on to its next link: build a codec
+     *        from the link's StreamInfo in place of the old one.
+     *
+     * The audio device stays open at the old format, so a link that decodes
+     * to another sample rate or channel count ends the stream instead.
+     * @return true to go on decoding; false when the stream has been ended.
+     */
+    bool restartCodecForNewLink();
+
     /**
      * @brief Fill the chunk buffer by reading compressed bitstream data
      */

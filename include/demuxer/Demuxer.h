@@ -199,6 +199,11 @@ struct MediaChunk {
     /// block's audio, or at its start. DemuxedStream removes them.
     uint32_t padding_tail_frames = 0;
     uint32_t padding_head_frames = 0;
+    /// First chunk of a new link in a chained stream (chained Ogg: internet
+    /// radio restarts its encoder for each song). The stream keeps its id but
+    /// may have changed codec or headers, so the consumer must rebuild its
+    /// codec from getStreamInfo() before decoding this chunk.
+    bool new_link = false;
     
     // Constructors
     MediaChunk() = default;
@@ -494,6 +499,23 @@ public:
      * @thread_safety Safe to call concurrently after parseContainer() completes
      */
     const PsyMP3::Tag::Tag& getTag() const;
+
+    /**
+     * @brief Whether the source is a live stream (internet radio); see
+     *        IOHandler::isLiveStream().
+     * @return false when there is no source.
+     */
+    bool isLiveSource() const;
+
+    /**
+     * @brief The title the stream itself announces for what is playing now,
+     *        when it changes mid-stream: a chained Ogg link's comments, say.
+     *        Unlike getTag(), which describes the stream as opened and is
+     *        never replaced while playing, this follows the stream.
+     * @return "Artist - Title" (or the part that is known), or "" if the
+     *         stream announces nothing beyond its tags.
+     */
+    virtual std::string getStreamTitle() const;
     
     /**
      * @brief Get the last error that occurred during demuxer operations

@@ -973,7 +973,8 @@ test_ogg_suite_SOURCES = test_ogg_suite.cpp \
 	demuxer/ogg/test_oggdemuxer_comprehensive.cpp \
 	demuxer/ogg/test_ogg_comprehensive_integration.cpp \
 	demuxer/ogg/test_ogg_multiplexed_seeking.cpp \
-	demuxer/ogg/test_ogg_seeking_stress.cpp
+	demuxer/ogg/test_ogg_seeking_stress.cpp \
+	demuxer/ogg/test_ogg_chained_live.cpp
 test_ogg_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 test_ogg_fuzzing_SOURCES = test_ogg_fuzzing.cpp

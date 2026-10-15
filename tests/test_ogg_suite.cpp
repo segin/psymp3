@@ -35,6 +35,7 @@ int test_oggdemuxer_comprehensive_main();
 int test_ogg_comprehensive_integration_main();
 int test_ogg_multiplexed_seeking_main();
 int test_ogg_seeking_stress_main();
+int test_ogg_chained_live_main();
 
 namespace {
 
@@ -54,6 +55,7 @@ const Entry kEntries[] = {
     {"test_ogg_comprehensive_integration",  test_ogg_comprehensive_integration_main},
     {"test_ogg_multiplexed_seeking",        test_ogg_multiplexed_seeking_main},
     {"test_ogg_seeking_stress",             test_ogg_seeking_stress_main},
+    {"test_ogg_chained_live",               test_ogg_chained_live_main},
 };
 
 } // namespace
