@@ -130,6 +130,15 @@ private:
      * @return Its entries.
      */
     static std::vector<PlaylistItem> parseASX(const std::string& text);
+
+    /**
+     * @brief ASX that is not well-formed XML (old players wrote href values
+     *        unquoted), read tag by tag: each entry's first openable ref,
+     *        each entryref. Titles are not read.
+     * @param text The playlist.
+     * @return Its entries.
+     */
+    static std::vector<PlaylistItem> parseLooseASX(const std::string& text);
 };
 
 } // namespace Utility

@@ -33,6 +33,7 @@ protected:
         testXSPF();
         testASX();
         testDetection();
+        testLooseASX();
         testHelpers();
     }
 
@@ -115,6 +116,26 @@ private:
         ASSERT_TRUE(PlaylistText::formatForMimeType("audio/x-scpls") == PlaylistFormat::PLS, "PLS type");
         ASSERT_TRUE(PlaylistText::formatForMimeType("application/xspf+xml") == PlaylistFormat::XSPF, "XSPF type");
         ASSERT_TRUE(PlaylistText::formatForMimeType("audio/mpeg") == PlaylistFormat::Unknown, "audio is no playlist");
+        // A tag name in an M3U's title or path is not its root element.
+        ASSERT_TRUE(PlaylistText::detect("#EXTM3U\n#EXTINF:1,The <asx> Song\na.mp3\n", PlaylistFormat::Unknown) ==
+                    PlaylistFormat::M3U, "#EXTM3U wins over a tag in a title");
+        ASSERT_TRUE(PlaylistText::detect("music/<asx>/a.mp3\n", PlaylistFormat::M3U) == PlaylistFormat::M3U,
+                    "a tag in a path is not ASX");
+        ASSERT_TRUE(PlaylistText::detect("<?xml version=\"1.0\"?>\n<!-- made by hand -->\n<ASX version=\"3\">",
+                                         PlaylistFormat::Unknown) == PlaylistFormat::ASX,
+                    "ASX after a declaration and a comment");
+    }
+
+    /** @brief ASX as old players wrote it: not XML, href values unquoted. */
+    void testLooseASX() {
+        const auto items = PlaylistText::parse(
+            "<asx version=3.0>\n<entry><ref href=mms://h/live /><ref href=http://h/live /></entry>\n"
+            "<entry><ref href='http://h/two'></entry>\n<entryref href=http://h/more.asx>\n</asx>\n",
+            PlaylistFormat::ASX);
+        ASSERT_EQUALS(size_t(3), items.size(), "two entries and an entryref");
+        ASSERT_EQUALS(std::string("http://h/live"), items[0].location, "unquoted, the openable ref");
+        ASSERT_EQUALS(std::string("http://h/two"), items[1].location, "single-quoted");
+        ASSERT_EQUALS(std::string("http://h/more.asx"), items[2].location, "entryref");
     }
 
     /** @brief URL recognition and file:// and %XX decoding. */

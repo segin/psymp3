@@ -154,13 +154,38 @@ PlaylistFormat PlaylistText::formatForMimeType(const std::string& mime_type)
 PlaylistFormat PlaylistText::detect(const std::string& text, PlaylistFormat fallback)
 {
     const std::string head = plLower(plTrim(plNoBom(text)).substr(0, 512));
+    if (head.compare(0, 7, "#extm3u") == 0) return PlaylistFormat::M3U;
     if (head.compare(0, 10, "[playlist]") == 0) return PlaylistFormat::PLS;
-    if (head.find("<asx") != std::string::npos) return PlaylistFormat::ASX;
-    if (head.find("xspf.org/ns/0") != std::string::npos ||
-        (head.find("<playlist") != std::string::npos && head.find("<tracklist") != std::string::npos)) {
+    /*
+     * XML: by its root element, after any declaration, comments and
+     * DOCTYPE -- not by tag names found anywhere, which an M3U title or path
+     * can hold.
+     */
+    size_t p = 0;
+    for (;;) {
+        p = head.find_first_not_of(" \t\r\n", p);
+        if (p == std::string::npos) return fallback;
+        size_t end;
+        if (head.compare(p, 2, "<?") == 0) {
+            end = head.find("?>", p);
+            if (end != std::string::npos) end += 2;
+        } else if (head.compare(p, 4, "<!--") == 0) {
+            end = head.find("-->", p);
+            if (end != std::string::npos) end += 3;
+        } else if (head.compare(p, 2, "<!") == 0) {
+            end = head.find('>', p);
+            if (end != std::string::npos) end += 1;
+        } else {
+            break;
+        }
+        if (end == std::string::npos) return fallback;
+        p = end;
+    }
+    if (head.compare(p, 4, "<asx") == 0) return PlaylistFormat::ASX;
+    if (head.compare(p, 9, "<playlist") == 0 &&
+        (head.find("xspf.org/ns/0") != std::string::npos || head.find("<tracklist") != std::string::npos)) {
         return PlaylistFormat::XSPF;
     }
-    if (head.compare(0, 7, "#extm3u") == 0) return PlaylistFormat::M3U;
     return fallback;
 }
 
@@ -303,7 +328,10 @@ std::vector<PlaylistItem> PlaylistText::parseASX(const std::string& text)
 {
     std::vector<PlaylistItem> items;
     pugi::xml_document doc;
-    if (!doc.load_buffer(text.data(), text.size())) return items;
+    if (!doc.load_buffer(text.data(), text.size())) {
+        // Old ASX is often not XML at all (href=http://... unquoted).
+        return parseLooseASX(text);
+    }
     plWalk(doc, [&items](const pugi::xml_node& node) {
         const std::string name = plLocalName(node);
         if (name == "entryref") {
@@ -335,6 +363,68 @@ std::vector<PlaylistItem> PlaylistText::parseASX(const std::string& text)
         item.artist = plChildText(node, "author");
         items.push_back(std::move(item));
     });
+    return items;
+}
+
+/**
+ * @brief Read ASX that is not well-formed XML, tag by tag: each entry's
+ *        first openable ref, each entryref; href values quoted or not.
+ * @param text The playlist.
+ * @return Its entries (no titles).
+ */
+std::vector<PlaylistItem> PlaylistText::parseLooseASX(const std::string& text)
+{
+    std::vector<PlaylistItem> items;
+    const std::string lower = plLower(text);
+    /** @brief The href value in the tag starting at @p tag, or "". */
+    auto hrefIn = [&](size_t tag) {
+        const size_t close = lower.find('>', tag);
+        const size_t at = lower.find("href", tag);
+        if (at == std::string::npos || (close != std::string::npos && at > close)) return std::string();
+        size_t p = lower.find_first_not_of(" \t\r\n", at + 4);
+        if (p == std::string::npos || text[p] != '=') return std::string();
+        p = text.find_first_not_of(" \t\r\n", p + 1);
+        if (p == std::string::npos) return std::string();
+        if (text[p] == '"' || text[p] == '\'') {
+            const size_t end = text.find(text[p], p + 1);
+            return end == std::string::npos ? std::string() : plTrim(text.substr(p + 1, end - p - 1));
+        }
+        size_t end = text.find_first_of(" \t\r\n>", p);
+        if (end == std::string::npos) end = text.size();
+        // "href=http://h/s />": the slash before ">" closes the tag.
+        if (end > p && text[end - 1] == '/' && (end == text.size() || text[end] != '/')) --end;
+        return text.substr(p, end - p);
+    };
+    /** @brief Whether this player can open @p href itself: http(s) or a path. */
+    auto openable = [](const std::string& href) {
+        const std::string scheme = plLower(href.substr(0, 8));
+        return !isUrl(href) || scheme.compare(0, 7, "http://") == 0 || scheme.compare(0, 8, "https://") == 0;
+    };
+    PlaylistItem entry;
+    bool in_entry = false;
+    bool settled = false;
+    for (size_t pos = lower.find('<'); pos != std::string::npos; pos = lower.find('<', pos + 1)) {
+        if (lower.compare(pos, 9, "<entryref") == 0) {
+            PlaylistItem ref;
+            ref.location = hrefIn(pos);
+            if (!ref.location.empty()) items.push_back(std::move(ref));
+        } else if (lower.compare(pos, 6, "<entry") == 0) {
+            entry = PlaylistItem();
+            in_entry = true;
+            settled = false;
+        } else if (lower.compare(pos, 7, "</entry") == 0) {
+            if (in_entry && !entry.location.empty()) items.push_back(entry);
+            in_entry = false;
+        } else if (in_entry && !settled && lower.compare(pos, 4, "<ref") == 0) {
+            const std::string href = hrefIn(pos);
+            if (href.empty()) continue;
+            if (entry.location.empty()) entry.location = href;
+            if (openable(href)) {
+                entry.location = href;
+                settled = true;
+            }
+        }
+    }
     return items;
 }
 
