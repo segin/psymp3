@@ -253,9 +253,20 @@ bool HTTPStreamIOHandler::runConnection(std::string& error_text)
     curl_easy_cleanup(curl);
     curl_slist_free_all(request_headers);
 
-    const bool failed = (rc != CURLE_OK && !m_abort) || m_conn_failed;
+    bool failed = (rc != CURLE_OK && !m_abort) || m_conn_failed;
     {
         std::lock_guard<std::mutex> lock(m_buf_mutex);
+        /*
+         * A reply that began "ICY " but closed before its blank line is a
+         * SHOUTcast head cut short, not audio: count the connection failed
+         * rather than play the header text.
+         */
+        if (!failed && !m_abort && !m_conn_ready && !m_icy_v1_done &&
+            m_icy_v1_header.compare(0, 4, "ICY ") == 0) {
+            failed = true;
+            m_error_text = "the ICY header block was cut short";
+            m_icy_v1_header.clear();
+        }
         if (failed) {
             // A stall sets m_error_text before it aborts the transfer.
             error_text = m_conn_failed ? "server answered " + std::to_string(m_status)
@@ -656,10 +667,17 @@ size_t HTTPStreamIOHandler::consumeIcyV1Header(const char* data, size_t len)
         m_icy_v1_done = true;
         return 0;
     }
-    size_t end = m_icy_v1_header.find("\r\n\r\n");
+    /*
+     * The block ends at the first blank line, CRLF or bare LF: whichever
+     * comes first, since the audio after an LF-only block can hold the
+     * other terminator's bytes.
+     */
+    const size_t crlf = m_icy_v1_header.find("\r\n\r\n");
+    const size_t lf = m_icy_v1_header.find("\n\n");
+    size_t end = crlf;
     size_t term = 4;
-    if (end == std::string::npos) {
-        end = m_icy_v1_header.find("\n\n");
+    if (lf != std::string::npos && (crlf == std::string::npos || lf < crlf)) {
+        end = lf;
         term = 2;
     }
     if (end == std::string::npos) {
@@ -682,8 +700,8 @@ size_t HTTPStreamIOHandler::consumeIcyV1Header(const char* data, size_t len)
         if (nl == std::string::npos) nl = block.size();
         const std::string line = trim(block.substr(pos, nl - pos));
         if (first) {
-            // "ICY 200 OK"
-            m_status = std::atoi(line.c_str() + 4);
+            // "ICY 200 OK" -- or a bare "ICY", which has no code to read.
+            m_status = line.size() > 4 ? std::atoi(line.c_str() + 4) : 0;
             first = false;
         } else {
             addHeaderLine_unlocked(line);

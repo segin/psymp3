@@ -654,6 +654,73 @@ protected:
 };
 
 /**
+ * @brief SHOUTcast v1 heads in the shapes that went wrong: LF-only with
+ *        CRLF CRLF in the audio after it (the head ran on into the audio),
+ *        and a bare "ICY" status line (read past its end).
+ */
+class ShoutcastV1EdgeTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    ShoutcastV1EdgeTest() : TestCase("SHOUTcast v1: LF-only head before CRLF bytes; bare ICY") {}
+protected:
+    /** @brief Serve each shape and check the head stays out of the audio. */
+    void runTest() override {
+        const std::string body = "\r\n\r\n" + patternBytes(5000) + "\r\n\r\n";
+        {
+            FakeServer server([&](const FakeServer::Send& send) {
+                send("ICY 200 OK\nicy-name: LF FM\n\n" + body);
+            });
+            HTTPStreamIOHandler h(server.url());
+            ASSERT_EQUALS(std::string("LF FM"), h.getHeader("icy-name"), "LF-only head read");
+            ASSERT_TRUE(readAll(h) == body, "the audio starts right after the LF blank line");
+        }
+        {
+            FakeServer server([&](const FakeServer::Send& send) {
+                send("ICY \r\nicy-name: Bare FM\r\n\r\n" + body);
+            });
+            HTTPStreamIOHandler h(server.url());
+            ASSERT_EQUALS(std::string("Bare FM"), h.getHeader("icy-name"), "headers after a bare ICY line");
+            ASSERT_TRUE(readAll(h) == body, "audio intact");
+        }
+    }
+};
+
+/**
+ * @brief A reconnection whose SHOUTcast head is cut off before its blank
+ *        line: it is a failed attempt, not audio, so no header text reaches
+ *        the decoder and the next attempt carries on.
+ */
+class TruncatedV1HeadTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    TruncatedV1HeadTest() : TestCase("A reconnection with a cut-off ICY head is a failed attempt") {}
+protected:
+    /** @brief Part A, then a cut head, then part B. */
+    void runTest() override {
+        const int saved = HTTPStreamIOHandler::reconnectAttempts();
+        HTTPStreamIOHandler::setReconnectAttempts(3);
+        const std::string a = patternBytes(3000);
+        const std::string b = patternBytes(7000).substr(3000);
+        SequenceServer server([&](int n, const FakeServer::Send& send) {
+            if (n == 0) {
+                send("ICY 200 OK\r\nicy-name: Cut FM\r\n\r\n" + a);
+            } else if (n == 1) {
+                send("ICY 200 OK\r\nicy-na");
+            } else if (n == 2) {
+                send("ICY 200 OK\r\nicy-name: Cut FM\r\n\r\n" + b);
+            }
+        });
+        std::string got;
+        {
+            HTTPStreamIOHandler h(server.url());
+            got = readAll(h);
+        }
+        HTTPStreamIOHandler::setReconnectAttempts(saved);
+        ASSERT_TRUE(got == a + b, "A then B, with no header text between them");
+    }
+};
+
+/**
  * @brief A stream of silent MPEG-1 Layer III frames (128 kbps, 44.1 kHz).
  * @param frames How many.
  * @return Their bytes.
@@ -938,6 +1005,8 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<ReconnectTest>());
     suite.addTest(std::make_unique<RedirectToShoutcastV1Test>());
     suite.addTest(std::make_unique<StreamAbortIOTest>());
+    suite.addTest(std::make_unique<ShoutcastV1EdgeTest>());
+    suite.addTest(std::make_unique<TruncatedV1HeadTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
