@@ -88,6 +88,12 @@ protected:
         const auto fmp4 = HLSIOHandler::parsePlaylist(
             "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:10,\na.m4s\n");
         ASSERT_TRUE(fmp4.unsupported, "fragmented MP4 is refused");
+        // RFC 8216 quoted strings have no escapes: a backslash is the title's own.
+        const auto slashed = HLSIOHandler::parsePlaylist(
+            "#EXTM3U\n#EXTINF:10,title=\"AC\\DC Song\",artist=\"AC\\DC\"\na.aac\n");
+        parts = PsyMP3::IO::HTTP::HTTPStreamIOHandler::splitStreamTitle(slashed.segments[0].title);
+        ASSERT_EQUALS(std::string("AC\\DC Song"), parts.title, "a backslash in a title is kept");
+        ASSERT_EQUALS(std::string("AC\\DC"), parts.artist, "and in an artist");
     }
 };
 

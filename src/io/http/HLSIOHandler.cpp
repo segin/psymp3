@@ -44,7 +44,8 @@ std::string hlsLower(std::string s)
 /**
  * @brief Read an HLS attribute list (KEY=VALUE,KEY="quoted, value",...).
  *        Quoted values keep their commas; backslash-escaped quotes inside
- *        them (iHeart writes url="song_spot=\"M\" ...") are unescaped.
+ *        them (iHeart writes url="song_spot=\"M\" ...") are unescaped, and
+ *        every other backslash is kept.
  * @param text The list.
  * @return Keys (upper- or lower-case as written) to values.
  */
@@ -60,7 +61,11 @@ std::map<std::string, std::string> hlsAttributes(const std::string& text)
         size_t i = eq + 1;
         if (i < text.size() && text[i] == '"') {
             for (++i; i < text.size() && text[i] != '"'; ++i) {
-                if (text[i] == '\\' && i + 1 < text.size()) ++i;
+                /*
+                 * Only \" is an escape (iHeart's); RFC 8216 has none, so any
+                 * other backslash is the text's own ("AC\DC").
+                 */
+                if (text[i] == '\\' && i + 1 < text.size() && text[i + 1] == '"') ++i;
                 value += text[i];
             }
             ++i; // closing quote
