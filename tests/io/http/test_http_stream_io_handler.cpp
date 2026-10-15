@@ -921,6 +921,30 @@ protected:
     }
 };
 
+/**
+ * @brief Loading a station connects once: format detection's connection is
+ *        handed to the stream, where it used to be closed and a second one
+ *        made -- twice the wait, and two of the listener slots a station may
+ *        allow an address.
+ */
+class SingleConnectionTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    SingleConnectionTest() : TestCase("Loading a station connects to it once") {}
+protected:
+    /** @brief Create a stream through MediaFactory; count the connections. */
+    void runTest() override {
+        registerAllCodecs();
+        registerAllDemuxers();
+        SequenceServer server([&](int, const FakeServer::Send& send) {
+            send("HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: Once FM\r\n\r\n" + silentMp3(400));
+        });
+        auto stream = PsyMP3::Demuxer::MediaFactory::createStream(server.url());
+        ASSERT_TRUE(stream && stream->isLive(), "the station opened as a live stream");
+        ASSERT_EQUALS(1, server.connections(), "one connection, shared by detection and playback");
+    }
+};
+
 /** @brief StreamTitles as stations send them, taken apart. */
 class SplitTitleTest : public TestFramework::TestCase {
 public:
@@ -1149,6 +1173,7 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<TruncatedV1HeadTest>());
     suite.addTest(std::make_unique<ListenLinkLabelTest>());
     suite.addTest(std::make_unique<ListenLinkEntriesTest>());
+    suite.addTest(std::make_unique<SingleConnectionTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

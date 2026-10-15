@@ -351,6 +351,26 @@ private:
  */
 std::unique_ptr<IOHandler> openHTTPIOHandler(const std::string& url);
 
+/**
+ * @brief Keep a live stream's connection -- opened to find out what the URL
+ *        serves -- for the next openHTTPIOHandler() of the same URL, which
+ *        takes it instead of connecting again. One is kept, for 10 s at
+ *        most; anything not live is simply closed.
+ * @param url The URL it was opened for.
+ * @param handler The handler.
+ */
+void parkLiveHandler(const std::string& url, std::unique_ptr<IOHandler> handler);
+
+/**
+ * @brief Take the connection parked for @p url, if it is fresh enough.
+ * @param url The URL.
+ * @return It, or null.
+ */
+std::unique_ptr<IOHandler> takeParkedHandler(const std::string& url);
+
+/** @brief Close any parked connection (at shutdown, before the registry goes). */
+void discardParkedHandlers();
+
 } // namespace HTTP
 } // namespace IO
 } // namespace PsyMP3

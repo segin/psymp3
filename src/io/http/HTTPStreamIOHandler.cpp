@@ -935,8 +935,94 @@ std::unique_ptr<IOHandler> openHTTPIOHandlerFollowing(const std::string& url, in
  * @return The handler.
  * @throws InvalidMediaException if the URL cannot be opened.
  */
+namespace {
+
+/** @brief The one live handler parked for reuse (see parkLiveHandler()). */
+struct ParkedHandler {
+    std::string url;                                ///< as asked for
+    std::unique_ptr<IOHandler> handler;             ///< the open connection
+    std::chrono::steady_clock::time_point parked;   ///< when, for expiry
+};
+
+/** @brief Guards g_parked. */
+std::mutex g_parked_mutex;
+/** @brief The parked handler, if any. */
+ParkedHandler g_parked;
+
+/** @brief How long a parked connection waits to be taken before it is closed. */
+constexpr auto kParkedLifetime = std::chrono::seconds(10);
+
+} // namespace
+
+/**
+ * @brief Keep a live stream's connection, opened to find what it is, for
+ *        the next open of the same URL. Replaces any parked before.
+ * @param url The URL it was opened for.
+ * @param handler The handler; ignored unless it is a live stream.
+ */
+void parkLiveHandler(const std::string& url, std::unique_ptr<IOHandler> handler)
+{
+    if (!handler || !handler->isLiveStream()) return;
+    std::unique_ptr<IOHandler> previous;
+    {
+        std::lock_guard<std::mutex> lock(g_parked_mutex);
+        previous = std::move(g_parked.handler);
+        g_parked = ParkedHandler{url, std::move(handler), std::chrono::steady_clock::now()};
+    }
+    // The one replaced closes outside the lock: its worker is joined.
+}
+
+/**
+ * @brief Close any parked connection.
+ */
+void discardParkedHandlers()
+{
+    std::unique_ptr<IOHandler> previous;
+    {
+        std::lock_guard<std::mutex> lock(g_parked_mutex);
+        previous = std::move(g_parked.handler);
+        g_parked.url.clear();
+    }
+}
+
+/**
+ * @brief Take the connection parked for @p url, if it is still fresh.
+ * @param url The URL.
+ * @return It, or null.
+ */
+std::unique_ptr<IOHandler> takeParkedHandler(const std::string& url)
+{
+    std::unique_ptr<IOHandler> taken;
+    std::unique_ptr<IOHandler> stale;
+    {
+        std::lock_guard<std::mutex> lock(g_parked_mutex);
+        if (!g_parked.handler) return nullptr;
+        const bool fresh = std::chrono::steady_clock::now() - g_parked.parked < kParkedLifetime;
+        if (fresh && g_parked.url == url) {
+            taken = std::move(g_parked.handler);
+        } else if (!fresh) {
+            stale = std::move(g_parked.handler);
+        }
+        if (!g_parked.handler) g_parked.url.clear();
+    }
+    return taken;
+}
+
 std::unique_ptr<IOHandler> openHTTPIOHandler(const std::string& url)
 {
+    /*
+     * Format detection opened this station a moment ago, and parked the
+     * connection: take it, wound back to the start (the probe's reads are
+     * well within the history kept), rather than connect a second time --
+     * twice the wait, and two of the listener slots a station may limit
+     * per address.
+     */
+    if (auto parked = takeParkedHandler(url)) {
+        if (parked->seek(0, SEEK_SET) == 0) {
+            Debug::log("http", "openHTTPIOHandler: reusing the connection to ", url);
+            return parked;
+        }
+    }
     return openHTTPIOHandlerFollowing(url, 0);
 }
 

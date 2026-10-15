@@ -191,6 +191,13 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
                            content_result.detected_format, " from its Content-Type");
             }
         }
+        if (live && isHttpUri(uri)) {
+            /*
+             * The stream about to be made opens this URL again: let it have
+             * this connection rather than make another.
+             */
+            IO::HTTP::parkLiveHandler(uri, std::move(handler));
+        }
     } catch (const std::exception& e) {
         Debug::log("loader", "MediaFactory::analyzeContent - content-based detection failed: ", e.what());
     }

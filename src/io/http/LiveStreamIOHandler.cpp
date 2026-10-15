@@ -225,6 +225,8 @@ void LiveStreamIOHandler::shutdown()
 {
     s_shut_down = true;
     abortAll();
+    // A connection parked for reuse must not outlive the registry at exit.
+    discardParkedHandlers();
 }
 
 /** @brief Set by shutdown(): no new live stream may start. */
