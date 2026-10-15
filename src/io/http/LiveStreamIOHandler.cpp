@@ -232,11 +232,13 @@ bool LiveStreamIOHandler::appendAudio(const char* data, size_t len)
     }
     if (m_abort) return false;
 
-    // Drop what is older than HISTORY_BYTES behind the reader, in large steps
-    // so the front of the vector is not shuffled for every chunk. A reader
-    // that has sought ahead of the data (past a large ID3v2 tag, say) counts
-    // as being at the end: measured from beyond it, the drop would exceed
-    // what the buffer holds.
+    /*
+     * Drop what is older than HISTORY_BYTES behind the reader, in large steps
+     * so the front of the vector is not shuffled for every chunk. A reader
+     * that has sought ahead of the data (past a large ID3v2 tag, say) counts
+     * as being at the end: measured from beyond it, the drop would exceed
+     * what the buffer holds.
+     */
     const filesize_t keep_from = std::min(m_read_pos, audioEnd_unlocked()) - static_cast<filesize_t>(HISTORY_BYTES);
     if (keep_from - m_data_start >= static_cast<filesize_t>(HISTORY_BYTES)) {
         const size_t drop = static_cast<size_t>(keep_from - m_data_start);

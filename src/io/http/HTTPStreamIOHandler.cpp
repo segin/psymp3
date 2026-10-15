@@ -335,10 +335,12 @@ size_t HTTPStreamIOHandler::onHeader(const char* data, size_t len)
         const size_t sp = line.find(' ');
         m_status = (sp == std::string::npos) ? 0 : std::atoi(line.c_str() + sp + 1);
     } else if (trim(line).empty()) {
-        // The end of a header block. A redirect curl will follow is over:
-        // forget it, since the next reply may be a SHOUTcast v1 "ICY 200 OK"
-        // with no status line to replace its status and headers -- and a
-        // status of 0 is what tells onBody() to look for that head.
+        /*
+         * The end of a header block. A redirect curl will follow is over:
+         * forget it, since the next reply may be a SHOUTcast v1 "ICY 200 OK"
+         * with no status line to replace its status and headers -- and a
+         * status of 0 is what tells onBody() to look for that head.
+         */
         if (m_status >= 300 && m_status < 400 && m_headers.count("location")) {
             m_status = 0;
             m_headers.clear();
