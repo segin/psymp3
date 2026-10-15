@@ -1333,9 +1333,9 @@ const PsyMP3::Tag::Tag& DemuxedStream::getTag() const {
 
 TagLib::String DemuxedStream::getArtist() {
     if (m_live) {
-        // What the station announces for what plays now, when it does.
+        // What the station announces for what plays now, once it has.
         std::lock_guard<std::mutex> lock(m_live_meta_mutex);
-        if (!m_live_artist.empty() || !m_live_title.empty()) {
+        if (m_live_meta_generation > 0 || !m_live_artist.empty() || !m_live_title.empty()) {
             return TagLib::String(m_live_artist, TagLib::String::UTF8);
         }
     }
@@ -1391,7 +1391,34 @@ TagLib::String DemuxedStream::getCodecProfile() {
     return TagLib::String(m_codec->getCodecProfile(), TagLib::String::UTF8);
 }
 
+/**
+ * @brief Whether the stream's own tags no longer describe what plays: a live
+ *        stream that has announced a title since it opened (a chained Ogg
+ *        station's tags are its first song's).
+ * @return true once a live title has been announced.
+ */
+bool DemuxedStream::liveTagIsStale() const {
+    if (!m_live) return false;
+    std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+    return m_live_meta_generation > 0;
+}
+
+/**
+ * @brief Cover art: the tag's, unless the tag no longer describes what plays.
+ * @return The picture, or none.
+ */
+std::optional<PsyMP3::Tag::Picture> DemuxedStream::getCoverArt() const {
+    if (liveTagIsStale()) {
+        return std::nullopt; // the first song's picture is not the current one's
+    }
+    return Stream::getCoverArt();
+}
+
 TagLib::String DemuxedStream::getPrimaryArtist() {
+    if (liveTagIsStale()) {
+        std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+        return TagLib::String(m_live_artist, TagLib::String::UTF8);
+    }
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
         if (!tag.isEmpty()) {
@@ -1410,6 +1437,7 @@ TagLib::String DemuxedStream::getPrimaryArtist() {
 }
 
 TagLib::String DemuxedStream::getMusicBrainzID() {
+    if (liveTagIsStale()) return TagLib::String(); // the first song's ID, not this one's
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
         if (!tag.isEmpty()) {
@@ -1423,6 +1451,7 @@ TagLib::String DemuxedStream::getMusicBrainzID() {
 }
 
 TagLib::String DemuxedStream::getMusicBrainzReleaseID() {
+    if (liveTagIsStale()) return TagLib::String(); // the first song's release, not this one's
     if (m_demuxer) {
         const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
         if (!tag.isEmpty()) {
@@ -1437,11 +1466,18 @@ TagLib::String DemuxedStream::getMusicBrainzReleaseID() {
 
 TagLib::String DemuxedStream::getTitle() {
     if (m_live) {
-        // The announced title; before there is one, the stream's own tags
-        // below, and failing those the station's name.
+        /*
+         * The announced title; before there is one, the stream's own tags
+         * below, and failing those the station's name. Once one has been
+         * announced the tags describe an earlier song: an untitled one then
+         * shows the station, not the first song's title.
+         */
         std::lock_guard<std::mutex> lock(m_live_meta_mutex);
         if (!m_live_title.empty()) {
             return TagLib::String(m_live_title, TagLib::String::UTF8);
+        }
+        if (m_live_meta_generation > 0) {
+            return TagLib::String(m_station_name, TagLib::String::UTF8);
         }
     }
     if (m_demuxer) {

@@ -109,6 +109,9 @@ public:
     /** @brief Abort the live source's connection, if the source is live. */
     void abortIO() override;
 
+    /** @brief Whether a live stream has announced a title since it opened, so its tags describe an earlier song. */
+    bool liveTagIsStale() const;
+
     /**
      * @brief Counts the live stream's title changes (see updateLiveTitle()).
      * @return The count; 0 for a file.
@@ -129,6 +132,8 @@ public:
     virtual TagLib::String getPrimaryArtist() override;
     virtual TagLib::String getMusicBrainzID() override;
     virtual TagLib::String getMusicBrainzReleaseID() override;
+    /** @brief The tag's cover art, or none once a live stream's tag is stale (liveTagIsStale()). */
+    std::optional<PsyMP3::Tag::Picture> getCoverArt() const override;
     virtual int getBitsPerSample() override;
     virtual TagLib::String getCodecName() override;
     virtual TagLib::String getCodecProfile() override;
