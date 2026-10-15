@@ -269,6 +269,9 @@ struct MediaChunk {
         packet_lost = false;
         end_of_stream = false;
         file_offset = 0;
+        padding_tail_frames = 0;
+        padding_head_frames = 0;
+        new_link = false; // a reused chunk must not restart the codec
     }
 };
 
