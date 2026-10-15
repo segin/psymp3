@@ -14,6 +14,7 @@
 
 #include "psymp3.h"
 #include "test_framework.h"
+#include "ogg_chain_fixture.h"
 
 #ifndef _WIN32
 #include <arpa/inet.h>
@@ -946,6 +947,80 @@ protected:
     }
 };
 
+/**
+ * @brief End to end, as the player plays a station: a fake station through
+ *        openHTTPIOHandler(), the demuxer and the decoder in DemuxedStream,
+ *        reading audio until the station ends.
+ *        - An ICY MP3 station announcing two songs: both titles reach the
+ *          stream as the audio carrying them is decoded, split into artist
+ *          and title, and the stream is live with no length.
+ *        - A chained Ogg Opus station: the second link decodes after the
+ *          first, and its own tags name it.
+ */
+class StationEndToEndTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    StationEndToEndTest() : TestCase("End to end: ICY MP3 titles and chained Ogg Opus through DemuxedStream") {}
+protected:
+    /** @brief One station of each kind. */
+    void runTest() override {
+        registerAllCodecs();
+        registerAllDemuxers();
+        {
+            std::vector<std::string> blocks(12);
+            blocks[0] = "StreamTitle='A Artist - A Song';";
+            blocks[5] = "StreamTitle='B Artist - B Song';";
+            const std::string wire = interleave(silentMp3(400), 16000, blocks);
+            FakeServer server([&](const FakeServer::Send& send) {
+                send("HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: Two Song FM\r\n"
+                     "icy-metaint: 16000\r\n\r\n" + wire);
+            });
+            PsyMP3::Demuxer::DemuxedStream stream(PsyMP3::IO::HTTP::openHTTPIOHandler(server.url()),
+                                                  TagLib::String(server.url(), TagLib::String::UTF8));
+            ASSERT_TRUE(stream.isLive(), "a live stream");
+            ASSERT_EQUALS(0u, stream.getLength(), "with no length");
+            std::vector<char> buf(16384);
+            std::string first_artist;
+            size_t bytes = 0;
+            for (int guard = 0; guard < 10000; ++guard) {
+                const size_t n = stream.getData(buf.size(), buf.data());
+                if (n == 0) break;
+                bytes += n;
+                if (first_artist.empty()) first_artist = stream.getArtist().to8Bit(true);
+            }
+            ASSERT_TRUE(bytes > 0, "audio decoded");
+            ASSERT_EQUALS(std::string("A Artist"), first_artist, "the first song's artist, from the start");
+            ASSERT_EQUALS(std::string("B Artist"), stream.getArtist().to8Bit(true), "then the second's");
+            ASSERT_EQUALS(std::string("B Song"), stream.getTitle().to8Bit(true), "and its title");
+            ASSERT_EQUALS(uint64_t(2), stream.getMetadataGeneration(), "two titles announced");
+            ASSERT_EQUALS(std::string("Two Song FM"), stream.getStationName().to8Bit(true), "the station's name");
+        }
+        {
+            const std::string chain(reinterpret_cast<const char*>(OggChainFixture::kData),
+                                    sizeof(OggChainFixture::kData));
+            FakeServer server([&](const FakeServer::Send& send) {
+                send("HTTP/1.0 200 OK\r\nContent-Type: audio/ogg\r\nicy-name: Chain FM\r\n\r\n" + chain);
+            });
+            PsyMP3::Demuxer::DemuxedStream stream(PsyMP3::IO::HTTP::openHTTPIOHandler(server.url()),
+                                                  TagLib::String(server.url(), TagLib::String::UTF8));
+            ASSERT_TRUE(stream.isLive(), "a live stream");
+            std::vector<char> buf(4096);
+            size_t before_link = 0;
+            size_t bytes = 0;
+            for (int guard = 0; guard < 10000; ++guard) {
+                const size_t n = stream.getData(buf.size(), buf.data());
+                if (n == 0) break;
+                bytes += n;
+                if (stream.getMetadataGeneration() == 0) before_link = bytes;
+            }
+            ASSERT_TRUE(before_link > 0, "the first link decoded");
+            ASSERT_TRUE(bytes > before_link + before_link / 2, "and then the second");
+            ASSERT_EQUALS(std::string("Tester"), stream.getArtist().to8Bit(true), "the second link's artist");
+            ASSERT_EQUALS(std::string("Link Two"), stream.getTitle().to8Bit(true), "and title");
+        }
+    }
+};
+
 /** @brief StreamTitles as stations send them, taken apart. */
 class SplitTitleTest : public TestFramework::TestCase {
 public:
@@ -1177,6 +1252,7 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<ListenLinkLabelTest>());
     suite.addTest(std::make_unique<ListenLinkEntriesTest>());
     suite.addTest(std::make_unique<SingleConnectionTest>());
+    suite.addTest(std::make_unique<StationEndToEndTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

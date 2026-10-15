@@ -222,6 +222,11 @@ private:
     StreamInfo m_stream_info_cache;
     mutable std::mutex m_stream_info_cache_mutex;
 
+    /** @brief A chunk with a non-zero source offset has been seen: offsets are real (decoder thread). */
+    bool m_live_offsets_reported = false;
+    /** @brief Chunks at offset 0 seen before any other (decoder thread). */
+    unsigned m_live_zero_offset_chunks = 0;
+
     /// A live stream's announced title, taken apart, kept by the decoder
     /// thread (updateLiveTitle()) for the GUI, which must never wait on the
     /// demuxer. Guarded by m_live_meta_mutex.

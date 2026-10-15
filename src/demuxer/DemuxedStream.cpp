@@ -184,9 +184,19 @@ StreamInfo DemuxedStream::cachedStreamInfo() const {
 void DemuxedStream::updateLiveTitle(uint64_t chunk_offset) {
     std::string raw = m_demuxer->getStreamTitle();
     if (raw.empty()) {
-        const uint64_t offset = chunk_offset != 0
-            ? chunk_offset
-            : static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+        /*
+         * An offset of 0 is ambiguous: the stream's very first chunk, or a
+         * demuxer that reports no offsets (Ogg). Taking it for "the newest
+         * title" showed a later song's title at the start, the demuxer having
+         * read ahead past it. Only a stream's first chunks can truly sit at
+         * 0, so the first two are taken as the start; one that keeps saying
+         * 0 has no offsets, and gets the newest title.
+         */
+        uint64_t offset = chunk_offset;
+        if (chunk_offset == 0 && (m_live_offsets_reported || ++m_live_zero_offset_chunks > 2)) {
+            offset = m_live_offsets_reported ? 0 : static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+        }
+        if (chunk_offset != 0) m_live_offsets_reported = true;
         raw = m_demuxer->getSourceStreamTitleAt(offset);
     }
     std::lock_guard<std::mutex> lock(m_live_meta_mutex);
