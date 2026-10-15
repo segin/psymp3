@@ -602,6 +602,76 @@ bool HTTPStreamIOHandler::parseStreamTitle(const std::string& block, std::string
 }
 
 /**
+ * @brief Take a StreamTitle apart: iHeart's key="value" attributes (title in
+ *        text=, kind in song_spot=) after an optional "Artist -" head, or
+ *        else plain "Artist - Title".
+ * @param stream_title Decoded title.
+ * @return Artist, title and whether it is music.
+ */
+HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std::string& stream_title)
+{
+    TitleParts parts;
+    const std::string s = trim(stream_title);
+
+    // Attributes begin at the first key=" whose key is a run of letters,
+    // digits and underscores at the start or after a space.
+    size_t attrs = std::string::npos;
+    for (size_t eq = s.find("=\""); eq != std::string::npos; eq = s.find("=\"", eq + 1)) {
+        size_t key = eq;
+        while (key > 0 && (std::isalnum(static_cast<unsigned char>(s[key - 1])) || s[key - 1] == '_')) {
+            --key;
+        }
+        if (key < eq && (key == 0 || s[key - 1] == ' ')) {
+            attrs = key;
+            break;
+        }
+    }
+
+    if (attrs == std::string::npos) {
+        const size_t dash = s.find(" - ");
+        if (dash == std::string::npos) {
+            parts.title = s;
+        } else {
+            parts.artist = trim(s.substr(0, dash));
+            parts.title = trim(s.substr(dash + 3));
+        }
+        return parts;
+    }
+
+    // key="value" pairs; a backslash escapes the next character.
+    std::map<std::string, std::string> values;
+    size_t pos = attrs;
+    while (pos < s.size()) {
+        const size_t eq = s.find("=\"", pos);
+        if (eq == std::string::npos) break;
+        const std::string key = trim(s.substr(pos, eq - pos));
+        std::string value;
+        size_t i = eq + 2;
+        for (; i < s.size() && s[i] != '"'; ++i) {
+            if (s[i] == '\\' && i + 1 < s.size()) ++i;
+            value += s[i];
+        }
+        values[key] = value;
+        pos = i + 1;
+    }
+
+    // What comes before the attributes is "Artist -", or just "-".
+    std::string head = trim(s.substr(0, attrs));
+    if (!head.empty() && head.back() == '-') {
+        head.pop_back();
+        head = trim(head);
+    }
+    parts.artist = head;
+    parts.title = trim(values["text"]);
+    if (parts.title.empty() && !parts.artist.empty()) {
+        std::swap(parts.title, parts.artist);
+    }
+    auto spot = values.find("song_spot");
+    parts.is_music = spot == values.end() || spot->second.empty() || spot->second == "M";
+    return parts;
+}
+
+/**
  * @brief Text from an ICY server as UTF-8: kept if it is valid UTF-8,
  *        otherwise converted from Latin-1.
  * @param raw The bytes as sent.

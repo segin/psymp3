@@ -502,6 +502,47 @@ protected:
     }
 };
 
+/** @brief StreamTitles as stations send them, taken apart. */
+class SplitTitleTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    SplitTitleTest() : TestCase("StreamTitle split into artist and title (plain and iHeart)") {}
+protected:
+    /** @brief Check the forms seen from 181.FM, Radio Paradise and iHeart. */
+    void runTest() override {
+        using Parts = HTTPStreamIOHandler::TitleParts;
+        Parts p = HTTPStreamIOHandler::splitStreamTitle("Judas Priest - Living After Midnight ");
+        ASSERT_EQUALS(std::string("Judas Priest"), p.artist, "plain: artist");
+        ASSERT_EQUALS(std::string("Living After Midnight"), p.title, "plain: title, trailing space gone");
+        ASSERT_TRUE(p.is_music, "plain: music");
+
+        p = HTTPStreamIOHandler::splitStreamTitle("Soho - Hippy Chick - Live");
+        ASSERT_EQUALS(std::string("Soho"), p.artist, "split at the first dash");
+        ASSERT_EQUALS(std::string("Hippy Chick - Live"), p.title, "the rest is the title");
+
+        p = HTTPStreamIOHandler::splitStreamTitle("Station Jingle");
+        ASSERT_EQUALS(std::string(), p.artist, "no dash: no artist");
+        ASSERT_EQUALS(std::string("Station Jingle"), p.title, "no dash: all title");
+
+        p = HTTPStreamIOHandler::splitStreamTitle(
+            "Ray Parker, Jr. - text=\"Ghostbusters\" song_spot=\"M\" spotInstanceId=\"-1\" "
+            "length=\"00:04:09\" MediaBaseId=\"1092443\" amgArtworkURL=\"https://i.example/x?a=b\" ");
+        ASSERT_EQUALS(std::string("Ray Parker, Jr."), p.artist, "iHeart song: artist before the dash");
+        ASSERT_EQUALS(std::string("Ghostbusters"), p.title, "iHeart song: title from text=");
+        ASSERT_TRUE(p.is_music, "iHeart song_spot M is music");
+
+        p = HTTPStreamIOHandler::splitStreamTitle(
+            " - text=\"Halloween Radio - Fly In - Thriller 03\" song_spot=\"T\" length=\"00:00:14\" "
+            "MediaBaseId=\"\" amgArtworkURL=\"\" ");
+        ASSERT_EQUALS(std::string(), p.artist, "iHeart spot: no artist");
+        ASSERT_EQUALS(std::string("Halloween Radio - Fly In - Thriller 03"), p.title, "iHeart spot: text= whole");
+        ASSERT_FALSE(p.is_music, "iHeart song_spot T is not music");
+
+        p = HTTPStreamIOHandler::splitStreamTitle("");
+        ASSERT_EQUALS(std::string(), p.title, "empty stays empty");
+    }
+};
+
 /** @brief A load given up while its station has not answered. */
 class AbortGroupConnectTest : public TestFramework::TestCase {
 public:
@@ -672,6 +713,7 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<MetadataParsingTest>());
     suite.addTest(std::make_unique<MetadataStreamTest>());
     suite.addTest(std::make_unique<MetadataRequestTest>());
+    suite.addTest(std::make_unique<SplitTitleTest>());
     suite.addTest(std::make_unique<AbortGroupConnectTest>());
     suite.addTest(std::make_unique<AbortedGroupRefusesTest>());
     suite.addTest(std::make_unique<DetachedGroupTest>());

@@ -216,7 +216,7 @@ public:
      *        decodeIcyText() does.
      * @return The name, or "" when the server gave none.
      */
-    std::string getStationName() const;
+    std::string getStationName() const override;
 
     /**
      * @brief The title the station announced for the audio at @p offset.
@@ -229,7 +229,7 @@ public:
      * @return The title in effect there, or "" before the first title (or
      *         when the station sends none, or announces an empty one).
      */
-    std::string getStreamTitleAt(filesize_t offset) const;
+    std::string getStreamTitleAt(filesize_t offset) const override;
 
     /**
      * @brief How many titles the station has announced so far. A caller can
@@ -260,6 +260,26 @@ public:
      * @return true if the block had a StreamTitle.
      */
     static bool parseStreamTitle(const std::string& block, std::string& title);
+
+    /** @brief A StreamTitle taken apart for display and scrobbling. */
+    struct TitleParts {
+        std::string artist;   ///< "" when the title names none
+        std::string title;    ///< the song, or whatever the station announced
+        bool is_music = true; ///< false for a station's own spots (iHeart song_spot other than "M")
+    };
+
+    /**
+     * @brief Split a decoded StreamTitle into artist and title.
+     *
+     * Plain titles are "Artist - Title", split at the first " - ". iHeart
+     * appends key="value" attributes and puts the song in text=:
+     * 'Ray Parker, Jr. - text="Ghostbusters" song_spot="M" ...' is artist
+     * "Ray Parker, Jr.", title "Ghostbusters"; its station spots name no
+     * artist and say song_spot="T". Surrounding spaces are trimmed.
+     * @param stream_title The title, decoded.
+     * @return Its parts.
+     */
+    static TitleParts splitStreamTitle(const std::string& stream_title);
 
     // Most bytes of audio allowed between metadata blocks; a larger
     // icy-metaint is taken as nonsense and ignored.

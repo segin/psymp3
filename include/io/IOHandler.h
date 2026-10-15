@@ -118,6 +118,20 @@ public:
     virtual std::string getMimeType() const;
 
     /**
+     * @brief The song title a live stream announced for the audio at
+     *        @p offset (ICY StreamTitle), as sent but decoded to UTF-8.
+     * @param offset Offset into the audio, as tell() counts it.
+     * @return The title, or "" for sources that announce none.
+     */
+    virtual std::string getStreamTitleAt(filesize_t offset) const;
+
+    /**
+     * @brief The name a live stream gives itself (ICY icy-name).
+     * @return The name, or "" for sources without one.
+     */
+    virtual std::string getStationName() const;
+
+    /**
      * @brief Get the last error code
      * @return Error code (0 = no error)
      */

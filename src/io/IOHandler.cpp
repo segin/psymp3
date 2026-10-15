@@ -229,6 +229,22 @@ std::string IOHandler::getMimeType() const {
     return std::string();
 }
 
+/**
+ * @brief Files announce no song titles.
+ * @return "".
+ */
+std::string IOHandler::getStreamTitleAt(filesize_t) const {
+    return std::string();
+}
+
+/**
+ * @brief Files have no station name.
+ * @return "".
+ */
+std::string IOHandler::getStationName() const {
+    return std::string();
+}
+
 int IOHandler::getLastError() const {
     // Return the last error code (0 = no error)
     // Thread-safe using atomic load
