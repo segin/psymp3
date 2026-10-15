@@ -30,6 +30,89 @@ namespace PsyMP3 {
 namespace IO {
 namespace HTTP {
 
+class HTTPStreamIOHandler;
+
+/**
+ * @brief The stream connections opened for one purpose -- loading one track --
+ *        so they can be aborted together.
+ *
+ * A station that stalls holds whatever is reading it until the stall check
+ * gives up, which takes half a minute. Skipping to another track while one
+ * loads, or stopping, must not wait that long: the player opens each load
+ * inside a Scope, and aborts the load's group when the load is no longer
+ * wanted. Once the load has finished and its stream is playing, the player
+ * detaches the group, after which aborting it touches nothing.
+ */
+class StreamAbortGroup {
+public:
+    /**
+     * @brief Makes a group the one that HTTPStreamIOHandlers created on this
+     *        thread join, for the Scope's lifetime.
+     */
+    class Scope {
+    public:
+        /**
+         * @brief Make @p group current on this thread.
+         * @param group The group; may be null for none.
+         */
+        explicit Scope(std::shared_ptr<StreamAbortGroup> group);
+
+        /** @brief Restore the group that was current before. */
+        ~Scope();
+
+        Scope(const Scope&) = delete;
+        Scope& operator=(const Scope&) = delete;
+
+    private:
+        std::shared_ptr<StreamAbortGroup> m_previous;
+    };
+
+    /**
+     * @brief Abort every connection in the group, and refuse any that would
+     *        join it later. Does nothing once detached.
+     */
+    void abort();
+
+    /**
+     * @brief The group's connections are in use now: forget them, so a later
+     *        abort() cannot reach them.
+     */
+    void detach();
+
+    /**
+     * @brief Whether abort() has been called (before any detach()).
+     * @return true once aborted.
+     */
+    bool isAborted() const;
+
+    /**
+     * @brief The group current on this thread.
+     * @return It, or null.
+     */
+    static std::shared_ptr<StreamAbortGroup> current();
+
+private:
+    friend class HTTPStreamIOHandler;
+
+    /**
+     * @brief Add a connection, unless the group is aborted or detached.
+     * @param handler The connection.
+     * @return false if the group is aborted: the connection must give up.
+     */
+    bool join(HTTPStreamIOHandler* handler);
+
+    /**
+     * @brief Remove a connection that is going away.
+     * @param handler The connection.
+     */
+    void leave(HTTPStreamIOHandler* handler);
+
+    mutable std::mutex m_mutex;
+    std::set<HTTPStreamIOHandler*> m_members;
+    bool m_aborted = false;
+    bool m_detached = false;
+};
+
 /**
  * @brief Reads an HTTP response that may never end: internet radio.
  *
@@ -68,6 +151,19 @@ public:
 
     /** @brief Stop the transfer and join the worker thread. */
     ~HTTPStreamIOHandler() override;
+
+    /**
+     * @brief Stop the transfer without waiting for it: a waiting read or
+     *        constructor wakes and gives up, and the worker ends at libcurl's
+     *        next callback. Safe from any thread; the handler stays valid.
+     */
+    void abort();
+
+    /**
+     * @brief Abort every HTTPStreamIOHandler in the process -- for quitting,
+     *        when a stalled station must not hold up the threads being joined.
+     */
+    static void abortAll();
 
     HTTPStreamIOHandler(const HTTPStreamIOHandler&) = delete;
     HTTPStreamIOHandler& operator=(const HTTPStreamIOHandler&) = delete;
@@ -391,6 +487,9 @@ private:
     std::atomic<int64_t> m_last_data_ms{0};  // steady-clock ms of last byte
 
     std::thread m_worker;
+
+    // The load this connection belongs to (see StreamAbortGroup); may be null.
+    std::shared_ptr<StreamAbortGroup> m_group;
 };
 
 /**

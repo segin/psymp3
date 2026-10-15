@@ -502,6 +502,124 @@ protected:
     }
 };
 
+/** @brief A load given up while its station has not answered. */
+class AbortGroupConnectTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    AbortGroupConnectTest() : TestCase("Aborting a load's group ends a connect that gets no answer") {}
+protected:
+    /**
+     * @brief Construct a handler inside a group against a server that never
+     *        answers; abort the group; the constructor must throw promptly.
+     */
+    void runTest() override {
+        std::atomic<bool> done{false};
+        FakeServer server([&](const FakeServer::Send&) {
+            while (!done) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        });
+        auto group = std::make_shared<PsyMP3::IO::HTTP::StreamAbortGroup>();
+        std::atomic<bool> threw{false};
+        const auto start = std::chrono::steady_clock::now();
+        std::thread loader([&] {
+            PsyMP3::IO::HTTP::StreamAbortGroup::Scope scope(group);
+            try {
+                HTTPStreamIOHandler h(server.url());
+            } catch (const InvalidMediaException&) {
+                threw = true;
+            }
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        group->abort();
+        loader.join();
+        done = true;
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count();
+        ASSERT_TRUE(threw, "the constructor gives up with InvalidMediaException");
+        ASSERT_TRUE(ms < 3000, "promptly, not after the stall check");
+        ASSERT_TRUE(group->isAborted(), "the group says it was aborted");
+    }
+};
+
+/** @brief Opening into a group that has already been given up. */
+class AbortedGroupRefusesTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    AbortedGroupRefusesTest() : TestCase("A handler created in an aborted group gives up at once") {}
+protected:
+    /** @brief Abort first, then construct; it must throw without connecting. */
+    void runTest() override {
+        auto group = std::make_shared<PsyMP3::IO::HTTP::StreamAbortGroup>();
+        group->abort();
+        PsyMP3::IO::HTTP::StreamAbortGroup::Scope scope(group);
+        bool threw = false;
+        try {
+            // Nothing listens here; an attempt to connect would fail anyway,
+            // but the refusal must come before one is made.
+            HTTPStreamIOHandler h("http://127.0.0.1:9/never");
+        } catch (const InvalidMediaException& e) {
+            threw = std::string(e.what()).find("aborted") != std::string::npos;
+        }
+        ASSERT_TRUE(threw, "refused as aborted");
+    }
+};
+
+/** @brief A group detached after its load: the stream plays on. */
+class DetachedGroupTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    DetachedGroupTest() : TestCase("Aborting a detached group leaves its stream alone") {}
+protected:
+    /** @brief Open in a group, detach, abort; the stream must still read whole. */
+    void runTest() override {
+        const std::string body = patternBytes(100000);
+        FakeServer server([&](const FakeServer::Send& send) {
+            send("HTTP/1.0 200 OK\r\nicy-name: Kept\r\n\r\n");
+            send(body);
+        });
+        auto group = std::make_shared<PsyMP3::IO::HTTP::StreamAbortGroup>();
+        std::unique_ptr<HTTPStreamIOHandler> h;
+        {
+            PsyMP3::IO::HTTP::StreamAbortGroup::Scope scope(group);
+            h = std::make_unique<HTTPStreamIOHandler>(server.url());
+        }
+        group->detach();
+        group->abort();
+        ASSERT_FALSE(group->isAborted(), "a detached group ignores abort()");
+        ASSERT_TRUE(readAll(*h) == body, "the stream still reads whole");
+    }
+};
+
+/** @brief Quitting while the playing station is silent. */
+class AbortAllTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    AbortAllTest() : TestCase("abortAll() releases a read waiting on a silent stream") {}
+protected:
+    /** @brief Block a read on a silent stream, call abortAll(), check it returns. */
+    void runTest() override {
+        std::atomic<bool> done{false};
+        FakeServer server([&](const FakeServer::Send& send) {
+            send("HTTP/1.0 200 OK\r\nicy-name: Silent\r\n\r\nabc");
+            while (!done) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        });
+        HTTPStreamIOHandler h(server.url());
+        size_t got = 0;
+        const auto start = std::chrono::steady_clock::now();
+        std::thread reader([&] {
+            char buf[64];
+            got = h.read(buf, 1, sizeof buf);
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        HTTPStreamIOHandler::abortAll();
+        reader.join();
+        done = true;
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count();
+        ASSERT_EQUALS(size_t(3), got, "the read returns what had arrived");
+        ASSERT_TRUE(ms < 3000, "promptly");
+    }
+};
+
 /** @brief What the handler sends. */
 class RequestTest : public TestFramework::TestCase {
 public:
@@ -554,6 +672,10 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<MetadataParsingTest>());
     suite.addTest(std::make_unique<MetadataStreamTest>());
     suite.addTest(std::make_unique<MetadataRequestTest>());
+    suite.addTest(std::make_unique<AbortGroupConnectTest>());
+    suite.addTest(std::make_unique<AbortedGroupRefusesTest>());
+    suite.addTest(std::make_unique<DetachedGroupTest>());
+    suite.addTest(std::make_unique<AbortAllTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

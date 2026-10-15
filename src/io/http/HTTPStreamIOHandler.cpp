@@ -39,6 +39,29 @@ std::string toLower(std::string s)
     return s;
 }
 
+/// The abort group HTTPStreamIOHandlers created on this thread join.
+thread_local std::shared_ptr<StreamAbortGroup> t_current_group;
+
+/**
+ * @brief The mutex guarding allHandlers().
+ * @return It.
+ */
+std::mutex& allHandlersMutex()
+{
+    static std::mutex m;
+    return m;
+}
+
+/**
+ * @brief Every HTTPStreamIOHandler alive in the process, for abortAll().
+ * @return The set.
+ */
+std::set<HTTPStreamIOHandler*>& allHandlers()
+{
+    static std::set<HTTPStreamIOHandler*> handlers;
+    return handlers;
+}
+
 /**
  * @brief Strip leading and trailing spaces, tabs and line endings.
  * @param s The text.
@@ -65,16 +88,31 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
     : m_url(url)
 {
     Debug::log("http", "HTTPStreamIOHandler: connecting to ", url);
+    {
+        std::lock_guard<std::mutex> lock(allHandlersMutex());
+        allHandlers().insert(this);
+    }
+    m_group = StreamAbortGroup::current();
+    if (m_group && !m_group->join(this)) {
+        // The load this connection is for has been given up already.
+        m_group.reset();
+        std::lock_guard<std::mutex> lock(allHandlersMutex());
+        allHandlers().erase(this);
+        throw InvalidMediaException("Cannot open " + url + ": aborted");
+    }
     m_last_data_ms = steadyMs();
     m_worker = std::thread(&HTTPStreamIOHandler::runTransfer, this);
 
     // Wait for the response head. The worker's own stall and connect
-    // timeouts bound this: it always ends up with headers or finished.
+    // timeouts bound this: it always ends up with headers or finished. An
+    // abort() ends it at once.
     std::unique_lock<std::mutex> lock(m_buf_mutex);
-    m_data_cv.wait(lock, [this] { return m_headers_ready || m_finished; });
+    m_data_cv.wait(lock, [this] { return m_headers_ready || m_finished || m_abort; });
 
     std::string error;
-    if (!m_headers_ready) {
+    if (m_abort) {
+        error = "aborted";
+    } else if (!m_headers_ready) {
         error = m_error_text.empty() ? std::string("no response") : m_error_text;
     } else if (m_status >= 400) {
         error = "server answered " + std::to_string(m_status);
@@ -82,6 +120,12 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
     const int status = m_status;
     lock.unlock();
     if (!error.empty()) {
+        // No destructor runs for a constructor that throws: undo it all here.
+        if (m_group) m_group->leave(this);
+        {
+            std::lock_guard<std::mutex> registry_lock(allHandlersMutex());
+            allHandlers().erase(this);
+        }
         stopTransfer();
         Debug::log("http", "HTTPStreamIOHandler: ", url, " failed: ", error);
         throw InvalidMediaException("Cannot open " + url + ": " + error);
@@ -96,25 +140,133 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
  */
 HTTPStreamIOHandler::~HTTPStreamIOHandler()
 {
+    // Out of the registries first, so abortAll() and the group cannot reach
+    // a handler that is being torn down.
+    if (m_group) m_group->leave(this);
+    {
+        std::lock_guard<std::mutex> lock(allHandlersMutex());
+        allHandlers().erase(this);
+    }
     stopTransfer();
 }
 
 /**
- * @brief Flag the abort, wake the worker (waiting for room) and any reader
- *        (waiting for data), and join the worker. libcurl notices the flag at
- *        its next callback, at most about a second later on an idle line.
+ * @brief Flag the abort and wake the worker (waiting for room) and any reader
+ *        or constructor (waiting for data). Does not wait for the worker.
+ */
+void HTTPStreamIOHandler::abort()
+{
+    m_abort = true;
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    m_space_cv.notify_all();
+    m_data_cv.notify_all();
+}
+
+/**
+ * @brief Abort every live HTTPStreamIOHandler.
+ */
+void HTTPStreamIOHandler::abortAll()
+{
+    std::lock_guard<std::mutex> lock(allHandlersMutex());
+    for (HTTPStreamIOHandler* handler : allHandlers()) {
+        handler->abort();
+    }
+}
+
+/**
+ * @brief Abort, then join the worker. libcurl notices the flag at its next
+ *        callback, at most about a second later on an idle line.
  */
 void HTTPStreamIOHandler::stopTransfer()
 {
-    m_abort = true;
-    {
-        std::lock_guard<std::mutex> lock(m_buf_mutex);
-        m_space_cv.notify_all();
-        m_data_cv.notify_all();
-    }
+    abort();
     if (m_worker.joinable()) {
         m_worker.join();
     }
+}
+
+/**
+ * @brief Make @p group the current one on this thread for the scope.
+ * @param group The group, or null.
+ */
+StreamAbortGroup::Scope::Scope(std::shared_ptr<StreamAbortGroup> group)
+    : m_previous(std::move(t_current_group))
+{
+    t_current_group = std::move(group);
+}
+
+/**
+ * @brief Put back the group that was current before.
+ */
+StreamAbortGroup::Scope::~Scope()
+{
+    t_current_group = std::move(m_previous);
+}
+
+/**
+ * @brief The group current on this thread.
+ * @return It, or null.
+ */
+std::shared_ptr<StreamAbortGroup> StreamAbortGroup::current()
+{
+    return t_current_group;
+}
+
+/**
+ * @brief Abort the members and refuse later ones; a detached group ignores it.
+ */
+void StreamAbortGroup::abort()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_detached) return;
+    m_aborted = true;
+    for (HTTPStreamIOHandler* handler : m_members) {
+        handler->abort();
+    }
+}
+
+/**
+ * @brief Forget the members: they belong to a stream that is playing now.
+ */
+void StreamAbortGroup::detach()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_detached = true;
+    m_members.clear();
+}
+
+/**
+ * @brief Whether abort() reached the group before it was detached.
+ * @return true if aborted.
+ */
+bool StreamAbortGroup::isAborted() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_aborted;
+}
+
+/**
+ * @brief Take a new connection in, unless the group has been aborted. A
+ *        detached group admits it without tracking it.
+ * @param handler The connection.
+ * @return false if aborted.
+ */
+bool StreamAbortGroup::join(HTTPStreamIOHandler* handler)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_aborted) return false;
+    if (!m_detached) m_members.insert(handler);
+    return true;
+}
+
+/**
+ * @brief Let a departing connection go.
+ * @param handler The connection.
+ */
+void StreamAbortGroup::leave(HTTPStreamIOHandler* handler)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_members.erase(handler);
 }
 
 /**
