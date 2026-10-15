@@ -315,7 +315,9 @@ namespace TestFramework {
         void printResults(const std::vector<TestCaseInfo>& results);
         
         /**
-         * @brief Get count of failed tests from results
+         * @brief Get count of failed tests from results: those that failed an
+         *        assertion and those that threw (ERROR), which are failures
+         *        too -- this is what a test program returns.
          * @param results Vector of test results
          * @return Number of failed tests
          */

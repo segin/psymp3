@@ -184,12 +184,13 @@ namespace TestFramework {
         std::cout << "====================" << std::endl;
         
         int passed = getPassedCount(results);
-        int failed = getFailureCount(results);
+        int failed = 0; // assertion failures only; errors are counted apart
         int errors = 0;
         int skipped = 0;
-        
+
         for (const auto& result : results) {
-            if (result.result == TestResult::ERROR) errors++;
+            if (result.result == TestResult::FAILED) failed++;
+            else if (result.result == TestResult::ERROR) errors++;
             else if (result.result == TestResult::SKIPPED) skipped++;
         }
         
@@ -222,10 +223,11 @@ namespace TestFramework {
     }
     
     int TestSuite::getFailureCount(const std::vector<TestCaseInfo>& results) {
-        return std::count_if(results.begin(), results.end(), 
-            [](const TestCaseInfo& info) { return info.result == TestResult::FAILED; });
+        return std::count_if(results.begin(), results.end(), [](const TestCaseInfo& info) {
+            return info.result == TestResult::FAILED || info.result == TestResult::ERROR;
+        });
     }
-    
+
     int TestSuite::getPassedCount(const std::vector<TestCaseInfo>& results) {
         return std::count_if(results.begin(), results.end(), 
             [](const TestCaseInfo& info) { return info.result == TestResult::PASSED; });
