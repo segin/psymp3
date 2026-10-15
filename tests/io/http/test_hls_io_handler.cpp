@@ -108,6 +108,18 @@ protected:
                       HLSIOHandler::resolveUrl(base, "/seg/1.aac"), "root-relative");
         ASSERT_EQUALS(std::string("http://cdn.example.com/1.aac"),
                       HLSIOHandler::resolveUrl(base, "//cdn.example.com/1.aac"), "scheme-relative");
+        // A URL inside the query does not make the reference absolute.
+        ASSERT_EQUALS(std::string("http://h.example.com/zc7001/7_1/seg1.aac?u=https://x/y"),
+                      HLSIOHandler::resolveUrl(base, "seg1.aac?u=https://x/y"), "relative, URL in its query");
+        // A base with no path: its query is not a directory.
+        ASSERT_EQUALS(std::string("https://h/s.aac"), HLSIOHandler::resolveUrl("https://h?x=1", "s.aac"),
+                      "relative to a base with a query and no path");
+        ASSERT_EQUALS(std::string("https://h/s.aac"), HLSIOHandler::resolveUrl("https://h?x=1", "/s.aac"),
+                      "root-relative to a base with a query and no path");
+        ASSERT_EQUALS(std::string("http://h.example.com/zc7001/7_1/playlist.m3u8?v=2"),
+                      HLSIOHandler::resolveUrl(base, "?v=2"), "a query-only reference keeps the file");
+        ASSERT_EQUALS(std::string("HTTPS://up.example.com/a"), HLSIOHandler::resolveUrl(base, "HTTPS://up.example.com/a"),
+                      "an upper-case scheme is a scheme");
 
         // A 10-byte header with synchsafe size 5, then 5 bytes, twice, then audio.
         std::string seg = std::string("ID3\x04\x00\x00\x00\x00\x00\x05", 10) + "PRIVx" +

@@ -224,24 +224,48 @@ size_t HLSIOHandler::chooseVariant(const std::vector<Variant>& variants)
  */
 std::string HLSIOHandler::resolveUrl(const std::string& base, const std::string& reference)
 {
-    if (reference.find("://") != std::string::npos) return reference;
+    /*
+     * Absolute when it starts with a scheme (RFC 3986 §3.1): a letter, then
+     * letters, digits, "+", "-" or ".", then ":" -- before any "/", "?" or
+     * "#", so a URL inside a query ("seg.aac?u=https://x") is not mistaken
+     * for one.
+     */
+    const size_t colon = reference.find(':');
+    if (colon != std::string::npos && colon > 0 && colon < reference.find_first_of("/?#") &&
+        std::isalpha(static_cast<unsigned char>(reference[0]))) {
+        bool scheme = true;
+        for (size_t i = 1; i < colon && scheme; ++i) {
+            const unsigned char c = static_cast<unsigned char>(reference[i]);
+            scheme = std::isalnum(c) || c == '+' || c == '-' || c == '.';
+        }
+        if (scheme) return reference;
+    }
     const size_t scheme_end = base.find("://");
     if (scheme_end == std::string::npos) return reference;
     if (reference.compare(0, 2, "//") == 0) {
         return base.substr(0, scheme_end + 1) + reference;
     }
-    const size_t host_end = base.find('/', scheme_end + 3);
-    const std::string origin = host_end == std::string::npos ? base : base.substr(0, host_end);
-    if (!reference.empty() && reference[0] == '/') {
+    // The origin ends where the authority does: at the path, query or fragment.
+    const size_t auth_end = std::min(base.find_first_of("/?#", scheme_end + 3), base.size());
+    const std::string origin = base.substr(0, auth_end);
+    const size_t path_end = std::min(base.find_first_of("?#", auth_end), base.size());
+    const std::string path = base.substr(auth_end, path_end - auth_end);
+    if (reference.empty()) {
+        return base.substr(0, base.find('#'));
+    }
+    if (reference[0] == '/') {
         return origin + reference;
     }
-    // Relative: the base's directory, without its query.
-    std::string path = base.substr(0, base.find_first_of("?#"));
-    const size_t slash = path.rfind('/');
-    if (slash == std::string::npos || slash < scheme_end + 3) {
-        return origin + "/" + reference;
+    if (reference[0] == '?') {
+        // The base's path, with this query instead (RFC 3986 §5.2.2).
+        return origin + (path.empty() ? std::string("/") : path) + reference;
     }
-    return path.substr(0, slash + 1) + reference;
+    if (reference[0] == '#') {
+        return base.substr(0, base.find('#')) + reference;
+    }
+    // Relative: the base's directory, without its query.
+    const size_t slash = path.rfind('/');
+    return origin + (slash == std::string::npos ? std::string("/") : path.substr(0, slash + 1)) + reference;
 }
 
 /**
