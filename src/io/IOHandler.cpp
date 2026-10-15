@@ -221,6 +221,14 @@ bool IOHandler::isLiveStream() const {
     return false;
 }
 
+/**
+ * @brief Sources declare no media type unless a subclass knows one.
+ * @return "".
+ */
+std::string IOHandler::getMimeType() const {
+    return std::string();
+}
+
 int IOHandler::getLastError() const {
     // Return the last error code (0 = no error)
     // Thread-safe using atomic load

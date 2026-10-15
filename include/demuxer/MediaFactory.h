@@ -107,7 +107,15 @@ public:
     static std::string mimeTypeToExtension(const std::string& mime_type);
     static std::vector<std::string> getExtensionsForMimeType(const std::string& mime_type);
     static std::vector<std::string> getMimeTypesForExtension(const std::string& extension);
-    
+
+    /**
+     * @brief The format registered for a media type, such as "adts" for
+     *        audio/aacp. Initializes the factory's tables if needed.
+     * @param mime_type Lower-case type without parameters.
+     * @return The format id, or "" if no format claims the type.
+     */
+    static std::string formatForMimeType(const std::string& mime_type);
+
     // URI and path utilities
     static std::string extractExtension(const std::string& uri);
     static bool isHttpUri(const std::string& uri);

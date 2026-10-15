@@ -77,7 +77,7 @@ public:
      * @brief Get the MIME type from HTTP headers
      * @return MIME type string, empty if not available
      */
-    std::string getMimeType() const { return m_mime_type; }
+    std::string getMimeType() const override { return m_mime_type; }
     
     /**
      * @brief Check if server supports range requests

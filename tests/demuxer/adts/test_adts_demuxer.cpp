@@ -83,14 +83,25 @@ public:
     /**
      * @brief Copy @p data into the handler.
      * @param data The bytes.
+     * @param mime The Content-Type it claims, if any.
      */
-    explicit LiveMemoryIOHandler(const std::string& data) : MemoryIOHandler(data.data(), data.size()) {}
+    explicit LiveMemoryIOHandler(const std::string& data, std::string mime = std::string())
+        : MemoryIOHandler(data.data(), data.size()), m_mime(std::move(mime)) {}
 
     /**
      * @brief Report a live stream.
      * @return true.
      */
     bool isLiveStream() const override { return true; }
+
+    /**
+     * @brief The Content-Type given at construction.
+     * @return It.
+     */
+    std::string getMimeType() const override { return m_mime; }
+
+private:
+    std::string m_mime;
 };
 
 /** @brief Header parsing and the AudioSpecificConfig. */
@@ -250,6 +261,40 @@ protected:
     }
 };
 
+/** @brief A station joined mid-frame, identified by its Content-Type. */
+class MimeFallbackTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    MimeFallbackTest() : TestCase("Live stream joined mid-frame: format from Content-Type") {}
+protected:
+    /**
+     * @brief Start the data part-way into a frame: content probing finds
+     *        nothing, the MIME type finds ADTS for a live source only, and the
+     *        demuxer then syncs on the next whole frame.
+     */
+    void runTest() override {
+        FrameSpec a, b, c;
+        a.seed = 7; b.seed = 8; c.seed = 9;
+        const std::string data = makeFrame(a).substr(40) + makeFrame(b) + makeFrame(c);
+
+        LiveMemoryIOHandler live(data, "audio/aacp");
+        ASSERT_EQUALS(std::string("adts"),
+                      PsyMP3::Demuxer::DemuxerFactory::probeFormat(&live, "http://radio.example/stream"),
+                      "live stream: format from audio/aacp");
+
+        MemoryIOHandler file(data.data(), data.size());
+        ASSERT_EQUALS(std::string(),
+                      PsyMP3::Demuxer::DemuxerFactory::probeFormat(&file, "/music/unknown"),
+                      "a file gets no MIME fallback");
+
+        auto d = std::make_unique<ADTSDemuxer>(std::make_unique<LiveMemoryIOHandler>(data, "audio/aacp"));
+        ASSERT_TRUE(d->parseContainer(), "the demuxer finds the first whole frame");
+        MediaChunk first = d->readChunk();
+        const std::string got(first.data.begin(), first.data.end());
+        ASSERT_TRUE(got == payloadOf(b), "first chunk is the first whole frame");
+    }
+};
+
 /** @brief Not ADTS at all. */
 class RejectTest : public TestFramework::TestCase {
 public:
@@ -278,6 +323,7 @@ int test_adts_demuxer_main()
     suite.addTest(std::make_unique<FileTest>());
     suite.addTest(std::make_unique<ResyncTest>());
     suite.addTest(std::make_unique<LiveTest>());
+    suite.addTest(std::make_unique<MimeFallbackTest>());
     suite.addTest(std::make_unique<RejectTest>());
     auto results = suite.runAll();
     suite.printResults(results);

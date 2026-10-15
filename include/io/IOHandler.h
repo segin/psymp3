@@ -107,6 +107,17 @@ public:
     virtual bool isLiveStream() const;
 
     /**
+     * @brief The media type the source declares for itself, such as an HTTP
+     *        Content-Type, lower-cased and without parameters.
+     *
+     * Format detection falls back on it for a live stream whose first bytes
+     * identify nothing: a radio stream joined mid-frame, behind a URL with no
+     * extension or a misleading one.
+     * @return The type, or "" when the source declares none (files do not).
+     */
+    virtual std::string getMimeType() const;
+
+    /**
      * @brief Get the last error code
      * @return Error code (0 = no error)
      */

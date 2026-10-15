@@ -429,7 +429,20 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& f
     if (!format_id.empty()) {
         return format_id;
     }
-    
+
+    // A radio stream need not start on a frame, and its URL often has no
+    // extension, or one unrelated to what it sends; what it says it sends
+    // comes before the extension. The demuxers then search for their sync.
+    if (handler && handler->isLiveStream()) {
+        const std::string mime = handler->getMimeType();
+        const std::string by_mime = MediaFactory::formatForMimeType(mime);
+        if (!by_mime.empty()) {
+            Debug::log("demuxer", "DemuxerFactory: live stream, format ", by_mime,
+                       " from its Content-Type ", mime);
+            return by_mime;
+        }
+    }
+
     // Fall back to extension-based detection
     return by_extension;
 }

@@ -101,7 +101,7 @@ public:
     std::string getHeader(const std::string& name) const;
 
     /** @brief Content-Type without parameters, lower case, or "". */
-    std::string getMimeType() const;
+    std::string getMimeType() const override;
 
     /** @brief Content-Length, or -1 when the response did not give one. */
     int64_t getContentLength() const { return m_content_length; }

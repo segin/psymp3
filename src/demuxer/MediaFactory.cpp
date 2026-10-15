@@ -177,13 +177,30 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
     // Try content analysis with IOHandler for more detailed detection
     Debug::log("loader", "MediaFactory::analyzeContent trying content-based detection for: ", uri);
     ContentInfo content_result;
+    bool live = false;
     try {
         auto handler = createIOHandler(uri);
         content_result = analyzeContent(handler);
+        live = handler && handler->isLiveStream();
+        // A radio stream need not start on a frame, so its first bytes may
+        // identify nothing; then what it says it sends decides.
+        if (live && content_result.detected_format.empty()) {
+            content_result = detectByMimeType(handler->getMimeType());
+            if (!content_result.detected_format.empty()) {
+                Debug::log("loader", "MediaFactory::analyzeContent live stream, format ",
+                           content_result.detected_format, " from its Content-Type");
+            }
+        }
     } catch (const std::exception& e) {
         Debug::log("loader", "MediaFactory::analyzeContent - content-based detection failed: ", e.what());
     }
-    
+
+    // For a live stream what it sends outranks its URL, whose extension is
+    // often missing and sometimes wrong (an AAC station at ".../stream.mp3").
+    if (live && !content_result.detected_format.empty()) {
+        return content_result;
+    }
+
     // Combine results - prefer higher confidence, but merge metadata
     if (content_result.confidence > best_confidence) {
         best_match = content_result;
@@ -834,6 +851,23 @@ ContentInfo MediaFactory::detectByExtension(const std::string& uri) {
     }
     
     return info;
+}
+
+/**
+ * @brief Look a media type up in the registered formats, initializing the
+ *        tables first if nothing has used the factory yet.
+ * @param mime_type Lower-case type without parameters.
+ * @return The format id, or "".
+ */
+std::string MediaFactory::formatForMimeType(const std::string& mime_type) {
+    if (!s_initialized) {
+        std::lock_guard<std::mutex> init_lock(s_factory_mutex);
+        if (!s_initialized) {
+            initializeDefaultFormats();
+            s_initialized = true;
+        }
+    }
+    return detectByMimeType(mime_type).detected_format;
 }
 
 ContentInfo MediaFactory::detectByMimeType(const std::string& mime_type) {
