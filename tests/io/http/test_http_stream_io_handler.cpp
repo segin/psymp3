@@ -622,6 +622,37 @@ protected:
     }
 };
 
+/**
+ * @brief A redirect to a SHOUTcast v1 server. Its "ICY 200 OK" head has no
+ *        HTTP status line, so nothing replaced the redirect's status, and
+ *        the head was played as audio with its metadata left in.
+ */
+class RedirectToShoutcastV1Test : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    RedirectToShoutcastV1Test() : TestCase("A redirect to a SHOUTcast v1 server is read as ICY") {}
+protected:
+    /** @brief 302 on the first connection, an ICY v1 stream on the second. */
+    void runTest() override {
+        const std::string body = patternBytes(30000);
+        SequenceServer server([&](int n, const FakeServer::Send& send) {
+            if (n == 0) {
+                send("HTTP/1.1 302 Found\r\nLocation: /v1\r\nContent-Length: 0\r\n\r\n");
+            } else if (n == 1) {
+                send("ICY 200 OK\r\nicy-name: Moved FM\r\nicy-metaint: 8192\r\n\r\n");
+                send(interleave(body, 8192, {"StreamTitle='Moved - Song';"}));
+            }
+        });
+        HTTPStreamIOHandler h(server.url());
+        ASSERT_TRUE(h.isIcy(), "the v1 reply behind the redirect is ICY");
+        ASSERT_EQUALS(std::string("Moved FM"), h.getHeader("icy-name"), "its headers are read");
+        const std::string got = readAll(h);
+        ASSERT_EQUALS(body.size(), got.size(), "neither the head nor the metadata is in the audio");
+        ASSERT_TRUE(got == body, "the audio is intact");
+        ASSERT_EQUALS(std::string("Moved - Song"), h.getStreamTitleAt(0), "its title is read");
+    }
+};
+
 /** @brief StreamTitles as stations send them, taken apart. */
 class SplitTitleTest : public TestFramework::TestCase {
 public:
@@ -844,6 +875,7 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<DetachedGroupTest>());
     suite.addTest(std::make_unique<AbortAllTest>());
     suite.addTest(std::make_unique<ReconnectTest>());
+    suite.addTest(std::make_unique<RedirectToShoutcastV1Test>());
 
     auto results = suite.runAll();
     suite.printResults(results);
