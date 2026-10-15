@@ -368,6 +368,16 @@ void OggDemuxer::createTagFromMetadata_unlocked() {
 }
 
 void OggDemuxer::calculateInitialDuration_unlocked() {
+    // A live stream (internet radio) has no duration, and finding the last
+    // granule would read it until the station stopped. Its positions count
+    // from where the listener joined, not from the station's first granule.
+    if (m_handler && m_handler->isLiveStream()) {
+        m_cached_duration = 0;
+        m_start_granule = 0;
+        m_duration_calculated = true;
+        Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: live stream, no duration");
+        return;
+    }
     // Pre-calculate duration to avoid blocking UI thread later
     if (m_has_primary_serial && !m_streams.empty()) {
         auto it = m_streams.find(m_primary_serial);
@@ -568,6 +578,9 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
 
 bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
   if (!m_has_primary_serial)
+    return false;
+  // Internet radio plays from where it is; there is nothing to seek in.
+  if (m_handler && m_handler->isLiveStream())
     return false;
 
   auto sit = m_streams.find(m_primary_serial);
