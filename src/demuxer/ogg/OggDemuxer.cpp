@@ -668,16 +668,21 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     }
 
     int serial = ogg_page_serialno(&page);
-    auto it = m_streams.find(streamKeyForSerial_unlocked(serial));
-    if (it != m_streams.end()) {
+    const int key = streamKeyForSerial_unlocked(serial);
+    auto it = m_streams.find(key);
+    // A new logical stream beginning where the primary one was: the next
+    // link of a chained stream -- or, after a station's connection was
+    // dropped and made again, the stream starting over, perhaps under the
+    // same serial. Every packet of the old link has gone out already, since
+    // pages are read only when the stream has none. Only for internet radio:
+    // a chained file's duration and seeking know its first link alone, so a
+    // file still ends there.
+    const bool next_link = ogg_page_bos(&page) && m_has_primary_serial && isLiveSource() &&
+                           stream_id == static_cast<uint32_t>(m_primary_serial) &&
+                           (it == m_streams.end() || key == m_primary_serial);
+    if (!next_link && it != m_streams.end()) {
       it->second->submitPage(&page);
-    } else if (ogg_page_bos(&page) && m_has_primary_serial && isLiveSource() &&
-               stream_id == static_cast<uint32_t>(m_primary_serial)) {
-      // The primary stream has run out and a new logical stream begins: the
-      // next link of a chained stream. Every packet of the old link has gone
-      // out already, since pages are read only when the stream has none.
-      // Only for internet radio: a chained file's duration and seeking know
-      // its first link alone, so a file still ends there.
+    } else if (next_link) {
       if (!beginNextLink_unlocked(&page)) {
         return chunk;
       }
