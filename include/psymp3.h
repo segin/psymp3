@@ -692,6 +692,7 @@ extern "C" {
 #include "demuxer/mp3/MP3NullDemuxer.h"
 #include "demuxer/mlp/MLPNullDemuxer.h"
 #include "demuxer/ac3/AC3NullDemuxer.h"
+#include "demuxer/adts/ADTSDemuxer.h"
 #ifdef HAVE_OPUS
 using PsyMP3::Codec::Opus::OpusComments;
 #endif

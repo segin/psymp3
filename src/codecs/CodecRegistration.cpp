@@ -227,6 +227,14 @@ void registerAllDemuxers() {
     Debug::log("demuxer", "registerAllDemuxers: Registered AC-3 null demuxer");
 #endif // HAVE_AC3
 
+#ifdef HAVE_AAC
+    // ADTS: raw AAC, self-framing like MP3 -- .aac files and AAC radio
+    DemuxerRegistry::getInstance().registerDemuxer("adts", [](std::unique_ptr<IOHandler> handler) {
+        return std::make_unique<PsyMP3::Demuxer::ADTS::ADTSDemuxer>(std::move(handler));
+    }, "ADTS", {"aac", "adts"});
+    Debug::log("demuxer", "registerAllDemuxers: Registered ADTS demuxer");
+#endif // HAVE_AAC
+
     // FLAC demuxer registration
 #ifdef HAVE_FLAC
     DemuxerRegistry::getInstance().registerDemuxer("flac", [](std::unique_ptr<IOHandler> handler) {

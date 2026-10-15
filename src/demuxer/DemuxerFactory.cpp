@@ -77,6 +77,16 @@ void DemuxerFactory::initializeBuiltInFormats() {
     registerSignature_unlocked(FormatSignature("ac3", {0x0B, 0x77}, 0, 60));
 #endif
 
+    // ADTS (raw AAC) sync: twelve 1 bits, then the ID bit, layer 00 and
+    // protection_absent. Layer 00 is what tells it from MPEG audio, whose
+    // signatures above all have a non-zero layer.
+#ifdef HAVE_AAC
+    registerSignature_unlocked(FormatSignature("adts", {0xFF, 0xF1}, 0, 65)); // MPEG-4, no CRC
+    registerSignature_unlocked(FormatSignature("adts", {0xFF, 0xF9}, 0, 65)); // MPEG-2, no CRC
+    registerSignature_unlocked(FormatSignature("adts", {0xFF, 0xF0}, 0, 65)); // MPEG-4, CRC
+    registerSignature_unlocked(FormatSignature("adts", {0xFF, 0xF8}, 0, 65)); // MPEG-2, CRC
+#endif
+
     // Register file extensions
     s_extension_to_format["wav"] = "riff";
     s_extension_to_format["wave"] = "riff";
@@ -104,6 +114,10 @@ void DemuxerFactory::initializeBuiltInFormats() {
     s_extension_to_format["ac3"] = "ac3";
     s_extension_to_format["eac3"] = "ac3";
     s_extension_to_format["ec3"] = "ac3";
+#endif
+#ifdef HAVE_AAC
+    s_extension_to_format["aac"] = "adts";
+    s_extension_to_format["adts"] = "adts";
 #endif
     s_extension_to_format["pcm"] = "raw";
     s_extension_to_format["raw"] = "raw";

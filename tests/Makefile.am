@@ -49,6 +49,9 @@ endif
 if HAVE_MATROSKA
 MATROSKA_DEMUXER_LIB = $(top_builddir)/src/demuxer/matroska/libpsymp3-demuxer-matroska.a
 endif
+if HAVE_AAC
+ADTS_DEMUXER_LIB = $(top_builddir)/src/demuxer/adts/libpsymp3-demuxer-adts.a
+endif
 if HAVE_OPUS
 OPUS_CODEC_LIB = $(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a
 endif
@@ -79,6 +82,9 @@ DEMUXER_LIBS += $(MATROSKA_DEMUXER_LIB)
 # codec archive comes after it.
 DEMUXER_LIBS += $(AC3_DEMUXER_LIB)
 DEMUXER_LIBS += $(AC3_CODEC_LIB)
+# Needed by any test that links CodecRegistration, which registers it when
+# AAC is configured in.
+DEMUXER_LIBS += $(ADTS_DEMUXER_LIB)
 # Repeated after the demuxer: the MLP demuxer decodes the first access unit
 # to learn the channel layout, so it needs the decoder, and ld resolves
 # archives left to right -- the codec archive has already been passed by the
@@ -481,7 +487,8 @@ check_PROGRAMS += test_aac_suite
 # its file and its suite; what they no longer have is a link apiece.
 test_aac_suite_SOURCES = test_aac_suite.cpp \
 	codecs/aac/test_aac_integration.cpp \
-	codecs/aac/test_aac_output_format.cpp
+	codecs/aac/test_aac_output_format.cpp \
+	demuxer/adts/test_adts_demuxer.cpp
 test_aac_suite_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 
 # HE-AAC streams made with FDK's encoder, which is in the decoder's library.

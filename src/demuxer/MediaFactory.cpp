@@ -551,6 +551,26 @@ void MediaFactory::initializeDefaultFormats() {
         });
     }
 
+    if (DemuxerRegistry::getInstance().isFormatSupported("adts")) {
+        MediaFormat adts_format;
+        adts_format.format_id = "adts";
+        adts_format.display_name = "AAC (ADTS)";
+        adts_format.extensions = {"AAC", "ADTS"};
+        // audio/aacp is what SHOUTcast and Icecast stations send for HE-AAC.
+        adts_format.mime_types = {"audio/aac", "audio/aacp", "audio/x-aac", "audio/vnd.dlna.adts"};
+        adts_format.magic_signatures = {"\xFF\xF1", "\xFF\xF9"};
+        // A 16-bit sync, like AC-3's; the demuxer confirms two frames in a row.
+        adts_format.priority = 60;
+        adts_format.supports_streaming = true;
+        adts_format.supports_seeking = true;
+        adts_format.description = "Raw AAC in ADTS framing";
+
+        registerFormatInternal(adts_format, [](const std::string& uri, const ContentInfo&) {
+            Debug::log("loader", "MediaFactory: Creating DemuxedStream for ADTS file: ", uri);
+            return std::make_unique<DemuxedStream>(TagLib::String(uri, TagLib::String::UTF8));
+        });
+    }
+
 #ifdef HAVE_FLAC
     // FLAC format - uses legacy Stream architecture
     MediaFormat flac_format;

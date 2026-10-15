@@ -27,6 +27,7 @@
 
 int test_aac_integration_main();
 int test_aac_output_format_main();
+int test_adts_demuxer_main();
 
 namespace {
 
@@ -38,6 +39,7 @@ struct Entry {
 const Entry kEntries[] = {
     {"test_aac_integration",    test_aac_integration_main},
     {"test_aac_output_format",  test_aac_output_format_main},
+    {"test_adts_demuxer",       test_adts_demuxer_main},
 };
 
 } // namespace

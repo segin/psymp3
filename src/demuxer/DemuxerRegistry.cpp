@@ -320,7 +320,16 @@ void DemuxerRegistry::initializeBuiltInFormats() {
     // other binary data, so it ranks below every longer signature; the
     // demuxer then insists on two consecutive valid syncframes.
     registerSignatureInternal(FormatSignature("ac3", {0x0B, 0x77}, 0, 60));
-    
+
+    // ADTS (raw AAC) sync, layer 00, with and without CRC, MPEG-4 and MPEG-2;
+    // kept in step with DemuxerFactory's table.
+#ifdef HAVE_AAC
+    registerSignatureInternal(FormatSignature("adts", {0xFF, 0xF1}, 0, 65));
+    registerSignatureInternal(FormatSignature("adts", {0xFF, 0xF9}, 0, 65));
+    registerSignatureInternal(FormatSignature("adts", {0xFF, 0xF0}, 0, 65));
+    registerSignatureInternal(FormatSignature("adts", {0xFF, 0xF8}, 0, 65));
+#endif
+
     m_initialized = true;
 }
 

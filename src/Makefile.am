@@ -105,6 +105,7 @@ endif
 
 if HAVE_AAC
 CODEC_LIBS += codecs/aac/libpsymp3-codec-aac.a
+DEMUXER_LIBS += demuxer/adts/libpsymp3-demuxer-adts.a
 endif
 
 if HAVE_OGGDEMUXER

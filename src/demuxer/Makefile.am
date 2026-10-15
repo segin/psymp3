@@ -23,6 +23,11 @@ if HAVE_AC3
 SUBDIRS += ac3
 endif
 
+# ADTS carries AAC, so it is built when the AAC codec is.
+if HAVE_AAC
+SUBDIRS += adts
+endif
+
 noinst_LIBRARIES = libpsymp3-demuxer.a
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) -Wall -Werror

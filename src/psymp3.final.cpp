@@ -197,6 +197,9 @@
 #ifdef HAVE_AC3
 #include "demuxer/ac3/AC3NullDemuxer.cpp"
 #endif
+#ifdef HAVE_AAC
+#include "demuxer/adts/ADTSDemuxer.cpp"
+#endif
 
 // ============================================================================
 // Vorbis Codec (always available via bundled stb_vorbis; the C implementation
