@@ -844,6 +844,31 @@ bool LastFM::scrobbleTrack(const track& track)
     return true;
 }
 
+/**
+ * @brief Queue a scrobble stamped with the time the track started.
+ * @param track The track.
+ * @param started_at When it started.
+ * @return true if queued.
+ */
+bool LastFM::scrobbleTrack(const track& track, time_t started_at)
+{
+    if (!isConfigured()) {
+        DEBUG_LOG_LAZY("lastfm", "Cannot scrobble - not configured");
+        return false;
+    }
+
+    Scrobble scrobble(track);
+    scrobble.setTimestamp(started_at);
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        scrobbleTrack_unlocked(std::move(scrobble));
+    }
+    DEBUG_LOG_LAZY("lastfm", "Added scrobble to queue: ", track.GetArtist().to8Bit(true), " - ",
+                   track.GetTitle().to8Bit(true), " (started ", static_cast<long long>(started_at), ")");
+    m_submission_cv.notify_one();
+    return true;
+}
+
 size_t LastFM::getCachedScrobbleCount() const
 {
     std::lock_guard<std::mutex> lock(m_scrobble_mutex);

@@ -219,7 +219,19 @@ public:
      * @return true if added successfully, false otherwise
      */
     bool scrobbleTrack(const track& track);
-    
+
+    /**
+     * @brief Add a track that began playing at @p started_at to the queue.
+     *
+     * For internet radio: a song there is known to be over only when the
+     * next title arrives, so it is scrobbled then, and Last.fm wants the time
+     * it started, not the time it was queued.
+     * @param track The track to scrobble.
+     * @param started_at When it started (seconds since the epoch).
+     * @return true if added, false if Last.fm is not configured.
+     */
+    bool scrobbleTrack(const track& track, time_t started_at);
+
     /**
      * @brief Get the number of cached scrobbles waiting to be submitted
      * @return Number of cached scrobbles
