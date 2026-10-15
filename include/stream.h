@@ -144,6 +144,15 @@ class Stream
          * @return true unless the stream says otherwise.
          */
         virtual bool isCurrentTitleMusic() const { return true; }
+
+        /**
+         * @brief Make a read waiting on the stream's source give up now, so
+         *        whoever joins the decoder (stopping, switching tracks) is
+         *        not held up by a stalled station. The stream ends; it is
+         *        about to be dropped. Safe from any thread, and takes no lock
+         *        the decoder can hold.
+         */
+        virtual void abortIO() {}
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer

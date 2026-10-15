@@ -50,9 +50,11 @@ bool DemuxedStream::initialize() {
             return false;
         }
         
+        m_live_handler = dynamic_cast<IO::HTTP::LiveStreamIOHandler*>(handler.get());
         // Create demuxer with file path hint for raw format detection
         m_demuxer = DemuxerFactory::createDemuxer(std::move(handler), uri.path().to8Bit(true));
         if (!m_demuxer) {
+            m_live_handler = nullptr; // went with the handler
             Debug::log("demux", "DemuxedStream::initialize() createDemuxer returned nullptr");
             return false;
         }
@@ -200,6 +202,17 @@ TagLib::String DemuxedStream::getStationName() const {
 bool DemuxedStream::isCurrentTitleMusic() const {
     std::lock_guard<std::mutex> lock(m_live_meta_mutex);
     return m_live_is_music;
+}
+
+/**
+ * @brief Abort the live source: a read the decoder is blocked in returns at
+ *        once, and the stream ends. LiveStreamIOHandler::abort() takes only
+ *        the handler's buffer lock, which a waiting read does not hold.
+ */
+void DemuxedStream::abortIO() {
+    if (auto* handler = m_live_handler.load()) {
+        handler->abort();
+    }
 }
 
 bool DemuxedStream::restartCodecForNewLink() {
@@ -1220,9 +1233,11 @@ bool DemuxedStream::initializeWithHandler(std::unique_ptr<IOHandler> handler) {
         // Reset handler to beginning for audio processing
         handler->seek(0, SEEK_SET);
         
+        m_live_handler = dynamic_cast<IO::HTTP::LiveStreamIOHandler*>(handler.get());
         // Create demuxer with shared handler
         m_demuxer = DemuxerFactory::createDemuxer(std::move(handler), m_path.to8Bit(true));
         if (!m_demuxer) {
+            m_live_handler = nullptr; // went with the handler
             return false;
         }
         m_live = m_demuxer->isLiveSource();

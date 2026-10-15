@@ -653,6 +653,67 @@ protected:
     }
 };
 
+/**
+ * @brief A stream of silent MPEG-1 Layer III frames (128 kbps, 44.1 kHz).
+ * @param frames How many.
+ * @return Their bytes.
+ */
+std::string silentMp3(size_t frames)
+{
+    const std::string frame = std::string("\xFF\xFB\x90\x64", 4) + std::string(413, '\0');
+    std::string out;
+    for (size_t i = 0; i < frames; ++i) out += frame;
+    return out;
+}
+
+/**
+ * @brief A station that stalls while playing: the decoder sits in a read,
+ *        and Stream::abortIO() -- what the player calls before stopping or
+ *        switching -- must free it at once rather than after the stall
+ *        cut-off, or the window freezes while the decoder is joined.
+ */
+class StreamAbortIOTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    StreamAbortIOTest() : TestCase("Stream::abortIO frees a decoder waiting on a stalled station") {}
+protected:
+    /** @brief Play ten seconds of a station that then goes quiet, abort, time it. */
+    void runTest() override {
+        std::atomic<bool> done{false};
+        FakeServer server([&](const FakeServer::Send& send) {
+            send("HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: Stalled FM\r\n\r\n");
+            // Enough for the format probe's reads (64 KiB and more) to be met.
+            send(silentMp3(400));
+            // Then nothing, with the connection held open.
+            for (int i = 0; i < 300 && !done; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        });
+        registerAllCodecs();
+        registerAllDemuxers();
+        // On the connection already made, as the server takes only one.
+        auto stream = std::make_unique<PsyMP3::Demuxer::DemuxedStream>(
+            PsyMP3::IO::HTTP::openHTTPIOHandler(server.url()), TagLib::String(server.url(), TagLib::String::UTF8));
+        ASSERT_TRUE(stream->isLive(), "opened as a live stream");
+
+        std::atomic<bool> returned{false};
+        std::thread decoder([&] {
+            std::vector<char> buf(8192);
+            while (stream->getData(buf.size(), buf.data()) > 0) {}
+            returned = true;
+        });
+        // The frames decode at once; then the decoder waits on the station.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        const bool waited = !returned;
+        const auto t0 = std::chrono::steady_clock::now();
+        stream->abortIO();
+        for (int i = 0; i < 100 && !returned; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+        done = true;
+        decoder.join();
+        ASSERT_TRUE(waited, "the decoder was waiting on the stalled station");
+        ASSERT_TRUE(ms < 500, "abortIO freed it at once (took " + std::to_string(ms) + " ms)");
+    }
+};
+
 /** @brief StreamTitles as stations send them, taken apart. */
 class SplitTitleTest : public TestFramework::TestCase {
 public:
@@ -876,6 +937,7 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<AbortAllTest>());
     suite.addTest(std::make_unique<ReconnectTest>());
     suite.addTest(std::make_unique<RedirectToShoutcastV1Test>());
+    suite.addTest(std::make_unique<StreamAbortIOTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

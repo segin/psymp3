@@ -106,6 +106,9 @@ public:
      */
     bool isLive() const override { return m_live; }
 
+    /** @brief Abort the live source's connection, if the source is live. */
+    void abortIO() override;
+
     /**
      * @brief Counts the live stream's title changes (see updateLiveTitle()).
      * @return The count; 0 for a file.
@@ -199,6 +202,8 @@ private:
     /// Internet radio (Demuxer::isLiveSource()). Its granules restart with
     /// every chained link, so positions are counted from the decoded audio.
     bool m_live = false;
+    /** @brief The live source's handler (owned by the demuxer), for abortIO(); null for files. */
+    std::atomic<PsyMP3::IO::HTTP::LiveStreamIOHandler*> m_live_handler{nullptr};
     /// The current stream's StreamInfo, kept by setupCodec() so the GUI's
     /// getters need not ask the demuxer: its getStreamInfo() takes the lock
     /// readChunk() holds while the decoder waits on a stalled station.
