@@ -16,16 +16,6 @@ namespace HTTP {
 namespace {
 
 /**
- * @brief The steady clock in milliseconds, for the stall timer.
- * @return Milliseconds since the steady clock's (arbitrary) epoch.
- */
-int64_t steadyMs()
-{
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-}
-
-/**
  * @brief Lower-case the ASCII letters of a header name or value. Bytes
  *        outside A-Z are left alone, so no locale is involved.
  * @param s The text.
@@ -37,29 +27,6 @@ std::string toLower(std::string s)
         if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
     }
     return s;
-}
-
-/// The abort group HTTPStreamIOHandlers created on this thread join.
-thread_local std::shared_ptr<StreamAbortGroup> t_current_group;
-
-/**
- * @brief The mutex guarding allHandlers().
- * @return It.
- */
-std::mutex& allHandlersMutex()
-{
-    static std::mutex m;
-    return m;
-}
-
-/**
- * @brief Every HTTPStreamIOHandler alive in the process, for abortAll().
- * @return The set.
- */
-std::set<HTTPStreamIOHandler*>& allHandlers()
-{
-    static std::set<HTTPStreamIOHandler*> handlers;
-    return handlers;
 }
 
 /**
@@ -88,20 +55,7 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
     : m_url(url)
 {
     Debug::log("http", "HTTPStreamIOHandler: connecting to ", url);
-    {
-        std::lock_guard<std::mutex> lock(allHandlersMutex());
-        allHandlers().insert(this);
-    }
-    m_group = StreamAbortGroup::current();
-    if (m_group && !m_group->join(this)) {
-        // The load this connection is for has been given up already.
-        m_group.reset();
-        std::lock_guard<std::mutex> lock(allHandlersMutex());
-        allHandlers().erase(this);
-        throw InvalidMediaException("Cannot open " + url + ": aborted");
-    }
-    m_last_data_ms = steadyMs();
-    m_worker = std::thread(&HTTPStreamIOHandler::runTransfer, this);
+    startWorker();
 
     // Wait for the response head. The worker's own stall and connect
     // timeouts bound this: it always ends up with headers or finished. An
@@ -120,13 +74,9 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
     const int status = m_status;
     lock.unlock();
     if (!error.empty()) {
-        // No destructor runs for a constructor that throws: undo it all here.
-        if (m_group) m_group->leave(this);
-        {
-            std::lock_guard<std::mutex> registry_lock(allHandlersMutex());
-            allHandlers().erase(this);
-        }
-        stopTransfer();
+        // The worker runs this class's code, so it must stop before this
+        // class's members go; the base's destructor then unregisters.
+        stopWorker();
         Debug::log("http", "HTTPStreamIOHandler: ", url, " failed: ", error);
         throw InvalidMediaException("Cannot open " + url + ": " + error);
     }
@@ -140,150 +90,21 @@ HTTPStreamIOHandler::HTTPStreamIOHandler(const std::string& url)
  */
 HTTPStreamIOHandler::~HTTPStreamIOHandler()
 {
-    // Out of the registries first, so abortAll() and the group cannot reach
-    // a handler that is being torn down.
-    if (m_group) m_group->leave(this);
-    {
-        std::lock_guard<std::mutex> lock(allHandlersMutex());
-        allHandlers().erase(this);
-    }
-    stopTransfer();
+    // The worker runs this class's code: stop it while this class is whole.
+    stopWorker();
 }
 
 /**
- * @brief Flag the abort and wake the worker (waiting for room) and any reader
- *        or constructor (waiting for data). Does not wait for the worker.
- */
-void HTTPStreamIOHandler::abort()
-{
-    m_abort = true;
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    m_space_cv.notify_all();
-    m_data_cv.notify_all();
-}
-
-/**
- * @brief Abort every live HTTPStreamIOHandler.
- */
-void HTTPStreamIOHandler::abortAll()
-{
-    std::lock_guard<std::mutex> lock(allHandlersMutex());
-    for (HTTPStreamIOHandler* handler : allHandlers()) {
-        handler->abort();
-    }
-}
-
-/**
- * @brief Abort, then join the worker. libcurl notices the flag at its next
- *        callback, at most about a second later on an idle line.
- */
-void HTTPStreamIOHandler::stopTransfer()
-{
-    abort();
-    if (m_worker.joinable()) {
-        m_worker.join();
-    }
-}
-
-/**
- * @brief Make @p group the current one on this thread for the scope.
- * @param group The group, or null.
- */
-StreamAbortGroup::Scope::Scope(std::shared_ptr<StreamAbortGroup> group)
-    : m_previous(std::move(t_current_group))
-{
-    t_current_group = std::move(group);
-}
-
-/**
- * @brief Put back the group that was current before.
- */
-StreamAbortGroup::Scope::~Scope()
-{
-    t_current_group = std::move(m_previous);
-}
-
-/**
- * @brief The group current on this thread.
- * @return It, or null.
- */
-std::shared_ptr<StreamAbortGroup> StreamAbortGroup::current()
-{
-    return t_current_group;
-}
-
-/**
- * @brief Abort the members and refuse later ones; a detached group ignores it.
- */
-void StreamAbortGroup::abort()
-{
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_detached) return;
-    m_aborted = true;
-    for (HTTPStreamIOHandler* handler : m_members) {
-        handler->abort();
-    }
-}
-
-/**
- * @brief Forget the members: they belong to a stream that is playing now.
- */
-void StreamAbortGroup::detach()
-{
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_detached = true;
-    m_members.clear();
-}
-
-/**
- * @brief Whether abort() reached the group before it was detached.
- * @return true if aborted.
- */
-bool StreamAbortGroup::isAborted() const
-{
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_aborted;
-}
-
-/**
- * @brief Take a new connection in, unless the group has been aborted. A
- *        detached group admits it without tracking it.
- * @param handler The connection.
- * @return false if aborted.
- */
-bool StreamAbortGroup::join(HTTPStreamIOHandler* handler)
-{
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_aborted) return false;
-    if (!m_detached) m_members.insert(handler);
-    return true;
-}
-
-/**
- * @brief Let a departing connection go.
- * @param handler The connection.
- */
-void StreamAbortGroup::leave(HTTPStreamIOHandler* handler)
-{
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_members.erase(handler);
-}
-
-/**
- * @brief Worker thread: set up one libcurl GET (redirects followed, HTTP/0.9
+ * @brief The producer: set up one libcurl GET (redirects followed, HTTP/0.9
  *        allowed for SHOUTcast v1, ICY metadata requested, no overall
  *        timeout) and run it to its end, then record how it ended and wake
  *        the reader and the constructor.
  */
-void HTTPStreamIOHandler::runTransfer()
+void HTTPStreamIOHandler::runWorker()
 {
     CURL* curl = curl_easy_init();
     if (!curl) {
-        std::lock_guard<std::mutex> lock(m_buf_mutex);
-        m_failed = true;
-        m_finished = true;
-        m_error_text = "curl_easy_init failed";
-        m_data_cv.notify_all();
+        finishWorker(true, "curl_easy_init failed");
         return;
     }
 
@@ -332,26 +153,29 @@ void HTTPStreamIOHandler::runTransfer()
     curl_easy_cleanup(curl);
     curl_slist_free_all(request_headers);
 
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    if (rc != CURLE_OK && !m_abort) {
-        m_failed = true;
-        m_error_text = error_buffer[0] ? std::string(error_buffer) : std::string(curl_easy_strerror(rc));
-        Debug::log("http", "HTTPStreamIOHandler: ", m_url, " transfer ended: ", m_error_text);
-    } else {
-        Debug::log("http", "HTTPStreamIOHandler: ", m_url, " transfer ended after ",
-                   m_data_start + static_cast<filesize_t>(m_data.size()), " bytes");
-    }
-    // An HTTP/0.9 reply too short to hold a whole ICY header block still has
-    // to release the constructor.
-    if (!m_headers_ready && !m_failed && !m_abort) {
-        if (!m_icy_v1_header.empty()) {
-            m_data.insert(m_data.end(), m_icy_v1_header.begin(), m_icy_v1_header.end());
-            m_icy_v1_header.clear();
+    const bool failed = rc != CURLE_OK && !m_abort;
+    std::string error_text;
+    {
+        std::lock_guard<std::mutex> lock(m_buf_mutex);
+        if (failed) {
+            error_text = !m_error_text.empty() ? m_error_text
+                       : error_buffer[0] ? std::string(error_buffer) : std::string(curl_easy_strerror(rc));
+            Debug::log("http", "HTTPStreamIOHandler: ", m_url, " transfer ended: ", error_text);
+        } else {
+            Debug::log("http", "HTTPStreamIOHandler: ", m_url, " transfer ended after ",
+                       audioEnd_unlocked(), " bytes");
         }
-        markHeadersReady_unlocked();
+        // An HTTP/0.9 reply too short to hold a whole ICY header block still
+        // has to release the constructor.
+        if (!m_headers_ready && !failed && !m_failed && !m_abort) {
+            if (!m_icy_v1_header.empty()) {
+                insertAudio_unlocked(m_icy_v1_header.data(), m_icy_v1_header.size());
+                m_icy_v1_header.clear();
+            }
+            markHeadersReady_unlocked();
+        }
     }
-    m_finished = true;
-    m_data_cv.notify_all();
+    finishWorker(failed, error_text);
 }
 
 /**
@@ -482,7 +306,7 @@ void HTTPStreamIOHandler::markHeadersReady_unlocked()
 size_t HTTPStreamIOHandler::onBody(const char* data, size_t len)
 {
     if (m_abort) return 0;
-    m_last_data_ms = steadyMs();
+    noteActivity();
 
     size_t used = 0;
     {
@@ -507,7 +331,7 @@ size_t HTTPStreamIOHandler::onBody(const char* data, size_t len)
 
 /**
  * @brief Walk the icy-metaint framing (audio, length byte, metadata, audio,
- *        ...) across chunk boundaries: audio to appendBody(), each complete
+ *        ...) across chunk boundaries: audio to appendAudio(), each complete
  *        metadata block to onMetadataBlock(). Without icy-metaint, all of it
  *        is audio. Worker thread only.
  * @param data Body bytes after any ICY v1 head.
@@ -517,12 +341,12 @@ size_t HTTPStreamIOHandler::onBody(const char* data, size_t len)
 bool HTTPStreamIOHandler::deliverBody(const char* data, size_t len)
 {
     if (m_metaint == 0) {
-        return appendBody(data, len);
+        return appendAudio(data, len);
     }
     while (len > 0) {
         if (m_audio_left > 0) {
             const size_t n = static_cast<size_t>(std::min<int64_t>(m_audio_left, static_cast<int64_t>(len)));
-            if (!appendBody(data, n)) return false;
+            if (!appendAudio(data, n)) return false;
             data += n;
             len -= n;
             m_audio_left -= static_cast<int64_t>(n);
@@ -551,28 +375,15 @@ bool HTTPStreamIOHandler::deliverBody(const char* data, size_t len)
 }
 
 /**
- * @brief Decode a block's StreamTitle and, if it differs from the last one,
- *        record it at the current end of the audio (the first title at 0),
- *        keeping at most MAX_TITLES.
+ * @brief Decode a block's StreamTitle and record it (recordTitle() places
+ *        it, and ignores a repeat).
  * @param block The metadata block, NUL padding included.
  */
 void HTTPStreamIOHandler::onMetadataBlock(const std::string& block)
 {
     std::string raw;
     if (!parseStreamTitle(block, raw)) return;
-    const std::string title = decodeIcyText(raw);
-
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    if (!m_titles.empty() && m_titles.back().second == title) return;
-    // The audio received so far is what plays before this title. The first
-    // title comes only after the first icy-metaint bytes of audio, which are
-    // the same song: it applies from the start.
-    const filesize_t at = m_titles.empty() && m_title_count == 0
-        ? 0 : m_data_start + static_cast<filesize_t>(m_data.size());
-    m_titles.emplace_back(at, title);
-    if (m_titles.size() > MAX_TITLES) m_titles.pop_front();
-    ++m_title_count;
-    Debug::log("http", "HTTPStreamIOHandler: StreamTitle at ", at, ": '", title, "'");
+    recordTitle(decodeIcyText(raw));
 }
 
 /**
@@ -693,30 +504,6 @@ std::string HTTPStreamIOHandler::getStationName() const
 }
 
 /**
- * @brief The newest recorded title that starts at or before @p offset.
- * @param offset Audio offset, as tell() counts it.
- * @return That title, or "" if none starts that early.
- */
-std::string HTTPStreamIOHandler::getStreamTitleAt(filesize_t offset) const
-{
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    for (auto it = m_titles.rbegin(); it != m_titles.rend(); ++it) {
-        if (it->first <= offset) return it->second;
-    }
-    return std::string();
-}
-
-/**
- * @brief Titles recorded since the stream opened, dropped ones included.
- * @return The count.
- */
-uint64_t HTTPStreamIOHandler::getStreamTitleCount() const
-{
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    return m_title_count;
-}
-
-/**
  * @brief Gather an HTTP/0.9 reply's first bytes until it is clear whether
  *        they are an "ICY nnn" head; if so, parse the head up to its blank
  *        line (CRLF or bare LF) into the status and headers, and if not,
@@ -733,7 +520,7 @@ size_t HTTPStreamIOHandler::consumeIcyV1Header(const char* data, size_t len)
     m_icy_v1_header.append(data, len);
     if (m_icy_v1_header.size() >= 4 && m_icy_v1_header.compare(0, 4, "ICY ") != 0) {
         // Not ICY: everything collected so far is body.
-        m_data.insert(m_data.end(), m_icy_v1_header.begin(), m_icy_v1_header.begin() + before);
+        insertAudio_unlocked(m_icy_v1_header.data(), before);
         m_icy_v1_header.clear();
         m_icy_v1_done = true;
         return 0;
@@ -779,44 +566,6 @@ size_t HTTPStreamIOHandler::consumeIcyV1Header(const char* data, size_t len)
 }
 
 /**
- * @brief Add audio to the buffer: first wait while the reader is
- *        READ_AHEAD_BYTES behind, then trim what lies more than
- *        HISTORY_BYTES behind it (in large steps), append, and wake readers.
- * @param data Audio bytes.
- * @param len Their count.
- * @return false if aborted while waiting.
- */
-bool HTTPStreamIOHandler::appendBody(const char* data, size_t len)
-{
-    std::unique_lock<std::mutex> lock(m_buf_mutex);
-    auto behind = [this] {
-        return m_data_start + static_cast<filesize_t>(m_data.size()) - m_read_pos;
-    };
-    if (behind() >= static_cast<filesize_t>(READ_AHEAD_BYTES)) {
-        m_waiting_for_reader = true;
-        m_space_cv.wait(lock, [&] {
-            return m_abort || behind() < static_cast<filesize_t>(READ_AHEAD_BYTES);
-        });
-        m_waiting_for_reader = false;
-        // Waiting on the reader is not a stall.
-        m_last_data_ms = steadyMs();
-    }
-    if (m_abort) return false;
-
-    // Drop what is older than HISTORY_BYTES behind the reader, in large steps
-    // so the front of the vector is not shuffled for every chunk.
-    const filesize_t keep_from = m_read_pos - static_cast<filesize_t>(HISTORY_BYTES);
-    if (keep_from - m_data_start >= static_cast<filesize_t>(HISTORY_BYTES)) {
-        const size_t drop = static_cast<size_t>(keep_from - m_data_start);
-        m_data.erase(m_data.begin(), m_data.begin() + static_cast<std::ptrdiff_t>(drop));
-        m_data_start += static_cast<filesize_t>(drop);
-    }
-    m_data.insert(m_data.end(), data, data + len);
-    m_data_cv.notify_all();
-    return true;
-}
-
-/**
  * @brief Decide whether the transfer goes on: not when stopping, and not
  *        after STALL_SECONDS without a byte unless the worker was waiting on
  *        the reader, which is not the server's fault.
@@ -825,177 +574,12 @@ bool HTTPStreamIOHandler::appendBody(const char* data, size_t len)
 bool HTTPStreamIOHandler::onProgress()
 {
     if (m_abort) return false;
-    if (m_waiting_for_reader) return true;
-    if (steadyMs() - m_last_data_ms > static_cast<int64_t>(STALL_SECONDS) * 1000) {
+    if (stalledFor(STALL_SECONDS)) {
         std::lock_guard<std::mutex> lock(m_buf_mutex);
         m_error_text = "no data for " + std::to_string(STALL_SECONDS) + " seconds";
         Debug::log("http", "HTTPStreamIOHandler: ", m_url, ": ", m_error_text);
         return false;
     }
-    return true;
-}
-
-/**
- * @brief Copy audio from the buffer, waiting for the worker when the reader
- *        has caught up, until the request is filled, the transfer ends or
- *        the handler is stopped. A transfer that failed sets error EIO.
- * @param buffer Destination.
- * @param size Element size.
- * @param count Elements wanted.
- * @return Whole elements read.
- */
-size_t HTTPStreamIOHandler::read_unlocked(void* buffer, size_t size, size_t count)
-{
-    updateErrorState(0);
-    if (m_closed) {
-        updateErrorState(EBADF);
-        return 0;
-    }
-    if (!buffer) {
-        updateErrorState(EINVAL);
-        return 0;
-    }
-    if (size == 0 || count == 0) return 0;
-    if (count > std::numeric_limits<size_t>::max() / size) {
-        updateErrorState(EINVAL);
-        return 0;
-    }
-
-    const size_t wanted = size * count;
-    uint8_t* out = static_cast<uint8_t*>(buffer);
-    size_t got = 0;
-
-    std::unique_lock<std::mutex> lock(m_buf_mutex);
-    while (got < wanted) {
-        const filesize_t end = m_data_start + static_cast<filesize_t>(m_data.size());
-        if (m_read_pos < end) {
-            const size_t offset = static_cast<size_t>(m_read_pos - m_data_start);
-            const size_t n = std::min(wanted - got, m_data.size() - offset);
-            std::memcpy(out + got, m_data.data() + offset, n);
-            got += n;
-            m_read_pos += static_cast<filesize_t>(n);
-            m_space_cv.notify_all();
-            continue;
-        }
-        if (m_finished || m_abort) {
-            if (m_failed) updateErrorState(EIO, m_error_text);
-            updateEofState(true);
-            break;
-        }
-        m_data_cv.wait(lock, [this] {
-            return m_finished || m_abort ||
-                   m_read_pos < m_data_start + static_cast<filesize_t>(m_data.size());
-        });
-    }
-    m_position = m_read_pos;
-    return got / size;
-}
-
-/**
- * @brief Move the reader within [oldest kept byte, newest + FORWARD_SEEK_BYTES].
- *        A target past what has arrived is reached by later reads waiting.
- * @param offset Offset from @p whence.
- * @param whence SEEK_SET or SEEK_CUR; SEEK_END is refused.
- * @return 0, or -1 with error ESPIPE.
- */
-int HTTPStreamIOHandler::seek_unlocked(filesize_t offset, int whence)
-{
-    updateErrorState(0);
-    if (m_closed) {
-        updateErrorState(EBADF);
-        return -1;
-    }
-
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    filesize_t target;
-    switch (whence) {
-        case SEEK_SET: target = offset; break;
-        case SEEK_CUR: target = m_read_pos + offset; break;
-        default:
-            // No end to seek from.
-            updateErrorState(ESPIPE);
-            return -1;
-    }
-    const filesize_t end = m_data_start + static_cast<filesize_t>(m_data.size());
-    if (target < m_data_start || target > end + static_cast<filesize_t>(FORWARD_SEEK_BYTES)) {
-        Debug::log("http", "HTTPStreamIOHandler: seek to ", target, " refused (buffer holds ",
-                   m_data_start, "-", end, ")");
-        updateErrorState(ESPIPE);
-        return -1;
-    }
-    m_read_pos = target;
-    m_position = target;
-    // Past what has arrived is not the end: later reads wait for it.
-    updateEofState(m_finished && target >= end);
-    m_space_cv.notify_all();
-    return 0;
-}
-
-/**
- * @brief The reader's offset into the audio.
- * @return The offset, or -1 (error EBADF) once closed.
- */
-filesize_t HTTPStreamIOHandler::tell_unlocked()
-{
-    if (m_closed) {
-        updateErrorState(EBADF);
-        return -1;
-    }
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    return m_read_pos;
-}
-
-/**
- * @brief Stop the transfer, which wakes a waiting read so it releases the
- *        operation lock, then close through the base class.
- * @return What IOHandler::close() returns.
- */
-int HTTPStreamIOHandler::close()
-{
-    // A read may be waiting for data with the operation lock held; stop the
-    // transfer first so it wakes and lets go.
-    stopTransfer();
-    return IOHandler::close();
-}
-
-/**
- * @brief Mark the handler closed and at EOF; the transfer is already stopped.
- * @return 0.
- */
-int HTTPStreamIOHandler::close_unlocked()
-{
-    updateClosedState(true);
-    updateEofState(true);
-    return 0;
-}
-
-/**
- * @brief Closed, or the transfer has ended and the reader has had every byte.
- * @return true at the end of the stream.
- */
-bool HTTPStreamIOHandler::eof()
-{
-    if (m_closed) return true;
-    std::lock_guard<std::mutex> lock(m_buf_mutex);
-    return m_finished && m_read_pos >= m_data_start + static_cast<filesize_t>(m_data.size());
-}
-
-/**
- * @brief A stream's size is unknown.
- * @return -1, always.
- */
-filesize_t HTTPStreamIOHandler::getFileSize()
-{
-    // A stream has no size, even once it has ended.
-    return -1;
-}
-
-/**
- * @brief This handler always reads its response as a stream.
- * @return true.
- */
-bool HTTPStreamIOHandler::isLiveStream() const
-{
     return true;
 }
 

@@ -30,104 +30,14 @@ namespace PsyMP3 {
 namespace IO {
 namespace HTTP {
 
-class HTTPStreamIOHandler;
-
 /**
- * @brief The stream connections opened for one purpose -- loading one track --
- *        so they can be aborted together.
- *
- * A station that stalls holds whatever is reading it until the stall check
- * gives up, which takes half a minute. Skipping to another track while one
- * loads, or stopping, must not wait that long: the player opens each load
- * inside a Scope, and aborts the load's group when the load is no longer
- * wanted. Once the load has finished and its stream is playing, the player
- * detaches the group, after which aborting it touches nothing.
- */
-class StreamAbortGroup {
-public:
-    /**
-     * @brief Makes a group the one that HTTPStreamIOHandlers created on this
-     *        thread join, for the Scope's lifetime.
-     */
-    class Scope {
-    public:
-        /**
-         * @brief Make @p group current on this thread.
-         * @param group The group; may be null for none.
-         */
-        explicit Scope(std::shared_ptr<StreamAbortGroup> group);
-
-        /** @brief Restore the group that was current before. */
-        ~Scope();
-
-        Scope(const Scope&) = delete;
-        Scope& operator=(const Scope&) = delete;
-
-    private:
-        std::shared_ptr<StreamAbortGroup> m_previous;
-    };
-
-    /**
-     * @brief Abort every connection in the group, and refuse any that would
-     *        join it later. Does nothing once detached.
-     */
-    void abort();
-
-    /**
-     * @brief The group's connections are in use now: forget them, so a later
-     *        abort() cannot reach them.
-     */
-    void detach();
-
-    /**
-     * @brief Whether abort() has been called (before any detach()).
-     * @return true once aborted.
-     */
-    bool isAborted() const;
-
-    /**
-     * @brief The group current on this thread.
-     * @return It, or null.
-     */
-    static std::shared_ptr<StreamAbortGroup> current();
-
-private:
-    friend class HTTPStreamIOHandler;
-
-    /**
-     * @brief Add a connection, unless the group is aborted or detached.
-     * @param handler The connection.
-     * @return false if the group is aborted: the connection must give up.
-     */
-    bool join(HTTPStreamIOHandler* handler);
-
-    /**
-     * @brief Remove a connection that is going away.
-     * @param handler The connection.
-     */
-    void leave(HTTPStreamIOHandler* handler);
-
-    mutable std::mutex m_mutex;
-    std::set<HTTPStreamIOHandler*> m_members;
-    bool m_aborted = false;
-    bool m_detached = false;
-};
-
-/**
- * @brief Reads an HTTP response that may never end: internet radio.
+ * @brief Reads an HTTP response that may never end: ICY internet radio.
  *
  * HTTPIOHandler fetches a file piece by piece with range requests, each one a
  * request that must complete. A radio stream (Icecast, SHOUTcast) is one GET
  * whose body goes on for as long as the station broadcasts, has no length and
- * cannot be seeked. This handler makes that single request on a worker thread
- * and hands the body to the reader as it arrives, through a bounded buffer:
- * the worker waits when the reader is far enough behind, so a paused player
- * holds the connection open rather than buffering without limit.
- *
- * Seeking is limited to what the buffer can serve. The reader may go back
- * over the last HISTORY_BYTES it has read (format probes and demuxers read a
- * few bytes and step back) and forward by at most FORWARD_SEEK_BYTES, which
- * later reads wait for. Anything else fails. The size is always unknown.
+ * cannot be seeked. This handler makes that single request on the worker
+ * thread LiveStreamIOHandler runs, and hands the body to its bounded buffer.
  *
  * SHOUTcast v1 servers answer "ICY 200 OK" rather than an HTTP status line.
  * libcurl does not recognise that: it refuses the reply unless HTTP/0.9 is
@@ -137,61 +47,21 @@ private:
  *
  * It asks for ICY metadata (Icy-MetaData: 1). A server that sends it says how
  * often in icy-metaint and interleaves the blocks with the audio; the handler
- * takes them out, so reads see audio alone, and keeps each StreamTitle with
+ * takes them out, so reads see audio alone, and records each StreamTitle with
  * the audio offset it starts at (getStreamTitleAt()).
  */
-class HTTPStreamIOHandler : public IOHandler {
+class HTTPStreamIOHandler : public LiveStreamIOHandler {
 public:
     /**
      * @brief Connect to @p url and wait for the response headers.
      * @throws InvalidMediaException if the connection fails, the server
-     *         answers with an error status, or nothing arrives in time.
+     *         answers with an error status, nothing arrives in time, or the
+     *         load it is for is aborted.
      */
     explicit HTTPStreamIOHandler(const std::string& url);
 
     /** @brief Stop the transfer and join the worker thread. */
     ~HTTPStreamIOHandler() override;
-
-    /**
-     * @brief Stop the transfer without waiting for it: a waiting read or
-     *        constructor wakes and gives up, and the worker ends at libcurl's
-     *        next callback. Safe from any thread; the handler stays valid.
-     */
-    void abort();
-
-    /**
-     * @brief Abort every HTTPStreamIOHandler in the process -- for quitting,
-     *        when a stalled station must not hold up the threads being joined.
-     */
-    static void abortAll();
-
-    HTTPStreamIOHandler(const HTTPStreamIOHandler&) = delete;
-    HTTPStreamIOHandler& operator=(const HTTPStreamIOHandler&) = delete;
-
-    /**
-     * @brief Stop the transfer and close the handler.
-     *
-     * Overridden so that a read waiting for data is woken (and lets go of the
-     * operation lock) before the base class takes that lock to close.
-     * @return 0.
-     */
-    int close() override;
-
-    /**
-     * @brief True once closed, or once the transfer has ended and every byte
-     *        it delivered has been read.
-     */
-    bool eof() override;
-
-    /** @brief Always -1: a stream has no size, even after it has ended. */
-    filesize_t getFileSize() override;
-
-    /**
-     * @brief Always true: whatever the response, this handler reads it as a
-     *        stream, without size or seeking.
-     * @return true.
-     */
-    bool isLiveStream() const override;
 
     /** @brief The value of response header @p name (any case), or "". */
     std::string getHeader(const std::string& name) const;
@@ -217,26 +87,6 @@ public:
      * @return The name, or "" when the server gave none.
      */
     std::string getStationName() const override;
-
-    /**
-     * @brief The title the station announced for the audio at @p offset.
-     *
-     * ICY servers interleave metadata with the audio; the handler takes it
-     * out, so reads return audio alone, and records each StreamTitle with the
-     * audio offset it arrived at. A title applies from there until the next;
-     * the first applies from offset 0.
-     * @param offset Offset into the audio, as tell() counts it.
-     * @return The title in effect there, or "" before the first title (or
-     *         when the station sends none, or announces an empty one).
-     */
-    std::string getStreamTitleAt(filesize_t offset) const override;
-
-    /**
-     * @brief How many titles the station has announced so far. A caller can
-     *        compare it with an earlier value to notice a change cheaply.
-     * @return The count, starting at 0.
-     */
-    uint64_t getStreamTitleCount() const;
 
     /**
      * @brief Decode text from an ICY server: UTF-8 if it is valid UTF-8,
@@ -284,15 +134,6 @@ public:
     // Most bytes of audio allowed between metadata blocks; a larger
     // icy-metaint is taken as nonsense and ignored.
     static constexpr int64_t MAX_METAINT = 4 * 1024 * 1024;
-    // Titles kept for getStreamTitleAt(); older ones are dropped.
-    static constexpr size_t MAX_TITLES = 16;
-
-    // How far behind the reader the buffer keeps data, for backward seeks.
-    static constexpr size_t HISTORY_BYTES = 256 * 1024;
-    // How far ahead of the reader the worker buffers before it waits.
-    static constexpr size_t READ_AHEAD_BYTES = 1024 * 1024;
-    // The furthest a seek may move ahead of the data received so far.
-    static constexpr size_t FORWARD_SEEK_BYTES = 1024 * 1024;
     // Longest an ICY v1 header block may be before the reply is rejected.
     static constexpr size_t MAX_ICY_HEADER_BYTES = 16 * 1024;
     // Seconds without a byte (while not waiting on the reader) before the
@@ -303,54 +144,12 @@ public:
 
 private:
     /**
-     * @brief Copy body bytes to @p buffer, waiting for them if necessary.
-     *
-     * fread semantics: returns fewer than @p count elements only at the end
-     * of the stream, on error, or when the handler is closed.
-     * @param buffer Destination.
-     * @param size Element size in bytes.
-     * @param count Number of elements wanted.
-     * @return Number of whole elements read.
+     * @brief The producer: set up one libcurl GET (redirects followed,
+     *        HTTP/0.9 allowed for SHOUTcast v1, ICY metadata requested, no
+     *        overall timeout) and run it until the server closes, an error or
+     *        stall ends it, or it is aborted; then record how it ended.
      */
-    size_t read_unlocked(void* buffer, size_t size, size_t count) override;
-
-    /**
-     * @brief Move the read position within what the buffer can serve.
-     *
-     * Allowed: back to the oldest byte still kept (HISTORY_BYTES behind the
-     * reader), or forward to at most FORWARD_SEEK_BYTES past what has arrived.
-     * SEEK_END always fails, since a stream has no end to measure from.
-     * @param offset Offset relative to @p whence.
-     * @param whence SEEK_SET or SEEK_CUR.
-     * @return 0 on success, -1 (error ESPIPE) when the target is out of reach.
-     */
-    int seek_unlocked(filesize_t offset, int whence) override;
-
-    /**
-     * @brief The reader's position in the stream, in bytes from its start.
-     * @return The position, or -1 once closed.
-     */
-    filesize_t tell_unlocked() override;
-
-    /**
-     * @brief Mark the handler closed. The transfer has already been stopped
-     *        by close() before this runs under the operation lock.
-     * @return Always 0.
-     */
-    int close_unlocked() override;
-
-    /**
-     * @brief Worker-thread body: make the GET and run it until the server
-     *        closes, an error or stall ends it, or it is aborted. Records why
-     *        it ended and wakes everything waiting on the buffer.
-     */
-    void runTransfer();
-
-    /**
-     * @brief Abort the transfer and join the worker thread. Safe to call more
-     *        than once and from the destructor.
-     */
-    void stopTransfer();
+    void runWorker() override;
 
     /**
      * @brief libcurl CURLOPT_HEADERFUNCTION trampoline to onHeader().
@@ -391,8 +190,7 @@ private:
 
     /**
      * @brief Handle a chunk of response body: peel off an ICY v1 header block
-     *        if there is one, mark the headers known, and queue the rest for
-     *        the reader.
+     *        if there is one, mark the headers known, and pass the rest on.
      * @param data Body bytes.
      * @param len Their count.
      * @return @p len, or 0 to abort the transfer.
@@ -402,27 +200,17 @@ private:
     /**
      * @brief Called by libcurl about once a second: ends the transfer when it
      *        is being stopped, or when no byte has come for STALL_SECONDS
-     *        while the worker was not waiting on the reader.
+     *        while not waiting on the reader.
      * @return true to continue, false to abort.
      */
     bool onProgress();
-
-    /**
-     * @brief Queue body bytes for the reader. Waits while the reader is
-     *        READ_AHEAD_BYTES or more behind, and drops data that has fallen
-     *        more than HISTORY_BYTES behind it.
-     * @param data Body bytes, with any ICY v1 header already taken off.
-     * @param len Their count.
-     * @return false if the transfer was aborted while waiting.
-     */
-    bool appendBody(const char* data, size_t len);
 
     /**
      * @brief Split body bytes into audio and ICY metadata.
      *
      * With an icy-metaint of N, the body is N audio bytes, a length byte L,
      * L * 16 bytes of metadata, N audio bytes, and so on. Audio goes to
-     * appendBody(); each finished metadata block goes to onMetadataBlock().
+     * appendAudio(); each finished metadata block to onMetadataBlock().
      * Without icy-metaint everything is audio. Worker thread only.
      * @param data Body bytes, with any ICY v1 header already taken off.
      * @param len Their count.
@@ -432,7 +220,7 @@ private:
 
     /**
      * @brief Record the StreamTitle of a finished metadata block, if it has
-     *        one and it differs from the last, at the current end of the audio.
+     *        one, through recordTitle().
      * @param block The block, NUL padding included.
      */
     void onMetadataBlock(const std::string& block);
@@ -460,39 +248,24 @@ private:
     void addHeaderLine_unlocked(const std::string& line);
 
     /**
-     * @brief The response head is complete: derive the content length and
-     *        whether the reply is ICY, and wake the constructor. Does nothing
-     *        the second time. Caller holds m_buf_mutex.
+     * @brief The response head is complete: derive the content length,
+     *        whether the reply is ICY and its metadata framing, and wake the
+     *        constructor. Does nothing the second time. Caller holds m_buf_mutex.
      */
     void markHeadersReady_unlocked();
 
     const std::string m_url;
 
-    // Everything below is guarded by m_buf_mutex.
-    mutable std::mutex m_buf_mutex;
-    std::condition_variable m_data_cv;   // reader and constructor wait here
-    std::condition_variable m_space_cv;  // worker waits here for room
-
-    std::vector<uint8_t> m_data;      // bytes [m_data_start, m_data_start + size)
-    filesize_t m_data_start = 0;      // stream offset of m_data[0]
-    filesize_t m_read_pos = 0;        // reader's stream offset
-
+    // Guarded by m_buf_mutex.
     std::map<std::string, std::string> m_headers;  // lower-case names
     int m_status = 0;                 // HTTP or ICY status code; 0 if none
     int64_t m_content_length = -1;
     bool m_icy = false;
     bool m_headers_ready = false;     // response head known
-    bool m_finished = false;          // transfer over (end, error or abort)
-    bool m_failed = false;            // transfer ended with an error
-    std::string m_error_text;         // why, for the exception and the log
 
     // ICY v1 header block being collected from the front of the body.
     bool m_icy_v1_done = false;
     std::string m_icy_v1_header;
-
-    // Titles announced, with the audio offset each starts at; newest last.
-    std::deque<std::pair<filesize_t, std::string>> m_titles;
-    uint64_t m_title_count = 0;
 
     // Metadata framing (icy-metaint), used by the worker thread alone once
     // the headers are known.
@@ -500,24 +273,15 @@ private:
     int64_t m_audio_left = 0;         // audio bytes before the next length byte
     int64_t m_meta_left = -1;         // metadata bytes still to come; -1 = length byte next
     std::string m_meta_block;
-
-    // Read by the progress callback on the worker thread.
-    std::atomic<bool> m_abort{false};
-    std::atomic<bool> m_waiting_for_reader{false};
-    std::atomic<int64_t> m_last_data_ms{0};  // steady-clock ms of last byte
-
-    std::thread m_worker;
-
-    // The load this connection belongs to (see StreamAbortGroup); may be null.
-    std::shared_ptr<StreamAbortGroup> m_group;
 };
 
 /**
  * @brief Open an http(s) URL with the handler that suits what it serves.
  *
  * Makes one GET. A stream (ICY headers, or no Content-Length) keeps the
- * HTTPStreamIOHandler that made it; a file of known length is handed to
- * HTTPIOHandler, which can seek it with range requests.
+ * HTTPStreamIOHandler that made it; an HLS playlist goes to HLSIOHandler; a
+ * file of known length is handed to HTTPIOHandler, which can seek it with
+ * range requests.
  * @throws InvalidMediaException if the URL cannot be opened.
  */
 std::unique_ptr<IOHandler> openHTTPIOHandler(const std::string& url);

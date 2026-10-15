@@ -77,6 +77,7 @@
 #include "io/file/FileIOHandler.cpp"
 #include "io/http/HTTPClient.cpp"
 #include "io/http/HTTPIOHandler.cpp"
+#include "io/http/LiveStreamIOHandler.cpp"
 #include "io/http/HTTPStreamIOHandler.cpp"
 
 // ============================================================================
