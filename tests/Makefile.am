@@ -2202,6 +2202,7 @@ EXTRA_DIST += \
 	mocks/psymp3.h \
 	mocks/stream.h \
 	mocks/taglib/tstring.h \
+	ogg_chain_fixture.h \
 	test_discovery.h \
 	test_executor.h \
 	test_framework.h \

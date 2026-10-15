@@ -112,6 +112,7 @@ EXTRA_DIST = \
 	include/core/third_party_licenses.h \
 	include/core/utility/Base64.h \
 	include/core/utility/G711.h \
+	include/core/utility/PlaylistText.h \
 	include/core/utility/UTF8Util.h \
 	include/core/utility/utility.h \
 	include/debug.h \
@@ -141,6 +142,7 @@ EXTRA_DIST = \
 	include/demuxer/matroska/MatroskaElements.h \
 	include/demuxer/matroska/SegmentParser.h \
 	include/demuxer/ac3/AC3NullDemuxer.h \
+	include/demuxer/adts/ADTSDemuxer.h \
 	include/demuxer/mlp/MLPNullDemuxer.h \
 	include/demuxer/mp3/MP3NullDemuxer.h \
 	include/demuxer/ogg/CodecHeaderParser.h \
@@ -172,8 +174,11 @@ EXTRA_DIST = \
 	include/io/TagLibIOHandlerAdapter.h \
 	include/io/URI.h \
 	include/io/file/FileIOHandler.h \
+	include/io/http/HLSIOHandler.h \
 	include/io/http/HTTPClient.h \
 	include/io/http/HTTPIOHandler.h \
+	include/io/http/HTTPStreamIOHandler.h \
+	include/io/http/LiveStreamIOHandler.h \
 	include/lastfm/LastFM.h \
 	include/lastfm/scrobble.h \
 	include/mediafile.h \
