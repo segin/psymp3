@@ -106,6 +106,90 @@ protected:
     }
 };
 
+/**
+ * @brief Where in the fixture the second link starts: the "OggS" before its
+ *        OpusHead packet.
+ * @return The offset.
+ */
+size_t secondLinkOffset()
+{
+    const std::string all(reinterpret_cast<const char*>(OggChainFixture::kData), sizeof(OggChainFixture::kData));
+    const size_t head = all.find("OpusHead", all.find("OpusHead") + 8);
+    return all.rfind("OggS", head);
+}
+
+/**
+ * @brief The second link's BOS page alone: its first page, up to its
+ *        OpusTags page.
+ * @return The page's bytes.
+ */
+std::string secondLinkBosPage()
+{
+    const std::string all(reinterpret_cast<const char*>(OggChainFixture::kData), sizeof(OggChainFixture::kData));
+    const size_t start = secondLinkOffset();
+    return all.substr(start, all.find("OggS", start + 4) - start);
+}
+
+/**
+ * @brief A BOS page of a stream PsyMP3 does not play: a Skeleton-like
+ *        "fishead" packet, as a link's first BOS page often is.
+ * @return The page's bytes.
+ */
+std::string unknownBosPage()
+{
+    ogg_stream_state os;
+    ogg_stream_init(&os, 0x5ce1e70);
+    std::vector<unsigned char> body(64, 0);
+    std::memcpy(body.data(), "fishead", 8);
+    ogg_packet packet{};
+    packet.packet = body.data();
+    packet.bytes = static_cast<long>(body.size());
+    packet.b_o_s = 1;
+    ogg_stream_packetin(&os, &packet);
+    ogg_page page;
+    std::string out;
+    while (ogg_stream_flush(&os, &page) != 0) {
+        out.append(reinterpret_cast<const char*>(page.header), static_cast<size_t>(page.header_len));
+        out.append(reinterpret_cast<const char*>(page.body), static_cast<size_t>(page.body_len));
+    }
+    ogg_stream_clear(&os);
+    return out;
+}
+
+/**
+ * @brief A live chain the next link of which does not start cleanly: first
+ *        a BOS page of a stream PsyMP3 does not play (the station used to
+ *        end there); then, apart, a link whose headers are interrupted by
+ *        the stream starting over -- a reconnection -- with a fresh BOS (its
+ *        pages used to be thrown away as another serial's).
+ */
+class ChainedLiveBosTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    ChainedLiveBosTest() : TestCase("Live chained Ogg: an unknown first BOS, and a restart mid-headers") {}
+protected:
+    /** @brief Both cases, each must still reach the second link. */
+    void runTest() override {
+        const std::string all(reinterpret_cast<const char*>(OggChainFixture::kData), sizeof(OggChainFixture::kData));
+        const size_t split = secondLinkOffset();
+        const std::string cases[2] = {
+            all.substr(0, split) + unknownBosPage() + all.substr(split),
+            all.substr(0, split) + secondLinkBosPage() + all.substr(split),
+        };
+        const char* names[2] = {"after an unknown BOS", "after a restart mid-headers"};
+        for (int c = 0; c < 2; ++c) {
+            OggDemuxer demuxer(std::make_unique<ChainLiveIOHandler>(cases[c].data(), cases[c].size()));
+            bool ok = false;
+            const ChainRead r = readAllChunks(demuxer, ok);
+            ASSERT_TRUE(ok, std::string("parses ") + names[c]);
+            ASSERT_EQUALS(2 * OggChainFixture::kPacketsPerLink, r.chunks,
+                          std::string("both links play ") + names[c]);
+            ASSERT_EQUALS(std::string("Tester - Link Two"), r.title_after,
+                          std::string("the second link's title ") + names[c]);
+        }
+    }
+};
+
 /** @brief A file: unchanged, it ends with its first link. */
 class ChainedFileTest : public TestFramework::TestCase {
 public:
@@ -136,6 +220,7 @@ int test_ogg_chained_live_main()
     TestFramework::TestSuite suite("Chained Ogg Tests");
     suite.addTest(std::make_unique<ChainedLiveTest>());
     suite.addTest(std::make_unique<ChainedFileTest>());
+    suite.addTest(std::make_unique<ChainedLiveBosTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return suite.getFailureCount(results);

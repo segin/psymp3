@@ -526,44 +526,72 @@ int OggDemuxer::streamKeyForSerial_unlocked(int serial) const {
  * @return false if the link is unusable; m_eof is set then.
  */
 bool OggDemuxer::beginNextLink_unlocked(ogg_page* bos_page) {
-  const int serial = ogg_page_serialno(bos_page);
-  auto stream = std::make_unique<OggStreamManager>(serial);
-  stream->submitPage(bos_page);
-
-  ogg_packet packet{};
+  /*
+   * A link opens with the BOS pages of all its streams. Its first need not
+   * be one PsyMP3 plays (a Skeleton stream comes first by convention), so
+   * each BOS page of the group is tried in turn. And a BOS arriving while
+   * the chosen stream's headers are still being read -- a reconnection
+   * starting the stream over -- restarts the link from that page.
+   */
+  ogg_page candidate = *bos_page;
+  int serial = 0;
+  std::unique_ptr<OggStreamManager> stream;
   std::unique_ptr<CodecHeaderParser> parser;
-  if (stream->getPacket(&packet) == 1) {
-    parser = CodecHeaderParser::create(&packet);
-  }
-  if (!parser) {
-    Debug::log("ogg", "OggDemuxer: next chained link has no codec PsyMP3 knows (serial ",
-               static_cast<unsigned>(serial), "); ending the stream");
-    m_eof = true;
-    return false;
-  }
   std::vector<std::vector<uint8_t>> headers;
-  headers.emplace_back(packet.packet, packet.packet + packet.bytes);
-  parser->parseHeader(&packet);
-
-  while (!parser->isHeadersComplete()) {
-    const int result = stream->getPacket(&packet);
-    if (result == 1) {
-      headers.emplace_back(packet.packet, packet.packet + packet.bytes);
-      parser->parseHeader(&packet);
-      continue;
+  ogg_packet packet{};
+  bool restart = true;
+  while (restart) {
+    restart = false;
+    serial = ogg_page_serialno(&candidate);
+    stream = std::make_unique<OggStreamManager>(serial);
+    stream->submitPage(&candidate);
+    parser.reset();
+    headers.clear();
+    if (stream->getPacket(&packet) == 1) {
+      parser = CodecHeaderParser::create(&packet);
     }
-    if (result < 0) {
-      continue; // a gap; the next packet follows
-    }
-    ogg_page page;
-    if (m_sync->getNextPage(&page) != 1) {
-      Debug::log("ogg", "OggDemuxer: stream ended inside the next chained link's headers (serial ",
-                 static_cast<unsigned>(serial), ")");
+    if (!parser) {
+      ogg_page next;
+      if (m_sync->getNextPage(&next) == 1 && ogg_page_bos(&next)) {
+        Debug::log("ogg", "OggDemuxer: next chained link's stream ", static_cast<unsigned>(serial),
+                   " is not one PsyMP3 plays; trying the link's next");
+        candidate = next;
+        restart = true;
+        continue;
+      }
+      Debug::log("ogg", "OggDemuxer: next chained link has no codec PsyMP3 knows (serial ",
+                 static_cast<unsigned>(serial), "); ending the stream");
       m_eof = true;
       return false;
     }
-    if (ogg_page_serialno(&page) == serial) {
-      stream->submitPage(&page);
+    headers.emplace_back(packet.packet, packet.packet + packet.bytes);
+    parser->parseHeader(&packet);
+
+    while (!parser->isHeadersComplete()) {
+      const int result = stream->getPacket(&packet);
+      if (result == 1) {
+        headers.emplace_back(packet.packet, packet.packet + packet.bytes);
+        parser->parseHeader(&packet);
+        continue;
+      }
+      if (result < 0) {
+        continue; // a gap; the next packet follows
+      }
+      ogg_page page;
+      if (m_sync->getNextPage(&page) != 1) {
+        Debug::log("ogg", "OggDemuxer: stream ended inside the next chained link's headers (serial ",
+                   static_cast<unsigned>(serial), ")");
+        m_eof = true;
+        return false;
+      }
+      if (ogg_page_serialno(&page) == serial && !ogg_page_bos(&page)) {
+        stream->submitPage(&page);
+      } else if (ogg_page_bos(&page) && isLiveSource()) {
+        Debug::log("ogg", "OggDemuxer: a new BOS while reading link headers; starting the link over");
+        candidate = page;
+        restart = true;
+        break;
+      }
     }
   }
 
