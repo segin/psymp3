@@ -42,6 +42,33 @@ std::string hlsLower(std::string s)
 }
 
 /**
+ * @brief What a segment holds, from its own bytes first, then its
+ *        Content-Type, then its name: "ts" for MPEG-TS, "audio/aac" for
+ *        ADTS, "audio/mpeg" for MPEG audio.
+ * @param data The segment, its ID3 tags removed.
+ * @param content_type Its Content-Type, lower case, or "".
+ * @param uri Its URI as the playlist writes it.
+ * @return The kind.
+ */
+std::string hlsSegmentKind(const std::string& data, const std::string& content_type, const std::string& uri)
+{
+    const auto byte = [&data](size_t i) { return static_cast<uint8_t>(data[i]); };
+    // MPEG-TS: 188-byte packets, each starting 0x47.
+    if (!data.empty() && byte(0) == 0x47 && (data.size() <= 188 || byte(188) == 0x47)) return "ts";
+    if (content_type == "video/mp2t") return "ts";
+    if (data.size() >= 2 && byte(0) == 0xFF && (byte(1) & 0xF0) == 0xF0) {
+        // A sync word: layer bits 00 are ADTS, anything else MPEG audio.
+        return (byte(1) & 0x06) == 0 ? "audio/aac" : "audio/mpeg";
+    }
+    if (content_type == "audio/mpeg" || content_type == "audio/mp3") return "audio/mpeg";
+    if (content_type == "audio/aac" || content_type == "audio/aacp" || content_type == "audio/x-aac") {
+        return "audio/aac";
+    }
+    const std::string path = hlsLower(uri.substr(0, uri.find('?')));
+    return path.size() >= 4 && path.compare(path.size() - 4, 4, ".mp3") == 0 ? "audio/mpeg" : "audio/aac";
+}
+
+/**
  * @brief Read an HLS attribute list (KEY=VALUE,KEY="quoted, value",...).
  *        Quoted values keep their commas; backslash-escaped quotes inside
  *        them (iHeart writes url="song_spot=\"M\" ...") are unescaped, and
@@ -526,17 +553,38 @@ void HLSIOHandler::runWorker()
                 continue;
             }
             stripLeadingID3(data);
+            /*
+             * Every segment is checked, not just the first by its name:
+             * MPEG-TS can come under any name, and a station can switch
+             * format at a discontinuity (an advert in MP3 between AAC
+             * songs). TS before any audio refuses the station; later, and
+             * any segment in another format than the station's, is skipped
+             * rather than fed to a decoder that cannot read it.
+             */
+            const std::string kind = hlsSegmentKind(data, hlsLower(content_type.substr(0, content_type.find(';'))),
+                                                    seg.uri);
+            bool refuse = false;
+            bool skip = false;
             {
                 std::lock_guard<std::mutex> lock(m_buf_mutex);
                 if (m_mime_type.empty()) {
-                    std::string type = content_type;
-                    if (type.empty() || type == "application/octet-stream") {
-                        const std::string path = hlsLower(seg.uri.substr(0, seg.uri.find('?')));
-                        type = path.size() >= 4 && path.compare(path.size() - 4, 4, ".mp3") == 0
-                             ? "audio/mpeg" : "audio/aac";
-                    }
-                    m_mime_type = type;
+                    refuse = kind == "ts";
+                    if (!refuse) m_mime_type = kind;
+                } else {
+                    skip = kind != m_mime_type;
                 }
+            }
+            if (refuse) {
+                // finishWorker() takes the buffer lock itself.
+                finishWorker(true, "HLS in MPEG-TS segments is not supported");
+                return;
+            }
+            if (skip) {
+                Debug::log("http", "HLSIOHandler: segment ", seg.sequence, " is ", kind,
+                           ", not the station's format; skipping it");
+                next_sequence = seg.sequence + 1;
+                last_uri = seg.uri;
+                continue;
             }
             if (!seg.title.empty()) {
                 recordTitle(seg.title);

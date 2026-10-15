@@ -532,6 +532,57 @@ protected:
     }
 };
 
+/**
+ * @brief Segments judged by what they hold, not the first one's name:
+ *        MPEG-TS under a name without .ts is refused (it was played as
+ *        AAC); and a segment in another format than the station's -- an MP3
+ *        advert between AAC songs -- is skipped, not fed to the AAC decoder.
+ */
+class SegmentFormatTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    SegmentFormatTest() : TestCase("HLS: TS under any name is refused; a segment in another format is skipped") {}
+protected:
+    /** @brief A TS station, then an AAC station with an MP3 segment. */
+    void runTest() override {
+        {
+            std::string ts(188 * 4, '\0');
+            for (size_t i = 0; i < ts.size(); i += 188) ts[i] = 0x47;
+            std::map<std::string, PathServer::Reply> replies;
+            replies["/t/seg0"] = {200, "application/octet-stream", ts};
+            replies["/t/live.m3u8"] = {200, "application/vnd.apple.mpegurl",
+                                       "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\nseg0\n#EXT-X-ENDLIST\n"};
+            PathServer server(replies);
+            bool refused = false;
+            try {
+                PsyMP3::IO::HTTP::openHTTPIOHandler(server.base() + "/t/live.m3u8");
+            } catch (const InvalidMediaException& e) {
+                refused = std::string(e.what()).find("MPEG-TS") != std::string::npos;
+            }
+            ASSERT_TRUE(refused, "TS without a .ts name is refused");
+        }
+        {
+            /** @brief An ADTS frame header and a little payload: what an AAC segment starts with. */
+            const auto aac = [](int n) {
+                return std::string("\xFF\xF1\x50\x80\x02\x1F\xFC", 7) + std::string(9, static_cast<char>('a' + n));
+            };
+            const std::string mp3 = std::string("\xFF\xFB\x90\x64", 4) + std::string(12, 'm');
+            std::map<std::string, PathServer::Reply> replies;
+            replies["/m/s0.aac"] = {200, "audio/aac", aac(0)};
+            replies["/m/ad.mp3"] = {200, "audio/mpeg", mp3};
+            replies["/m/s2.aac"] = {200, "audio/aac", aac(2)};
+            replies["/m/live.m3u8"] = {200, "application/vnd.apple.mpegurl",
+                                       "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2,\ns0.aac\n"
+                                       "#EXT-X-DISCONTINUITY\n#EXTINF:2,\nad.mp3\n"
+                                       "#EXT-X-DISCONTINUITY\n#EXTINF:2,\ns2.aac\n#EXT-X-ENDLIST\n"};
+            PathServer server(replies);
+            auto handler = PsyMP3::IO::HTTP::openHTTPIOHandler(server.base() + "/m/live.m3u8");
+            ASSERT_EQUALS(std::string("audio/aac"), handler->getMimeType(), "the station is AAC");
+            ASSERT_TRUE(readRest(*handler) == aac(0) + aac(2), "the MP3 segment between is skipped");
+        }
+    }
+};
+
 /** @brief A plain M3U "listen" link pointing at a stream. */
 class PlainPlaylistTest : public TestFramework::TestCase {
 public:
@@ -581,6 +632,7 @@ int test_hls_io_handler_main()
     suite.addTest(std::make_unique<SequenceRestartTest>());
     suite.addTest(std::make_unique<UnnumberedWindowTest>());
     suite.addTest(std::make_unique<WorkerTimingTest>());
+    suite.addTest(std::make_unique<SegmentFormatTest>());
 #endif
     auto results = suite.runAll();
     suite.printResults(results);
