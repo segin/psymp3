@@ -88,6 +88,14 @@ public:
     void disableReconnect();
 
     /**
+     * @brief The URL the last transfer ended up at, after redirects, for
+     *        resolving a playlist's relative entries. Known once a transfer
+     *        has finished -- as a playlist read whole has.
+     * @return It, or the URL asked for until then.
+     */
+    std::string getEffectiveUrl() const;
+
+    /**
      * @brief The station's name from its icy-name header, decoded as
      *        decodeIcyText() does.
      * @return The name, or "" when the server gave none.
@@ -315,6 +323,8 @@ private:
     bool m_conn_titled = false;       // this connection has announced a title
     /** @brief The first response was an ICY stream without a length: a station worth reconnecting to. */
     bool m_station = false;
+    /** @brief Where the last transfer's redirects led (CURLINFO_EFFECTIVE_URL); "" until one finishes. */
+    std::string m_effective_url;
     /** @brief Set by disableReconnect(): the reply is read whole, not played. */
     std::atomic<bool> m_no_reconnect{false};
 

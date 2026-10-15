@@ -537,6 +537,13 @@ public:
                     if (got <= 0) break;
                     request.append(buf, static_cast<size_t>(got));
                 }
+                {
+                    std::lock_guard<std::mutex> lock(m_paths_mutex);
+                    const size_t sp1 = request.find(' ');
+                    const size_t sp2 = request.find(' ', sp1 + 1);
+                    m_paths.push_back(sp1 == std::string::npos || sp2 == std::string::npos
+                                      ? std::string() : request.substr(sp1 + 1, sp2 - sp1 - 1));
+                }
                 m_connections = n + 1;
                 reply(n, [fd](const std::string& bytes) {
                     size_t sent = 0;
@@ -572,11 +579,25 @@ public:
      */
     int connections() const { return m_connections.load(); }
 
+    /**
+     * @brief The path each connection asked for, in order.
+     * @return The paths.
+     */
+    std::vector<std::string> paths() const
+    {
+        std::lock_guard<std::mutex> lock(m_paths_mutex);
+        return m_paths;
+    }
+
 private:
     int m_listen = -1;
     int m_port = 0;
     std::thread m_thread;
     std::atomic<int> m_connections{0};
+    /** @brief Guards m_paths. */
+    mutable std::mutex m_paths_mutex;
+    /** @brief Request paths, one per connection. */
+    std::vector<std::string> m_paths;
 };
 
 /** @brief A station that drops the connection, comes back, then refuses. */
@@ -776,6 +797,66 @@ protected:
             ASSERT_TRUE(got == audio.substr(0, 1000), "from its first byte");
         }
         HTTPStreamIOHandler::setReconnectAttempts(saved);
+    }
+};
+
+/**
+ * @brief Listen links with more than the first entry to them: a PLS whose
+ *        first mirror is down opens the second (only the first was ever
+ *        tried); and a relative entry in a playlist reached through a
+ *        redirect is taken from where the redirect led, not from the URL
+ *        first asked for.
+ */
+class ListenLinkEntriesTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    ListenLinkEntriesTest() : TestCase("Listen links: a dead first mirror is skipped; relative entries follow redirects") {}
+protected:
+    /** @brief One case each. */
+    void runTest() override {
+        {
+            const std::string audio = patternBytes(20000);
+            FakeServer station([&](const FakeServer::Send& send) {
+                send("HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: Mirror Two\r\n\r\n" + audio);
+            });
+            // A port nothing listens on: bind one, note it, close it.
+            const int probe = ::socket(AF_INET, SOCK_STREAM, 0);
+            sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            ::bind(probe, reinterpret_cast<sockaddr*>(&addr), sizeof addr);
+            socklen_t len = sizeof addr;
+            ::getsockname(probe, reinterpret_cast<sockaddr*>(&addr), &len);
+            const std::string dead = "http://127.0.0.1:" + std::to_string(ntohs(addr.sin_port)) + "/down";
+            ::close(probe);
+            FakeServer listen([&](const FakeServer::Send& send) {
+                send("HTTP/1.0 200 OK\r\nContent-Type: audio/x-scpls\r\n\r\n"
+                     "[playlist]\nFile1=" + dead + "\nFile2=" + station.url() + "\nNumberOfEntries=2\n");
+            });
+            auto h = PsyMP3::IO::HTTP::openHTTPIOHandler(listen.url());
+            ASSERT_TRUE(h->isLiveStream(), "the second mirror opened");
+            std::string got(1000, '\0');
+            ASSERT_EQUALS(got.size(), h->read(&got[0], 1, got.size()), "and plays");
+            ASSERT_TRUE(got == audio.substr(0, 1000), "its own audio");
+        }
+        {
+            const std::string audio = patternBytes(20000);
+            SequenceServer server([&](int n, const FakeServer::Send& send) {
+                if (n == 0) {
+                    send("HTTP/1.1 302 Found\r\nLocation: /moved/listen.m3u\r\nContent-Length: 0\r\n\r\n");
+                } else if (n == 1) {
+                    send("HTTP/1.0 200 OK\r\nContent-Type: audio/x-mpegurl\r\n\r\nlive.mp3\n");
+                } else {
+                    send("HTTP/1.0 200 OK\r\nContent-Type: audio/mpeg\r\nicy-name: Moved FM\r\n\r\n" + audio);
+                }
+            });
+            auto h = PsyMP3::IO::HTTP::openHTTPIOHandler(server.url() + "/listen.m3u");
+            ASSERT_TRUE(h->isLiveStream(), "the station opened");
+            const auto paths = server.paths();
+            ASSERT_TRUE(paths.size() >= 3, "redirect, playlist, station");
+            ASSERT_EQUALS(std::string("/moved/live.mp3"), paths.size() >= 3 ? paths[2] : std::string(),
+                          "the entry was taken from where the redirect led");
+        }
     }
 };
 
@@ -1067,6 +1148,7 @@ int test_http_stream_io_handler_main()
     suite.addTest(std::make_unique<ShoutcastV1EdgeTest>());
     suite.addTest(std::make_unique<TruncatedV1HeadTest>());
     suite.addTest(std::make_unique<ListenLinkLabelTest>());
+    suite.addTest(std::make_unique<ListenLinkEntriesTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

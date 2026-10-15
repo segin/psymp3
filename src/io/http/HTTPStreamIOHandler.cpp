@@ -273,6 +273,14 @@ bool HTTPStreamIOHandler::runConnection(std::string& error_text)
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, request_headers);
 
     const CURLcode rc = curl_easy_perform(curl);
+    {
+        // Where the redirects led: relative playlist entries resolve from here.
+        char* effective = nullptr;
+        if (curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective) == CURLE_OK && effective) {
+            std::lock_guard<std::mutex> lock(m_buf_mutex);
+            m_effective_url = effective;
+        }
+    }
     curl_easy_cleanup(curl);
     curl_slist_free_all(request_headers);
 
@@ -811,6 +819,16 @@ void HTTPStreamIOHandler::disableReconnect()
 }
 
 /**
+ * @brief Where the redirects led, or the URL asked for.
+ * @return The URL.
+ */
+std::string HTTPStreamIOHandler::getEffectiveUrl() const
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    return m_effective_url.empty() ? m_url : m_effective_url;
+}
+
+/**
  * @brief Content-Type stripped of parameters and lower-cased.
  * @return E.g. "audio/mpeg", or "" when the server sent none.
  */
@@ -973,24 +991,38 @@ std::unique_ptr<IOHandler> openHTTPIOHandlerFollowing(const std::string& url, in
             throw InvalidMediaException("Cannot open " + url + ": the playlist could not be read: " +
                                         std::strerror(stream->getLastError()));
         }
+        // Relative entries are relative to where the redirects led.
+        const std::string base = stream->getEffectiveUrl();
         stream.reset();
         if (text.find("#EXT-X-") != std::string::npos) {
             Debug::log("http", "openHTTPIOHandler: ", url, " is an HLS playlist");
             return std::make_unique<HLSIOHandler>(url);
         }
-        // A playlist of stations -- M3U, PLS, XSPF or ASX, as radio sites
-        // hand them out: open its first entry.
+        /*
+         * A playlist of stations -- M3U, PLS, XSPF or ASX, as radio sites
+         * hand them out. Several entries are usually mirrors of one station
+         * (a SHOUTcast .pls lists its relays): open the first that answers.
+         */
         const auto items = PlaylistText::parse(text, PlaylistText::detect(text, format));
-        const std::string entry = items.empty() ? std::string() : items.front().location;
-        if (entry.empty()) {
-            throw InvalidMediaException("Cannot open " + url + ": the playlist is empty");
-        }
         if (hops >= MAX_PLAYLIST_HOPS) {
             throw InvalidMediaException("Cannot open " + url + ": playlists nested too deep");
         }
-        const std::string next = HLSIOHandler::resolveUrl(url, entry);
-        Debug::log("http", "openHTTPIOHandler: ", url, " is a playlist; opening its first entry ", next);
-        return openHTTPIOHandlerFollowing(next, hops + 1);
+        std::string last_error = "the playlist is empty";
+        for (const auto& item : items) {
+            if (item.location.empty()) continue;
+            const std::string next = HLSIOHandler::resolveUrl(base, item.location);
+            Debug::log("http", "openHTTPIOHandler: ", url, " is a playlist; opening its entry ", next);
+            try {
+                return openHTTPIOHandlerFollowing(next, hops + 1);
+            } catch (const InvalidMediaException& e) {
+                Debug::log("http", "openHTTPIOHandler: ", next, " failed: ", e.what());
+                last_error = e.what();
+                if (StreamAbortGroup::current() && StreamAbortGroup::current()->isAborted()) {
+                    break; // the load was given up: no use trying the rest
+                }
+            }
+        }
+        throw InvalidMediaException("Cannot open " + url + ": " + last_error);
     }
     if (stream->isLive()) {
         Debug::log("http", "openHTTPIOHandler: ", url, " is a stream");
