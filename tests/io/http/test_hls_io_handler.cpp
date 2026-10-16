@@ -57,7 +57,8 @@ protected:
             "#EXT-X-MEDIA-SEQUENCE:179490653\r\n"
             "#EXT-X-DISCONTINUITY\r\n"
             "#EXTINF:10,title=\"Evil Woman\",artist=\"ELECTRIC LIGHT ORCHESTRA\",url=\"song_spot=\\\"M\\\" "
-            "spotInstanceId=\\\"-1\\\" length=\\\"00:04:09\\\" \"\r\n"
+            "spotInstanceId=\\\"-1\\\" length=\\\"00:04:09\\\" "
+            "amgArtworkURL=\\\"https://i.iheart.com/v3/catalog/track/2565655?ops=fit(200,200)\\\" \"\r\n"
             "http://cdn.example.com/main/179490653.aac?rj-org=x\r\n"
             "#EXTINF:10,title=\"Fly In\",artist=\"\",url=\"song_spot=\\\"T\\\" \"\r\n"
             "179490654.aac\r\n"
@@ -75,6 +76,9 @@ protected:
         ASSERT_EQUALS(std::string("Evil Woman"), parts.title, "iHeart EXTINF: title");
         ASSERT_TRUE(parts.is_music, "song_spot M is music");
         ASSERT_EQUALS(uint64_t(249000), parts.length_ms, "iHeart EXTINF: the song's length carried through");
+        ASSERT_EQUALS(std::string("https://i.iheart.com/v3/catalog/track/2565655?ops=fit(200,200)"),
+                      media.segments[0].artwork_url, "iHeart EXTINF: the song's picture");
+        ASSERT_EQUALS(std::string(), media.segments[1].artwork_url, "a spot without one");
         parts = PsyMP3::IO::HTTP::HTTPStreamIOHandler::splitStreamTitle(media.segments[1].title);
         ASSERT_EQUALS(std::string("Fly In"), parts.title, "a spot's title");
         ASSERT_FALSE(parts.is_music, "song_spot T is not music");
@@ -141,6 +145,20 @@ protected:
         std::string plain = "\xFF\xF1rest";
         HLSIOHandler::stripLeadingID3(plain);
         ASSERT_EQUALS(std::string("\xFF\xF1rest"), plain, "no tag: unchanged");
+
+        // An ID3v2.3 tag with an APIC front cover: the picture is kept as the tag goes.
+        std::string png("\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR\0\0\0\x40\0\0\0\x40\x08\x02\0\0\0\0\0\0\0", 33);
+        const std::string apic_body = std::string("\0image/png\0\x03\0", 13) + png;
+        std::string apic = "APIC";
+        for (int shift = 24; shift >= 0; shift -= 8) apic += static_cast<char>((apic_body.size() >> shift) & 0xFF);
+        apic += std::string(2, '\0') + apic_body;
+        std::string tagged = std::string("ID3\x03\x00\x00\x00\x00\x00", 9) + static_cast<char>(apic.size()) + apic + "AUDIO";
+        std::shared_ptr<const PsyMP3::Tag::Picture> picture;
+        HLSIOHandler::stripLeadingID3(tagged, &picture);
+        ASSERT_EQUALS(std::string("AUDIO"), tagged, "the tag removed");
+        ASSERT_TRUE(picture != nullptr, "its picture kept");
+        ASSERT_EQUALS(std::string("image/png"), picture->mime_type, "typed by its bytes");
+        ASSERT_EQUALS(64u, picture->width, "and measured");
 
         ASSERT_TRUE(HLSIOHandler::looksLikeHLS("application/vnd.apple.mpegurl", "http://a/x"), "by type");
         ASSERT_TRUE(HLSIOHandler::looksLikeHLS("audio/x-mpegurl", "http://a/x"), "by legacy type");

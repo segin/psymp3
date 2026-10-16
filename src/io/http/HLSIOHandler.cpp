@@ -109,6 +109,42 @@ std::map<std::string, std::string> hlsAttributes(const std::string& text)
 }
 
 /**
+ * @brief One key="value" pair from inside iHeart's url= attribute value
+ *        (its quotes already unescaped): url="song_spot=\"M\" length=...".
+ * @param url The url= value.
+ * @param key The inner key.
+ * @return Its value, or "".
+ */
+std::string hlsUrlAttribute(const std::string& url, const std::string& key)
+{
+    const std::string mark = key + "=\"";
+    for (size_t s = url.find(mark); s != std::string::npos; s = url.find(mark, s + 1)) {
+        if (s > 0 && url[s - 1] != ' ') continue; // part of a longer key
+        const size_t from = s + mark.size();
+        const size_t to = url.find('"', from);
+        return to == std::string::npos ? std::string() : url.substr(from, to - from);
+    }
+    return std::string();
+}
+
+/**
+ * @brief The picture an #EXTINF line links (iHeart's amgArtworkURL inside
+ *        url=), if it is an http(s) URL.
+ * @param info What follows "#EXTINF:".
+ * @return The URL, or "".
+ */
+std::string hlsArtworkFromExtinf(const std::string& info)
+{
+    const size_t comma = info.find(',');
+    if (comma == std::string::npos) return std::string();
+    const std::string rest = info.substr(comma + 1);
+    if (rest.find("=\"") == std::string::npos) return std::string();
+    auto attrs = hlsAttributes(rest);
+    const std::string url = hlsTrim(hlsUrlAttribute(attrs["url"], "amgArtworkURL"));
+    return HTTPStreamIOHandler::isArtworkUrl(url) ? url : std::string();
+}
+
+/**
  * @brief The song an #EXTINF line names, in a form splitStreamTitle() reads:
  *        "Artist - Title", or iHeart's attributes rewritten as
  *        'Artist - text="Title" song_spot="X"' so that station spots are
@@ -131,16 +167,8 @@ std::string hlsTitleFromExtinf(const std::string& info)
     if (title.empty() && artist.empty()) return std::string();
     // iHeart puts the kind of spot, and its length, inside url="song_spot=\"M\" length=\"00:04:25\" ...".
     const std::string& url = attrs["url"];
-    auto inner = [&url](const std::string& key) {
-        const std::string mark = key + "=\"";
-        const size_t s = url.find(mark);
-        if (s == std::string::npos || (s > 0 && url[s - 1] != ' ')) return std::string();
-        const size_t from = s + mark.size();
-        const size_t to = url.find('"', from);
-        return to == std::string::npos ? std::string() : url.substr(from, to - from);
-    };
-    const std::string spot = inner("song_spot");
-    const std::string length = inner("length");
+    const std::string spot = hlsUrlAttribute(url, "song_spot");
+    const std::string length = hlsUrlAttribute(url, "length");
     std::string escaped;
     for (char c : title) {
         if (c == '"' || c == '\\') escaped += '\\';
@@ -196,6 +224,7 @@ HLSIOHandler::Playlist HLSIOHandler::parsePlaylist(const std::string& text)
                 segment = Segment();
                 segment.duration = std::strtod(line.c_str() + 8, nullptr);
                 segment.title = hlsTitleFromExtinf(line.substr(8));
+                segment.artwork_url = hlsArtworkFromExtinf(line.substr(8));
                 pending_segment = true;
             } else if (line.compare(0, 22, "#EXT-X-TARGETDURATION:") == 0) {
                 pl.target_duration = std::strtod(line.c_str() + 22, nullptr);
@@ -310,10 +339,12 @@ std::string HLSIOHandler::resolveUrl(const std::string& base, const std::string&
 
 /**
  * @brief Drop each ID3v2 tag (10-byte header, synchsafe size, optional
- *        footer) at the start of a segment.
+ *        footer) at the start of a segment, reading its picture first when
+ *        asked.
  * @param data The segment.
+ * @param picture Receives the tags' first picture, when not null.
  */
-void HLSIOHandler::stripLeadingID3(std::string& data)
+void HLSIOHandler::stripLeadingID3(std::string& data, std::shared_ptr<const PsyMP3::Tag::Picture>* picture)
 {
     while (data.size() >= 10 && data.compare(0, 3, "ID3") == 0) {
         const auto b = [&data](size_t i) { return static_cast<uint64_t>(static_cast<uint8_t>(data[i]) & 0x7F); };
@@ -322,6 +353,20 @@ void HLSIOHandler::stripLeadingID3(std::string& data)
         if (size > data.size()) {
             data.clear();
             return;
+        }
+        if (picture && !*picture) {
+            const auto tag = PsyMP3::Tag::ID3v2Tag::parse(reinterpret_cast<const uint8_t*>(data.data()),
+                                                          static_cast<size_t>(size));
+            std::optional<PsyMP3::Tag::Picture> found;
+            for (size_t i = 0; tag && i < tag->pictureCount(); ++i) {
+                std::optional<PsyMP3::Tag::Picture> p = tag->getPicture(i);
+                if (!p || p->isEmpty()) continue;
+                if (!found || p->type == PsyMP3::Tag::PictureType::FrontCover) found = std::move(p);
+                if (found->type == PsyMP3::Tag::PictureType::FrontCover) break;
+            }
+            if (found) {
+                *picture = LiveStreamIOHandler::pictureFromBytes(std::string(found->data.begin(), found->data.end()));
+            }
         }
         data.erase(0, static_cast<size_t>(size));
     }
@@ -556,7 +601,8 @@ void HLSIOHandler::runWorker()
                 last_uri = seg.uri;
                 continue;
             }
-            stripLeadingID3(data);
+            std::shared_ptr<const PsyMP3::Tag::Picture> tag_picture;
+            stripLeadingID3(data, &tag_picture);
             /*
              * Every segment is checked, not just the first by its name:
              * MPEG-TS can come under any name, and a station can switch
@@ -592,6 +638,12 @@ void HLSIOHandler::runWorker()
             }
             if (!seg.title.empty()) {
                 recordTitle(seg.title);
+            }
+            // The segment's own picture (an ID3 APIC) beats a link to one.
+            if (tag_picture) {
+                recordPicture(tag_picture);
+            } else if (!seg.artwork_url.empty()) {
+                recordArtworkUrl(seg.artwork_url);
             }
             if (!data.empty() && !appendAudio(data.data(), data.size())) break;
             {

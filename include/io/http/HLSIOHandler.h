@@ -66,6 +66,7 @@ public:
         uint64_t sequence = 0;    ///< media sequence number
         double duration = 0.0;    ///< EXTINF duration, seconds
         std::string title;        ///< the song, as splitStreamTitle() reads it; "" if none
+        std::string artwork_url;  ///< the song's picture (iHeart amgArtworkURL), "" if none
     };
 
     /** @brief A parsed playlist: master (variants) or media (segments). */
@@ -124,8 +125,11 @@ public:
     /**
      * @brief Remove the ID3 tags at the front of a packed-audio segment.
      * @param data The segment; changed in place.
+     * @param picture Receives the first picture the tags carry (an APIC
+     *        frame, front cover preferred), when not null; untouched if none.
      */
-    static void stripLeadingID3(std::string& data);
+    static void stripLeadingID3(std::string& data,
+                                std::shared_ptr<const PsyMP3::Tag::Picture>* picture = nullptr);
 
     /**
      * @brief Whether a URL or Content-Type names an HLS playlist.
