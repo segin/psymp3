@@ -165,6 +165,12 @@ vgcore.2578017
 package/dpkg/out/
 package/rpm/out/
 package/appimage/out/
+# flatpak-builder: its build directory, the repository it exports to, its
+# cache, and the bundle.
+package/flatpak/build/
+package/flatpak/repo/
+package/flatpak/out/
+.flatpak-builder/
 # makepkg builds in place: src/ and pkg/ are its work directories, psymp3/ is
 # the clone it makes of this repository, and the package lands beside them.
 package/arch/src/

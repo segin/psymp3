@@ -1,0 +1,103 @@
+# package/flatpak/io.github.segin.psymp3.yml - PsyMP3 as a Flatpak
+#
+# Built by .github/workflows/packages.yml (job "flatpak") into a single-file
+# bundle, psymp3.flatpak. By hand, from the top of the tree:
+#
+#   flatpak-builder --user --install-deps-from=flathub --force-clean \
+#       --repo=package/flatpak/repo package/flatpak/build \
+#       package/flatpak/io.github.segin.psymp3.yml
+#   flatpak build-bundle package/flatpak/repo psymp3.flatpak io.github.segin.psymp3
+#
+# The KDE runtime is for Qt, which the file dialog uses (through the desktop
+# portal, inside the sandbox). SDL3, TagLib and FDK-AAC are built here: SDL3
+# at the release the AppImage uses, the other two as the runtime does not
+# carry them.
+
+id: io.github.segin.psymp3
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+command: psymp3
+rename-desktop-file: psymp3.desktop
+rename-icon: psymp3
+
+finish-args:
+  - --share=ipc
+  - --share=network                     # internet radio, Last.fm, cover art lookups
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --socket=pulseaudio                 # PipeWire serves this too
+  # Playlists name files by absolute path, anywhere; saving one writes there.
+  - --filesystem=host
+  # The same settings, Last.fm session and playlists as an installed PsyMP3.
+  - --filesystem=xdg-config/psymp3:create
+  # MPRIS: the plain name, or one per instance when it is taken.
+  - --own-name=org.mpris.MediaPlayer2.psymp3
+  - --own-name=org.mpris.MediaPlayer2.psymp3.*
+  # Discord Rich Presence: Discord's socket, native or Flatpak'd.
+  - --filesystem=xdg-run/discord-ipc-0
+  - --filesystem=xdg-run/app/com.discordapp.Discord:create
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  - /share/aclocal
+  - '*.la'
+  - '*.a'
+
+modules:
+  - name: SDL3
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DSDL_TESTS=OFF
+      - -DSDL_EXAMPLES=OFF
+      - -DSDL_STATIC=OFF
+    sources:
+      - type: git
+        url: https://github.com/libsdl-org/SDL.git
+        tag: release-3.4.18
+        commit: 829a65d769d935c4852f8159e964312c0957260a
+
+  - name: taglib
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_TESTING=OFF
+      - -DBUILD_EXAMPLES=OFF
+    sources:
+      - type: archive
+        url: https://taglib.org/releases/taglib-2.1.1.tar.gz
+        sha256: 3716d31f7c83cbf17b67c8cf44dd82b2a2f17e6780472287a16823e70305ddba
+
+  - name: fdk-aac
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_PROGRAMS=OFF
+    sources:
+      - type: archive
+        url: https://github.com/mstorsjo/fdk-aac/archive/refs/tags/v2.0.3.tar.gz
+        sha256: e25671cd96b10bad896aa42ab91a695a9e573395262baed4e4a2ff178d6a3a78
+
+  - name: psymp3
+    buildsystem: simple
+    build-commands:
+      - ./autogen.sh
+      - ./configure --prefix=/app --enable-final
+      - make -j"$FLATPAK_BUILDER_N_JOBS"
+      - make install
+      - install -Dm644 package/flatpak/io.github.segin.psymp3.metainfo.xml
+          /app/share/metainfo/io.github.segin.psymp3.metainfo.xml
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - package/flatpak/build
+          - package/flatpak/repo
+          - package/flatpak/out
+          - .flatpak-builder

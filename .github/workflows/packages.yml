@@ -5,6 +5,7 @@ name: Linux packages
 #   .rpm via package/rpm   - Fedora (latest) and openSUSE Tumbleweed
 #   .AppImage via package/appimage - built on Ubuntu 22.04, for any x86_64
 #                            distribution with glibc 2.35 or later
+#   .flatpak via package/flatpak - a bundle on Flathub's KDE runtime
 #
 # Every job runs in that distribution's own container on an Ubuntu runner --
 # GitHub does not offer Debian/Fedora/openSUSE runner images, and containers
@@ -12,7 +13,8 @@ name: Linux packages
 # which already builds in debian:trixie for its SDL3 packages). The AppImage
 # job is the exception in form only: its script builds and enters its own
 # container (package/appimage/Dockerfile), so the job itself runs on the
-# runner.
+# runner. The Flatpak job runs on the runner too: flatpak-builder brings its
+# own runtime, and builds in its own sandbox.
 
 on:
   push:
@@ -249,4 +251,61 @@ jobs:
       with:
         name: psymp3-appimage
         path: package/appimage/out/*.AppImage
+        if-no-files-found: error
+
+  flatpak:
+    name: Flatpak
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install flatpak-builder
+      run: |
+        set -eux
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends flatpak flatpak-builder appstream dbus
+        # Ubuntu 24.04 keeps unprivileged user namespaces from unconfined
+        # programs, and flatpak-builder's bubblewrap needs them.
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+    # SDL3, TagLib and FDK-AAC change only with the manifest: keep them built.
+    - name: Restore the dependency build cache
+      uses: actions/cache@v6
+      with:
+        path: .flatpak-builder
+        key: flatpak-builder-${{ hashFiles('package/flatpak/io.github.segin.psymp3.yml') }}
+        restore-keys: flatpak-builder-
+
+    - name: Build Flatpak
+      run: |
+        set -eux
+        flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse \
+          --repo=package/flatpak/repo package/flatpak/build package/flatpak/io.github.segin.psymp3.yml
+        mkdir -p package/flatpak/out
+        flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+          package/flatpak/repo package/flatpak/out/psymp3.flatpak io.github.segin.psymp3
+
+    - name: Verify the Flatpak runs
+      run: |
+        set -eux
+        flatpak install --user -y --noninteractive package/flatpak/out/psymp3.flatpak
+        # flatpak run needs a session bus, which a runner does not have.
+        # As for the AppImage: started on SDL's dummy drivers and stopped after
+        # a few seconds, it must have found its font in the app's own data.
+        dbus-run-session -- sh -c '
+          set -eux
+          timeout 30 flatpak run io.github.segin.psymp3 --version
+          out=$(timeout 15 flatpak run --env=SDL_VIDEODRIVER=dummy --env=SDL_AUDIODRIVER=dummy \
+                io.github.segin.psymp3 --debug=font 2>&1 || true)
+          printf "%s\n" "$out"
+          printf "%s\n" "$out" | grep -q "/app/share/psymp3/data/vera.ttf"
+          printf "%s\n" "$out" | grep -q "font->isValid(): 1"
+        '
+
+    - name: Upload package
+      uses: actions/upload-artifact@v7
+      with:
+        name: psymp3-flatpak
+        path: package/flatpak/out/psymp3.flatpak
         if-no-files-found: error

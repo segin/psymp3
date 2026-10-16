@@ -10,6 +10,7 @@ matching machine or container.
 | `rpm/`  | `.rpm` | Fedora (latest), openSUSE Tumbleweed |
 | `arch/` | `.pkg.tar.zst` | not in CI; built with `makepkg` on Arch |
 | `appimage/` | `.AppImage` | built on Ubuntu 22.04, run on Ubuntu 24.04 |
+| `flatpak/` | `.flatpak` | a bundle on Flathub's KDE 6.11 runtime, built and run on Ubuntu |
 
 ## Building by hand
 
@@ -18,7 +19,13 @@ matching machine or container.
 ./package/rpm/build-rpm.sh       # -> package/rpm/out/*.rpm
 (cd package/arch && makepkg)     # -> package/arch/*.pkg.tar.zst
 ./package/appimage/build-appimage.sh --docker   # -> package/appimage/out/*.AppImage
+flatpak-builder --user --install-deps-from=flathub --force-clean \
+    --repo=package/flatpak/repo package/flatpak/build \
+    package/flatpak/io.github.segin.psymp3.yml   # then flatpak build-bundle, as CI does
 ```
+
+The Flatpak builds from the working tree as it is, so run it from a clean
+checkout (an in-tree build's objects would be copied in with the sources).
 
 The two scripts need the distribution's build dependencies installed first. The
 dependency lists are single-sourced from the packaging metadata itself, so

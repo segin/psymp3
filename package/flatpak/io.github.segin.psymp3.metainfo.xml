@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- package/flatpak/io.github.segin.psymp3.metainfo.xml - AppStream data for the Flatpak -->
+<component type="desktop-application">
+  <id>io.github.segin.psymp3</id>
+  <name>PsyMP3</name>
+  <summary>Audio player with FFT visualization</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>ISC</project_license>
+  <developer id="io.github.segin">
+    <name>Kirn Gill II</name>
+  </developer>
+  <description>
+    <p>
+      PsyMP3 plays local music and internet radio with a spectrum analyzer
+      and a Windows 3.1-style interface: playlists, an equalizer, lyrics,
+      cover art, Last.fm scrobbling, MPRIS and Discord Rich Presence.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.segin.psymp3.desktop</launchable>
+  <url type="homepage">https://github.com/segin/psymp3</url>
+  <url type="bugtracker">https://github.com/segin/psymp3/issues</url>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="2.2.3" date="2026-10-14"/>
+  </releases>
+</component>
