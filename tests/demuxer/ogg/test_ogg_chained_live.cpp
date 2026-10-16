@@ -190,22 +190,81 @@ protected:
     }
 };
 
-/** @brief A file: unchanged, it ends with its first link. */
+/**
+ * @brief A chained file: it used to end with its first link, its duration
+ *        and seeking knowing that link alone. Now both links play, on one
+ *        timeline, and the duration covers both.
+ */
 class ChainedFileTest : public TestFramework::TestCase {
 public:
     /** @brief Name the test. */
-    ChainedFileTest() : TestCase("Chained Ogg file: still ends with its first link") {}
+    ChainedFileTest() : TestCase("Chained Ogg file: plays every link, lasts as long as all of them") {}
 protected:
-    /** @brief Read the fixture as a file and check only the first link comes out. */
+    /** @brief Read the fixture as a file: both links, one link change, the whole length. */
     void runTest() override {
         OggDemuxer demuxer(std::make_unique<MemoryIOHandler>(OggChainFixture::kData,
                                                              sizeof(OggChainFixture::kData)));
         bool ok = false;
         const ChainRead r = readAllChunks(demuxer, ok);
         ASSERT_TRUE(ok, "parses");
-        ASSERT_EQUALS(OggChainFixture::kPacketsPerLink, r.chunks, "the first link only");
-        ASSERT_EQUALS(size_t(0), r.new_link_flags, "no link change");
-        ASSERT_EQUALS(std::string(), r.title_after, "no stream title");
+        const uint64_t duration = demuxer.getDuration();
+        ASSERT_TRUE(duration >= 380 && duration <= 420,
+                    "both 0.2 s links in the duration (" + std::to_string(duration) + " ms)");
+        ASSERT_EQUALS(2 * OggChainFixture::kPacketsPerLink, r.chunks, "every packet of both links");
+        ASSERT_EQUALS(size_t(1), r.new_link_flags, "one link change");
+        ASSERT_EQUALS(std::string("Tester - Link Two"), r.title_after, "the second link's comments");
+    }
+};
+
+/**
+ * @brief Seeking a chained file across its links: into the second, its
+ *        codec is set up and its audio stamped on the file's timeline; back
+ *        into the first, likewise.
+ */
+class ChainedFileSeekTest : public TestFramework::TestCase {
+public:
+    /** @brief Name the test. */
+    ChainedFileSeekTest() : TestCase("Chained Ogg file: seeking into the second link and back") {}
+protected:
+    /** @brief Seek to 300 ms, then to 50 ms, checking the first chunk after each. */
+    void runTest() override {
+        OggDemuxer demuxer(std::make_unique<MemoryIOHandler>(OggChainFixture::kData,
+                                                             sizeof(OggChainFixture::kData)));
+        ASSERT_TRUE(demuxer.parseContainer(), "parses");
+        const uint32_t id = demuxer.getStreams()[0].stream_id;
+        const uint64_t link_two_starts = 9600; // 0.2 s at 48 kHz, the first link's length
+
+        /*
+         * Read past a seek: whether its first chunk restarts the codec, and
+         * the timestamp of the first chunk that carries a granule (Opus
+         * marks only each page's last packet; the rest are counted on).
+         */
+        auto afterSeek = [&](bool& flagged) {
+            flagged = false;
+            bool first = true;
+            for (int guard = 0; guard < 50; ++guard) {
+                MediaChunk c = demuxer.readChunk(id);
+                if (c.data.empty()) continue;
+                if (first) flagged = c.new_link;
+                first = false;
+                if (c.granule_position != static_cast<uint64_t>(-1)) return c.timestamp_samples;
+            }
+            return static_cast<uint64_t>(-1);
+        };
+        bool flagged = false;
+        ASSERT_TRUE(demuxer.seekTo(300), "seek into the second link");
+        uint64_t stamped = afterSeek(flagged);
+        ASSERT_TRUE(flagged, "the codec is rebuilt for the second link");
+        ASSERT_TRUE(stamped != static_cast<uint64_t>(-1) && stamped >= link_two_starts,
+                    "stamped on the file's timeline (" + std::to_string(stamped) + ")");
+        ASSERT_EQUALS(std::string("Tester - Link Two"), demuxer.getStreamTitle(), "the second link's title");
+
+        ASSERT_TRUE(demuxer.seekTo(50), "seek back into the first link");
+        stamped = afterSeek(flagged);
+        ASSERT_TRUE(flagged, "the codec is rebuilt for the first link");
+        // Each link of this fixture is one audio page: its granule is the link's end.
+        ASSERT_TRUE(stamped <= link_two_starts, "within the first link (" + std::to_string(stamped) + ")");
+        ASSERT_EQUALS(std::string("Tester - Link One"), demuxer.getStreamTitle(), "the first link's title");
     }
 };
 
@@ -220,6 +279,7 @@ int test_ogg_chained_live_main()
     TestFramework::TestSuite suite("Chained Ogg Tests");
     suite.addTest(std::make_unique<ChainedLiveTest>());
     suite.addTest(std::make_unique<ChainedFileTest>());
+    suite.addTest(std::make_unique<ChainedFileSeekTest>());
     suite.addTest(std::make_unique<ChainedLiveBosTest>());
     auto results = suite.runAll();
     suite.printResults(results);

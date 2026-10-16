@@ -403,10 +403,205 @@ void OggDemuxer::calculateInitialDuration_unlocked() {
             OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
             m_cached_duration = static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
             m_start_granule = engine.getStartGranule();
+            // A chained file lasts as long as all its playable links.
+            scanChainedLinks_unlocked();
             m_duration_calculated = true;
             Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: Calculated duration: ", m_cached_duration, "ms");
         }
     }
+}
+
+/**
+ * @brief Find a file's chained links and its duration across them; see the
+ *        declaration.
+ */
+void OggDemuxer::scanChainedLinks_unlocked() {
+  m_links.clear();
+  m_current_link = 0;
+  if (!m_handler || isLiveSource() || !m_has_primary_serial) return;
+
+  const auto saved = m_handler->tell();
+  m_handler->seek(0, SEEK_END);
+  const int64_t size = static_cast<int64_t>(m_handler->tell());
+  if (size <= 0) {
+    m_handler->seek(saved, SEEK_SET);
+    return;
+  }
+
+  /*
+   * The common case first, and cheaply: a file whose last page belongs to
+   * its first stream is one link. Only one that ends in another stream's
+   * page is read through.
+   */
+  {
+    const int64_t tail = std::min<int64_t>(size, 65536);
+    std::vector<char> buf(static_cast<size_t>(tail));
+    m_handler->seek(size - tail, SEEK_SET);
+    const size_t got = m_handler->read(buf.data(), 1, buf.size());
+    ogg_sync_state oy;
+    ogg_sync_init(&oy);
+    char* dst = ogg_sync_buffer(&oy, static_cast<long>(got));
+    std::memcpy(dst, buf.data(), got);
+    ogg_sync_wrote(&oy, static_cast<long>(got));
+    ogg_page og;
+    int last_serial = m_primary_serial;
+    bool any = false;
+    for (;;) {
+      const long r = ogg_sync_pageseek(&oy, &og);
+      if (r == 0) break;
+      if (r > 0) {
+        last_serial = ogg_page_serialno(&og);
+        any = true;
+      }
+    }
+    ogg_sync_clear(&oy);
+    if (!any || last_serial == m_primary_serial) {
+      m_handler->seek(saved, SEEK_SET);
+      return;
+    }
+  }
+
+  /** @brief A link as the scan finds it. */
+  struct Found {
+    int64_t offset = 0;
+    bool has_audio = false;    // a stream PsyMP3 plays was found (serials can be negative ints)
+    int serial = 0;            // that stream's serial
+    std::string codec;
+    uint32_t rate = 0;
+    uint32_t channels = 0;
+    uint64_t pre_skip = 0;
+    uint64_t last_granule = 0;
+  };
+  std::vector<Found> found;
+  Found current;
+  bool have_current = false;
+  bool in_bos_group = false;
+
+  ogg_sync_state oy;
+  ogg_sync_init(&oy);
+  m_handler->seek(0, SEEK_SET);
+  int64_t offset = 0;  // file offset of the next byte the sync layer will look at
+  ogg_page og;
+  for (;;) {
+    const long r = ogg_sync_pageseek(&oy, &og);
+    if (r == 0) {
+      char* dst = ogg_sync_buffer(&oy, 65536);
+      const size_t got = m_handler->read(dst, 1, 65536);
+      if (got == 0) break;
+      ogg_sync_wrote(&oy, static_cast<long>(got));
+      continue;
+    }
+    if (r < 0) {
+      offset += -r;
+      continue;
+    }
+    const int64_t page_offset = offset;
+    offset += r;
+    const int serial = ogg_page_serialno(&og);
+    if (ogg_page_bos(&og)) {
+      if (!in_bos_group) {
+        // A BOS after data pages: the next link begins here.
+        if (have_current) found.push_back(current);
+        current = Found();
+        current.offset = page_offset;
+        have_current = true;
+        in_bos_group = true;
+      }
+      if (!current.has_audio) {
+        ogg_stream_state os;
+        ogg_stream_init(&os, serial);
+        ogg_stream_pagein(&os, &og);
+        ogg_packet packet{};
+        if (ogg_stream_packetout(&os, &packet) == 1) {
+          if (auto parser = CodecHeaderParser::create(&packet)) {
+            parser->parseHeader(&packet);
+            const auto info = parser->getCodecInfo();
+            current.has_audio = true;
+            current.serial = serial;
+            current.codec = info.codec_name;
+            std::transform(current.codec.begin(), current.codec.end(), current.codec.begin(), ::tolower);
+            current.rate = info.rate;
+            current.channels = info.channels;
+            current.pre_skip = current.codec == "opus" ? info.pre_skip : 0;
+          }
+        }
+        ogg_stream_clear(&os);
+      }
+    } else {
+      in_bos_group = false;
+      if (have_current && current.has_audio && serial == current.serial && ogg_page_granulepos(&og) >= 0) {
+        current.last_granule = static_cast<uint64_t>(ogg_page_granulepos(&og));
+      }
+    }
+  }
+  if (have_current) found.push_back(current);
+  ogg_sync_clear(&oy);
+  m_handler->seek(saved, SEEK_SET);
+
+  /*
+   * The playable chain: links sharing the first one's codec, rate and
+   * channels, as the codec is rebuilt between links but the audio device is
+   * not. One that differs, or has no stream PsyMP3 plays, ends it there.
+   */
+  if (found.size() < 2 || !found[0].has_audio || found[0].serial != m_primary_serial) return;
+  uint64_t start = 0;
+  for (const Found& link : found) {
+    if (!link.has_audio || link.codec != found[0].codec || link.rate != found[0].rate ||
+        link.channels != found[0].channels) {
+      Debug::log("ogg", "OggDemuxer: chained file's link at ", link.offset,
+                 " cannot follow the first (other codec or format); the file ends before it");
+      break;
+    }
+    ChainLink entry;
+    entry.offset = link.offset;
+    entry.serial = link.serial;
+    entry.pre_skip = link.pre_skip;
+    entry.start_samples = start;
+    entry.length_samples = link.last_granule > link.pre_skip ? link.last_granule - link.pre_skip : 0;
+    start += entry.length_samples;
+    m_links.push_back(entry);
+  }
+  if (m_links.size() < 2) {
+    m_links.clear();
+    return;
+  }
+  const uint64_t rate = found[0].codec == "opus" ? 48000 : found[0].rate;
+  if (rate != 0) {
+    m_cached_duration = start * 1000 / rate;
+  }
+  Debug::log("ogg", "OggDemuxer: chained file, ", m_links.size(), " links, ", m_cached_duration.load(), " ms in all");
+}
+
+/**
+ * @brief Make link @p index the one read.
+ * @param index Into m_links.
+ * @return false if it cannot be set up.
+ */
+bool OggDemuxer::setUpLink_unlocked(size_t index) {
+  if (index >= m_links.size()) return false;
+  if (!m_sync->seek(m_links[index].offset)) return false;
+  ogg_page page;
+  if (m_sync->getNextPage(&page) != 1 || !ogg_page_bos(&page)) return false;
+  if (!beginNextLink_unlocked(&page)) {
+    m_eof = false; // a seek failing is not the end of the file
+    return false;
+  }
+  m_current_link = index;
+  return true;
+}
+
+/**
+ * @brief Move a later link's chunk onto the file's timeline.
+ * @param chunk The chunk.
+ */
+void OggDemuxer::applyLinkOffset_unlocked(MediaChunk& chunk) const {
+  if (m_links.size() < 2 || m_current_link == 0 || m_current_link >= m_links.size()) return;
+  if (chunk.granule_position == static_cast<uint64_t>(-1)) return;
+  const ChainLink& link = m_links[m_current_link];
+  // timestamp_samples is already the link's own, its pre-skip taken off.
+  chunk.timestamp_samples += link.start_samples;
+  // A granule the first link's codec would give the same sample.
+  chunk.granule_position = chunk.timestamp_samples + m_links[0].pre_skip;
 }
 
 std::vector<StreamInfo> OggDemuxer::getStreams() const {
@@ -630,6 +825,13 @@ bool OggDemuxer::beginNextLink_unlocked(ogg_page* bos_page) {
   const std::string title = field("TITLE");
   m_link_title = (!artist.empty() && !title.empty()) ? artist + " - " + title : artist + title;
 
+  // A chained file has moved on to its next link (a seek sets the link
+  // itself, after this).
+  if (!isLiveSource() && m_current_link + 1 < m_links.size()) {
+    ++m_current_link;
+  }
+  const uint64_t link_start = m_current_link < m_links.size() ? m_links[m_current_link].start_samples : 0;
+
   m_link_chunks.clear();
   if (in_band) {
     for (auto& header : headers) {
@@ -637,6 +839,8 @@ bool OggDemuxer::beginNextLink_unlocked(ogg_page* bos_page) {
       chunk.stream_id = static_cast<uint32_t>(key);
       chunk.data = std::move(header);
       chunk.new_link = m_link_chunks.empty();
+      // Where on the file's timeline the link begins (a seek moves it on).
+      chunk.timestamp_samples = link_start;
       m_link_chunks.push_back(std::move(chunk));
     }
     m_link_flag_pending = false;
@@ -700,6 +904,9 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
                   : 0;
         }
       }
+      if (stream_id == static_cast<uint32_t>(m_primary_serial)) {
+        applyLinkOffset_unlocked(chunk);
+      }
 
       return chunk;
     }
@@ -715,14 +922,16 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     int serial = ogg_page_serialno(&page);
     const int key = streamKeyForSerial_unlocked(serial);
     auto it = m_streams.find(key);
-    // A new logical stream beginning where the primary one was: the next
-    // link of a chained stream -- or, after a station's connection was
-    // dropped and made again, the stream starting over, perhaps under the
-    // same serial. Every packet of the old link has gone out already, since
-    // pages are read only when the stream has none. Only for internet radio:
-    // a chained file's duration and seeking know its first link alone, so a
-    // file still ends there.
-    const bool next_link = ogg_page_bos(&page) && m_has_primary_serial && isLiveSource() &&
+    /*
+     * A new logical stream beginning where the primary one was: the next
+     * link of a chained stream -- or, after a station's connection was
+     * dropped and made again, the stream starting over, perhaps under the
+     * same serial. Every packet of the old link has gone out already, since
+     * pages are read only when the stream has none. A chained file goes on
+     * into the links its scan found playable (m_links); past them it ends.
+     */
+    const bool chain_continues = isLiveSource() || m_current_link + 1 < m_links.size();
+    const bool next_link = ogg_page_bos(&page) && m_has_primary_serial && chain_continues &&
                            stream_id == static_cast<uint32_t>(m_primary_serial) &&
                            (it == m_streams.end() || key == m_primary_serial);
     if (!next_link && it != m_streams.end()) {
@@ -759,6 +968,9 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     chunk.timestamp_samples =
         computeTimestampSamples(pit->second->getCodecInfo(), chunk.granule_position);
   }
+  if (stream_id == static_cast<uint32_t>(m_primary_serial)) {
+    applyLinkOffset_unlocked(chunk);
+  }
 
   return chunk;
 }
@@ -770,13 +982,42 @@ bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
   if (m_handler && m_handler->isLiveStream())
     return false;
 
+  /*
+   * A chained file: the target lies in one of its links. When that is not
+   * the link being read, its stream and codec headers are set up first (and
+   * the consumer rebuilds its codec, as at a link change); then the seek
+   * runs inside that link, at the target's time within it.
+   */
+  uint64_t link_start_ms = 0;
+  size_t target_link = m_current_link;
+  if (m_links.size() > 1) {
+    const uint64_t rate = static_cast<uint64_t>(getSampleRate());
+    const uint64_t out_rate = rate == 0 ? 48000 : rate;
+    auto codec_name = [this]() {
+      auto pit = m_parsers.find(m_primary_serial);
+      std::string c = pit == m_parsers.end() ? std::string() : pit->second->getCodecInfo().codec_name;
+      std::transform(c.begin(), c.end(), c.begin(), ::tolower);
+      return c;
+    };
+    const uint64_t timeline_rate = codec_name() == "opus" ? 48000 : out_rate;
+    const uint64_t target_samples = timestamp_ms * timeline_rate / 1000;
+    target_link = 0;
+    for (size_t i = 1; i < m_links.size(); ++i) {
+      if (m_links[i].start_samples <= target_samples) target_link = i;
+    }
+    if (target_link != m_current_link && !setUpLink_unlocked(target_link)) {
+      return false;
+    }
+    link_start_ms = m_links[target_link].start_samples * 1000 / timeline_rate;
+  }
+
   auto sit = m_streams.find(m_primary_serial);
   if (sit == m_streams.end())
     return false;
 
   OggSeekingEngine engine(*m_sync, *sit->second, getSampleRate());
 
-  double time_seconds = static_cast<double>(timestamp_ms) / 1000.0;
+  double time_seconds = static_cast<double>(timestamp_ms - std::min(timestamp_ms, link_start_ms)) / 1000.0;
   bool success = engine.seekToTime(time_seconds);
 
   if (success) {
@@ -792,6 +1033,21 @@ bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
     // at: the frames that follow then carry honest positions, and the caller
     // can tell how much of the landing page precedes the sample it asked for.
     sit->second->setGranulePos(engine.getLandingGranule());
+
+    /*
+     * A seek into another link of a chained file queued that link's headers
+     * to rebuild the codec. They are the first chunks the consumer sees, and
+     * it re-anchors on the first chunk's timestamp: give them the landing
+     * point on the file's timeline, not the link's start.
+     */
+    if (!m_link_chunks.empty() && m_links.size() > 1) {
+      auto pit = m_parsers.find(m_primary_serial);
+      if (pit != m_parsers.end()) {
+        const uint64_t landing = computeTimestampSamples(pit->second->getCodecInfo(), engine.getLandingGranule()) +
+                                 m_links[target_link].start_samples;
+        for (MediaChunk& chunk : m_link_chunks) chunk.timestamp_samples = landing;
+      }
+    }
   }
 
   return success;

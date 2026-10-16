@@ -94,6 +94,49 @@ private:
     bool m_link_flag_pending = false;       // flag the next primary chunk new_link
     std::string m_link_title;               // the current link's "Artist - Title"
 
+    /** @brief One link of a chained Ogg file: where it starts and what of the whole timeline it covers. */
+    struct ChainLink {
+        int64_t offset = 0;           ///< byte offset of its first BOS page
+        int serial = 0;               ///< its audio stream's serial number
+        uint64_t pre_skip = 0;        ///< Opus pre-skip (0 for other codecs)
+        uint64_t start_samples = 0;   ///< output samples of the links before it
+        uint64_t length_samples = 0;  ///< its own output samples
+    };
+    /**
+     * @brief A chained file's playable links, in order: those sharing the
+     *        first link's codec, rate and channels (a link that changes them
+     *        ends the file there). Empty, or one, for a file that is not
+     *        chained, and for live streams.
+     */
+    std::vector<ChainLink> m_links;
+    /** @brief Which of m_links is being read. */
+    size_t m_current_link = 0;
+
+    /**
+     * @brief Find a file's chained links (m_links) and its duration across
+     *        them. A file whose last page is its first stream's is not
+     *        chained and costs one look at its end; a chained one is read
+     *        through once. The I/O position is left as it was.
+     */
+    void scanChainedLinks_unlocked();
+
+    /**
+     * @brief Make link @p index the one read: its stream and codec headers
+     *        in place of the primary stream's, its codec rebuilt by the
+     *        consumer (as at a link change in playback).
+     * @param index Into m_links.
+     * @return false if the link cannot be set up.
+     */
+    bool setUpLink_unlocked(size_t index);
+
+    /**
+     * @brief Move a chunk of a chained file's later link onto the file's one
+     *        timeline: its timestamp from the links before it, its granule as
+     *        the first link's codec would number it.
+     * @param chunk The chunk, as its own link numbers it.
+     */
+    void applyLinkOffset_unlocked(MediaChunk& chunk) const;
+
     /**
      * @brief The key in m_streams/m_parsers that pages of @p serial belong
      *        to: the primary key for a later chained link, else the serial.
