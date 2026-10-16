@@ -261,6 +261,12 @@ private:
     /// The picture the stream sent for what plays now, or null.
     std::shared_ptr<const PsyMP3::Tag::Picture> m_live_picture;
     std::atomic<uint64_t> m_live_art_generation{0};
+    /** @brief Compressed bytes decoded so far, for a live stream's measured bitrate. */
+    uint64_t m_live_bitrate_bytes = 0;
+    /** @brief Output frames they decoded to. */
+    uint64_t m_live_bitrate_frames = 0;
+    /** @brief The measured bitrate, bits per second; 0 until enough has played. Read by the GUI. */
+    std::atomic<unsigned int> m_live_bitrate{0};
     std::atomic<uint64_t> m_live_meta_generation{0};
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real

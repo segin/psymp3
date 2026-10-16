@@ -815,6 +815,24 @@ AudioFrame DemuxedStream::getNextFrame() {
         adoptOutputFormat(frame);
         if (m_live) {
             updateLiveTitle(chunk.file_offset);
+            /*
+             * A station has no size or length to take a bitrate from, and
+             * few say one: measure it -- compressed bytes over the time they
+             * decoded to -- once five seconds have played, and keep it current.
+             */
+            if (m_bitrate <= 0 && m_rate > 0) {
+                m_live_bitrate_bytes += chunk.data.size();
+                m_live_bitrate_frames += frame.getSampleFrameCount();
+                if (m_live_bitrate_frames >= 5ULL * static_cast<uint64_t>(m_rate)) {
+                    const bool first = m_live_bitrate.load() == 0;
+                    m_live_bitrate = static_cast<unsigned int>(m_live_bitrate_bytes * 8ULL *
+                                                               static_cast<uint64_t>(m_rate) / m_live_bitrate_frames);
+                    if (first) {
+                        Debug::log("demux", "DemuxedStream: measured bitrate " +
+                                   std::to_string(m_live_bitrate.load()) + " bit/s");
+                    }
+                }
+            }
         }
         if (m_reanchor_pending) {
             if (!m_seek_base_set) {
@@ -1234,8 +1252,16 @@ unsigned int DemuxedStream::getRate() {
     return m_rate;
 }
 
+/**
+ * @brief The bitrate: the container's, or the file's size over its length;
+ *        for a live stream that states none, the rate measured as it plays.
+ * @return Bits per second, or 0 when unknown.
+ */
 unsigned int DemuxedStream::getBitrate() {
-    return m_bitrate;
+    if (m_bitrate <= 0 && m_live) {
+        return m_live_bitrate.load();
+    }
+    return static_cast<unsigned int>(m_bitrate);
 }
 
 std::vector<StreamInfo> DemuxedStream::getAvailableStreams() const {
