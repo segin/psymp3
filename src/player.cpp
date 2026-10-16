@@ -7262,6 +7262,14 @@ void Player::handleRunGuiIterationEvent() {
         if (stream && stream->hasPendingFormatChange()) {
             // Not the end: a station changed rate or channels. Follow it.
             reopenAudioForFormatChange();
+        } else if (m_loop_mode == LoopMode::One && stream && stream->isLive()) {
+            /*
+             * A station that ended (lost past its reconnections, or a link it
+             * could not follow) has no beginning to seek to: the seek was
+             * refused every frame and the player sat silent. Repeating it is
+             * tuning in again.
+             */
+            requestTrackLoad(playlist->getTrack(playlist->getPosition()));
         } else if (m_loop_mode == LoopMode::One) {
             // Loop current track by seeking to the beginning.
             seekToInternal(0, false);
