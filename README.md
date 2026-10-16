@@ -216,6 +216,12 @@ drag it onto the window, or put it in a playlist.
   which start a new stream for each song, play on across the changes; when
   a song (or an ad) comes at another sample rate or channel count, the audio
   device is reopened for it, with a short gap.
+- **Cover art** a station sends, or links, is shown as the song's: in the
+  album art window, Album Art Mode and over MPRIS. That is ICY's
+  `StreamArtwork` or `StreamUrl` (Radio Paradise sends each song's cover,
+  SomaFM its logo), iHeart's `amgArtworkURL`, pictures in HLS segments' ID3
+  tags, and each chained Ogg link's own. A song the station sends no picture
+  for shows none.
 - **HLS** stations (`.m3u8`) whose segments are packed AAC or MP3, as iHeart
   sends. MPEG-TS, fragmented-MP4, byte-range and encrypted segments are not
   supported.
