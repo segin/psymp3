@@ -263,7 +263,9 @@ jobs:
       run: |
         set -eux
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends flatpak flatpak-builder appstream dbus
+        # elfutils: without rofiles-fuse, flatpak-builder strips the build
+        # with the runner's eu-strip.
+        sudo apt-get install -y --no-install-recommends flatpak flatpak-builder appstream dbus elfutils
         # Ubuntu 24.04 keeps unprivileged user namespaces from unconfined
         # programs, and flatpak-builder's bubblewrap needs them.
         sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
