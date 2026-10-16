@@ -453,6 +453,27 @@ class Player
         TagLib::String m_last_live_scrobble;
         /** @brief When m_last_live_scrobble was scrobbled (wall clock). */
         time_t m_last_live_scrobble_at = 0;
+        /** @brief The live title's length as the station announced it (iHeart), or 0. */
+        uint64_t m_live_title_length_ms = 0;
+
+        /**
+         * @brief How long the current live title must have played to be
+         *        scrobbled. With its length known, Last.fm's own rule: half
+         *        of it or 4 minutes, whichever is less (never, under 30 s).
+         *        Without: 30 s if it was heard from its start to its end,
+         *        else 4 minutes.
+         * @param heard_to_end Whether the next title has begun, so this one
+         *        was heard to its end.
+         * @return Milliseconds; UINT64_MAX for never.
+         */
+        uint64_t liveScrobbleThresholdMs(bool heard_to_end) const;
+
+        /**
+         * @brief Leaving the live stream (stop, another track, quit): scrobble
+         *        the title playing now if it has played long enough, rather
+         *        than lose it.
+         */
+        void scrobbleLiveTitleOnLeaving();
 
         /**
          * @brief How long the current live title has played -- audio out,
@@ -469,11 +490,12 @@ class Player
         void beginLiveTitle(bool first);
 
         /**
-         * @brief Scrobble the live title that has just finished, if it is
-         *        music with an artist and played long enough: 30 s, or 4 min
-         *        for the first title, which the listener joined mid-song.
+         * @brief Scrobble the live title, if it is music with an artist and
+         *        has played long enough (liveScrobbleThresholdMs()).
+         * @param heard_to_end Whether it has ended (the next title began),
+         *        rather than being cut off or still playing.
          */
-        void scrobbleFinishedLiveTitle();
+        void scrobbleFinishedLiveTitle(bool heard_to_end = true);
 
         /**
          * @brief The live stream announced a new title: scrobble the last one,

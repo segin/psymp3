@@ -1472,6 +1472,8 @@ void Player::handleTrackSeamlessSwapEvent() {
         return;
     }
 
+    // A station that ended (lost past its reconnections): its last song counts if heard long enough.
+    scrobbleLiveTitleOnLeaving();
     const bool recreate_audio = !canReuseAudioForStream(audio.get(), m_next_stream.get());
 
     try {
@@ -2608,6 +2610,8 @@ bool Player::stop(void) {
     // Nothing is to play now: give up any load, stalled or not.
     abortInflightLoad();
     m_pending_load_active = false;
+    // A station's song stopped part-way still counts if heard long enough.
+    scrobbleLiveTitleOnLeaving();
     state = PlayerState::Stopped;
     updateTaskbarPlayState();
     /*
@@ -4747,6 +4751,8 @@ void Player::Cleanup() {
     if (system) system->updateProgress(0, 0);
     System::setMainWindow(nullptr);
 #endif
+    // Quitting during a station's song: it counts if heard long enough.
+    scrobbleLiveTitleOnLeaving();
     // A stalled internet radio station would otherwise hold the loader and
     // the decoder in their reads until its stall check gives up, half a
     // minute later, and every join below would wait for it.
@@ -6630,14 +6636,15 @@ void Player::checkScrobbling()
         return;
     }
 
-    // Internet radio has no length to take half of. A title is normally
-    // scrobbled when the next one arrives; one that has already played four
-    // minutes -- Last.fm's ceiling -- is scrobbled now, which also covers the
-    // first title, joined mid-song, and a title the station never follows.
+    /*
+     * Internet radio: a title is normally scrobbled when the next one
+     * arrives. One that has already played long enough without being heard
+     * to its end -- half its announced length, else four minutes, Last.fm's
+     * ceiling -- is scrobbled now, which also covers the first title, joined
+     * mid-song, and a title the station never follows.
+     */
     if (stream->isLive()) {
-        if (liveTitlePlayedMs() >= 240000) {
-            scrobbleFinishedLiveTitle();
-        }
+        scrobbleFinishedLiveTitle(false);
         return;
     }
 
@@ -6732,6 +6739,7 @@ void Player::beginLiveTitle(bool first)
     m_live_title_is_music = stream->isCurrentTitleMusic();
     m_live_title_started_at = time(nullptr);
     m_live_title_start_samples = audio ? audio->getSamplesPlayed() : 0;
+    m_live_title_length_ms = stream->getCurrentTitleLengthMs();
     m_live_first_title = first;
     m_track_start_time = SDL_GetTicks();
     m_track_scrobbled = false;
@@ -6751,19 +6759,40 @@ uint64_t Player::liveTitlePlayedMs() const
 }
 
 /**
- * @brief Scrobble the live title that has been playing, if it qualifies:
- *        music, an artist and a title, and 30 s played (4 min for the first
- *        title, which was joined mid-song). Stamped with its start time.
+ * @brief How long the live title must play to be scrobbled.
+ * @param heard_to_end Whether it has ended rather than been cut off.
+ * @return Milliseconds, or UINT64_MAX for never.
  */
-void Player::scrobbleFinishedLiveTitle()
+uint64_t Player::liveScrobbleThresholdMs(bool heard_to_end) const
+{
+    constexpr uint64_t kFourMinutes = 240000;
+    if (m_live_title_length_ms > 0) {
+        // Last.fm: tracks of 30 s or less are not scrobbled at all.
+        if (m_live_title_length_ms <= 30000) return UINT64_MAX;
+        return std::min(m_live_title_length_ms / 2, kFourMinutes);
+    }
+    /*
+     * No length: a title heard from its start to its end was heard whole,
+     * whatever it lasted; one joined mid-song, or cut off, must have played
+     * Last.fm's ceiling.
+     */
+    return heard_to_end && !m_live_first_title ? 30000 : kFourMinutes;
+}
+
+/**
+ * @brief Scrobble the live title, if it qualifies: music, an artist and a
+ *        title, and played long enough (liveScrobbleThresholdMs()). Stamped
+ *        with its start time; its length is the station's when it gave one.
+ * @param heard_to_end Whether the next title has begun.
+ */
+void Player::scrobbleFinishedLiveTitle(bool heard_to_end)
 {
     if (!m_lastfm || m_track_scrobbled || m_track_start_time == 0 || !m_live_title_is_music ||
         m_live_scrobble_artist.isEmpty() || m_live_scrobble_title.isEmpty()) {
         return;
     }
     const uint64_t played_ms = liveTitlePlayedMs();
-    const uint64_t required_ms = m_live_first_title ? 240000 : 30000;
-    if (played_ms < required_ms) {
+    if (played_ms < liveScrobbleThresholdMs(heard_to_end)) {
         return;
     }
     /*
@@ -6776,7 +6805,7 @@ void Player::scrobbleFinishedLiveTitle()
         return;
     }
     track scrobble_track(TagLib::String(""), m_live_scrobble_artist, m_live_scrobble_title);
-    scrobble_track.SetLen(static_cast<unsigned int>(played_ms / 1000));
+    scrobble_track.SetLen(static_cast<unsigned int>((m_live_title_length_ms > 0 ? m_live_title_length_ms : played_ms) / 1000));
     scrobble_track.setAlbum(m_live_scrobble_album);
     scrobble_track.setScrobbleArtist(m_live_scrobble_artist);
     if (m_lastfm->scrobbleTrack(scrobble_track, m_live_title_started_at)) {
@@ -6786,6 +6815,27 @@ void Player::scrobbleFinishedLiveTitle()
         Debug::log("lastfm", "Player: scrobbled stream title ", m_live_scrobble_artist.to8Bit(true),
                    " - ", m_live_scrobble_title.to8Bit(true));
     }
+}
+
+/**
+ * @brief Leaving a live stream: its current title is scrobbled if it has
+ *        played long enough, as it would be when the next title came.
+ */
+void Player::scrobbleLiveTitleOnLeaving()
+{
+    if (!stream || !stream->isLive() || m_track_scrobbled) {
+        return;
+    }
+    const uint64_t needed = liveScrobbleThresholdMs(false);
+    const uint64_t played = liveTitlePlayedMs();
+    if ((played < needed || !m_live_title_is_music) && !m_live_scrobble_title.isEmpty()) {
+        Debug::log("lastfm", "Player: leaving the stream; not scrobbling ", m_live_scrobble_artist.to8Bit(true),
+                   " - ", m_live_scrobble_title.to8Bit(true), " (played ", std::to_string(played / 1000),
+                   " s of ", needed == UINT64_MAX ? std::string("-") : std::to_string(needed / 1000),
+                   " s needed", m_live_title_is_music ? "" : ", not music", ")");
+        return;
+    }
+    scrobbleFinishedLiveTitle(false);
 }
 
 /**
@@ -7104,6 +7154,8 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
     std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
     const bool recreate_audio = !canReuseAudioForStream(audio.get(), owned_new_stream.get());
 
+    // Another track replaces a station: its song counts if heard long enough.
+    scrobbleLiveTitleOnLeaving();
     /*
      * The stream being replaced may be a station stalled in a read, which the
      * swap below would wait out: abort it, as it is going anyway.
