@@ -1049,6 +1049,7 @@ protected:
         ASSERT_EQUALS(std::string("Ray Parker, Jr."), p.artist, "iHeart song: artist before the dash");
         ASSERT_EQUALS(std::string("Ghostbusters"), p.title, "iHeart song: title from text=");
         ASSERT_TRUE(p.is_music, "iHeart song_spot M is music");
+        ASSERT_EQUALS(uint64_t(249000), p.length_ms, "iHeart song: its length");
 
         p = HTTPStreamIOHandler::splitStreamTitle(
             " - text=\"Halloween Radio - Fly In - Thriller 03\" song_spot=\"T\" length=\"00:00:14\" "
@@ -1067,6 +1068,11 @@ protected:
         ASSERT_EQUALS(std::string("ANDY GRAMMER"), p.artist, "comma form: artist from artist=");
         ASSERT_EQUALS(std::string("Fine By Me"), p.title, "comma form: title from title=");
         ASSERT_TRUE(p.is_music, "iHeart song_spot F is music");
+        ASSERT_EQUALS(uint64_t(178000), p.length_ms, "comma form: its length, from inside url=");
+        ASSERT_EQUALS(uint64_t(0), HTTPStreamIOHandler::splitStreamTitle("A - B").length_ms, "plain: no length");
+        ASSERT_EQUALS(uint64_t(0),
+                      HTTPStreamIOHandler::splitStreamTitle("A - text=\"B\" length=\"soon\"").length_ms,
+                      "a length that is no time is none");
 
         p = HTTPStreamIOHandler::splitStreamTitle(
             "title=\"Imager 06\",artist=\"\",url=\"song_spot=\"T\" MediaBaseId=\"0\" length=\"00:00:09\"\"");

@@ -135,6 +135,12 @@ public:
      * @return false for a station's own spots.
      */
     bool isCurrentTitleMusic() const override;
+
+    /**
+     * @brief The live stream's current song's length, as the station gave it.
+     * @return Milliseconds, or 0 when it gave none.
+     */
+    uint64_t getCurrentTitleLengthMs() const override;
     virtual TagLib::String getPrimaryArtist() override;
     virtual TagLib::String getMusicBrainzID() override;
     virtual TagLib::String getMusicBrainzReleaseID() override;
@@ -245,6 +251,7 @@ private:
     std::string m_live_title;
     std::string m_station_name;
     bool m_live_is_music = true;
+    uint64_t m_live_length_ms = 0;      ///< the current song's length when announced, else 0
     std::atomic<uint64_t> m_live_meta_generation{0};
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real

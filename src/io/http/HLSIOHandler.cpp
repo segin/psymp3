@@ -129,15 +129,18 @@ std::string hlsTitleFromExtinf(const std::string& info)
     const std::string title = attrs["title"];
     const std::string artist = attrs["artist"];
     if (title.empty() && artist.empty()) return std::string();
-    // iHeart puts the kind of spot inside url="song_spot=\"M\" ...".
-    std::string spot;
+    // iHeart puts the kind of spot, and its length, inside url="song_spot=\"M\" length=\"00:04:25\" ...".
     const std::string& url = attrs["url"];
-    const size_t s = url.find("song_spot=\"");
-    if (s != std::string::npos) {
-        const size_t from = s + 11;
+    auto inner = [&url](const std::string& key) {
+        const std::string mark = key + "=\"";
+        const size_t s = url.find(mark);
+        if (s == std::string::npos || (s > 0 && url[s - 1] != ' ')) return std::string();
+        const size_t from = s + mark.size();
         const size_t to = url.find('"', from);
-        if (to != std::string::npos) spot = url.substr(from, to - from);
-    }
+        return to == std::string::npos ? std::string() : url.substr(from, to - from);
+    };
+    const std::string spot = inner("song_spot");
+    const std::string length = inner("length");
     std::string escaped;
     for (char c : title) {
         if (c == '"' || c == '\\') escaped += '\\';
@@ -145,6 +148,7 @@ std::string hlsTitleFromExtinf(const std::string& info)
     }
     std::string out = artist + " - text=\"" + escaped + "\"";
     if (!spot.empty()) out += " song_spot=\"" + spot + "\"";
+    if (!length.empty()) out += " length=\"" + length + "\"";
     return out;
 }
 

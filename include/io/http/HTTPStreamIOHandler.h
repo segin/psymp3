@@ -130,6 +130,7 @@ public:
         std::string artist;   ///< "" when the title names none
         std::string title;    ///< the song, or whatever the station announced
         bool is_music = true; ///< false for a station's own spots (iHeart song_spot other than "M" or "F")
+        uint64_t length_ms = 0; ///< the song's length when the station says (iHeart length=), else 0
     };
 
     /**

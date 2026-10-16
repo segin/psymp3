@@ -210,6 +210,7 @@ void DemuxedStream::updateLiveTitle(uint64_t chunk_offset) {
     m_live_title = parts.title;
     // "181.FM - Music Promo30": the station's own break, not a song.
     m_live_is_music = parts.is_music && !HTTPStreamIOHandler::artistIsStation(parts.artist, m_station_name);
+    m_live_length_ms = parts.length_ms;
     ++m_live_meta_generation;
     Debug::log("demux", "DemuxedStream: now playing '", m_live_artist, "' - '", m_live_title,
                "'", m_live_is_music ? "" : " (not music)");
@@ -231,6 +232,15 @@ TagLib::String DemuxedStream::getStationName() const {
 bool DemuxedStream::isCurrentTitleMusic() const {
     std::lock_guard<std::mutex> lock(m_live_meta_mutex);
     return m_live_is_music;
+}
+
+/**
+ * @brief The current live song's announced length.
+ * @return Milliseconds, or 0.
+ */
+uint64_t DemuxedStream::getCurrentTitleLengthMs() const {
+    std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+    return m_live_length_ms;
 }
 
 /**

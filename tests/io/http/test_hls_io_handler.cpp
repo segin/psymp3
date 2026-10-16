@@ -74,12 +74,14 @@ protected:
         ASSERT_EQUALS(std::string("ELECTRIC LIGHT ORCHESTRA"), parts.artist, "iHeart EXTINF: artist");
         ASSERT_EQUALS(std::string("Evil Woman"), parts.title, "iHeart EXTINF: title");
         ASSERT_TRUE(parts.is_music, "song_spot M is music");
+        ASSERT_EQUALS(uint64_t(249000), parts.length_ms, "iHeart EXTINF: the song's length carried through");
         parts = PsyMP3::IO::HTTP::HTTPStreamIOHandler::splitStreamTitle(media.segments[1].title);
         ASSERT_EQUALS(std::string("Fly In"), parts.title, "a spot's title");
         ASSERT_FALSE(parts.is_music, "song_spot T is not music");
         parts = PsyMP3::IO::HTTP::HTTPStreamIOHandler::splitStreamTitle(media.segments[2].title);
         ASSERT_EQUALS(std::string("Plain Artist"), parts.artist, "plain EXTINF: artist");
         ASSERT_EQUALS(std::string("Plain Song"), parts.title, "plain EXTINF: title");
+        ASSERT_EQUALS(uint64_t(0), parts.length_ms, "plain EXTINF: no length");
 
         ASSERT_FALSE(HLSIOHandler::parsePlaylist("http://a/b.mp3\n").valid, "no #EXTM3U: not a playlist");
         const auto keyed = HLSIOHandler::parsePlaylist(

@@ -146,6 +146,13 @@ class Stream
         virtual bool isCurrentTitleMusic() const { return true; }
 
         /**
+         * @brief How long the song a live stream is playing lasts, when the
+         *        station says (iHeart does), for Last.fm's half-the-song rule.
+         * @return Milliseconds, or 0 when unknown.
+         */
+        virtual uint64_t getCurrentTitleLengthMs() const { return 0; }
+
+        /**
          * @brief Make a read waiting on the stream's source give up now, so
          *        whoever joins the decoder (stopping, switching tracks) is
          *        not held up by a stalled station. The stream ends; it is

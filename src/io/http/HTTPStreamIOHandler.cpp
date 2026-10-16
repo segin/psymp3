@@ -722,6 +722,27 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
         return spot == values.end() || spot->second.empty() || spot->second == "M" || spot->second == "F";
     };
 
+    // iHeart's length="00:04:25" (hours, minutes, seconds), in milliseconds; 0 if absent or odd.
+    auto lengthMs = [](const std::map<std::string, std::string>& values) -> uint64_t {
+        auto it = values.find("length");
+        if (it == values.end()) return 0;
+        uint64_t seconds = 0;
+        int fields = 0;
+        size_t pos = 0;
+        const std::string& text = it->second;
+        while (pos <= text.size()) {
+            const size_t colon = std::min(text.find(':', pos), text.size());
+            const std::string field = text.substr(pos, colon - pos);
+            if (field.empty() || field.size() > 2 ||
+                field.find_first_not_of("0123456789") != std::string::npos || ++fields > 3) {
+                return 0;
+            }
+            seconds = seconds * 60 + std::stoul(field);
+            pos = colon + 1;
+        }
+        return seconds * 1000;
+    };
+
     /*
      * iHeart's newer form, every part an attribute and the pairs separated
      * by commas: title="...",artist="...",url="song_spot="F" ...".
@@ -737,6 +758,7 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
                 std::swap(parts.title, parts.artist);
             }
             parts.is_music = isMusicSpot(values);
+            parts.length_ms = lengthMs(values);
             return parts;
         }
     }
@@ -768,6 +790,7 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
         std::swap(parts.title, parts.artist);
     }
     parts.is_music = isMusicSpot(values);
+    parts.length_ms = lengthMs(values);
     return parts;
 }
 
