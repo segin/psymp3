@@ -309,6 +309,25 @@ protected:
     void trackSockets(CURL* curl);
 
     /**
+     * @brief GET @p url to completion, aborting when the handler is: a
+     *        playlist, a segment, a picture. Same TLS and redirect rules as
+     *        the streaming GET, a REQUEST_SECONDS limit, sockets tracked.
+     * @param url What to fetch.
+     * @param body Receives the body.
+     * @param content_type Receives the Content-Type (lower case, no
+     *        parameters), when not null.
+     * @param effective_url Receives the URL after redirects, when not null.
+     * @param error Receives why it failed.
+     * @param max_bytes A body longer than this fails; 0 for no limit.
+     * @return true for a 2xx answer.
+     */
+    bool fetch(const std::string& url, std::string& body, std::string* content_type,
+               std::string* effective_url, std::string& error, size_t max_bytes = 0);
+
+    // Seconds a fetch() may take in all.
+    static constexpr long REQUEST_SECONDS = 30;
+
+    /**
      * @brief Total audio bytes received so far. Caller holds m_buf_mutex.
      * @return The offset just past the newest byte.
      */

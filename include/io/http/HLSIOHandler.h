@@ -138,8 +138,6 @@ public:
     // Segments to start behind the live edge (RFC 8216 §6.3.3 asks for no
     // fewer than three target durations).
     static constexpr size_t START_SEGMENTS_FROM_END = 3;
-    // Seconds a playlist or segment request may take in all.
-    static constexpr long REQUEST_SECONDS = 30;
     // Failed playlist reloads in a row before the stream is given up.
     static constexpr int MAX_RELOAD_FAILURES = 5;
     /** @brief Default seconds without a new segment before a live station counts as stalled. */
@@ -168,36 +166,6 @@ private:
      *        the handler is aborted.
      */
     void runWorker() override;
-
-    /**
-     * @brief GET @p url to completion, aborting when the handler is.
-     * @param url What to fetch.
-     * @param body Receives the body.
-     * @param content_type Receives the Content-Type (lower case, no
-     *        parameters), when not null.
-     * @param effective_url Receives the URL after redirects, when not null.
-     * @param error Receives why it failed.
-     * @return true for a 2xx answer.
-     */
-    bool fetch(const std::string& url, std::string& body, std::string* content_type,
-               std::string* effective_url, std::string& error);
-
-    /**
-     * @brief libcurl write callback: append to the std::string at @p out.
-     * @param data Bytes.
-     * @param size Always 1.
-     * @param nmemb Their count.
-     * @param out The string.
-     * @return Bytes taken.
-     */
-    static size_t appendToString(char* data, size_t size, size_t nmemb, void* out);
-
-    /**
-     * @brief libcurl progress callback: stop when the handler is aborted.
-     * @param self The handler.
-     * @return Non-zero to abort.
-     */
-    static int abortCheck(void* self, curl_off_t, curl_off_t, curl_off_t, curl_off_t);
 
     const std::string m_url;
     std::string m_media_url;          // the media playlist (after variant choice and redirects)

@@ -48,6 +48,44 @@ std::set<LiveStreamIOHandler*>& allLiveHandlers()
     return handlers;
 }
 
+/** @brief Where a fetch() puts its body, and how much it may hold. */
+struct FetchSink {
+    std::string* body;   ///< the body so far
+    size_t max_bytes;    ///< 0: no limit
+    bool too_large;      ///< set when the limit was passed
+};
+
+/**
+ * @brief libcurl write callback: append to the sink's body, refusing past
+ *        its limit (which ends the transfer).
+ * @param data Bytes.
+ * @param size Always 1.
+ * @param nmemb Their count.
+ * @param out The FetchSink.
+ * @return Bytes taken; fewer ends the transfer.
+ */
+size_t fetchWrite(char* data, size_t size, size_t nmemb, void* out)
+{
+    auto* sink = static_cast<FetchSink*>(out);
+    const size_t len = size * nmemb;
+    if (sink->max_bytes != 0 && sink->body->size() + len > sink->max_bytes) {
+        sink->too_large = true;
+        return 0;
+    }
+    sink->body->append(data, len);
+    return len;
+}
+
+/**
+ * @brief libcurl progress callback: stop when the handler is aborted.
+ * @param abort_flag The handler's abort flag.
+ * @return Non-zero to abort.
+ */
+int fetchAbortCheck(void* abort_flag, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
+{
+    return static_cast<const std::atomic<bool>*>(abort_flag)->load() ? 1 : 0;
+}
+
 } // namespace
 
 /**
@@ -276,6 +314,93 @@ int LiveStreamIOHandler::closeSocketCallback(void* self, curl_socket_t socket)
 #else
     return ::close(socket);
 #endif
+}
+
+/**
+ * @brief One complete GET with the same TLS and redirect rules as the other
+ *        HTTP handlers, a REQUEST_SECONDS limit, an abort check and tracked
+ *        sockets.
+ * @param url URL.
+ * @param body Body.
+ * @param content_type Content-Type out, or null.
+ * @param effective_url URL after redirects out, or null.
+ * @param error Why it failed.
+ * @param max_bytes Longest body taken; 0 for any.
+ * @return true for 2xx.
+ */
+bool LiveStreamIOHandler::fetch(const std::string& url, std::string& body, std::string* content_type,
+                                std::string* effective_url, std::string& error, size_t max_bytes)
+{
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        error = "curl_easy_init failed";
+        return false;
+    }
+    FetchSink sink{&body, max_bytes, false};
+    char error_buffer[CURL_ERROR_SIZE] = {0};
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buffer);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &fetchWrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &sink);
+    trackSockets(curl); // so abort() ends a wait on a silent server at once
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &fetchAbortCheck);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &m_abort);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_SECONDS);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+#if defined(_WIN32) && LIBCURL_VERSION_NUM >= 0x074700 /* 7.71.0 */
+    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_NATIVE_CA));
+#endif
+#if LIBCURL_VERSION_NUM >= 0x075500 /* 7.85.0 */
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+#else
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+#endif
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "PsyMP3/3.0");
+
+    const CURLcode rc = curl_easy_perform(curl);
+    long status = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+    if (content_type) {
+        char* type = nullptr;
+        curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &type);
+        std::string t = type ? type : "";
+        t = t.substr(0, t.find(';'));
+        const size_t b = t.find_first_not_of(" \t");
+        t = b == std::string::npos ? std::string() : t.substr(b, t.find_last_not_of(" \t") - b + 1);
+        std::transform(t.begin(), t.end(), t.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        *content_type = t;
+    }
+    if (effective_url) {
+        char* eff = nullptr;
+        curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &eff);
+        *effective_url = eff ? eff : "";
+    }
+    curl_easy_cleanup(curl);
+
+    if (rc != CURLE_OK) {
+        error = m_abort ? std::string("aborted")
+              : sink.too_large ? "larger than " + std::to_string(max_bytes) + " bytes"
+              : error_buffer[0] ? std::string(error_buffer) : std::string(curl_easy_strerror(rc));
+        return false;
+    }
+    if (status < 200 || status >= 300) {
+        error = "server answered " + std::to_string(status);
+        return false;
+    }
+    /*
+     * Not noteActivity(): a playlist that answers but never grows is a stall.
+     * Audio arriving is activity, which appendAudio() notes.
+     */
+    return true;
 }
 
 /**
