@@ -30,9 +30,31 @@ constexpr int kRate = 44100;
 constexpr int kToneStartMs = 4500;
 constexpr int kTotalMs = 6000;
 
-/// 6 s of stereo: silence, then a 1 kHz tone from 4.5 s, as an Ogg Vorbis
-/// file with pages of about a second.
-std::vector<uint8_t> oggVorbis()
+/// The signal oggVorbis() encodes by default: silence, then a 1 kHz tone from 4.5 s.
+float toneFromFourAndAHalf(int t)
+{
+    const int tone_from = kRate * kToneStartMs / 1000;
+    return t < tone_from ? 0.0f : 0.5f * static_cast<float>(std::sin(2.0 * M_PI * 1000.0 * t / kRate));
+}
+
+/**
+ * @brief A sweep from 200 Hz to 2 kHz over the six seconds: every stretch of
+ *        it differs from every other, so audio that is missing or out of
+ *        place cannot pass for the right audio.
+ * @param t Sample index.
+ * @return The sample.
+ */
+float sweep(int t)
+{
+    const double seconds = static_cast<double>(t) / kRate;
+    const double span = kTotalMs / 1000.0;
+    // Phase of a linear chirp: f(t) = 200 + 1800 t / span.
+    const double phase = 2.0 * M_PI * (200.0 * seconds + 900.0 * seconds * seconds / span);
+    return 0.5f * static_cast<float>(std::sin(phase));
+}
+
+/// 6 s of stereo of @p signal, as an Ogg Vorbis file with pages of about a second.
+std::vector<uint8_t> oggVorbis(float (*signal)(int) = toneFromFourAndAHalf)
 {
     std::vector<uint8_t> file;
     vorbis_info vi;
@@ -65,7 +87,6 @@ std::vector<uint8_t> oggVorbis()
     }
 
     const int total = kRate * kTotalMs / 1000;
-    const int tone_from = kRate * kToneStartMs / 1000;
     constexpr int kChunk = 1024;
     int packets = 0;
     for (int position = 0;;) {
@@ -73,9 +94,7 @@ std::vector<uint8_t> oggVorbis()
             const int frames = std::min(kChunk, total - position);
             float** buffer = vorbis_analysis_buffer(&vd, frames);
             for (int i = 0; i < frames; ++i) {
-                const int t = position + i;
-                const float value = t < tone_from ? 0.0f
-                                  : 0.5f * static_cast<float>(std::sin(2.0 * M_PI * 1000.0 * t / kRate));
+                const float value = signal(position + i);
                 buffer[0][i] = value;
                 buffer[1][i] = value;
             }
@@ -180,6 +199,54 @@ protected:
     }
 };
 
+/**
+ * @brief The audio after a seek is the audio that plays there from the start,
+ *        for a second and a half on, not only at its first sample: no stretch
+ *        of it missing, none repeated. Checked on a sweep, where any slip shows.
+ */
+class VorbisSeekContinuityTest : public TestCase {
+public:
+    /** @brief Name the test. */
+    VorbisSeekContinuityTest() : TestCase("The audio after an Ogg Vorbis seek runs on as it does from the start") {}
+
+protected:
+    /** @brief Seek to several points; compare 1.5 s after each with the whole. */
+    void runTest() override
+    {
+        const std::vector<uint8_t> file = oggVorbis(sweep);
+        ASSERT_TRUE(file.size() > 4096, "the encoder ran");
+        DemuxedStream stream(std::make_unique<MemoryIOHandler>(file.data(), file.size()),
+                             TagLib::String("sweep.ogg"));
+        const std::vector<AudioSample> whole = readFirstChannel(stream, 6 * kRate);
+        ASSERT_TRUE(whole.size() > static_cast<size_t>(5 * kRate), "the whole decodes");
+
+        for (unsigned long target_ms : {1000UL, 2600UL, 3333UL}) {
+            stream.seekTo(target_ms);
+            const std::vector<AudioSample> after = readFirstChannel(stream, kRate * 3 / 2);
+            const size_t base = target_ms * kRate / 1000;
+            ASSERT_TRUE(after.size() >= static_cast<size_t>(kRate), "a second and more after the seek decodes");
+            /*
+             * Past the first blocks (a decoder joining mid-stream has no block
+             * before to overlap), the samples are the whole's at the same
+             * place. A slip of even a block would leave them far apart.
+             */
+            double worst = 0.0;
+            size_t worst_at = 0;
+            for (size_t i = 4096; i < after.size() && base + i < whole.size(); ++i) {
+                const double diff = std::abs(static_cast<double>(after[i]) - static_cast<double>(whole[base + i]));
+                if (diff > worst) {
+                    worst = diff;
+                    worst_at = i;
+                }
+            }
+            ASSERT_TRUE(worst < 0.01 * 2147483647.0,
+                        "after a seek to " + std::to_string(target_ms) + " ms the audio matches the whole's "
+                        "(worst difference " + std::to_string(worst / 2147483647.0) + " of full scale, "
+                        + std::to_string(worst_at) + " samples in)");
+        }
+    }
+};
+
 } // namespace
 
 int main()
@@ -189,6 +256,7 @@ int main()
 
     TestSuite suite("Ogg seek landing");
     suite.addTest(std::make_unique<VorbisSeekTest>());
+    suite.addTest(std::make_unique<VorbisSeekContinuityTest>());
     auto results = suite.runAll();
     suite.printResults(results);
     return static_cast<int>(results.size()) - suite.getPassedCount(results);
