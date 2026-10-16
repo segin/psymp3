@@ -3213,6 +3213,10 @@ bool Player::updateGUI()
     // Progress bar frame and fill are now handled by ProgressBarFrameWidget hierarchy
 
     // --- Continuous Keyboard Seeking ---
+    // An arrow held as a live stream began: drop the scrub, which it cannot do.
+    if (m_seek_direction != 0 && stream && stream->isLive()) {
+        m_seek_direction = 0;
+    }
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
         // Continuous seek while an arrow key is held. Advance the target by
         // wall-clock time (~8s of audio per real second held) so the scrub speed
