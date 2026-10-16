@@ -633,10 +633,22 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     WsResponse response = wsCall(std::move(params), 10);
 
     if (response.ok) {
-        // status="ok" covers "accepted" AND "ignored" (e.g. track too short):
-        // an ignored scrobble was received and judged — resubmitting it can
-        // only ever be ignored again, so both count as done.
-        DEBUG_LOG_LAZY("lastfm", "Scrobble submitted successfully: ", artist, " - ", title);
+        /*
+         * status="ok" covers "accepted" AND "ignored" (e.g. track too short):
+         * an ignored scrobble was received and judged -- resubmitting it can
+         * only ever be ignored again, so both count as done. But an ignored
+         * one is not on the user's profile, so say so, and why.
+         */
+        int ignored_code = 0;
+        std::string ignored_message;
+        if (scrobbleWasIgnored(response.body, ignored_code, ignored_message)) {
+            Debug::log("lastfm", "Last.fm ignored the scrobble of ", artist, " - ", title, " (code ",
+                       std::to_string(ignored_code), "): ", ignored_message);
+            std::cerr << "Last.fm ignored the scrobble of " << artist << " - " << title << " (code "
+                      << ignored_code << "): " << ignored_message << std::endl;
+        } else {
+            DEBUG_LOG_LAZY("lastfm", "Scrobble accepted: ", artist, " - ", title);
+        }
         return true;
     }
 
@@ -884,6 +896,31 @@ void LastFM::forceSubmission()
         }
     }
     m_submission_cv.notify_one();
+}
+
+/**
+ * @brief Read a track.scrobble reply's verdict on its one scrobble.
+ * @param body The reply.
+ * @param code Receives the ignoredMessage code, or 0.
+ * @param message Receives its text.
+ * @return true if the scrobble was ignored.
+ */
+bool LastFM::scrobbleWasIgnored(const std::string& body, int& code, std::string& message)
+{
+    code = 0;
+    message.clear();
+    pugi::xml_document doc;
+    if (!doc.load_buffer(body.data(), body.size())) return false;
+    const pugi::xml_node scrobbles = doc.child("lfm").child("scrobbles");
+    if (!scrobbles) return false;
+    const pugi::xml_node ignored = scrobbles.child("scrobble").child("ignoredMessage");
+    code = ignored.attribute("code").as_int(0);
+    message = ignored.child_value();
+    const bool counted_ignored = scrobbles.attribute("ignored").as_int(0) > 0 &&
+                                 scrobbles.attribute("accepted").as_int(0) == 0;
+    if (code == 0 && !counted_ignored) return false;
+    if (message.empty()) message = "no reason given";
+    return true;
 }
 
 bool LastFM::isValidMBID(const std::string& mbid)

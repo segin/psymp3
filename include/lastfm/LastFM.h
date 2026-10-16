@@ -155,6 +155,18 @@ public:
     // silently omitted.
     static bool isValidMBID(const std::string& mbid);
 
+    /**
+     * @brief Whether a track.scrobble reply says the scrobble was ignored:
+     *        received, but not added to the profile (an ignoredMessage code
+     *        other than 0, or ignored="1" with none accepted).
+     * @param body The reply, an <lfm status="ok"> document.
+     * @param code Receives the ignoredMessage code (1 artist, 2 track,
+     *        3 timestamp too old, 4 too new, 5 daily limit), or 0.
+     * @param message Receives Last.fm's text for it, or a stand-in.
+     * @return true if ignored.
+     */
+    static bool scrobbleWasIgnored(const std::string& body, int& code, std::string& message);
+
 private:
     
     // Background thread functions
