@@ -672,6 +672,20 @@ bool HTTPStreamIOHandler::parseStreamTitle(const std::string& block, std::string
 }
 
 /**
+ * @brief Whether @p artist is @p station_name, or the words it begins with.
+ * @param artist The artist.
+ * @param station_name The station's name.
+ * @return true if so.
+ */
+bool HTTPStreamIOHandler::artistIsStation(const std::string& artist, const std::string& station_name)
+{
+    const std::string a = toLower(trim(artist));
+    const std::string s = toLower(trim(station_name));
+    if (a.empty() || s.empty() || a.size() > s.size() || s.compare(0, a.size(), a) != 0) return false;
+    return a.size() == s.size() || s[a.size()] == ' ';
+}
+
+/**
  * @brief Take a StreamTitle apart: iHeart's comma-separated attributes
  *        (title=, artist=, kind in url='s song_spot=), its older key="value"
  *        attributes (title in text=) after an optional "Artist -" head, or

@@ -149,6 +149,17 @@ public:
      */
     static TitleParts splitStreamTitle(const std::string& stream_title);
 
+    /**
+     * @brief Whether a title's artist is the station itself: its whole name,
+     *        or the words it starts with ("181.FM" of "181.FM Awesome 80s"),
+     *        ignoring case. Such a title is the station's own break or promo
+     *        ("181.FM - Music Promo30"), not a song.
+     * @param artist The title's artist.
+     * @param station_name The station's name (icy-name).
+     * @return true if the artist names the station.
+     */
+    static bool artistIsStation(const std::string& artist, const std::string& station_name);
+
     // Most bytes of audio allowed between metadata blocks; a larger
     // icy-metaint is taken as nonsense and ignored.
     static constexpr int64_t MAX_METAINT = 4 * 1024 * 1024;

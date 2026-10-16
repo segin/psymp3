@@ -1077,6 +1077,14 @@ protected:
         p = HTTPStreamIOHandler::splitStreamTitle("Simon & Garfunkel - Mrs. Robinson, Pt. 2");
         ASSERT_EQUALS(std::string("Simon & Garfunkel"), p.artist, "a plain title with a comma stays plain");
 
+        // 181.FM announces its breaks under its own name.
+        ASSERT_TRUE(HTTPStreamIOHandler::artistIsStation("181.FM", "181.FM Awesome 80s"),
+                    "the station's leading word is the station");
+        ASSERT_TRUE(HTTPStreamIOHandler::artistIsStation("groove salad", "Groove Salad"), "its whole name, any case");
+        ASSERT_FALSE(HTTPStreamIOHandler::artistIsStation("181", "181.FM Awesome 80s"), "not part of a word");
+        ASSERT_FALSE(HTTPStreamIOHandler::artistIsStation("Stevie Wonder", "181.FM Awesome 80s"), "a song's artist");
+        ASSERT_FALSE(HTTPStreamIOHandler::artistIsStation("Anyone", ""), "no station name, no judgement");
+
         p = HTTPStreamIOHandler::splitStreamTitle("");
         ASSERT_EQUALS(std::string(), p.title, "empty stays empty");
     }
