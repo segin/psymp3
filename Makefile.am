@@ -34,6 +34,7 @@ BUILT_SOURCES = include/config.h
 # Every public header. Sources list only .cpp files, so nothing else
 # distributes these; distcheck (now enforced by CI) keeps the list honest.
 EXTRA_DIST = \
+	LICENSE \
 	tsan.supp \
 	include/BoundedQueue.h \
 	include/RAIIFileHandle.h \
