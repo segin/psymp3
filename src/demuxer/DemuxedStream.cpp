@@ -228,6 +228,26 @@ void DemuxedStream::updateLiveTitle(uint64_t chunk_offset) {
     // "181.FM - Music Promo30": the station's own break, not a song.
     m_live_is_music = parts.is_music && !HTTPStreamIOHandler::artistIsStation(parts.artist, m_station_name);
     m_live_length_ms = parts.length_ms;
+    /*
+     * A station that gives no name (iHeart's icy-name is empty, and its HLS
+     * playlists have none) still says it in its own spots: "Coffee Shop
+     * Radio - Quick 10", "Halloween Radio - Imager 06 - Running Scared". The
+     * part before the first dash of a spot with no artist is taken as the
+     * name once two spots in a row agree, so that one advert cannot rename
+     * the station.
+     */
+    if (m_station_name.empty() && !parts.is_music && parts.artist.empty()) {
+        const size_t dash = parts.title.find(" - ");
+        if (dash != std::string::npos && dash > 0) {
+            const std::string candidate = parts.title.substr(0, dash);
+            m_station_candidate_hits = candidate == m_station_candidate ? m_station_candidate_hits + 1 : 1;
+            m_station_candidate = candidate;
+            if (m_station_candidate_hits >= 2) {
+                m_station_name = candidate;
+                Debug::log("demux", "DemuxedStream: the station calls itself '", m_station_name, "'");
+            }
+        }
+    }
     ++m_live_meta_generation;
     Debug::log("demux", "DemuxedStream: now playing '", m_live_artist, "' - '", m_live_title,
                "'", m_live_is_music ? "" : " (not music)");

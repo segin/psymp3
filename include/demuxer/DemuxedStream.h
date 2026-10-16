@@ -258,6 +258,10 @@ private:
     std::string m_station_name;
     bool m_live_is_music = true;
     uint64_t m_live_length_ms = 0;      ///< the current song's length when announced, else 0
+    /** @brief A station name its spots seem to give, while unconfirmed (see updateLiveTitle()). */
+    std::string m_station_candidate;
+    /** @brief How many spots in a row have given m_station_candidate. */
+    int m_station_candidate_hits = 0;
     /// The picture the stream sent for what plays now, or null.
     std::shared_ptr<const PsyMP3::Tag::Picture> m_live_picture;
     std::atomic<uint64_t> m_live_art_generation{0};

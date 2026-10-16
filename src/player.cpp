@@ -6885,6 +6885,8 @@ void Player::onStreamTitleChanged()
     Debug::log("player", "Player: stream now playing ", stream->getArtist().to8Bit(true), " - ",
                stream->getTitle().to8Bit(true));
 
+    // A station that gave no name may have just said it in a spot.
+    updatePlaylistRowFromStream();
     updateInfo();
     submitNowPlaying(); // Last.fm now-playing and Discord
 #ifdef HAVE_DBUS
