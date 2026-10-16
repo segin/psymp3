@@ -42,6 +42,86 @@ std::string trim(const std::string& s)
     return s.substr(b, e - b + 1);
 }
 
+/**
+ * @brief Whether a key="value" attribute name starts at @p key and ends at
+ *        @p eq (the '='): letters, digits and underscores, after the start
+ *        of the text, a space or a comma.
+ * @param s The text.
+ * @param key Where the name would start.
+ * @param eq Where its '=' is.
+ * @return true if it is a name.
+ */
+bool isAttributeName(const std::string& s, size_t key, size_t eq)
+{
+    if (key >= eq) return false;
+    for (size_t i = key; i < eq; ++i) {
+        if (!std::isalnum(static_cast<unsigned char>(s[i])) && s[i] != '_') return false;
+    }
+    return key == 0 || s[key - 1] == ' ' || s[key - 1] == ',';
+}
+
+/**
+ * @brief Read space-separated key="value" pairs from @p pos on, as iHeart's
+ *        older StreamTitles and the url= value of its newer ones have them;
+ *        a backslash escapes the next character. Keys already in @p values
+ *        are kept.
+ * @param s The text.
+ * @param pos Where the first pair starts.
+ * @param values Receives the pairs.
+ */
+void readSpacedAttributes(const std::string& s, size_t pos, std::map<std::string, std::string>& values)
+{
+    while (pos < s.size()) {
+        const size_t eq = s.find("=\"", pos);
+        if (eq == std::string::npos) break;
+        const std::string key = trim(s.substr(pos, eq - pos));
+        std::string value;
+        size_t i = eq + 2;
+        for (; i < s.size() && s[i] != '"'; ++i) {
+            if (s[i] == '\\' && i + 1 < s.size()) ++i;
+            value += s[i];
+        }
+        values.emplace(key, value);
+        pos = i + 1;
+    }
+}
+
+/**
+ * @brief Read iHeart's comma-separated StreamTitle,
+ *        title="...",artist="...",url="song_spot="F" length="00:02:58" ...":
+ *        a pair ends only where '",' starts the next one, so the last value
+ *        (url=, with its own unescaped quotes) runs to the final quote, and
+ *        its contents are read as spaced pairs too.
+ * @param s The text, starting with its first key.
+ * @param values Receives the pairs, url='s inner ones included.
+ */
+void readCommaAttributes(const std::string& s, std::map<std::string, std::string>& values)
+{
+    size_t key = 0;
+    while (key < s.size()) {
+        const size_t eq = s.find("=\"", key);
+        if (eq == std::string::npos) break;
+        const std::string name = s.substr(key, eq - key);
+        // The next pair: '",' then a name and '="'.
+        size_t end = std::string::npos;
+        for (size_t sep = s.find("\",", eq + 2); sep != std::string::npos; sep = s.find("\",", sep + 1)) {
+            const size_t next_eq = s.find("=\"", sep + 2);
+            if (next_eq != std::string::npos && isAttributeName(s, sep + 2, next_eq)) {
+                end = sep;
+                break;
+            }
+        }
+        const size_t value_end = end != std::string::npos ? end : s.rfind('"');
+        const std::string value = value_end > eq + 2 ? s.substr(eq + 2, value_end - eq - 2) : std::string();
+        values.emplace(name, value);
+        if (value.find("=\"") != std::string::npos) {
+            readSpacedAttributes(value, 0, values);
+        }
+        if (end == std::string::npos) break;
+        key = end + 2;
+    }
+}
+
 } // namespace
 
 /**
@@ -592,8 +672,9 @@ bool HTTPStreamIOHandler::parseStreamTitle(const std::string& block, std::string
 }
 
 /**
- * @brief Take a StreamTitle apart: iHeart's key="value" attributes (title in
- *        text=, kind in song_spot=) after an optional "Artist -" head, or
+ * @brief Take a StreamTitle apart: iHeart's comma-separated attributes
+ *        (title=, artist=, kind in url='s song_spot=), its older key="value"
+ *        attributes (title in text=) after an optional "Artist -" head, or
  *        else plain "Artist - Title".
  * @param stream_title Decoded title.
  * @return Artist, title and whether it is music.
@@ -617,6 +698,35 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
         }
     }
 
+    /*
+     * Which kinds of iHeart spot are songs: M on its broadcast stations, F
+     * on its digital ones (whose songs carry MediaBaseId="0"). T is the
+     * station's own talk and imaging.
+     */
+    auto isMusicSpot = [](const std::map<std::string, std::string>& values) {
+        auto spot = values.find("song_spot");
+        return spot == values.end() || spot->second.empty() || spot->second == "M" || spot->second == "F";
+    };
+
+    /*
+     * iHeart's newer form, every part an attribute and the pairs separated
+     * by commas: title="...",artist="...",url="song_spot="F" ...".
+     */
+    if (attrs == 0 && s.find("\",") != std::string::npos) {
+        std::map<std::string, std::string> values;
+        readCommaAttributes(s, values);
+        if (values.count("title") || values.count("artist")) {
+            parts.artist = trim(values["artist"]);
+            parts.title = trim(values["title"]);
+            if (parts.title.empty()) parts.title = trim(values["text"]);
+            if (parts.title.empty() && !parts.artist.empty()) {
+                std::swap(parts.title, parts.artist);
+            }
+            parts.is_music = isMusicSpot(values);
+            return parts;
+        }
+    }
+
     if (attrs == std::string::npos) {
         const size_t dash = s.find(" - ");
         if (dash == std::string::npos) {
@@ -630,20 +740,7 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
 
     // key="value" pairs; a backslash escapes the next character.
     std::map<std::string, std::string> values;
-    size_t pos = attrs;
-    while (pos < s.size()) {
-        const size_t eq = s.find("=\"", pos);
-        if (eq == std::string::npos) break;
-        const std::string key = trim(s.substr(pos, eq - pos));
-        std::string value;
-        size_t i = eq + 2;
-        for (; i < s.size() && s[i] != '"'; ++i) {
-            if (s[i] == '\\' && i + 1 < s.size()) ++i;
-            value += s[i];
-        }
-        values[key] = value;
-        pos = i + 1;
-    }
+    readSpacedAttributes(s, attrs, values);
 
     // What comes before the attributes is "Artist -", or just "-".
     std::string head = trim(s.substr(0, attrs));
@@ -656,8 +753,7 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
     if (parts.title.empty() && !parts.artist.empty()) {
         std::swap(parts.title, parts.artist);
     }
-    auto spot = values.find("song_spot");
-    parts.is_music = spot == values.end() || spot->second.empty() || spot->second == "M";
+    parts.is_music = isMusicSpot(values);
     return parts;
 }
 

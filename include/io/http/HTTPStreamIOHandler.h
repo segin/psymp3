@@ -129,7 +129,7 @@ public:
     struct TitleParts {
         std::string artist;   ///< "" when the title names none
         std::string title;    ///< the song, or whatever the station announced
-        bool is_music = true; ///< false for a station's own spots (iHeart song_spot other than "M")
+        bool is_music = true; ///< false for a station's own spots (iHeart song_spot other than "M" or "F")
     };
 
     /**
@@ -139,7 +139,11 @@ public:
      * appends key="value" attributes and puts the song in text=:
      * 'Ray Parker, Jr. - text="Ghostbusters" song_spot="M" ...' is artist
      * "Ray Parker, Jr.", title "Ghostbusters"; its station spots name no
-     * artist and say song_spot="T". Surrounding spaces are trimmed.
+     * artist and say song_spot="T". iHeart's newer form is all attributes,
+     * comma-separated, the url= value holding unescaped quotes of its own:
+     * 'title="Fine By Me",artist="ANDY GRAMMER",url="song_spot="F" ..."'.
+     * Songs are song_spot M (broadcast stations) or F (digital ones).
+     * Surrounding spaces are trimmed.
      * @param stream_title The title, decoded.
      * @return Its parts.
      */

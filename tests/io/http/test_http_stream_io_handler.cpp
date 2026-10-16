@@ -1057,6 +1057,26 @@ protected:
         ASSERT_EQUALS(std::string("Halloween Radio - Fly In - Thriller 03"), p.title, "iHeart spot: text= whole");
         ASSERT_FALSE(p.is_music, "iHeart song_spot T is not music");
 
+        // iHeart's newer form, as zc6698 sends it: all attributes, comma-separated,
+        // url='s own quotes unescaped, and its songs marked F.
+        p = HTTPStreamIOHandler::splitStreamTitle(
+            "title=\"Fine By Me\",artist=\"ANDY GRAMMER\",url=\"song_spot=\"F\" MediaBaseId=\"0\" "
+            "itunesTrackId=\"0\" amgTrackId=\"-1\" amgArtistId=\"0\" TAID=\"0\" TPID=\"51517359\" "
+            "cartcutId=\"0\" amgArtworkURL=\"null\" length=\"00:02:58\" unsID=\"-1\" "
+            "spotInstanceId=\"6f91273a-e478-4709-912a-5dda95c7273b\"\"");
+        ASSERT_EQUALS(std::string("ANDY GRAMMER"), p.artist, "comma form: artist from artist=");
+        ASSERT_EQUALS(std::string("Fine By Me"), p.title, "comma form: title from title=");
+        ASSERT_TRUE(p.is_music, "iHeart song_spot F is music");
+
+        p = HTTPStreamIOHandler::splitStreamTitle(
+            "title=\"Imager 06\",artist=\"\",url=\"song_spot=\"T\" MediaBaseId=\"0\" length=\"00:00:09\"\"");
+        ASSERT_EQUALS(std::string(), p.artist, "comma-form spot: no artist");
+        ASSERT_EQUALS(std::string("Imager 06"), p.title, "comma-form spot: its title");
+        ASSERT_FALSE(p.is_music, "comma-form song_spot T is not music");
+
+        p = HTTPStreamIOHandler::splitStreamTitle("Simon & Garfunkel - Mrs. Robinson, Pt. 2");
+        ASSERT_EQUALS(std::string("Simon & Garfunkel"), p.artist, "a plain title with a comma stays plain");
+
         p = HTTPStreamIOHandler::splitStreamTitle("");
         ASSERT_EQUALS(std::string(), p.title, "empty stays empty");
     }
