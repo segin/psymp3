@@ -133,7 +133,19 @@ int psymp3_fdk_decode(void* handle,
     if (rate) *rate = info->sampleRate;
     if (channels) *channels = info->numChannels;
     if (aot) *aot = static_cast<int>(info->aot);
-    if (ext_aot) *ext_aot = static_cast<int>(info->extAot);
+    if (ext_aot) {
+        /*
+         * FDK names the extension SBR even when Parametric Stereo rides on
+         * it, and reports PS -- explicit in the AudioSpecificConfig or found
+         * in the bitstream -- as a flag of its own. SBR it names only when
+         * the AudioSpecificConfig signals it; found in the bitstream, it
+         * shows as output at a higher rate than the core's.
+         */
+        const bool sbr = info->extAot == AOT_SBR || (info->flags & AC_SBR_PRESENT) ||
+                         (info->aacSampleRate > 0 && info->sampleRate > info->aacSampleRate);
+        *ext_aot = (info->flags & AC_PS_PRESENT) ? PSYMP3_FDK_AOT_PS
+                 : sbr ? PSYMP3_FDK_AOT_SBR : static_cast<int>(info->extAot);
+    }
     if (output_delay) *output_delay = static_cast<int>(info->outputDelay);
     return PSYMP3_FDK_OK;
 }

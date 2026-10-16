@@ -120,6 +120,9 @@ protected:
             const std::vector<AudioSample> whole = readFirstChannel(stream, 2 * kInputRate);
             const long onset = firstLoud(whole);
             ASSERT_TRUE(onset > kInputRate * kToneStartMs / 1000, what + "the tone is found after its start");
+            // FDK calls the extension SBR for both; v2's PS comes as a flag.
+            ASSERT_EQUALS(std::string(aot == 29 ? "HE-AACv2" : "HE-AACv1"), stream.getCodecProfile().to8Bit(true),
+                          what + "named for what it is");
 
             // A seek to a quarter of a second before it finds it at the same
             // time. The demuxer lands in its own units, at the core rate; taken

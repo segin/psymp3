@@ -285,6 +285,9 @@ void AACCodec::updateProfile_unlocked(int aot, int ext_aot) {
         }
     }
 
+    if (m_profile != profile) {
+        Debug::log("aac", "AACCodec: profile ", profile);
+    }
     m_profile = profile;
 }
 
