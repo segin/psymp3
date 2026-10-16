@@ -58,7 +58,7 @@ bool ensureSDLAudioSubsystem()
  *             the mutex for thread-safe access to the stream.
  * This constructor initializes the audio system for the given stream and starts the background decoder thread.
  */
-Audio::Audio(std::unique_ptr<Stream> stream_to_own,
+Audio::Audio(std::shared_ptr<Stream> stream_to_own,
              FastFourier *fft,
              std::mutex *player_mutex,
              std::vector<AudioSample> primed_samples,
@@ -223,6 +223,22 @@ void Audio::play(bool go) {
  * This method is thread-safe and is used to seamlessly switch tracks.
  * @param new_stream A pointer to the new Stream object.
  */
+/**
+ * @brief Take the stream back. The decoder thread then waits for one, as it
+ *        does with none installed; the buffered audio stays to play out.
+ * @return The stream, or null.
+ */
+std::shared_ptr<Stream> Audio::releaseStream()
+{
+    // Lock acquisition order: m_stream_mutex before m_buffer_mutex
+    std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    std::shared_ptr<Stream> released = std::move(m_owned_stream);
+    m_owned_stream.reset();
+    m_current_stream_raw_ptr.store(nullptr);
+    return released;
+}
+
 std::unique_ptr<Stream> Audio::setStream(std::unique_ptr<Stream> new_stream,
                                          std::vector<AudioSample> primed_samples,
                                          bool primed_eof)

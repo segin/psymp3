@@ -364,6 +364,13 @@ class Player
         void handleTrackPreloadSuccessEvent(TrackLoadResult* result);
         void handleTrackPreloadFailureEvent(TrackLoadResult* result);
         void handleRunGuiIterationEvent();
+
+        /**
+         * @brief A live stream changed sample rate or channels and has played
+         *        out the old format: take it back from the audio device, open
+         *        one at its new format, and play on -- no reconnection.
+         */
+        void reopenAudioForFormatChange();
         void handleTrackSeamlessSwapEvent();
         void handleDoSavePlaylistEvent();
         void handleShowNotificationEvent(std::pair<std::string, NotificationType>* data);

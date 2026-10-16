@@ -213,7 +213,9 @@ drag it onto the window, or put it in a playlist.
   sending MP3, AAC (ADTS) or Ogg (Vorbis, Opus, FLAC). The song titles a
   station announces are shown as they change, also over MPRIS and Discord,
   and each song is scrobbled to Last.fm on its own. Chained Ogg stations,
-  which start a new stream for each song, play on across the changes.
+  which start a new stream for each song, play on across the changes; when
+  a song (or an ad) comes at another sample rate or channel count, the audio
+  device is reopened for it, with a short gap.
 - **HLS** stations (`.m3u8`) whose segments are packed AAC or MP3, as iHeart
   sends. MPEG-TS, fragmented-MP4, byte-range and encrypted segments are not
   supported.

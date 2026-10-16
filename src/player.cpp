@@ -7213,6 +7213,39 @@ void Player::handleTrackPreloadFailureEvent(TrackLoadResult* result) {
     delete result;
 }
 
+/**
+ * @brief Follow a live stream to its new format: the old device has played
+ *        out what it had; a new one opens at the stream's new rate and
+ *        channels and takes the same stream on, from the new link's first
+ *        frame. Volume, equalizer and play state carry over.
+ */
+void Player::reopenAudioForFormatChange()
+{
+    if (!audio) return;
+    std::shared_ptr<Stream> owned = audio->releaseStream();
+    if (!owned) return;
+    audio.reset(); // the device at the old format closes
+    owned->acknowledgeFormatChange();
+    try {
+        audio = std::make_unique<Audio>(owned, fft.get(), mutex.get());
+    } catch (const std::exception& e) {
+        Debug::log("audio", "Player: could not open the audio device at the stream's new format: ", e.what());
+        stream = nullptr;
+        if (!handleUnplayableTrack()) {
+            stop();
+        }
+        return;
+    }
+    audio->setVolume(m_volume);
+    applyEqStateToAudio();
+    stream = audio->getCurrentStream();
+    if (state == PlayerState::Playing) {
+        audio->play(true);
+    }
+    Debug::log("audio", "Player: the stream changed format; audio device reopened at " +
+               std::to_string(audio->getRate()) + " Hz, " + std::to_string(audio->getChannels()) + " ch");
+}
+
 void Player::handleRunGuiIterationEvent() {
     // Liveness stamp for the Unlimited-FPS watchdog in AppLoopTimer.
     s_last_gui_iteration_tick.store(SDL_GetTicks(), std::memory_order_relaxed);
@@ -7226,7 +7259,10 @@ void Player::handleRunGuiIterationEvent() {
 #endif
     if (updateGUI()) {
         // Track has ended.
-        if (m_loop_mode == LoopMode::One) {
+        if (stream && stream->hasPendingFormatChange()) {
+            // Not the end: a station changed rate or channels. Follow it.
+            reopenAudioForFormatChange();
+        } else if (m_loop_mode == LoopMode::One) {
             // Loop current track by seeking to the beginning.
             seekToInternal(0, false);
         } else if (m_next_stream) {

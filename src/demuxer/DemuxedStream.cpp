@@ -260,6 +260,20 @@ bool DemuxedStream::restartCodecForNewLink() {
                        " ", new_rate, " Hz ", new_channels, " ch");
             return true;
         }
+        if (m_live) {
+            /*
+             * A station changing format (an advert at another rate, a
+             * chained link) goes on: it reads as ended until the player has
+             * opened a device at the new format (hasPendingFormatChange()),
+             * then carries on from this link.
+             */
+            Debug::log("demux", "DemuxedStream: the stream changes format from ", rate, " Hz ", channels,
+                       " ch to ", new_rate, " Hz ", new_channels, " ch; waiting for the audio device to follow");
+            m_rate = new_rate;
+            m_channels = new_channels;
+            m_format_change_pending = true;
+            return true;
+        }
         Debug::log("demux", "DemuxedStream: next chained link changes the format from ", rate, " Hz ",
                    channels, " ch to ", new_rate, " Hz ", new_channels, " ch; ending the stream");
     }
@@ -446,10 +460,10 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
     // Serialize the entire decode path against seekTo so a concurrent seek
     // cannot clear m_current_frame / the chunk buffers mid-decode.
     std::lock_guard<std::mutex> decode_lock(m_decode_mutex);
-    if (m_eof_reached || !m_codec) {
+    if (m_eof_reached || !m_codec || m_format_change_pending) {
         return 0;
     }
-    
+
     uint8_t* output_buf = static_cast<uint8_t*>(buf);
     size_t bytes_written = 0;
     size_t consecutive_empty_frames = 0;
@@ -471,7 +485,12 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         // Need a new frame - decode on-demand from buffered chunks
         m_current_frame = getNextFrame();
         m_current_frame_offset = 0;
-        
+        if (m_format_change_pending) {
+            // This frame is in the new format: it waits for the device that
+            // plays it, not the one this read fills.
+            break;
+        }
+
         // Note: m_samples_consumed is now updated inside getNextFrame() 
         // based on granule positions or incremental counting
         
@@ -1139,7 +1158,8 @@ bool DemuxedStream::eof() {
     if (m_eof_reached) {
         Debug::log("demux", "DemuxedStream::eof() returning true - position=", m_position, "ms (frame-based)");
     }
-    return m_eof_reached;
+    // A pending format change reads as the end, so the old device plays out.
+    return m_eof_reached || m_format_change_pending;
 }
 
 unsigned int DemuxedStream::getLength() {

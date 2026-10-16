@@ -26,12 +26,24 @@
 
 class Audio {
 public:
-    Audio(std::unique_ptr<Stream> stream_to_own,
+    /**
+     * @brief Open the audio device for @p stream_to_own's format and start
+     *        decoding it. Shared, so a stream taken back with releaseStream()
+     *        can be handed to the Audio that replaces this one.
+     */
+    Audio(std::shared_ptr<Stream> stream_to_own,
           FastFourier *fft,
           std::mutex *player_mutex,
           std::vector<AudioSample> primed_samples = {},
           bool primed_eof = false);
     ~Audio();
+
+    /**
+     * @brief Take the stream back, leaving none: for a live stream whose
+     *        format changed, which a new Audio at the new format plays on.
+     * @return The stream, or null.
+     */
+    std::shared_ptr<Stream> releaseStream();
 
     void play(bool go);
     bool isFinished() const;

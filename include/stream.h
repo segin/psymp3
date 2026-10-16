@@ -153,6 +153,18 @@ class Stream
          *        the decoder can hold.
          */
         virtual void abortIO() {}
+
+        /**
+         * @brief Whether a live stream changed its sample rate or channels
+         *        (a chained link, an advert at another rate) and waits, read
+         *        as ended, for an audio device at its new format. The player
+         *        takes it back, opens one, and calls acknowledgeFormatChange().
+         * @return false unless such a change is waiting.
+         */
+        virtual bool hasPendingFormatChange() const { return false; }
+
+        /** @brief The new format's device is open: carry on reading. */
+        virtual void acknowledgeFormatChange() {}
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer

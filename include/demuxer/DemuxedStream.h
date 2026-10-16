@@ -112,6 +112,12 @@ public:
     /** @brief Whether a live stream has announced a title since it opened, so its tags describe an earlier song. */
     bool liveTagIsStale() const;
 
+    /** @brief A live link changed format and waits for a device at it (see Stream). */
+    bool hasPendingFormatChange() const override { return m_format_change_pending; }
+
+    /** @brief The device at the new format is open: reading goes on. */
+    void acknowledgeFormatChange() override { m_format_change_pending = false; }
+
     /**
      * @brief Counts the live stream's title changes (see updateLiveTitle()).
      * @return The count; 0 for a file.
@@ -221,6 +227,9 @@ private:
     /// readChunk() holds while the decoder waits on a stalled station.
     StreamInfo m_stream_info_cache;
     mutable std::mutex m_stream_info_cache_mutex;
+
+    /** @brief A live link changed rate or channels: read as ended until a device at the new format is open. */
+    std::atomic<bool> m_format_change_pending{false};
 
     /** @brief A chunk with a non-zero source offset has been seen: offsets are real (decoder thread). */
     bool m_live_offsets_reported = false;
