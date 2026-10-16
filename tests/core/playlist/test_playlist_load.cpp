@@ -285,6 +285,19 @@ private:
         ASSERT_FALSE(playlist->setStationNameAt(0, TagLib::String("http://other/", TagLib::String::UTF8),
                                                 TagLib::String("X", TagLib::String::UTF8)),
                      "a row holding another URL is left alone");
+
+        // A row with no name is called after its URL's last segment that says something.
+        std::string bare = createTempM3U(
+            "http://stream.revma.ihrhls.com/zc7001/hls.m3u8\n"
+            "http://stream.revma.ihrhls.com/zc6698?rj-org=n0bb-e2\n"
+            "https://ice.example.com/\n",
+            "temp_station_urls.m3u");
+        auto urls = Playlist::loadPlaylist(TagLib::String(bare, TagLib::String::UTF8));
+        std::remove(bare.c_str());
+        ASSERT_EQUALS(3, urls->entries(), "three stations");
+        ASSERT_EQUALS(std::string("zc7001"), urls->getTrackInfo(0)->title.to8Bit(true), "not the generic 'hls'");
+        ASSERT_EQUALS(std::string("zc6698"), urls->getTrackInfo(1)->title.to8Bit(true), "the query left out");
+        ASSERT_EQUALS(std::string("ice.example.com"), urls->getTrackInfo(2)->title.to8Bit(true), "no path: the host");
     }
 
     void testLoadPlaylistWithInvalidDuration() {

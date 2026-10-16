@@ -92,12 +92,56 @@ std::optional<unsigned int> getSyntheticRawLengthSeconds(const TagLib::String& p
     }
 }
 
-// Derives a human-readable display name from a path: the final path component
-// with its extension stripped. Used as a last-resort title so a track is never
-// shown as a blank row when no embedded title is available.
+/**
+ * @brief A placeholder name for a stream's URL: its last path segment that
+ *        says something, without extension, query or fragment -- the
+ *        segment before a generic one ("zc7001" of .../zc7001/hls.m3u8) --
+ *        else its host.
+ * @param url An http(s) URL.
+ * @return The name.
+ */
+std::string urlDisplayName(const std::string& url)
+{
+    static const std::unordered_set<std::string> kGeneric = {
+        "hls", "playlist", "index", "master", "stream", "live", "listen", "chunklist", "radio", "audio",
+    };
+    const size_t scheme = url.find("://");
+    const size_t host_start = scheme == std::string::npos ? 0 : scheme + 3;
+    const size_t path_start = std::min(url.find('/', host_start), url.size());
+    const size_t path_end = std::min(url.find_first_of("?#", path_start), url.size());
+    const std::string host = url.substr(host_start, std::min(url.find_first_of("/?#", host_start), url.size()) - host_start);
+    const std::string path = url.substr(path_start, path_end - path_start);
+    std::vector<std::string> segments;
+    for (size_t pos = 0; pos <= path.size();) {
+        const size_t slash = std::min(path.find('/', pos), path.size());
+        std::string segment = path.substr(pos, slash - pos);
+        const size_t dot = segment.find_last_of('.');
+        if (dot != std::string::npos && dot != 0) segment.erase(dot);
+        if (!segment.empty()) segments.push_back(segment);
+        pos = slash + 1;
+    }
+    for (auto it = segments.rbegin(); it != segments.rend(); ++it) {
+        std::string lower = *it;
+        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+        if (!kGeneric.count(lower)) return *it;
+    }
+    return host;
+}
+
+/**
+ * @brief A human-readable display name for a path: the final path component
+ *        with its extension stripped (for a URL, urlDisplayName()). Used as a
+ *        last-resort title so a track is never shown as a blank row when no
+ *        embedded title is available.
+ * @param path A file path or URL.
+ * @return The name.
+ */
 TagLib::String filenameStem(const TagLib::String& path)
 {
     std::string s = path.to8Bit(true);
+    if (s.compare(0, 7, "http://") == 0 || s.compare(0, 8, "https://") == 0) {
+        return TagLib::String(urlDisplayName(s), TagLib::String::UTF8);
+    }
     std::string::size_type slash = s.find_last_of("/\\");
     if (slash != std::string::npos) {
         s.erase(0, slash + 1);
