@@ -432,6 +432,20 @@ protected:
         ASSERT_EQUALS(std::string("Cut off"), t, "unterminated title stops at the padding");
         ASSERT_FALSE(HTTPStreamIOHandler::parseStreamTitle("StreamUrl='x';", t), "no StreamTitle");
 
+        // The fields beside the title that can carry a picture.
+        const std::string block =
+            "StreamTitle='UB40 - Red Red Wine';StreamUrl='http://img.radioparadise.com/covers/l/12787.jpg';"
+            "StreamArtwork='';";
+        ASSERT_TRUE(HTTPStreamIOHandler::parseIcyField(block, "StreamUrl", t), "StreamUrl found");
+        ASSERT_EQUALS(std::string("http://img.radioparadise.com/covers/l/12787.jpg"), t, "StreamUrl's value");
+        ASSERT_TRUE(HTTPStreamIOHandler::parseIcyField(block, "StreamArtwork", t), "an empty StreamArtwork found");
+        ASSERT_EQUALS(std::string(), t, "empty");
+        ASSERT_FALSE(HTTPStreamIOHandler::parseIcyField("StreamTitle='a';XStreamUrl='b';", "StreamUrl", t),
+                     "only a whole field name");
+        ASSERT_TRUE(HTTPStreamIOHandler::isArtworkUrl("https://somafm.com/logos/512/groovesalad512.jpg"), "https");
+        ASSERT_FALSE(HTTPStreamIOHandler::isArtworkUrl("null"), "iHeart's null is no URL");
+        ASSERT_FALSE(HTTPStreamIOHandler::isArtworkUrl("www.station.com"), "nor a bare host");
+
         ASSERT_EQUALS(std::string("Beyonc\xC3\xA9"), HTTPStreamIOHandler::decodeIcyText("Beyonc\xC3\xA9"),
                       "valid UTF-8 is kept");
         ASSERT_EQUALS(std::string("Beyonc\xC3\xA9"), HTTPStreamIOHandler::decodeIcyText("Beyonc\xE9"),
@@ -1069,6 +1083,12 @@ protected:
         ASSERT_EQUALS(std::string("Fine By Me"), p.title, "comma form: title from title=");
         ASSERT_TRUE(p.is_music, "iHeart song_spot F is music");
         ASSERT_EQUALS(uint64_t(178000), p.length_ms, "comma form: its length, from inside url=");
+        ASSERT_EQUALS(std::string(), p.artwork_url, "amgArtworkURL=\"null\" is no picture");
+        p = HTTPStreamIOHandler::splitStreamTitle(
+            "NORAH JONES - text=\"Sunrise\" song_spot=\"M\" length=\"00:03:16\" "
+            "amgArtworkURL=\"https://i.iheart.com/v3/catalog/track/418846?ops=fit(200,200)\" ");
+        ASSERT_EQUALS(std::string("https://i.iheart.com/v3/catalog/track/418846?ops=fit(200,200)"), p.artwork_url,
+                      "older form: the song's picture");
         ASSERT_EQUALS(uint64_t(0), HTTPStreamIOHandler::splitStreamTitle("A - B").length_ms, "plain: no length");
         ASSERT_EQUALS(uint64_t(0),
                       HTTPStreamIOHandler::splitStreamTitle("A - text=\"B\" length=\"soon\"").length_ms,

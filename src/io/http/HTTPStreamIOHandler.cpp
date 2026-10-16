@@ -642,7 +642,26 @@ void HTTPStreamIOHandler::onMetadataBlock(const std::string& block)
     if (!parseStreamTitle(block, raw)) return;
     const bool first_of_connection = !m_conn_titled;
     m_conn_titled = true;
-    recordTitle(decodeIcyText(raw), first_of_connection ? m_conn_start : -1);
+    const std::string title = decodeIcyText(raw);
+    const filesize_t at = first_of_connection ? m_conn_start : -1;
+    recordTitle(title, at);
+
+    /*
+     * A picture for it: StreamArtwork (181.FM's field), else StreamUrl,
+     * which many stations fill with cover art or their logo -- and as many
+     * with their home page, which recordArtworkUrl() finds is no picture --
+     * else iHeart's amgArtworkURL inside the title itself.
+     */
+    std::string url;
+    for (const char* field : {"StreamArtwork", "StreamUrl"}) {
+        std::string value;
+        if (parseIcyField(block, field, value) && isArtworkUrl(value)) {
+            url = trim(decodeIcyText(value));
+            break;
+        }
+    }
+    if (url.empty()) url = splitStreamTitle(title).artwork_url;
+    if (!url.empty()) recordArtworkUrl(url, at);
 }
 
 /**
@@ -654,8 +673,25 @@ void HTTPStreamIOHandler::onMetadataBlock(const std::string& block)
  */
 bool HTTPStreamIOHandler::parseStreamTitle(const std::string& block, std::string& title)
 {
-    static const std::string key = "StreamTitle='";
-    const size_t start = block.find(key);
+    return parseIcyField(block, "StreamTitle", title);
+}
+
+/**
+ * @brief Extract the raw value of field @p name: from after "name='" to the
+ *        next "';", or failing that the last quote, the padding or the end.
+ * @param block A metadata block.
+ * @param name The field, as "StreamUrl".
+ * @param title Receives the value, undecoded.
+ * @return true if the block has the field.
+ */
+bool HTTPStreamIOHandler::parseIcyField(const std::string& block, const std::string& name, std::string& title)
+{
+    const std::string key = name + "='";
+    size_t start = block.find(key);
+    // A whole field name only: "StreamUrl" is not the end of "XStreamUrl".
+    while (start != std::string::npos && start > 0 && block[start - 1] != ';') {
+        start = block.find(key, start + 1);
+    }
     if (start == std::string::npos) return false;
     const size_t from = start + key.size();
     size_t end = block.find("';", from);
@@ -683,6 +719,21 @@ bool HTTPStreamIOHandler::artistIsStation(const std::string& artist, const std::
     const std::string s = toLower(trim(station_name));
     if (a.empty() || s.empty() || a.size() > s.size() || s.compare(0, a.size(), a) != 0) return false;
     return a.size() == s.size() || s[a.size()] == ' ';
+}
+
+/**
+ * @brief An http(s) URL with something after the scheme.
+ * @param url The value.
+ * @return true if fetchable.
+ */
+bool HTTPStreamIOHandler::isArtworkUrl(const std::string& url)
+{
+    const std::string u = toLower(trim(url));
+    for (const char* scheme : {"http://", "https://"}) {
+        const size_t len = std::strlen(scheme);
+        if (u.size() > len && u.compare(0, len, scheme) == 0) return true;
+    }
+    return false;
 }
 
 /**
@@ -759,6 +810,7 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
             }
             parts.is_music = isMusicSpot(values);
             parts.length_ms = lengthMs(values);
+            parts.artwork_url = isArtworkUrl(values["amgArtworkURL"]) ? trim(values["amgArtworkURL"]) : std::string();
             return parts;
         }
     }
@@ -791,6 +843,7 @@ HTTPStreamIOHandler::TitleParts HTTPStreamIOHandler::splitStreamTitle(const std:
     }
     parts.is_music = isMusicSpot(values);
     parts.length_ms = lengthMs(values);
+    parts.artwork_url = isArtworkUrl(values["amgArtworkURL"]) ? trim(values["amgArtworkURL"]) : std::string();
     return parts;
 }
 

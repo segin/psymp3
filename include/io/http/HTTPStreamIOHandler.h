@@ -125,12 +125,23 @@ public:
      */
     static bool parseStreamTitle(const std::string& block, std::string& title);
 
+    /**
+     * @brief Find field @p name ('StreamUrl', 'StreamArtwork', ...) in an ICY
+     *        metadata block, read as parseStreamTitle() reads StreamTitle.
+     * @param block The metadata block, as sent.
+     * @param name The field's name.
+     * @param value Set to the raw (undecoded) value when found.
+     * @return true if the block had the field.
+     */
+    static bool parseIcyField(const std::string& block, const std::string& name, std::string& value);
+
     /** @brief A StreamTitle taken apart for display and scrobbling. */
     struct TitleParts {
         std::string artist;   ///< "" when the title names none
         std::string title;    ///< the song, or whatever the station announced
         bool is_music = true; ///< false for a station's own spots (iHeart song_spot other than "M" or "F")
         uint64_t length_ms = 0; ///< the song's length when the station says (iHeart length=), else 0
+        std::string artwork_url; ///< the song's picture when the station links one (iHeart amgArtworkURL=), else ""
     };
 
     /**
@@ -160,6 +171,14 @@ public:
      * @return true if the artist names the station.
      */
     static bool artistIsStation(const std::string& artist, const std::string& station_name);
+
+    /**
+     * @brief Whether @p url can be fetched as a picture: an http(s) URL.
+     *        Stations fill the field with "", "null" or a bare host as often.
+     * @param url The value, trimmed or not.
+     * @return true if it is worth fetching.
+     */
+    static bool isArtworkUrl(const std::string& url);
 
     // Most bytes of audio allowed between metadata blocks; a larger
     // icy-metaint is taken as nonsense and ignored.
