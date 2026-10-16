@@ -68,6 +68,41 @@ bool codecKeepsHeadersInBand(const CodecHeaderParser& parser)
     return codec == "vorbis";
 }
 
+/**
+ * @brief The pictures in a stream's comments: each METADATA_BLOCK_PICTURE
+ *        field (a base64 FLAC picture block) that decodes.
+ * @param comment The comments.
+ * @return The pictures, in the order given.
+ */
+std::vector<PsyMP3::Tag::Picture> commentPictures(const OggVorbisComment& comment)
+{
+    std::vector<PsyMP3::Tag::Picture> pictures;
+    auto it = comment.fields.find("METADATA_BLOCK_PICTURE");
+    if (it == comment.fields.end()) return pictures;
+    for (const std::string& value : it->second) {
+        std::optional<PsyMP3::Tag::Picture> picture = PsyMP3::Tag::VorbisCommentTag::parsePictureField(value);
+        if (picture && !picture->isEmpty()) pictures.push_back(std::move(*picture));
+    }
+    return pictures;
+}
+
+/**
+ * @brief The picture to show for a link: its front cover, else its first.
+ * @param comment The link's comments.
+ * @return It, or null when it has none.
+ */
+std::shared_ptr<const PsyMP3::Tag::Picture> commentCover(const OggVorbisComment& comment)
+{
+    std::vector<PsyMP3::Tag::Picture> pictures = commentPictures(comment);
+    if (pictures.empty()) return nullptr;
+    for (PsyMP3::Tag::Picture& picture : pictures) {
+        if (picture.type == PsyMP3::Tag::PictureType::FrontCover) {
+            return std::make_shared<const PsyMP3::Tag::Picture>(std::move(picture));
+        }
+    }
+    return std::make_shared<const PsyMP3::Tag::Picture>(std::move(pictures.front()));
+}
+
 } // namespace
 
 bool OggDemuxer::resetForPlayback_unlocked() {
@@ -371,9 +406,9 @@ void OggDemuxer::createTagFromMetadata_unlocked() {
     // VorbisCommentTag expects multi-valued map
     std::map<std::string, std::vector<std::string>> multi_fields = ogg_comment.fields;
     
-    // Create VorbisCommentTag (no pictures in Ogg VorbisComment typically, 
-    // METADATA_BLOCK_PICTURE would need base64 decoding which VorbisCommentTag handles)
-    std::vector<PsyMP3::Tag::Picture> pictures;
+    // Pictures come as METADATA_BLOCK_PICTURE fields, base64 FLAC picture blocks.
+    std::vector<PsyMP3::Tag::Picture> pictures = commentPictures(ogg_comment);
+    multi_fields.erase("METADATA_BLOCK_PICTURE");
     
     m_tag = std::make_unique<PsyMP3::Tag::VorbisCommentTag>(
         ogg_comment.vendor,
@@ -824,6 +859,7 @@ bool OggDemuxer::beginNextLink_unlocked(ogg_page* bos_page) {
   const std::string artist = field("ARTIST");
   const std::string title = field("TITLE");
   m_link_title = (!artist.empty() && !title.empty()) ? artist + " - " + title : artist + title;
+  m_link_picture = commentCover(comment);
 
   // A chained file has moved on to its next link (a seek sets the link
   // itself, after this).
@@ -859,6 +895,15 @@ bool OggDemuxer::beginNextLink_unlocked(ogg_page* bos_page) {
 std::string OggDemuxer::getStreamTitle() const {
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
   return m_link_title;
+}
+
+/**
+ * @brief The current chained link's picture.
+ * @return It, or null.
+ */
+std::shared_ptr<const PsyMP3::Tag::Picture> OggDemuxer::getStreamPicture() const {
+  std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
+  return m_link_picture;
 }
 
 MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {

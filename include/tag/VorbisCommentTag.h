@@ -119,7 +119,18 @@ public:
      * @return Vendor string (e.g., "libvorbis 1.3.7")
      */
     std::string vendorString() const;
-    
+
+    /**
+     * @brief Parse METADATA_BLOCK_PICTURE field
+     *
+     * Parses a base64-encoded FLAC picture block from a VorbisComment field.
+     * Public for comments read elsewhere: a chained Ogg link's, say.
+     *
+     * @param base64_data Base64-encoded picture data
+     * @return Picture structure or nullopt on parse failure
+     */
+    static std::optional<Picture> parsePictureField(const std::string& base64_data);
+
 private:
     std::string m_vendor_string;
     std::map<std::string, std::vector<std::string>> m_fields; // Case-normalized keys
@@ -132,16 +143,6 @@ private:
      */
     static std::string normalizeFieldName(const std::string& name);
     
-    /**
-     * @brief Parse METADATA_BLOCK_PICTURE field
-     * 
-     * Parses a base64-encoded FLAC picture block from a VorbisComment field.
-     * 
-     * @param base64_data Base64-encoded picture data
-     * @return Picture structure or nullopt on parse failure
-     */
-    static std::optional<Picture> parsePictureField(const std::string& base64_data);
-
     /**
      * @brief Parse vendor string from VorbisComment
      * @param data Pointer to data

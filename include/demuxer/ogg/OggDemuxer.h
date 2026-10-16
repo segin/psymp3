@@ -60,6 +60,12 @@ public:
      */
     std::string getStreamTitle() const override;
 
+    /**
+     * @brief The current chained link's picture (its METADATA_BLOCK_PICTURE).
+     * @return It, or null before the first link change or for a link with none.
+     */
+    std::shared_ptr<const PsyMP3::Tag::Picture> getStreamPicture() const override;
+
     // Registration
     static bool registerDemuxer();
 
@@ -93,6 +99,8 @@ private:
     std::deque<MediaChunk> m_link_chunks;   // a new link's in-band headers, sent before its audio
     bool m_link_flag_pending = false;       // flag the next primary chunk new_link
     std::string m_link_title;               // the current link's "Artist - Title"
+    /** @brief The current link's picture, or null (getStreamPicture()). */
+    std::shared_ptr<const PsyMP3::Tag::Picture> m_link_picture;
 
     /** @brief One link of a chained Ogg file: where it starts and what of the whole timeline it covers. */
     struct ChainLink {
