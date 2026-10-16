@@ -2735,11 +2735,14 @@ void Player::seekTo(unsigned long pos)
 void Player::seekToInternal(unsigned long pos, bool monitor_seek_errors)
 {
     std::lock_guard<std::mutex> lock(*mutex);
-    // A track with no length -- internet radio -- plays from where it is.
-    // Every way of seeking (bar, arrow keys, R, Restart Track, Previous at the
-    // start of the playlist, MPRIS) comes through here, so it is refused here.
-    if (stream && !stream->canSeek()) {
-        Debug::log("player", "Player::seekTo: the track has no length; not seeking");
+    /*
+     * Internet radio plays from where it is. Every way of seeking (bar,
+     * arrow keys, R, Restart Track, Previous at the start of the playlist,
+     * MPRIS) comes through here, so it is refused here -- for a live stream,
+     * not for any track that merely reports no length.
+     */
+    if (stream && stream->isLive()) {
+        Debug::log("player", "Player::seekTo: a live stream; not seeking");
         return;
     }
     if (stream) {
@@ -3595,8 +3598,8 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_C: setDelay(2.0f); break;
 
         case SDLK_LEFT:
-            // Nothing to seek in a track with no length: no scrub, no arrow.
-            if (stream && !stream->canSeek()) {
+            // Nothing to seek in a live stream: no scrub, no arrow.
+            if (stream && stream->isLive()) {
                 break;
             }
             // On the initial key press, capture the current position to seek from.
@@ -3619,8 +3622,8 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_RIGHT:
-            // Nothing to seek in a track with no length: no scrub, no arrow.
-            if (stream && !stream->canSeek()) {
+            // Nothing to seek in a live stream: no scrub, no arrow.
+            if (stream && stream->isLive()) {
                 break;
             }
             // On the initial key press, capture the current position to seek from.
@@ -3746,8 +3749,8 @@ void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
     if (event.button == SDL_BUTTON_LEFT) {
         if (event.x >= 400 && event.x <= 620 &&
             event.y >= 374 && event.y <= 389) {
-            // A track with no length cannot be seeked: ignore the click.
-            if (stream && stream->canSeek()) {
+            // A live stream cannot be seeked: ignore the click.
+            if (stream && !stream->isLive()) {
                 m_is_dragging = true;
                 // Don't seek here, just update the visual position and start the drag.
                 int relative_x = event.x - 400;
@@ -4394,6 +4397,36 @@ void Player::EventLoop() {
                 // the target gap from it in case no DROP_POSITION preceded.
                 if (event.drop.data) {
                     m_dropped_paths.emplace_back(event.drop.data);
+                }
+                updateDropIndicator(event.drop.x, event.drop.y);
+                break;
+            case SDL_EVENT_DROP_TEXT:
+                /*
+                 * A link dragged from a browser comes as text -- a
+                 * text/uri-list, one URI a line -- not as a file. Its http(s)
+                 * lines are stations, its file:// lines local paths; anything
+                 * else (comments, plain words) is not something to play.
+                 */
+                if (event.drop.data) {
+                    using PsyMP3::Core::Utility::PlaylistText;
+                    const std::string text(event.drop.data);
+                    size_t pos = 0;
+                    while (pos < text.size()) {
+                        size_t nl = text.find_first_of("\r\n", pos);
+                        if (nl == std::string::npos) nl = text.size();
+                        std::string line = text.substr(pos, nl - pos);
+                        pos = nl + 1;
+                        line.erase(0, line.find_first_not_of(" \t"));
+                        line.erase(line.find_last_not_of(" \t") + 1);
+                        std::string scheme = line.substr(0, 8);
+                        std::transform(scheme.begin(), scheme.end(), scheme.begin(), ::tolower);
+                        if (scheme.compare(0, 7, "http://") == 0 || scheme.compare(0, 8, "https://") == 0) {
+                            m_dropped_paths.push_back(line);
+                        } else if (scheme.compare(0, 7, "file://") == 0) {
+                            const std::string path = PlaylistText::fileUriToPath(line);
+                            if (!path.empty()) m_dropped_paths.push_back(path);
+                        }
+                    }
                 }
                 updateDropIndicator(event.drop.x, event.drop.y);
                 break;
