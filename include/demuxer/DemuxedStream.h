@@ -125,6 +125,12 @@ public:
     uint64_t getMetadataGeneration() const override { return m_live_meta_generation.load(); }
 
     /**
+     * @brief Counts the live stream's picture changes (see updateLiveTitle()).
+     * @return The count; 0 for a file.
+     */
+    uint64_t getArtworkGeneration() const override { return m_live_art_generation.load(); }
+
+    /**
      * @brief The station's name, read when the stream opened.
      * @return It, or empty.
      */
@@ -144,7 +150,7 @@ public:
     virtual TagLib::String getPrimaryArtist() override;
     virtual TagLib::String getMusicBrainzID() override;
     virtual TagLib::String getMusicBrainzReleaseID() override;
-    /** @brief The tag's cover art, or none once a live stream's tag is stale (liveTagIsStale()). */
+    /** @brief A live stream's own picture for what plays; else the tag's, or none once it is stale (liveTagIsStale()). */
     std::optional<PsyMP3::Tag::Picture> getCoverArt() const override;
     virtual int getBitsPerSample() override;
     virtual TagLib::String getCodecName() override;
@@ -252,6 +258,9 @@ private:
     std::string m_station_name;
     bool m_live_is_music = true;
     uint64_t m_live_length_ms = 0;      ///< the current song's length when announced, else 0
+    /// The picture the stream sent for what plays now, or null.
+    std::shared_ptr<const PsyMP3::Tag::Picture> m_live_picture;
+    std::atomic<uint64_t> m_live_art_generation{0};
     std::atomic<uint64_t> m_live_meta_generation{0};
     static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     // Counts chunks popped for decoding; used to tell "no progress" (a real

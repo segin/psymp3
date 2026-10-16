@@ -531,6 +531,24 @@ public:
     std::string getSourceStreamTitleAt(uint64_t offset) const;
 
     /**
+     * @brief The picture the stream itself carries for what is playing now,
+     *        when it changes mid-stream: a chained Ogg link's
+     *        METADATA_BLOCK_PICTURE, say. Like getStreamTitle(), this
+     *        follows the stream where getTag() does not.
+     * @return The picture, or null when the stream carries none.
+     */
+    virtual std::shared_ptr<const PsyMP3::Tag::Picture> getStreamPicture() const;
+
+    /**
+     * @brief The picture the source sent, or pointed to, for the audio at
+     *        @p offset; see IOHandler::getStreamPictureAt(). Like
+     *        getSourceStreamTitleAt(), it waits only briefly on the source.
+     * @param offset Source offset of the audio, a chunk's file_offset.
+     * @return The picture, or null.
+     */
+    std::shared_ptr<const PsyMP3::Tag::Picture> getSourceStreamPictureAt(uint64_t offset) const;
+
+    /**
      * @brief The source's own name (ICY icy-name); see IOHandler::getStationName().
      * @return The name, or "".
      */

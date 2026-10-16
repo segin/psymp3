@@ -133,6 +133,14 @@ class Stream
         virtual uint64_t getMetadataGeneration() const { return 0; }
 
         /**
+         * @brief A count that goes up each time a live stream's picture
+         *        changes (getCoverArt() then says something new) -- apart
+         *        from titles, as a picture fetched late is no new song.
+         * @return 0 for files.
+         */
+        virtual uint64_t getArtworkGeneration() const { return 0; }
+
+        /**
          * @brief The live stream's own name (a radio station's icy-name).
          * @return The name, or empty.
          */

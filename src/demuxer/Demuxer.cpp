@@ -65,6 +65,23 @@ std::string Demuxer::getSourceStreamTitleAt(uint64_t offset) const {
 }
 
 /**
+ * @brief Demuxers whose streams carry no pictures mid-stream say so.
+ * @return null.
+ */
+std::shared_ptr<const PsyMP3::Tag::Picture> Demuxer::getStreamPicture() const {
+    return nullptr;
+}
+
+/**
+ * @brief Ask the source for the picture at @p offset.
+ * @param offset Source offset.
+ * @return Its picture, or null with no source.
+ */
+std::shared_ptr<const PsyMP3::Tag::Picture> Demuxer::getSourceStreamPictureAt(uint64_t offset) const {
+    return m_handler ? m_handler->getStreamPictureAt(static_cast<PsyMP3::IO::filesize_t>(offset)) : nullptr;
+}
+
+/**
  * @brief Ask the source for its name.
  * @return The name, or "" with no source.
  */

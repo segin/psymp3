@@ -3025,6 +3025,11 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
                 m_seen_meta_generation = generation;
                 m_stream_title_changed = true;
             }
+            const uint64_t art_generation = current_stream->getArtworkGeneration();
+            if (art_generation != m_seen_art_generation) {
+                m_seen_art_generation = art_generation;
+                m_stream_art_changed = true;
+            }
         }
 
         // Check if we should scrobble this track (only check every 30 seconds to avoid spam)
@@ -3167,6 +3172,10 @@ bool Player::updateGUI()
     if (m_stream_title_changed) {
         m_stream_title_changed = false;
         onStreamTitleChanged();
+    }
+    if (m_stream_art_changed) {
+        m_stream_art_changed = false;
+        onStreamArtworkChanged();
     }
 
     // Render the overlay and widget tree regardless of stream state so
@@ -6836,6 +6845,28 @@ void Player::scrobbleLiveTitleOnLeaving()
         return;
     }
     scrobbleFinishedLiveTitle(false);
+}
+
+/**
+ * @brief Show a live stream's new picture where pictures are shown.
+ */
+void Player::onStreamArtworkChanged()
+{
+    if (!stream || !stream->isLive()) {
+        return;
+    }
+    refreshAlbumArt();
+#ifdef HAVE_DBUS
+    if (m_mpris_manager) {
+        m_mpris_manager->updateMetadata(
+            stream->getArtist().to8Bit(true),
+            stream->getTitle().to8Bit(true),
+            stream->getAlbum().to8Bit(true),
+            static_cast<uint64_t>(stream->getLength()) * 1000,
+            mprisArtUrl(stream)
+        );
+    }
+#endif
 }
 
 /**

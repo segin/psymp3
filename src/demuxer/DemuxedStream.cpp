@@ -183,6 +183,7 @@ StreamInfo DemuxedStream::cachedStreamInfo() const {
  */
 void DemuxedStream::updateLiveTitle(uint64_t chunk_offset) {
     std::string raw = m_demuxer->getStreamTitle();
+    uint64_t source_offset = UINT64_MAX; // set when the title is the source's
     if (raw.empty()) {
         /*
          * An offset of 0 is ambiguous: the stream's very first chunk, or a
@@ -198,8 +199,24 @@ void DemuxedStream::updateLiveTitle(uint64_t chunk_offset) {
         }
         if (chunk_offset != 0) m_live_offsets_reported = true;
         raw = m_demuxer->getSourceStreamTitleAt(offset);
+        source_offset = offset;
+    }
+    /*
+     * The picture comes from where the title does: the link's own, else --
+     * when the title is the source's -- the source's at the same offset.
+     */
+    std::shared_ptr<const PsyMP3::Tag::Picture> picture = m_demuxer->getStreamPicture();
+    if (!picture && source_offset != UINT64_MAX) {
+        picture = m_demuxer->getSourceStreamPictureAt(source_offset);
     }
     std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+    if (picture != m_live_picture) {
+        m_live_picture = std::move(picture);
+        ++m_live_art_generation;
+        Debug::log("demux", "DemuxedStream: ", m_live_picture ? "picture now " + m_live_picture->mime_type + " " +
+                   std::to_string(m_live_picture->width) + "x" + std::to_string(m_live_picture->height)
+                   : std::string("no picture now"));
+    }
     if (raw == m_live_raw_title) {
         return;
     }
@@ -1446,10 +1463,17 @@ bool DemuxedStream::liveTagIsStale() const {
 }
 
 /**
- * @brief Cover art: the tag's, unless the tag no longer describes what plays.
+ * @brief Cover art: on a live stream, the picture it sent for what plays now;
+ *        else the tag's, unless the tag no longer describes what plays.
  * @return The picture, or none.
  */
 std::optional<PsyMP3::Tag::Picture> DemuxedStream::getCoverArt() const {
+    if (m_live) {
+        std::lock_guard<std::mutex> lock(m_live_meta_mutex);
+        if (m_live_picture) {
+            return *m_live_picture; // what the station sent for this song
+        }
+    }
     if (liveTagIsStale()) {
         return std::nullopt; // the first song's picture is not the current one's
     }

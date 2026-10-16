@@ -440,6 +440,17 @@ class Player
         // its own. These describe the title playing now.
         uint64_t m_seen_meta_generation = 0;  // the stream's count when last seen
         bool m_stream_title_changed = false;  // set under the mutex, handled after it
+        /** @brief The stream's artwork count when last seen (Stream::getArtworkGeneration()). */
+        uint64_t m_seen_art_generation = 0;
+        /** @brief Set under the mutex when a live stream's picture changed; handled after it. */
+        bool m_stream_art_changed = false;
+
+        /**
+         * @brief A live stream's picture changed: show it in the album art
+         *        window and Album Art Mode, and send it over MPRIS. Runs on
+         *        the GUI thread, outside the mutex.
+         */
+        void onStreamArtworkChanged();
         bool m_live_first_title = true;       // joined mid-song: scrobbled only after 4 min
         bool m_live_awaiting_first_title = false; // opened before any title was announced
         bool m_live_title_is_music = true;
