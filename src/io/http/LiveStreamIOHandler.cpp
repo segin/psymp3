@@ -229,6 +229,10 @@ void LiveStreamIOHandler::stopWorker()
     if (m_worker.joinable()) {
         m_worker.join();
     }
+    // The producer starts the artwork thread, so it is joined after.
+    if (m_art_worker.joinable()) {
+        m_art_worker.join();
+    }
 }
 
 /**
@@ -257,6 +261,7 @@ void LiveStreamIOHandler::abort()
     std::lock_guard<std::mutex> lock(m_buf_mutex);
     m_space_cv.notify_all();
     m_data_cv.notify_all();
+    m_art_cv.notify_all();
 }
 
 /**
@@ -505,6 +510,168 @@ void LiveStreamIOHandler::recordTitle(const std::string& title, filesize_t where
     if (m_titles.size() > MAX_TITLES) m_titles.pop_front();
     ++m_title_count;
     Debug::log("http", "LiveStreamIOHandler: title at ", at, ": '", title, "'");
+}
+
+/**
+ * @brief Place a picture: the current end by default, except that the
+ *        stream's first applies from where its first title does (from the
+ *        start, as that title does), never before the last title or picture.
+ * @param at The requested offset, or -1.
+ * @return The offset to use.
+ */
+filesize_t LiveStreamIOHandler::placeMetadata_unlocked(filesize_t at) const
+{
+    if (at < 0) {
+        at = !m_pictures.empty() || m_title_count > 1 ? audioEnd_unlocked()
+           : m_titles.empty() ? 0 : m_titles.back().first;
+    }
+    if (!m_titles.empty() && at < m_titles.back().first) at = m_titles.back().first;
+    if (!m_pictures.empty() && at < m_pictures.back().at) at = m_pictures.back().at;
+    return at;
+}
+
+/**
+ * @brief Whether a title starts in (@p at, @p upto].
+ * @param at A picture's offset.
+ * @param upto The furthest offset that matters.
+ * @return true if one does.
+ */
+bool LiveStreamIOHandler::titleStartsAfter_unlocked(filesize_t at, filesize_t upto) const
+{
+    for (auto it = m_titles.rbegin(); it != m_titles.rend(); ++it) {
+        if (it->first <= at) return false;
+        if (it->first <= upto) return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Keep @p entry, and at most MAX_PICTURES in all.
+ * @param entry The entry.
+ */
+void LiveStreamIOHandler::pushPicture_unlocked(PictureEntry entry)
+{
+    m_pictures.push_back(std::move(entry));
+    if (m_pictures.size() > MAX_PICTURES) m_pictures.pop_front();
+}
+
+/**
+ * @brief Record a picture sent whole, unless it is the one already in
+ *        effect for the latest song.
+ * @param picture The picture, or null for none.
+ * @param where Its start, or -1.
+ */
+void LiveStreamIOHandler::recordPicture(std::shared_ptr<const PsyMP3::Tag::Picture> picture, filesize_t where)
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    const filesize_t at = placeMetadata_unlocked(where);
+    if (!m_pictures.empty() && !titleStartsAfter_unlocked(m_pictures.back().at, at)) {
+        const PictureEntry& last = m_pictures.back();
+        const bool same = last.url.empty() &&
+                          (last.picture == picture ||
+                           (last.picture && picture && last.picture->data == picture->data));
+        if (same) return; // sent again with each segment, say
+    }
+    pushPicture_unlocked(PictureEntry{at, std::string(), std::move(picture)});
+    Debug::log("http", "LiveStreamIOHandler: picture at ", at);
+}
+
+/**
+ * @brief Record a picture by URL: from the cache when it has been fetched,
+ *        otherwise queued for the artwork thread (started on first use).
+ * @param url The URL.
+ * @param where Its start, or -1.
+ */
+void LiveStreamIOHandler::recordArtworkUrl(const std::string& url, filesize_t where)
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    const filesize_t at = placeMetadata_unlocked(where);
+    if (!m_pictures.empty() && m_pictures.back().url == url && !titleStartsAfter_unlocked(m_pictures.back().at, at)) {
+        return; // the same picture, still for the same song
+    }
+    PictureEntry entry{at, url, nullptr};
+    bool cached = false;
+    for (const auto& known : m_art_cache) {
+        if (known.first == url) {
+            entry.picture = known.second;
+            cached = true;
+            break;
+        }
+    }
+    pushPicture_unlocked(std::move(entry));
+    Debug::log("http", "LiveStreamIOHandler: picture at ", at, " from ", url, cached ? " (known)" : "");
+    if (cached || m_abort) return;
+    if (std::find(m_art_queue.begin(), m_art_queue.end(), url) == m_art_queue.end()) {
+        m_art_queue.push_back(url);
+    }
+    if (!m_art_worker.joinable()) {
+        m_art_worker = std::thread([this] { runArtworkWorker(); });
+    }
+    m_art_cv.notify_all();
+}
+
+/**
+ * @brief Fetch each queued URL in turn, outside the lock; keep what it gave
+ *        in the cache and in every entry waiting for it. Ends on abort.
+ */
+void LiveStreamIOHandler::runArtworkWorker()
+{
+    std::unique_lock<std::mutex> lock(m_buf_mutex);
+    for (;;) {
+        m_art_cv.wait(lock, [this] { return m_abort || !m_art_queue.empty(); });
+        if (m_abort) return;
+        const std::string url = m_art_queue.front();
+        lock.unlock();
+        std::string body;
+        std::string error;
+        std::shared_ptr<const PsyMP3::Tag::Picture> picture;
+        if (fetch(url, body, nullptr, nullptr, error, MAX_PICTURE_BYTES)) {
+            picture = pictureFromBytes(body);
+            if (!picture) error = "not an image";
+        }
+        Debug::log("http", "LiveStreamIOHandler: picture ", url, picture ? " fetched" : " refused: " + error);
+        lock.lock();
+        m_art_queue.pop_front();
+        if (m_abort) return; // an aborted fetch says nothing of the URL
+        m_art_cache.emplace_back(url, picture);
+        if (m_art_cache.size() > ARTWORK_CACHE_SIZE) m_art_cache.pop_front();
+        for (PictureEntry& entry : m_pictures) {
+            if (entry.url == url) entry.picture = picture;
+        }
+    }
+}
+
+/**
+ * @brief A front-cover picture of @p bytes, typed by their own header.
+ * @param bytes The data.
+ * @return It, or null when they are no image.
+ */
+std::shared_ptr<const PsyMP3::Tag::Picture> LiveStreamIOHandler::pictureFromBytes(const std::string& bytes)
+{
+    auto picture = std::make_shared<PsyMP3::Tag::Picture>();
+    picture->data.assign(bytes.begin(), bytes.end());
+    picture->mime_type = PsyMP3::Tag::ImageUtils::sniffMimeType(picture->data);
+    if (picture->mime_type.empty()) return nullptr;
+    picture->type = PsyMP3::Tag::PictureType::FrontCover;
+    PsyMP3::Tag::ImageUtils::extractDimensions(*picture);
+    return picture;
+}
+
+/**
+ * @brief The newest picture at or before @p offset, unless a title has
+ *        started since it.
+ * @param offset Offset into the audio.
+ * @return The picture, or null.
+ */
+std::shared_ptr<const PsyMP3::Tag::Picture> LiveStreamIOHandler::getStreamPictureAt(filesize_t offset) const
+{
+    std::lock_guard<std::mutex> lock(m_buf_mutex);
+    for (auto it = m_pictures.rbegin(); it != m_pictures.rend(); ++it) {
+        if (it->at <= offset) {
+            return titleStartsAfter_unlocked(it->at, offset) ? nullptr : it->picture;
+        }
+    }
+    return nullptr;
 }
 
 /**

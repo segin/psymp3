@@ -27,6 +27,10 @@
 // No direct includes - all includes should be in psymp3.h
 
 namespace PsyMP3 {
+namespace Tag {
+struct Picture; // tag/Tag.h, which psymp3.h includes after this header
+} // namespace Tag
+
 namespace IO {
 
 // Cross-platform file offset type for large file support.
@@ -124,6 +128,15 @@ public:
      * @return The title, or "" for sources that announce none.
      */
     virtual std::string getStreamTitleAt(filesize_t offset) const;
+
+    /**
+     * @brief The picture a live stream sent, or pointed to, for the song at
+     *        @p offset: cover art, or a station's logo.
+     * @param offset Offset into the audio, as tell() counts it.
+     * @return The picture, or null for sources that send none, while one is
+     *         still being fetched, or when the song there has none.
+     */
+    virtual std::shared_ptr<const PsyMP3::Tag::Picture> getStreamPictureAt(filesize_t offset) const;
 
     /**
      * @brief The name a live stream gives itself (ICY icy-name).

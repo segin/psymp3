@@ -188,6 +188,21 @@ public:
     uint64_t getStreamTitleCount() const;
 
     /**
+     * @brief The picture the station sent, or pointed to, for the audio at
+     *        @p offset.
+     *
+     * The producer records each picture with the audio offset it belongs
+     * to (recordPicture(), recordArtworkUrl()). A picture applies from
+     * there until the next picture or the next title, whichever comes
+     * first: a song the station sends no picture for shows none, rather
+     * than the last song's.
+     * @param offset Offset into the audio, as tell() counts it.
+     * @return The picture in effect there; null before the first, after a
+     *         title that came without one, or while it is being fetched.
+     */
+    std::shared_ptr<const PsyMP3::Tag::Picture> getStreamPictureAt(filesize_t offset) const override;
+
+    /**
      * @brief Stop the producer without waiting for it: a waiting read (or a
      *        subclass constructor waiting on m_data_cv) wakes and gives up.
      *        Safe from any thread; the handler stays valid.
@@ -215,6 +230,20 @@ public:
     static constexpr size_t FORWARD_SEEK_BYTES = 1024 * 1024;
     // Titles kept for getStreamTitleAt(); older ones are dropped.
     static constexpr size_t MAX_TITLES = 16;
+    /** @brief Pictures kept for getStreamPictureAt(); older ones are dropped. */
+    static constexpr size_t MAX_PICTURES = 16;
+    /** @brief The largest picture fetched by URL; a bigger one is refused. */
+    static constexpr size_t MAX_PICTURE_BYTES = 4 * 1024 * 1024;
+    /** @brief Fetched picture URLs remembered, pictures or not, so none is fetched twice. */
+    static constexpr size_t ARTWORK_CACHE_SIZE = 32;
+
+    /**
+     * @brief Make a picture of @p bytes if they are an image (JPEG, PNG,
+     *        GIF, WebP or BMP, by their own header), whatever they claim.
+     * @param bytes The data.
+     * @return The picture, a front cover; null when the bytes are no image.
+     */
+    static std::shared_ptr<const PsyMP3::Tag::Picture> pictureFromBytes(const std::string& bytes);
 
 protected:
     /**
@@ -269,6 +298,26 @@ protected:
      *        the last title recorded.
      */
     void recordTitle(const std::string& title, filesize_t at = -1);
+
+    /**
+     * @brief Record @p picture as the one for the audio from @p at (placed
+     *        as recordTitle() places a title), unless it repeats the last
+     *        one with no title between.
+     * @param picture The picture; null records "none from here".
+     * @param at Where it starts; -1 for the current end.
+     */
+    void recordPicture(std::shared_ptr<const PsyMP3::Tag::Picture> picture, filesize_t at = -1);
+
+    /**
+     * @brief Record that the picture for the audio from @p at is at @p url.
+     *        It is fetched on a thread of its own -- never holding up the
+     *        audio -- and kept only if it is an image (a station's
+     *        StreamUrl is as often its home page); until then, and if not,
+     *        no picture applies there. Each URL is fetched once.
+     * @param url An http(s) URL.
+     * @param at Where it starts; -1 for the current end.
+     */
+    void recordArtworkUrl(const std::string& url, filesize_t at = -1);
 
     /**
      * @brief The producer has finished: record whether it failed and why, and
@@ -410,6 +459,52 @@ private:
     // Titles announced, with the audio offset each starts at; newest last.
     std::deque<std::pair<filesize_t, std::string>> m_titles;
     uint64_t m_title_count = 0;
+
+    /** @brief A picture and the audio offset it applies from. */
+    struct PictureEntry {
+        filesize_t at = 0;                                     ///< where it starts
+        std::string url;                                       ///< where it came from; "" if sent whole
+        std::shared_ptr<const PsyMP3::Tag::Picture> picture;   ///< null: none, or not fetched yet
+    };
+
+    /**
+     * @brief Where a title or picture recorded "at @p at" goes: the current
+     *        end for -1 (0 for the stream's very first), never before the
+     *        last title or picture. Caller holds m_buf_mutex.
+     * @param at The requested offset, or -1.
+     * @return The offset to use.
+     */
+    filesize_t placeMetadata_unlocked(filesize_t at) const;
+
+    /**
+     * @brief Whether a title starts after @p at: the picture there no
+     *        longer applies. Caller holds m_buf_mutex.
+     * @param at A picture's offset.
+     * @param upto Look no further than this offset.
+     * @return true if a title starts in (at, upto].
+     */
+    bool titleStartsAfter_unlocked(filesize_t at, filesize_t upto) const;
+
+    /**
+     * @brief Add a picture entry, dropping the oldest past MAX_PICTURES.
+     *        Caller holds m_buf_mutex.
+     * @param entry The entry.
+     */
+    void pushPicture_unlocked(PictureEntry entry);
+
+    /** @brief The artwork thread: fetch queued URLs until aborted. */
+    void runArtworkWorker();
+
+    // Pictures recorded, with the audio offset each applies from; newest last.
+    std::deque<PictureEntry> m_pictures;
+    // Artwork URLs waiting for the artwork thread, oldest first.
+    std::deque<std::string> m_art_queue;
+    // Fetched URLs and what they gave (null: not an image), oldest first.
+    std::deque<std::pair<std::string, std::shared_ptr<const PsyMP3::Tag::Picture>>> m_art_cache;
+    // The artwork thread waits here for URLs.
+    std::condition_variable m_art_cv;
+    // Fetches artwork URLs; started by the first recordArtworkUrl().
+    std::thread m_art_worker;
 
     std::atomic<bool> m_waiting_for_reader{false};
     std::atomic<int64_t> m_last_data_ms{0};  // steady-clock ms of last activity

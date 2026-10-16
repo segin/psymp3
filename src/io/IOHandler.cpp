@@ -238,6 +238,14 @@ std::string IOHandler::getStreamTitleAt(filesize_t) const {
 }
 
 /**
+ * @brief Files send no pictures beside their audio.
+ * @return null.
+ */
+std::shared_ptr<const PsyMP3::Tag::Picture> IOHandler::getStreamPictureAt(filesize_t) const {
+    return nullptr;
+}
+
+/**
  * @brief Files have no station name.
  * @return "".
  */
