@@ -3255,9 +3255,11 @@ bool Player::updateGUI()
 
     // Update progress bar widget
     if (m_progress_widget) {
-        // A track with no length (internet radio): the bar is drawn full and
-        // cannot be seeked. A drag that was under way when it began is dropped.
-        const bool indefinite = current_stream && total_len_ms == 0;
+        /*
+         * Internet radio: the bar is drawn full and cannot be seeked. A drag
+         * that was under way when it began is dropped.
+         */
+        const bool indefinite = current_stream && current_stream->isLive();
         m_progress_widget->setSeekable(!indefinite);
         if (indefinite) {
             m_is_dragging = false;
