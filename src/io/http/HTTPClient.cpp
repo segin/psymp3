@@ -398,7 +398,7 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 #endif
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "PsyMP3/3.0");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, PSYMP3_USER_AGENT);
     
     // Accept encoding for compression
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate");

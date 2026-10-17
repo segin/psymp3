@@ -346,7 +346,7 @@ bool HTTPStreamIOHandler::runConnection(std::string& error_text)
     // an HTTP/0.9 body; consumeIcyV1Header() then takes the headers off it.
     curl_easy_setopt(curl, CURLOPT_HTTP09_ALLOWED, 1L);
 #endif
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "PsyMP3/3.0");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, PSYMP3_USER_AGENT);
     // Ask for the song titles. A server that has them answers with an
     // icy-metaint header and interleaves them with the audio; deliverBody()
     // takes them out again. One that has none ignores the request.

@@ -35,6 +35,13 @@
 // defines
 #define PSYMP3_VERSION "2-CURRENT"
 #define PSYMP3_MAINTAINER "Kirn Gill II <segin2005@gmail.com>"
+/*
+ * The User-Agent of every HTTP request made through libcurl. It names no
+ * curl: stations filter on it (SomaFM answers any agent containing "curl"
+ * with a redirect to an alert instead of the stream). --version reports
+ * libcurl's version instead.
+ */
+#define PSYMP3_USER_AGENT "PsyMP3/" PSYMP3_VERSION " (+https://github.com/segin/psymp3)"
 
 enum {
     RUN_GUI_ITERATION = 0xfe0f,
