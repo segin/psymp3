@@ -298,6 +298,9 @@ jobs:
         dbus-run-session -- sh -c '
           set -eux
           timeout 30 flatpak run io.github.segin.psymp3 --version
+          # AAC needs FDK-AAC, built into /app: a build that missed it plays no AAC at all.
+          flatpak run --command=sh io.github.segin.psymp3 -c "ldd /app/bin/psymp3" | tee /dev/stderr \
+            | grep -q "/app/lib/libfdk-aac"
           out=$(timeout 15 flatpak run --env=SDL_VIDEODRIVER=dummy --env=SDL_AUDIODRIVER=dummy \
                 io.github.segin.psymp3 --debug=font 2>&1 || true)
           printf "%s\n" "$out"

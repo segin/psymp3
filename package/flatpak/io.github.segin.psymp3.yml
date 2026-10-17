@@ -10,8 +10,9 @@
 #
 # The KDE runtime is for Qt, which the file dialog uses (through the desktop
 # portal, inside the sandbox). SDL3, TagLib and FDK-AAC are built here: SDL3
-# at the release the AppImage uses, the other two as the runtime does not
-# carry them.
+# and TagLib at known releases (the runtime's own copies would otherwise be
+# used), FDK-AAC as the runtime does not carry it. All go to /app/lib, where
+# pkg-config looks first; CMake's default lib64 is not on its path.
 
 id: io.github.segin.psymp3
 runtime: org.kde.Platform
@@ -52,6 +53,7 @@ modules:
     buildsystem: cmake-ninja
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_LIBDIR=lib
       - -DSDL_TESTS=OFF
       - -DSDL_EXAMPLES=OFF
       - -DSDL_STATIC=OFF
@@ -65,6 +67,7 @@ modules:
     buildsystem: cmake-ninja
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_LIBDIR=lib
       - -DBUILD_SHARED_LIBS=ON
       - -DBUILD_TESTING=OFF
       - -DBUILD_EXAMPLES=OFF
@@ -77,6 +80,7 @@ modules:
     buildsystem: cmake-ninja
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_LIBDIR=lib
       - -DBUILD_SHARED_LIBS=ON
       - -DBUILD_PROGRAMS=OFF
     sources:
@@ -89,6 +93,9 @@ modules:
     build-commands:
       - ./autogen.sh
       - ./configure --prefix=/app --enable-final
+      # configure only warns when FDK-AAC is missing, and 2.3's bundle shipped
+      # with no AAC at all that way (the library sat in /app/lib64, unseen).
+      - grep -q '^#define HAVE_AAC 1' include/config.h
       - make -j"$FLATPAK_BUILDER_N_JOBS"
       - make install
       - install -Dm644 package/flatpak/io.github.segin.psymp3.metainfo.xml
