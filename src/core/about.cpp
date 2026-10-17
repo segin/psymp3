@@ -91,19 +91,42 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
 static char _version_message[] =
             "PsyMP3 " PSYMP3_VERSION "\n"
             "Copyright © 2009-2026 Kirn Gill II <segin2005@gmail.com>\n"
-            "License ISC: <https://opensource.org/licenses/ISC>\n"
+            "License ISC: <https://opensource.org/licenses/ISC>\n";
+
+static char _version_footer[] =
             "\n"
             "Run 'psymp3 --licenses' for copyright and license details, including\n"
             "the third-party components this binary embeds.\n";
 
 /**
- * @brief Prints the program version, copyright and license to standard output.
+ * @brief The libcurl this process loaded, and its TLS library: what its
+ *        HTTP requests go through. It is reported here rather than in the
+ *        User-Agent (see PSYMP3_USER_AGENT).
+ * @return "libcurl 8.21.0 (OpenSSL/3.5.4)", or as much of it as is known.
+ */
+static std::string curl_version_line()
+{
+    const curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
+    if (!info || !info->version) {
+        return "libcurl (version unknown)";
+    }
+    std::string line = std::string("libcurl ") + info->version;
+    if (info->ssl_version && *info->ssl_version) {
+        line += std::string(" (") + info->ssl_version + ")";
+    }
+    return line;
+}
+
+/**
+ * @brief Prints the program version, copyright and license to standard output,
+ *        with the libcurl it uses.
  *
- * This backs --version, so it stays to a handful of lines.
+ * This backs --version, so it stays to a handful of lines; the first is
+ * "PsyMP3 <version>", for anything that reads only that.
  */
 void version_console()
 {
-    std::cout << _version_message;
+    std::cout << _version_message << curl_version_line() << '\n' << _version_footer;
 }
 
 /**
