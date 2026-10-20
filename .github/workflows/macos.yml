@@ -43,12 +43,21 @@ jobs:
         # As for the AppImage and the Flatpak: started on SDL's dummy drivers
         # and stopped after a few seconds, it must have found its font in the
         # bundle's own Resources.
-        # Through --logfile: output to a pipe would still be in the program's
-        # buffer when the alarm stops it (Linux's jobs use stdbuf, which
-        # macOS lacks).
+        # Through --logfile, and stopped with SIGTERM, which SDL turns into a
+        # quit: the program then shuts down as from its menu and closes the
+        # log. Killed outright, the log would lose what it had buffered.
         log="$RUNNER_TEMP/font.log"
         SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-          perl -e 'alarm 10; exec @ARGV' "$app/Contents/MacOS/psymp3" --debug=font --logfile "$log" || true
+          "$app/Contents/MacOS/psymp3" --debug=font --logfile "$log" &
+        pid=$!
+        sleep 8
+        kill -TERM "$pid"
+        for i in $(seq 20); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+        if kill -0 "$pid" 2>/dev/null; then
+          kill -KILL "$pid"
+          echo "PsyMP3 did not quit within 20 s of SIGTERM" >&2
+          exit 1
+        fi
         out=$(cat "$log")
         printf "%s\n" "$out"
         printf "%s\n" "$out" | grep -q "PsyMP3.app/Contents/Resources/data/vera.ttf"
