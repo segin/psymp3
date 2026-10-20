@@ -140,7 +140,7 @@ codesign --verify --deep --strict "$app"
 dmg="psymp3-$version-$arch.dmg"
 rm -rf "$outdir/PsyMP3.app" "$outdir/$dmg"
 cp -R "$app" "$outdir/PsyMP3.app"
-hdiutil create -volname PsyMP3 -srcfolder "$app" -ov -format UDZO "$outdir/$dmg"
+"$pkgdir/make-dmg.sh" "$app" "$outdir/$dmg"
 
 echo "build-app.sh: PsyMP3.app ($full_version, build $build_number, macOS $min_macos+) and $dmg in $outdir"
 ls -la "$outdir"

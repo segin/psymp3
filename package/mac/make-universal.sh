@@ -71,7 +71,7 @@ version=$("$top/package/version.sh" upstream)
 dmg="psymp3-$version-universal.dmg"
 rm -rf "$outdir/PsyMP3.app" "$outdir/$dmg"
 cp -R "$app" "$outdir/PsyMP3.app"
-hdiutil create -volname PsyMP3 -srcfolder "$app" -ov -format UDZO "$outdir/$dmg"
+"$top/package/mac/make-dmg.sh" "$app" "$outdir/$dmg"
 
 echo "make-universal.sh: PsyMP3.app (arm64 from macOS $min_arm, x86_64 from macOS $min_intel) and $dmg in $outdir"
 lipo -archs "$outdir/PsyMP3.app/Contents/MacOS/psymp3"
