@@ -1,6 +1,6 @@
 # PsyMP3
 
-PsyMP3 is a music player written in C++ for Linux, the BSDs and Windows that
+PsyMP3 is a music player written in C++ for Linux, the BSDs, macOS and Windows that
 shows a live spectrum analyzer of whatever it is playing. It plays MP3, AAC,
 FLAC, Vorbis, Opus, ALAC, AC-3, Dolby TrueHD and more. Files can be
 standalone or inside Ogg, Matroska, MP4 or AVI containers, and most decoders
@@ -10,7 +10,7 @@ movable windows for the playlist, equalizer and track information. It also
 shows synced lyrics, scrobbles to Last.fm, and shows what's playing in
 Discord. On Linux and the BSDs, builds with D-Bus support can also be
 controlled from the desktop's media keys and now-playing widgets through
-MPRIS.
+MPRIS; on macOS, PsyMP3 does the same through Now Playing.
 
 ![PsyMP3 2.0 playing "I Think We're Alone Now" by Tiffany, showing the spectrum analyzer, synced lyrics, and now-playing info](docs/psymp3-screenshot.png)
 
@@ -47,6 +47,17 @@ MPRIS.
   MSYS2 is also possible
 - Releases also carry separate builds for Windows XP: `winxp` (32-bit, needs a
   CPU with SSE2) and `winxp64` (XP x64 and Server 2003 x64)
+
+### macOS
+- macOS 14 (Sonoma) or later on Apple Silicon, macOS 15 (Sequoia) or later
+  on Intel. These are the oldest versions the Homebrew libraries bundled into
+  the app support.
+- Official builds are a universal `PsyMP3.app` in a `.dmg`, built by the
+  [macOS app](.github/workflows/macos.yml) workflow. The app is not signed with
+  a Developer ID or notarized, so the first time you open it, macOS refuses;
+  allow it under **System Settings → Privacy & Security → Open Anyway**.
+- The macOS port is built and started on GitHub's Mac runners, but has not
+  yet been tested on a real Mac.
 
 ### Linux/BSD
 **Core dependencies** (always required):
@@ -90,7 +101,7 @@ MPRIS.
   Without any of these (or with `--disable-filedialog`), the file dialogs are
   unavailable but PsyMP3 still builds, and plays files given on the command
   line, dragged onto it, or opened by URL. Windows builds use the system's own
-  file dialog and need no toolkit.
+  file dialog and need no toolkit, and so do macOS builds, through SDL3.
 
 ### Build Requirements
 - A C++17 compiler: GCC (10 is the oldest checked) or Clang. The build is
@@ -141,6 +152,31 @@ Use `generate-configure.sh` to generate `configure` rather than running
 make -j$(nproc)
 ```
 
+### Building on macOS
+
+Install the Xcode Command Line Tools (`xcode-select --install`) for the
+compiler, and [Homebrew](https://brew.sh) for the libraries. Then:
+
+```bash
+brew install autoconf automake autoconf-archive pkgconf \
+    sdl3 taglib freetype harfbuzz openssl@3 curl libogg opus fdk-aac speex
+# OpenSSL and curl are keg-only: Homebrew keeps them off pkg-config's path.
+export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix curl)/lib/pkgconfig"
+./generate-configure.sh
+./configure
+make -j$(sysctl -n hw.ncpu)
+./src/psymp3
+```
+
+Run it from the top of the source tree, where it finds its font and other
+data in `res/`. The program built this way loads its libraries from Homebrew,
+so it runs only on a Mac that has them. To build a self-contained
+`PsyMP3.app` and `.dmg` instead, see [Distribution packages](#distribution-packages).
+
+On macOS, configure always uses SDL3's file dialog, which is the system's own
+Open and Save panels, and builds PsyMP3's Now Playing and menu bar support
+(Objective-C++ against AppKit and MediaPlayer). D-Bus and MPRIS are not used.
+
 **Build Options:**
 - `--enable-flac` / `--enable-vorbis` / `--enable-opus` / `--enable-aac` /
   `--enable-speex` / `--enable-g722` / `--enable-g711` — per-codec toggles
@@ -174,9 +210,10 @@ make -j$(nproc)
 
 ### Distribution packages
 
-`package/` holds native packaging. The `.deb` and `.rpm` packages and the
-AppImage are built for every push by the
-[Linux packages](.github/workflows/packages.yml) workflow; the Arch package is
+`package/` holds native packaging. The `.deb` and `.rpm` packages, the
+AppImage and the Flatpak are built for every push by the
+[Linux packages](.github/workflows/packages.yml) workflow, and the macOS app by
+the [macOS app](.github/workflows/macos.yml) workflow; the Arch package is
 built by hand with `makepkg`:
 
 | Format | Targets |
@@ -185,15 +222,26 @@ built by hand with `makepkg`:
 | `.rpm` | Fedora, openSUSE Tumbleweed |
 | `.pkg.tar.zst` | Arch Linux (`package/arch/PKGBUILD`) |
 | `.AppImage` | any x86_64 distribution with glibc 2.35 or later (Ubuntu 22.04, Linux Mint 21, and newer) |
+| `.dmg` | macOS: a `PsyMP3.app` for Apple Silicon (macOS 14+) and Intel (macOS 15+) |
 
 ```bash
 ./package/dpkg/build-deb.sh      # -> package/dpkg/out/*.deb
 ./package/rpm/build-rpm.sh       # -> package/rpm/out/*.rpm
 (cd package/arch && makepkg)     # -> package/arch/*.pkg.tar.zst
 ./package/appimage/build-appimage.sh --docker   # -> package/appimage/out/*.AppImage
+./package/mac/build-app.sh --deps               # on macOS -> package/mac/out/PsyMP3.app and *.dmg
 ```
 
-All four build from what is committed, so commit before packaging. See
+On macOS, `build-app.sh` builds PsyMP3 against Homebrew's libraries
+(`--deps` installs them, and `dylibbundler`) and copies those libraries into
+the app, so the result runs on Macs without Homebrew. It builds for the Mac
+it runs on: an Apple Silicon Mac makes an Apple Silicon app, an Intel Mac an
+Intel one. A universal app takes one of each, joined by
+`./package/mac/make-universal.sh ARM64/PsyMP3.app X86_64/PsyMP3.app`, which
+is what the macOS app workflow does. The app is signed ad hoc, as Apple
+Silicon requires, but not with a Developer ID.
+
+All of these build from what is committed, so commit before packaging. See
 [package/README.md](package/README.md) for the dependency-installation
 one-liners and how the version label is mapped to a legal package version.
 
@@ -281,6 +329,10 @@ is also reachable from the keyboard.
 | `Ctrl+F4` | Close the active in-app window |
 | `Tab` / `Shift+Tab` | Move between the controls of the active window |
 
+On macOS, `Ctrl+O` and `Ctrl+S` are `⌘O` and `⌘S`, and the macOS menu bar
+adds Mac shortcuts of its own (`⌘U` Open URL, `⌘←`/`⌘→` previous and next
+track, `⌘↑`/`⌘↓` volume, and more), shown beside its items.
+
 `Ctrl+O`, `I` and `L` open a file dialog, so they need a build with one. These
 keys are the player's own: while a text field or another control in a dialog
 has focus, the keys go to it instead.
@@ -334,8 +386,8 @@ revoke PsyMP3's access on Last.fm, enter your password again under
 **Settings → Last.fm Credentials...**.
 
 Configuration lives in:
-- **Linux/Unix**: `~/.config/psymp3/lastfm.conf` (or under `$XDG_CONFIG_HOME/psymp3/`
-  when that is set)
+- **Linux/Unix and macOS**: `~/.config/psymp3/lastfm.conf` (or under
+  `$XDG_CONFIG_HOME/psymp3/` when that is set)
 - **Windows**: `%APPDATA%\PsyMP3\lastfm.conf`
 
 and can also be created by hand:
@@ -435,4 +487,4 @@ the executable or in the working directory overrides the built-in copy.
 ### History
 
 PsyMP3 2.x is a complete rewrite. The 1.x series was written in FreeBASIC; 2.x
-is written in C++17 and runs on Linux, the BSDs and Windows.
+is written in C++17 and runs on Linux, the BSDs, macOS and Windows.
