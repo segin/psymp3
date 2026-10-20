@@ -3952,9 +3952,95 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                                     static_cast<uint64_t>(reinterpret_cast<uintptr_t>(event.data2)));
             break;
 #endif
+#ifdef PSYMP3_MAC_MENUBAR
+        case MENU_COMMAND:
+            runMacMenuItem(static_cast<int>(reinterpret_cast<intptr_t>(event.data1)));
+            break;
+#endif
     }
     return false; // Do not exit
 }
+
+#ifdef PSYMP3_MAC_MENUBAR
+namespace {
+
+/** @brief The leaves of the menus in the macOS menu bar, by their id there. */
+std::vector<PsyMP3::Widget::UI::MenuItem> g_mac_menu_leaves;
+
+/**
+ * @brief One of PsyMP3's menu items as the macOS menu bar takes it; each
+ *        leaf is kept in g_mac_menu_leaves and numbered by its place there.
+ * @param item The item.
+ * @return Its shape, with ids for its leaves.
+ */
+PsyMP3::Core::MacMenuBar::Item toMacMenuItem(const PsyMP3::Widget::UI::MenuItem& item)
+{
+    PsyMP3::Core::MacMenuBar::Item out;
+    out.label = item.label;
+    out.separator = item.separator;
+    if (!item.submenu.empty()) {
+        for (const auto& child : item.submenu) out.children.push_back(toMacMenuItem(child));
+    } else if (!item.separator) {
+        out.id = static_cast<int>(g_mac_menu_leaves.size());
+        g_mac_menu_leaves.push_back(item);
+    }
+    return out;
+}
+
+/**
+ * @brief The leaf with @p id, if there is one.
+ * @param id Its id.
+ * @return It, or null.
+ */
+const PsyMP3::Widget::UI::MenuItem* macMenuLeaf(int id)
+{
+    return id >= 0 && static_cast<size_t>(id) < g_mac_menu_leaves.size() ? &g_mac_menu_leaves[id] : nullptr;
+}
+
+} // namespace
+
+/**
+ * @brief Mirror @p menus in the macOS menu bar. A picked item becomes a
+ *        MENU_COMMAND, run from the event loop; whether it is enabled or
+ *        checked the bar asks its own predicates, each time a menu opens.
+ * @param menus The main menu bar's menus, name and items.
+ */
+void Player::installMacMenuBar(const std::vector<std::pair<std::string, std::vector<PsyMP3::Widget::UI::MenuItem>>>& menus)
+{
+    using PsyMP3::Core::MacMenuBar;
+    g_mac_menu_leaves.clear();
+    std::vector<MacMenuBar::Menu> mac_menus;
+    for (const auto& menu : menus) {
+        MacMenuBar::Menu m;
+        m.title = menu.first;
+        for (const auto& item : menu.second) m.items.push_back(toMacMenuItem(item));
+        mac_menus.push_back(std::move(m));
+    }
+    MacMenuBar::Callbacks callbacks;
+    callbacks.activate = [](int id) {
+        Player::synthesizeUserEvent(MENU_COMMAND, reinterpret_cast<void*>(static_cast<intptr_t>(id)), nullptr);
+    };
+    callbacks.enabled = [](int id) {
+        const auto* leaf = macMenuLeaf(id);
+        return leaf && leaf->isEnabled();
+    };
+    callbacks.checked = [](int id) {
+        const auto* leaf = macMenuLeaf(id);
+        return leaf && leaf->checked && leaf->checked();
+    };
+    MacMenuBar::install(mac_menus, callbacks);
+}
+
+/**
+ * @brief Run the menu bar item with @p id, as the in-window menu would.
+ * @param id Its id.
+ */
+void Player::runMacMenuItem(int id)
+{
+    const auto* leaf = macMenuLeaf(id);
+    if (leaf && leaf->action && leaf->isEnabled()) leaf->action();
+}
+#endif // PSYMP3_MAC_MENUBAR
 
 #ifdef PSYMP3_MAC_NOWPLAYING
 /**
@@ -4367,6 +4453,10 @@ bool Player::Initialize(const PlayerOptions& options) {
         menu_bar->addMenu("&Help", std::move(help_items));
 
         menu_bar->setZOrder(ZOrder::MAX); // sort above toasts
+#ifdef PSYMP3_MAC_MENUBAR
+        // The same menus in the macOS menu bar, doing the same things.
+        installMacMenuBar(menu_bar->menus());
+#endif
         app_widget.addWindow(std::move(menu_bar), ZOrder::MAX);
     }
     // Default loop mode on start is None (non-persistence path); a persisted

@@ -65,7 +65,8 @@ enum {
     AUTOMATED_SKIP_TRACK,
     SHOW_NOTIFICATION,
     RAISE_WINDOW, // Bring the player window to the foreground (MPRIS Raise)
-    MEDIA_COMMAND // A system media control (macOS Now Playing): data1 the command, data2 a position (ms)
+    MEDIA_COMMAND, // A system media control (macOS Now Playing): data1 the command, data2 a position (ms)
+    MENU_COMMAND // An item picked in the macOS menu bar: data1 its id
 };
 
 enum class PlayerState {
@@ -498,6 +499,9 @@ using PsyMP3::Core::Utility::Base64;
 #include "core/FileDialog.h"
 #ifdef PSYMP3_MAC_NOWPLAYING
 #include "core/MacNowPlaying.h"
+#endif
+#ifdef PSYMP3_MAC_MENUBAR
+#include "core/MacMenuBar.h"
 #endif
 #include "io/BufferPool.h"
 #include "io/BoundedBuffer.h"

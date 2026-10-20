@@ -52,6 +52,13 @@ public:
 
     void addMenu(std::string name, std::vector<Item> items);
 
+    /**
+     * @brief The menus as added, name and items, for mirroring elsewhere
+     *        (the macOS menu bar).
+     * @return A copy of each, in order.
+     */
+    std::vector<std::pair<std::string, std::vector<Item>>> menus() const;
+
     // Resize the overlay: re-flows the bar for the new width (wrapping titles to
     // more rows if they don't fit) and repaints at the new surface size.
     void resize(int width, int height);

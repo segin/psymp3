@@ -268,16 +268,17 @@ filedialog-lib:
 endif
 endif
 
-# macOS Now Playing and media keys (core/libpsymp3-nowplaying.a, Objective-C++),
-# kept out of the unity TU like the file dialog, so final builds recurse for it.
-if MAC_NOWPLAYING
-psymp3_LDADD += core/libpsymp3-nowplaying.a $(MAC_NOWPLAYING_LIBS)
+# macOS integration (core/libpsymp3-macos.a, Objective-C++: Now Playing and
+# media keys, the menu bar), kept out of the unity TU like the file dialog, so
+# final builds recurse for it.
+if MACOS
+psymp3_LDADD += core/libpsymp3-macos.a $(MACOS_LIBS)
 if FINAL_BUILD
-core/libpsymp3-nowplaying.a: nowplaying-lib
+core/libpsymp3-macos.a: macos-lib
 	@: # built by the recursive make below; this rule orders the dependency
-.PHONY: nowplaying-lib
-nowplaying-lib:
-	cd core && $(MAKE) $(AM_MAKEFLAGS) libpsymp3-nowplaying.a
+.PHONY: macos-lib
+macos-lib:
+	cd core && $(MAKE) $(AM_MAKEFLAGS) libpsymp3-macos.a
 endif
 endif
 

@@ -390,6 +390,19 @@ class Player
          */
         void publishMacNowPlaying();
 #endif
+#ifdef PSYMP3_MAC_MENUBAR
+        /**
+         * @brief Mirror the main menus in the macOS menu bar.
+         * @param menus Their names and items (MenuBarWidget::menus()).
+         */
+        void installMacMenuBar(const std::vector<std::pair<std::string, std::vector<PsyMP3::Widget::UI::MenuItem>>>& menus);
+
+        /**
+         * @brief Run the macOS menu bar item with @p id.
+         * @param id Its id, from installMacMenuBar().
+         */
+        void runMacMenuItem(int id);
+#endif
         void handleDoSetLoopModeEvent(LoopMode mode);
         void handleKeyUp(const SDL_keysym& keysym);
         void showToast(const std::string& message, Uint32 duration_ms = 2000);

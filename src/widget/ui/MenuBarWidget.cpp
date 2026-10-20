@@ -145,6 +145,18 @@ void MenuBarWidget::addMenu(std::string name, std::vector<Item> items)
     rebuild();
 }
 
+/**
+ * @brief The menus' names and items, copied, in order.
+ * @return Them.
+ */
+std::vector<std::pair<std::string, std::vector<MenuBarWidget::Item>>> MenuBarWidget::menus() const
+{
+    std::vector<std::pair<std::string, std::vector<Item>>> out;
+    out.reserve(m_menus.size());
+    for (const Menu& m : m_menus) out.emplace_back(m.name, m.items);
+    return out;
+}
+
 void MenuBarWidget::resize(int width, int height)
 {
     setPos(Rect(0, 0, width, height));

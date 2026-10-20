@@ -582,21 +582,23 @@ AC_SUBST([DIALOG_CFLAGS])
 AC_SUBST([DIALOG_LIBS])
 AM_CONDITIONAL([HAVE_FILEDIALOG], [test "x$have_filedialog" = "xyes"])
 
-# macOS Now Playing and media keys, in Objective-C++ against the MediaPlayer
-# framework (src/core/MacNowPlaying.mm). AC_PROG_OBJCXX is called everywhere,
-# as automake wants it whenever an .mm source exists; elsewhere nothing builds
+# macOS integration, in Objective-C++ against Apple's frameworks: Now Playing
+# and the media keys (src/core/MacNowPlaying.mm), and PsyMP3's menus in the
+# menu bar (src/core/MacMenuBar.mm). AC_PROG_OBJCXX is called everywhere, as
+# automake wants it whenever an .mm source exists; elsewhere nothing builds
 # with it.
 AC_PROG_OBJCXX
-have_mac_nowplaying=no
+have_macos=no
 case "$host_os" in
   darwin*)
-    have_mac_nowplaying=yes
-    MAC_NOWPLAYING_LIBS="-framework MediaPlayer -framework AppKit -framework Foundation -lobjc"
+    have_macos=yes
+    MACOS_LIBS="-framework MediaPlayer -framework AppKit -framework Foundation -lobjc"
     AC_DEFINE([PSYMP3_MAC_NOWPLAYING], [1], [Use macOS's Now Playing and media keys])
+    AC_DEFINE([PSYMP3_MAC_MENUBAR], [1], [Mirror the main menus in the macOS menu bar])
     ;;
 esac
-AC_SUBST([MAC_NOWPLAYING_LIBS])
-AM_CONDITIONAL([MAC_NOWPLAYING], [test "x$have_mac_nowplaying" = "xyes"])
+AC_SUBST([MACOS_LIBS])
+AM_CONDITIONAL([MACOS], [test "x$have_macos" = "xyes"])
 
 # RapidCheck property-based testing library (optional)
 AC_ARG_ENABLE([rapidcheck],

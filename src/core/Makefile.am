@@ -44,12 +44,12 @@ libpsymp3_filedialog_a_CPPFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/incl
 libpsymp3_filedialog_a_CXXFLAGS = $(PSYMP3_CXXFLAGS) -fPIC
 endif
 
-# macOS Now Playing and media keys: Objective-C++ against the MediaPlayer
-# framework, kept apart like the file dialog so no other translation unit
-# sees Cocoa. Built on macOS only.
-if MAC_NOWPLAYING
-noinst_LIBRARIES += libpsymp3-nowplaying.a
-libpsymp3_nowplaying_a_SOURCES = MacNowPlaying.mm
-libpsymp3_nowplaying_a_CPPFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include
-libpsymp3_nowplaying_a_OBJCXXFLAGS = -std=gnu++17 -fobjc-arc -Wall -Werror
+# macOS integration -- Now Playing and media keys, and the menu bar --
+# Objective-C++ against Apple's frameworks, kept apart like the file dialog so
+# no other translation unit sees Cocoa. Built on macOS only.
+if MACOS
+noinst_LIBRARIES += libpsymp3-macos.a
+libpsymp3_macos_a_SOURCES = MacNowPlaying.mm MacMenuBar.mm
+libpsymp3_macos_a_CPPFLAGS = -I$(top_builddir)/include -I$(top_srcdir)/include
+libpsymp3_macos_a_OBJCXXFLAGS = -std=gnu++17 -fobjc-arc -Wall -Werror
 endif
