@@ -17,6 +17,27 @@ AC_PROG_RANLIB
 AC_SYS_LARGEFILE
 AC_HEADER_STDBOOL
 AC_FUNC_MALLOC
+dnl Apple's clang still defaults to an older C++, and some releases of the
+dnl autoconf-archive check below then give up rather than trying -std=
+dnl switches. Ask for C++17 ourselves when the compiler does not default to it.
+AC_LANG_PUSH([C++])
+AC_MSG_CHECKING([whether $CXX needs -std=gnu++17])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[
+#if __cplusplus < 201703L
+#error not C++17
+#endif
+]])],
+  [AC_MSG_RESULT([no])],
+  [psymp3_save_cxx="$CXX"
+   CXX="$CXX -std=gnu++17"
+   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[
+#if __cplusplus < 201703L
+#error not C++17
+#endif
+]])],
+     [AC_MSG_RESULT([yes])],
+     [AC_MSG_RESULT([it does not help]); CXX="$psymp3_save_cxx"])])
+AC_LANG_POP([C++])
 AX_CXX_COMPILE_STDCXX_17
 
 # Position-independent executable (PIE) hardening. Enabled by default, but
