@@ -553,9 +553,10 @@ public:
         // the menu item requires), Ctrl+Up/Down move the selection like Move
         // Up and Move Down. (PgUp/PgDn page, as in any list.)
         m_list->setOnKey([this](const SDL_keysym& keysym) {
+            // Copying is ⌘C on macOS; moving keeps Ctrl, as ⌘Up/Down are taken there.
             const bool ctrl = (keysym.mod & SDL_KMOD_CTRL) != 0;
             const bool other_mods = (keysym.mod & (SDL_KMOD_ALT | SDL_KMOD_SHIFT)) != 0;
-            if (ctrl && !other_mods && keysym.sym == SDLK_C) {
+            if (PsyMP3::Core::shortcutHeld(keysym.mod) && !other_mods && keysym.sym == SDLK_C) {
                 const int first = m_list->getSelectionFirst();
                 if (first >= 0 && first == m_list->getSelectionLast()) {
                     m_player->playlistManagerCopyPath(trackOfRow(first));
@@ -590,7 +591,7 @@ public:
             entries.push_back(MenuItem::sep());
             // One path at a time: greyed out while several rows are selected.
             entries.push_back(MenuItem::command("Copy Path", [this, track] { m_player->playlistManagerCopyPath(track); },
-                                                first == last, "Ctrl+C"));
+                                                first == last, PsyMP3::Core::shortcutHint("C")));
             m_context->setEntries(std::move(entries));
             Rect lp = m_list->getPos();
             m_context->openAt(lp.x() + rx, lp.y() + ry);
@@ -3614,7 +3615,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_S:
-            if (keysym.mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) {
+            if (PsyMP3::Core::shortcutHeld(keysym.mod)) { // Ctrl+S, ⌘S on macOS
                 synthesizeUserEvent(DO_SAVE_PLAYLIST, nullptr, nullptr);
             } else {
                 setShuffle(!getShuffle());
@@ -3624,7 +3625,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
 #ifdef HAVE_FILEDIALOG
         case SDLK_O:
-            if (keysym.mod & (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL)) {
+            if (PsyMP3::Core::shortcutHeld(keysym.mod)) { // Ctrl+O, ⌘O on macOS
                 openTracksReplacingPlaylist();
             }
             break;
@@ -4327,8 +4328,11 @@ bool Player::Initialize(const PlayerOptions& options) {
 #ifdef HAVE_FILEDIALOG
             openTracksReplacingPlaylist();
 #endif
-        }, nullptr, "Ctrl+O", fd_enabled));
+        }, nullptr, PsyMP3::Core::shortcutHint("O"), fd_enabled));
         file_items.push_back(MI::leaf("Open &URL...", [this]{ openUrl(); }));
+#ifdef PSYMP3_MAC_MENUBAR
+        file_items.back().mac_shortcut = "⌘U"; // Apple Music's Open Stream URL
+#endif
         file_items.push_back(MI::leaf("&Clear Playlist", [this]{ clearPlaylist(); }, nullptr, "", fd_enabled));
         file_items.push_back(MI::sep());
         file_items.push_back(MI::leaf("Queue Track &Next...", [this]{

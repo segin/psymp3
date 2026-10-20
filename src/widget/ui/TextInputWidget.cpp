@@ -287,9 +287,10 @@ bool TextInputWidget::handleFocusedKeyPress(const SDL_keysym& keysym)
     const bool shift = (keysym.mod & SDL_KMOD_SHIFT) != 0;
     const bool alt = (keysym.mod & SDL_KMOD_ALT) != 0;
 
-    // Clipboard and select-all chords. Control chords never arrive as
-    // SDL_EVENT_TEXT_INPUT, so these must be handled at the keysym level.
-    if (ctrl && !alt) {
+    // Clipboard and select-all chords -- Ctrl, or ⌘ on macOS. Such chords
+    // never arrive as SDL_EVENT_TEXT_INPUT, so these must be handled at the
+    // keysym level. (Ctrl's word moves below are no shortcut: they keep Ctrl.)
+    if (PsyMP3::Core::shortcutHeld(keysym.mod) && !alt) {
         switch (keysym.sym) {
             case SDLK_A:
                 widget.selectAll();
@@ -668,12 +669,14 @@ void TextInputWidget::openContextMenu(int relative_x, int relative_y)
 {
     const bool can_copy = hasSelection() && !m_password_mode;
     std::vector<MenuItem> items;
-    items.push_back(MenuItem::command("C&ut", [this] { cutToClipboard(); }, can_copy, "Ctrl+X"));
-    items.push_back(MenuItem::command("&Copy", [this] { copyToClipboard(); }, can_copy, "Ctrl+C"));
+    using PsyMP3::Core::shortcutHint;
+    items.push_back(MenuItem::command("C&ut", [this] { cutToClipboard(); }, can_copy, shortcutHint("X")));
+    items.push_back(MenuItem::command("&Copy", [this] { copyToClipboard(); }, can_copy, shortcutHint("C")));
     items.push_back(MenuItem::command("&Paste", [this] { pasteFromClipboard(); }, SDL_HasClipboardText(),
-                                      "Ctrl+V"));
+                                      shortcutHint("V")));
     items.push_back(MenuItem::sep());
-    items.push_back(MenuItem::command("Select &All", [this] { selectAll(); }, !m_text.isEmpty(), "Ctrl+A"));
+    items.push_back(MenuItem::command("Select &All", [this] { selectAll(); }, !m_text.isEmpty(),
+                                      shortcutHint("A")));
     const Rect me = ContextMenuWidget::screenRectOf(this);
     ContextMenuWidget::popUp(m_font, std::move(items), me.x() + relative_x, me.y() + relative_y,
                              ContextMenuWidget::screenBounds(), this);

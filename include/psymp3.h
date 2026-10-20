@@ -497,6 +497,7 @@ using PsyMP3::Core::Utility::UTF8Util;
 using PsyMP3::Core::Utility::Base64;
 #include "system.h"
 #include "core/FileDialog.h"
+#include "core/Shortcut.h"
 #ifdef PSYMP3_MAC_NOWPLAYING
 #include "core/MacNowPlaying.h"
 #endif
