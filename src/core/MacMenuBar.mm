@@ -65,6 +65,37 @@ NSString* menuTitle(const std::string& label)
     return s ? s : @"";
 }
 
+/**
+ * @brief Give @p entry the key equivalent @p spec names: modifier symbols
+ *        (⌃ ⌥ ⇧ ⌘), then the key -- a letter, or an arrow (← → ↑ ↓).
+ * @param entry The menu item.
+ * @param spec  The equivalent, UTF-8; "" leaves the item without one.
+ */
+void setKeyEquivalent(NSMenuItem* entry, const std::string& spec)
+{
+    NSString* text = [[NSString alloc] initWithBytes:spec.data() length:spec.size() encoding:NSUTF8StringEncoding];
+    if (text.length == 0) return;
+    NSEventModifierFlags mask = 0;
+    NSUInteger at = 0;
+    for (; at < text.length; ++at) {
+        const unichar c = [text characterAtIndex:at];
+        if (c == 0x2303) mask |= NSEventModifierFlagControl;       // ⌃
+        else if (c == 0x2325) mask |= NSEventModifierFlagOption;   // ⌥
+        else if (c == 0x21E7) mask |= NSEventModifierFlagShift;    // ⇧
+        else if (c == 0x2318) mask |= NSEventModifierFlagCommand;  // ⌘
+        else break;
+    }
+    if (at >= text.length) return;
+    NSString* key = [text substringFromIndex:at];
+    unichar arrow = 0;
+    if ([key isEqualToString:@"←"]) arrow = NSLeftArrowFunctionKey;
+    else if ([key isEqualToString:@"→"]) arrow = NSRightArrowFunctionKey;
+    else if ([key isEqualToString:@"↑"]) arrow = NSUpArrowFunctionKey;
+    else if ([key isEqualToString:@"↓"]) arrow = NSDownArrowFunctionKey;
+    entry.keyEquivalent = arrow ? [NSString stringWithCharacters:&arrow length:1] : key.lowercaseString;
+    entry.keyEquivalentModifierMask = mask;
+}
+
 } // namespace
 
 /** @brief The target of every PsyMP3 menu item: forwards picks and asks for state. */
@@ -126,6 +157,7 @@ void fillMenu(NSMenu* menu, const std::vector<MacMenuBar::Item>& items)
             entry.target = g_target;
             entry.action = @selector(pick:);
             entry.tag = item.id;
+            setKeyEquivalent(entry, item.key_equivalent);
         }
         [menu addItem:entry];
     }

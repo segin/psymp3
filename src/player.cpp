@@ -3984,6 +3984,11 @@ PsyMP3::Core::MacMenuBar::Item toMacMenuItem(const PsyMP3::Widget::UI::MenuItem&
     } else if (!item.separator) {
         out.id = static_cast<int>(g_mac_menu_leaves.size());
         g_mac_menu_leaves.push_back(item);
+        // Its own macOS equivalent, or its hint when that is already a ⌘ one ("⌘O").
+        static const std::string kCommand = "⌘";
+        out.key_equivalent = !item.mac_shortcut.empty() ? item.mac_shortcut
+                           : item.shortcut.compare(0, kCommand.size(), kCommand) == 0 ? item.shortcut
+                           : std::string();
     }
     return out;
 }
@@ -4352,6 +4357,9 @@ bool Player::Initialize(const PlayerOptions& options) {
         }, nullptr, "L", fd_enabled));
         file_items.push_back(MI::sep());
         file_items.push_back(MI::leaf("Media &Information...", [this]{ toggleMediaInfoWindow(); }));
+#ifdef PSYMP3_MAC_MENUBAR
+        file_items.back().mac_shortcut = "⌘I"; // Get Info
+#endif
         file_items.push_back(MI::sep());
         file_items.push_back(MI::leaf("E&xit", []{ Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr); }));
         menu_bar->addMenu("&File", std::move(file_items));
@@ -4362,8 +4370,14 @@ bool Player::Initialize(const PlayerOptions& options) {
             [this]{ return state == PlayerState::Paused; }, "Space"));
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Pre&vious Track", [this]{ prevTrack(); }, nullptr, "P"));
+#ifdef PSYMP3_MAC_MENUBAR
+        playback_items.back().mac_shortcut = "⌘←"; // as in Apple Music
+#endif
         playback_items.push_back(MI::leaf("&Restart Track", [this]{ seekTo(0); }, nullptr, "R"));
         playback_items.push_back(MI::leaf("&Next Track", [this]{ nextTrack(); }, nullptr, "N"));
+#ifdef PSYMP3_MAC_MENUBAR
+        playback_items.back().mac_shortcut = "⌘→";
+#endif
         playback_items.push_back(MI::sep());
         // Repeat submenu (radio) over the same loop-mode state the E key cycles.
         auto repeat_item = [this](const char* label, LoopMode mode) {
@@ -4382,9 +4396,18 @@ bool Player::Initialize(const PlayerOptions& options) {
             [this]{ return getShuffle(); }, "S"));
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
+#ifdef PSYMP3_MAC_MENUBAR
+        playback_items.back().mac_shortcut = "⌘↑"; // as in Apple Music
+#endif
         playback_items.push_back(MI::leaf("Volume &Down", [this]{ volumeDown(); }, nullptr, "Dn"));
+#ifdef PSYMP3_MAC_MENUBAR
+        playback_items.back().mac_shortcut = "⌘↓";
+#endif
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("&Equalizer...", [this]{ toggleEqualizerWindow(); }, nullptr, "Shift+E"));
+#ifdef PSYMP3_MAC_MENUBAR
+        playback_items.back().mac_shortcut = "⌥⌘E"; // as in Apple Music
+#endif
         playback_items.push_back(MI::leaf("Playlist &Manager...", [this]{ togglePlaylistManager(); }, nullptr, "Shift+P"));
         // The Album Art window (toggleAlbumArtWindow) is hidden: it has no
         // menu item and no key, and Album Art Mode is the way to see a cover.

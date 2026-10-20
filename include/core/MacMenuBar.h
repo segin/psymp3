@@ -49,6 +49,9 @@ public:
         std::vector<Item> children;  ///< non-empty: a submenu
         bool separator = false;      ///< a divider
         int id = -1;                 ///< a leaf's id for the callbacks; -1 for the rest
+        /// The key equivalent, as macOS writes it: modifiers ⌃⌥⇧⌘ then the key
+        /// ("⌘O", "⌥⌘E", "⌘←"); "" for none.
+        std::string key_equivalent;
     };
 
     /** @brief A top-level menu: its title and its items. */

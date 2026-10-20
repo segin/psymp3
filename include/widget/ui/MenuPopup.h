@@ -32,6 +32,7 @@ struct MenuItem {
     std::function<bool()> enabled;   // optional; false => greyed, not pickable
     std::vector<MenuItem> submenu;   // non-empty => submenu
     std::string shortcut;            // right-aligned accelerator hint
+    std::string mac_shortcut;        // macOS menu bar only ("⌘U", "⌥⌘E"); set on macOS builds
     bool separator = false;
 
     static MenuItem leaf(std::string l, std::function<void()> a,
