@@ -19,7 +19,10 @@ concurrency:
 jobs:
   app:
     name: PsyMP3.app (Apple Silicon)
-    runs-on: macos-latest
+    # The oldest macOS runner on offer: Homebrew builds its libraries for the
+    # macOS it runs on, and the bundled libraries set the oldest macOS the app
+    # will start on (macos-latest made that 26).
+    runs-on: macos-14
     steps:
     - uses: actions/checkout@v7
 
@@ -40,8 +43,13 @@ jobs:
         # As for the AppImage and the Flatpak: started on SDL's dummy drivers
         # and stopped after a few seconds, it must have found its font in the
         # bundle's own Resources.
-        out=$(SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-              perl -e 'alarm 10; exec @ARGV' "$app/Contents/MacOS/psymp3" --debug=font 2>&1 || true)
+        # Through --logfile: output to a pipe would still be in the program's
+        # buffer when the alarm stops it (Linux's jobs use stdbuf, which
+        # macOS lacks).
+        log="$RUNNER_TEMP/font.log"
+        SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+          perl -e 'alarm 10; exec @ARGV' "$app/Contents/MacOS/psymp3" --debug=font --logfile "$log" || true
+        out=$(cat "$log")
         printf "%s\n" "$out"
         printf "%s\n" "$out" | grep -q "PsyMP3.app/Contents/Resources/data/vera.ttf"
         printf "%s\n" "$out" | grep -q "font->isValid(): 1"
