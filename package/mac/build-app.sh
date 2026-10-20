@@ -78,7 +78,11 @@ fi
     # --enable-final builds one translation unit, much the fastest way to
     # build once. The prefix is a staging directory: the bundle is put
     # together from it below.
-    ./configure --prefix="$stage" --enable-final
+    ./configure --prefix="$stage" --enable-final || {
+        # Why a check failed is in config.log, which goes with the work tree.
+        tail -n 120 config.log >&2
+        exit 1
+    }
     make -j"$jobs"
     make install
 )
