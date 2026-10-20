@@ -288,6 +288,11 @@ inline int closeSocket(int sock) {
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
 #include <sys/sysctl.h>
 #endif
+#if defined(__APPLE__)
+// Memory statistics (src/io/MemoryTracker.cpp): sysctl and the Mach host and task calls.
+#include <sys/sysctl.h>
+#include <mach/mach.h>
+#endif
 
 // OpenSSL headers
 #include <openssl/ssl.h>

@@ -72,19 +72,21 @@ void MemoryTracker::update() {
         mach_msg_type_number_t host_size = sizeof(vm_statistics64) / sizeof(integer_t);
         host_statistics64(host_port, HOST_VM_INFO64, (host_info64_t)&vm_stats, &host_size);
         
-        new_stats.available_physical_memory = vm_stats.free_count * PAGE_SIZE;
+        // vm_page_size, not PAGE_SIZE: Apple Silicon's page size is not a constant.
+        new_stats.available_physical_memory = static_cast<uint64_t>(vm_stats.free_count) * vm_page_size;
         new_pressure_level = static_cast<int>(100 - (new_stats.available_physical_memory * 100 / new_stats.total_physical_memory));
     }
     
-    struct task_basic_info t_info;
-    mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
-    if (task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) == KERN_SUCCESS) {
+    // mach_task_basic_info: the 64-bit successor of the deprecated task_basic_info.
+    struct mach_task_basic_info t_info;
+    mach_msg_type_number_t t_info_count = MACH_TASK_BASIC_INFO_COUNT;
+    if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) == KERN_SUCCESS) {
         new_stats.process_memory_usage = t_info.resident_size;
         new_stats.virtual_memory_usage = t_info.virtual_size;
+        new_stats.peak_memory_usage = t_info.resident_size_max;
+    } else {
+        new_stats.peak_memory_usage = new_stats.process_memory_usage;
     }
-    
-    // Get peak memory usage (not directly available on macOS)
-    new_stats.peak_memory_usage = new_stats.process_memory_usage;
     #elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
     // BSD implementation: total physical RAM via sysctl, peak RSS via getrusage.
     // (No /proc/meminfo here: FreeBSD has no procfs by default, and NetBSD's is
