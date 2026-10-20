@@ -158,13 +158,31 @@ enum Win32MenuId : unsigned int {
 };
 } // namespace
 #else
-// Where vera.ttf and the window icon live. The path compiled in is where
-// `make install` put them; a relocatable bundle (an AppImage is mounted at a
-// different path on every run) names its own copy in $PSYMP3_DATADIR instead.
+/*
+ * Where vera.ttf and the window icon live. The path compiled in is where
+ * `make install` put them; a relocatable bundle (an AppImage is mounted at a
+ * different path on every run) names its own copy in $PSYMP3_DATADIR instead,
+ * and a macOS .app carries them in Contents/Resources/data, which SDL reports
+ * as its base path when running from a bundle.
+ */
 static std::string dataDir()
 {
     const char* env = getenv("PSYMP3_DATADIR");
-    return (env && *env) ? std::string(env) : std::string(PSYMP3_DATADIR);
+    if (env && *env) {
+        return std::string(env);
+    }
+#ifdef __APPLE__
+    if (const char* base = SDL_GetBasePath()) {
+        const std::string resources(base);
+        static const std::string kBundleResources = "Contents/Resources/";
+        if (resources.size() >= kBundleResources.size() &&
+            resources.compare(resources.size() - kBundleResources.size(), kBundleResources.size(),
+                              kBundleResources) == 0) {
+            return resources + "data";
+        }
+    }
+#endif
+    return std::string(PSYMP3_DATADIR);
 }
 #endif // _WIN32
 

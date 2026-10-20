@@ -819,6 +819,10 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
   // FreeBSD also has a limit, typically MAXCOMLEN + 1 (16 bytes).
   std::string truncated_name = name.substr(0, 15);
   pthread_set_name_np(pthread_self(), truncated_name.c_str());
+#elif defined(__APPLE__)
+  // macOS names only the calling thread, in up to 63 bytes.
+  std::string truncated_name = name.substr(0, 63);
+  pthread_setname_np(truncated_name.c_str());
 #elif defined(_WIN32)
   // The SetThreadDescription API is available on Windows 10 1607+
   // We dynamically load it to maintain compatibility with older systems.

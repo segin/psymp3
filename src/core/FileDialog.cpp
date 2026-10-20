@@ -355,6 +355,132 @@ bool FileDialog::toolkitCrashesAtExit()
 // ===========================================================================
 // Win32 (comdlg32)
 // ===========================================================================
+#elif defined(PSYMP3_FILEDIALOG_SDL)
+
+// ===========================================================================
+// SDL3 (the system's Open and Save panels on macOS)
+// ===========================================================================
+#include <SDL3/SDL.h>
+
+namespace {
+
+/** @brief What an SDL dialog callback hands back to the caller waiting for it. */
+struct SdlDialogResult {
+    bool done = false;                 ///< the callback has run
+    std::vector<std::string> paths;    ///< the chosen paths; none if cancelled
+};
+
+/**
+ * @brief SDL_DialogFileCallback: keep the chosen paths, and say it is over.
+ *        A null list is an error and an empty one a cancel; both leave no paths.
+ * @param userdata The SdlDialogResult.
+ * @param filelist NULL-terminated UTF-8 paths, or null.
+ * @param filter   Which filter was in use (unused).
+ */
+void SDLCALL sdlDialogDone(void* userdata, const char* const* filelist, int /*filter*/)
+{
+    auto* result = static_cast<SdlDialogResult*>(userdata);
+    if (!filelist) {
+        SDL_Log("PsyMP3: file dialog failed: %s", SDL_GetError());
+    } else {
+        for (const char* const* p = filelist; *p; ++p) result->paths.emplace_back(*p);
+    }
+    result->done = true;
+}
+
+/**
+ * @brief Wait for an SDL dialog to finish, keeping events flowing: on macOS
+ *        the panel runs on the main thread and calls back from the event
+ *        loop. Events that arrive meanwhile stay queued for the player.
+ * @param result What the callback fills in.
+ */
+void sdlDialogWait(const SdlDialogResult& result)
+{
+    while (!result.done) {
+        SDL_PumpEvents();
+        SDL_Delay(10);
+    }
+}
+
+/**
+ * @brief The window to attach the panel to: the one with keyboard focus.
+ * @return It, or null for a free-standing panel.
+ */
+SDL_Window* sdlDialogParent()
+{
+    return SDL_GetKeyboardFocus();
+}
+
+} // namespace
+
+namespace PsyMP3 {
+namespace Core {
+
+/**
+ * @brief SDL3's open dialog, waited on until it is answered.
+ * @param allow_multiple Whether several files may be chosen.
+ * @param title          Unused: SDL's dialog takes no title.
+ * @param extensions     Extensions without dots for the type filter.
+ * @return The chosen paths, or none.
+ */
+std::vector<std::string> FileDialog::openFiles(bool allow_multiple,
+                                               const std::string& /*title*/,
+                                               const std::vector<std::string>& extensions)
+{
+    std::string pattern;
+    for (const std::string& ext : extensions) {
+        if (!pattern.empty()) pattern += ';';
+        pattern += ext;
+    }
+    const SDL_DialogFileFilter filters[] = {
+        {"Supported files", pattern.empty() ? "*" : pattern.c_str()},
+        {"All files", "*"},
+    };
+    SdlDialogResult result;
+    SDL_ShowOpenFileDialog(sdlDialogDone, &result, sdlDialogParent(), filters, 2, nullptr, allow_multiple);
+    sdlDialogWait(result);
+    return result.paths;
+}
+
+/**
+ * @brief SDL3's save dialog, waited on until it is answered.
+ * @param title        Unused: SDL's dialog takes no title.
+ * @param default_name The name to offer.
+ * @param extensions   Extensions without dots for the type filter.
+ * @return The chosen path, or "".
+ */
+std::string FileDialog::saveFile(const std::string& /*title*/,
+                                 const std::string& default_name,
+                                 const std::vector<std::string>& extensions)
+{
+    std::string pattern;
+    for (const std::string& ext : extensions) {
+        if (!pattern.empty()) pattern += ';';
+        pattern += ext;
+    }
+    const SDL_DialogFileFilter filters[] = {
+        {"Playlist", pattern.empty() ? "*" : pattern.c_str()},
+        {"All files", "*"},
+    };
+    SdlDialogResult result;
+    SDL_ShowSaveFileDialog(sdlDialogDone, &result, sdlDialogParent(), filters, 2,
+                           default_name.empty() ? nullptr : default_name.c_str());
+    sdlDialogWait(result);
+    return result.paths.empty() ? std::string() : result.paths.front();
+}
+
+/**
+ * @brief SDL keeps no toolkit global that crashes at exit.
+ * @return false.
+ */
+bool FileDialog::toolkitCrashesAtExit()
+{
+    return false;
+}
+
+} // namespace Core
+} // namespace PsyMP3
+
 #elif defined(PSYMP3_FILEDIALOG_WIN32)
 
 #include <windows.h>

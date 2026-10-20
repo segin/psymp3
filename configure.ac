@@ -430,7 +430,8 @@ AM_CONDITIONAL([HAVE_DBUS], [test "x$have_dbus" = "xyes"])
 
 # Native open-file dialog backend for the "I"/"L" runtime track loader (optional).
 # Build-time selection, preferring Qt over GTK and newer over older:
-#   Qt6 -> Qt5 -> Qt4 -> Qt3 -> GTK4 -> GTK+3 -> GTK+2 ; Win32 on Windows.
+#   Qt6 -> Qt5 -> Qt4 -> Qt3 -> GTK4 -> GTK+3 -> GTK+2 ; Win32 on Windows;
+#   SDL3's dialog (the system panels) on macOS.
 # If nothing is found the feature compiles out and the I/L keys are unbound.
 AC_ARG_ENABLE([filedialog],
   [AS_HELP_STRING([--disable-filedialog], [Disable the native open-file dialog / I+L keys @<:@default=auto@:>@])],
@@ -451,6 +452,15 @@ if test "x$enable_filedialog" != "xno"; then
       filedialog_backend="Win32"
       DIALOG_LIBS="-lcomdlg32 -lole32 -lshell32"
       AC_DEFINE([PSYMP3_FILEDIALOG_WIN32], [1], [Use the Win32 comdlg32 open-file dialog])
+      ;;
+    darwin*)
+      # macOS: SDL3's own dialog, which is the system's Open and Save panels.
+      # It needs nothing beyond the SDL3 already required.
+      have_filedialog=yes
+      filedialog_backend="SDL3 (macOS panels)"
+      DIALOG_CFLAGS="$SDL_CFLAGS"
+      DIALOG_LIBS=
+      AC_DEFINE([PSYMP3_FILEDIALOG_SDL], [1], [Use SDL3's file dialog (the system's panels on macOS)])
       ;;
     *)
       # Pick the first available toolkit (existence-only probes; no side effects).
