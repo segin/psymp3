@@ -96,6 +96,9 @@ EXTRA_DIST = \
 	include/codecs/vorbis/VorbisCodec.h \
 	include/core/BezierCurve.h \
 	include/core/FileDialog.h \
+	include/core/MacMenuBar.h \
+	include/core/MacNowPlaying.h \
+	include/core/Shortcut.h \
 	include/core/SpectrumConfig.h \
 	include/core/about.h \
 	include/core/compression/Compressor.h \
