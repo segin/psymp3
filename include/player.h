@@ -374,6 +374,22 @@ class Player
         void handleTrackSeamlessSwapEvent();
         void handleDoSavePlaylistEvent();
         void handleShowNotificationEvent(std::pair<std::string, NotificationType>* data);
+
+#ifdef PSYMP3_MAC_NOWPLAYING
+        /**
+         * @brief Carry out a command from macOS's media controls (Now
+         *        Playing, the media keys): play, pause, next, a seek...
+         * @param command     A PsyMP3::Core::MacNowPlaying::Command, as an integer.
+         * @param position_ms The position a seek goes to.
+         */
+        void handleMediaCommandEvent(intptr_t command, uint64_t position_ms);
+
+        /**
+         * @brief Tell macOS's Now Playing what plays, where, and whether it
+         *        plays. Called wherever MPRIS is told.
+         */
+        void publishMacNowPlaying();
+#endif
         void handleDoSetLoopModeEvent(LoopMode mode);
         void handleKeyUp(const SDL_keysym& keysym);
         void showToast(const std::string& message, Uint32 duration_ms = 2000);

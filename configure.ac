@@ -582,6 +582,22 @@ AC_SUBST([DIALOG_CFLAGS])
 AC_SUBST([DIALOG_LIBS])
 AM_CONDITIONAL([HAVE_FILEDIALOG], [test "x$have_filedialog" = "xyes"])
 
+# macOS Now Playing and media keys, in Objective-C++ against the MediaPlayer
+# framework (src/core/MacNowPlaying.mm). AC_PROG_OBJCXX is called everywhere,
+# as automake wants it whenever an .mm source exists; elsewhere nothing builds
+# with it.
+AC_PROG_OBJCXX
+have_mac_nowplaying=no
+case "$host_os" in
+  darwin*)
+    have_mac_nowplaying=yes
+    MAC_NOWPLAYING_LIBS="-framework MediaPlayer -framework AppKit -framework Foundation -lobjc"
+    AC_DEFINE([PSYMP3_MAC_NOWPLAYING], [1], [Use macOS's Now Playing and media keys])
+    ;;
+esac
+AC_SUBST([MAC_NOWPLAYING_LIBS])
+AM_CONDITIONAL([MAC_NOWPLAYING], [test "x$have_mac_nowplaying" = "xyes"])
+
 # RapidCheck property-based testing library (optional)
 AC_ARG_ENABLE([rapidcheck],
   [AS_HELP_STRING([--enable-rapidcheck], [Enable RapidCheck property-based testing @<:@default=auto@:>@])],

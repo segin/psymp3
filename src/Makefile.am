@@ -268,6 +268,19 @@ filedialog-lib:
 endif
 endif
 
+# macOS Now Playing and media keys (core/libpsymp3-nowplaying.a, Objective-C++),
+# kept out of the unity TU like the file dialog, so final builds recurse for it.
+if MAC_NOWPLAYING
+psymp3_LDADD += core/libpsymp3-nowplaying.a $(MAC_NOWPLAYING_LIBS)
+if FINAL_BUILD
+core/libpsymp3-nowplaying.a: nowplaying-lib
+	@: # built by the recursive make below; this rule orders the dependency
+.PHONY: nowplaying-lib
+nowplaying-lib:
+	cd core && $(MAKE) $(AM_MAKEFLAGS) libpsymp3-nowplaying.a
+endif
+endif
+
 # Windows resource file support
 if HAVE_WINDRES
 psymp3_LDADD += ../res/psymp3.res

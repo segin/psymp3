@@ -1092,6 +1092,14 @@ Player::Player() : m_rng(std::random_device{}()) {
         Debug::log("mpris", "MPRIS initialized successfully");
     }
 #endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+    // The system's commands arrive from inside its event handling; they are
+    // carried out from the event loop, like every other request.
+    PsyMP3::Core::MacNowPlaying::start([](PsyMP3::Core::MacNowPlaying::Command command, uint64_t position_ms) {
+        Player::synthesizeUserEvent(MEDIA_COMMAND, reinterpret_cast<void*>(static_cast<intptr_t>(command)),
+                                    reinterpret_cast<void*>(static_cast<uintptr_t>(position_ms)));
+    });
+#endif
 }
 
 /**
@@ -1141,6 +1149,9 @@ Player::~Player() {
         m_mpris_manager->shutdown();
         m_mpris_manager.reset();
     }
+#endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+    PsyMP3::Core::MacNowPlaying::stop();
 #endif
     if (m_loader_active) {
         // A load stuck on a stalled station must not hold this join.
@@ -1586,6 +1597,9 @@ void Player::handleTrackSeamlessSwapEvent() {
             );
         }
     }
+#endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+    publishMacNowPlaying();
 #endif
 #ifdef _WIN32
     if (system && stream) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
@@ -2658,6 +2672,9 @@ bool Player::stop(void) {
         m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Stopped);
     }
 #endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+    publishMacNowPlaying(); // stopped: the system clears it
+#endif
 #ifdef _WIN32
     if (system) system->clearNowPlaying();
 #endif
@@ -2688,6 +2705,9 @@ bool Player::pause(void) {
         if (m_mpris_manager) {
             m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Paused);
         }
+#endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+        publishMacNowPlaying();
 #endif
         // Clear Last.fm now playing status when pausing
         if (m_lastfm) {
@@ -2721,6 +2741,9 @@ bool Player::play(void) {
         if (m_mpris_manager) {
             m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
         }
+#endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+        publishMacNowPlaying();
 #endif
         // Re-set Last.fm now playing status when resuming from pause
         if (previous_state == PlayerState::Paused && m_lastfm) {
@@ -2815,6 +2838,9 @@ void Player::seekToInternal(unsigned long pos, bool monitor_seek_errors)
         if (m_mpris_manager) {
             m_mpris_manager->notifySeeked(static_cast<uint64_t>(pos) * 1000);
         }
+#endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+        publishMacNowPlaying(); // the new position
 #endif
         // Re-anchor the Discord progress bar to the new position.
         updateDiscordPresence();
@@ -3920,9 +3946,63 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case DO_SET_LOOP_MODE:
             handleDoSetLoopModeEvent(static_cast<LoopMode>(reinterpret_cast<intptr_t>(event.data1)));
             break;
+#ifdef PSYMP3_MAC_NOWPLAYING
+        case MEDIA_COMMAND:
+            handleMediaCommandEvent(reinterpret_cast<intptr_t>(event.data1),
+                                    static_cast<uint64_t>(reinterpret_cast<uintptr_t>(event.data2)));
+            break;
+#endif
     }
     return false; // Do not exit
 }
+
+#ifdef PSYMP3_MAC_NOWPLAYING
+/**
+ * @brief Carry out a system media command, as MPRIS's own methods do.
+ * @param command     The MacNowPlaying::Command.
+ * @param position_ms Where a seek goes.
+ */
+void Player::handleMediaCommandEvent(intptr_t command, uint64_t position_ms)
+{
+    using Command = PsyMP3::Core::MacNowPlaying::Command;
+    switch (static_cast<Command>(command)) {
+        case Command::Play: play(); break;
+        case Command::Pause: pause(); break;
+        case Command::TogglePlayPause: playPause(); break;
+        case Command::Stop: stop(); break;
+        case Command::Next: nextTrack(); break;
+        case Command::Previous: prevTrack(); break;
+        case Command::SeekTo:
+            // seekTo() refuses a live stream itself.
+            seekTo(static_cast<unsigned long>(position_ms));
+            break;
+    }
+    publishMacNowPlaying();
+}
+
+/**
+ * @brief Send macOS's Now Playing the track, position, state and cover.
+ */
+void Player::publishMacNowPlaying()
+{
+    using PsyMP3::Core::MacNowPlaying;
+    if (!stream || state == PlayerState::Stopped) {
+        MacNowPlaying::update({}, {}, {}, 0, 0, MacNowPlaying::State::Stopped, {});
+        return;
+    }
+    uint64_t position_ms = 0;
+    if (audio && audio->getRate() > 0) {
+        position_ms = audio->getSamplesPlayed() * 1000 / static_cast<uint64_t>(audio->getRate());
+    }
+    const std::optional<PsyMP3::Tag::Picture> cover = stream->getCoverArt();
+    static const std::vector<uint8_t> kNoArtwork;
+    MacNowPlaying::update(stream->getArtist().to8Bit(true), stream->getTitle().to8Bit(true),
+                          stream->getAlbum().to8Bit(true),
+                          stream->isLive() ? 0 : static_cast<uint64_t>(stream->getLength()), position_ms,
+                          state == PlayerState::Playing ? MacNowPlaying::State::Playing : MacNowPlaying::State::Paused,
+                          cover ? cover->data : kNoArtwork);
+}
+#endif // PSYMP3_MAC_NOWPLAYING
 
 /**
  * @brief Initialises SDL and all subsystems, builds the UI widget tree, and starts background threads.
@@ -6885,6 +6965,9 @@ void Player::onStreamArtworkChanged()
         );
     }
 #endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+    publishMacNowPlaying();
+#endif
 }
 
 /**
@@ -6917,6 +7000,9 @@ void Player::onStreamTitleChanged()
             mprisArtUrl(stream)
         );
     }
+#endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+    publishMacNowPlaying();
 #endif
 #ifdef _WIN32
     if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
@@ -7286,6 +7372,9 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
             );
         }
     }
+#endif
+#ifdef PSYMP3_MAC_NOWPLAYING
+    publishMacNowPlaying();
 #endif
 #ifdef _WIN32
     if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
