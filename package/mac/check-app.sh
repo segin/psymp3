@@ -28,7 +28,14 @@ otool -L "$exe" | grep "@executable_path/../Frameworks/libfdk-aac" \
 # its menu and closes the log. Killed outright, the log would lose what it
 # had buffered.
 log=$(mktemp)
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy run "$exe" --debug=font --logfile "$log" &
+# Started directly, not through run(): a function in the background is a
+# subshell, and the SIGTERM would stop that rather than PsyMP3.
+export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+if [ -n "$arch" ]; then
+    arch "-$arch" "$exe" --debug=font --logfile "$log" &
+else
+    "$exe" --debug=font --logfile "$log" &
+fi
 pid=$!
 sleep 8
 kill -TERM "$pid"

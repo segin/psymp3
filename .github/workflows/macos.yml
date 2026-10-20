@@ -23,6 +23,8 @@ jobs:
   app:
     name: PsyMP3.app (${{ matrix.arch }})
     strategy:
+      # One half failing says nothing of the other: let both finish.
+      fail-fast: false
       matrix:
         include:
           # The oldest runners on offer: Homebrew builds its libraries for
