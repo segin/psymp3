@@ -10,7 +10,7 @@ matching machine or container.
 | `rpm/`  | `.rpm` | Fedora (latest), openSUSE Tumbleweed |
 | `arch/` | `.pkg.tar.zst` | not in CI; built with `makepkg` on Arch |
 | `appimage/` | `.AppImage` | built on Ubuntu 22.04, run on Ubuntu 24.04 |
-| `mac/` | `PsyMP3.app` in a `.dmg` | built and run on GitHub's Apple Silicon macOS runner (`.github/workflows/macos.yml`) |
+| `mac/` | universal `PsyMP3.app` in a `.dmg` | each half built and run on GitHub's Apple Silicon and Intel macOS runners, joined, and both halves run again (`.github/workflows/macos.yml`) |
 | `flatpak/` | `.flatpak` | a bundle on Flathub's KDE 6.11 runtime, built and run on Ubuntu |
 
 ## Building by hand
@@ -21,6 +21,7 @@ matching machine or container.
 (cd package/arch && makepkg)     # -> package/arch/*.pkg.tar.zst
 ./package/appimage/build-appimage.sh --docker   # -> package/appimage/out/*.AppImage
 ./package/mac/build-app.sh --deps   # on macOS with Homebrew -> package/mac/out/PsyMP3.app and *.dmg
+./package/mac/make-universal.sh ARM64.app X86_64.app   # join two of those into a universal app
 flatpak-builder --user --install-deps-from=flathub --force-clean \
     --repo=package/flatpak/repo package/flatpak/build \
     package/flatpak/io.github.segin.psymp3.yml   # then flatpak build-bundle, as CI does

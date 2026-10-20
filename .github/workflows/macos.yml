@@ -1,8 +1,11 @@
 name: macOS app
 
-# Builds PsyMP3.app and a .dmg holding it with package/mac/build-app.sh, on
-# GitHub's Apple Silicon macOS runner, against Homebrew's libraries, which the
-# script copies into the bundle.
+# Builds a universal PsyMP3.app, and a .dmg holding it. Homebrew on each kind
+# of Mac has only that kind's libraries, so each half is built on its own
+# runner with package/mac/build-app.sh; package/mac/make-universal.sh then
+# joins them with lipo. package/mac/check-app.sh checks each app starts,
+# finds its data in its own Resources, loads FDK-AAC from inside the bundle,
+# and quits when asked.
 
 on:
   push:
@@ -18,11 +21,18 @@ concurrency:
 
 jobs:
   app:
-    name: PsyMP3.app (Apple Silicon)
-    # The oldest macOS runner on offer: Homebrew builds its libraries for the
-    # macOS it runs on, and the bundled libraries set the oldest macOS the app
-    # will start on (macos-latest made that 26).
-    runs-on: macos-14
+    name: PsyMP3.app (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          # The oldest runners on offer: Homebrew builds its libraries for
+          # the macOS it runs on, and the bundled libraries set the oldest
+          # macOS each half will start on.
+          - arch: arm64
+            runner: macos-14
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v7
 
@@ -32,36 +42,47 @@ jobs:
         ./package/mac/build-app.sh --deps
 
     - name: Verify the app runs
+      run: ./package/mac/check-app.sh package/mac/out/PsyMP3.app
+
+    # A tar keeps the bundle's executable bits and symlinks, which an
+    # artifact upload of the directory would not.
+    - name: Pack the app
+      run: tar -C package/mac/out -cf PsyMP3-${{ matrix.arch }}.tar PsyMP3.app
+
+    - uses: actions/upload-artifact@v7
+      with:
+        name: psymp3-app-${{ matrix.arch }}
+        path: PsyMP3-${{ matrix.arch }}.tar
+        if-no-files-found: error
+
+  universal:
+    name: PsyMP3.app (universal)
+    needs: app
+    runs-on: macos-14
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: actions/download-artifact@v7
+      with:
+        pattern: psymp3-app-*
+        merge-multiple: true
+
+    - name: Join the two apps
+      run: |
+        set -eux
+        mkdir arm64 x86_64
+        tar -C arm64 -xf PsyMP3-arm64.tar
+        tar -C x86_64 -xf PsyMP3-x86_64.tar
+        ./package/mac/make-universal.sh arm64/PsyMP3.app x86_64/PsyMP3.app
+
+    - name: Verify both halves run
       run: |
         set -eux
         app=package/mac/out/PsyMP3.app
-        plutil -p "$app/Contents/Info.plist"
-        "$app/Contents/MacOS/psymp3" --version
-        # AAC needs FDK-AAC, which must load from inside the bundle.
-        otool -L "$app/Contents/MacOS/psymp3" | tee /dev/stderr \
-          | grep -q "@executable_path/../Frameworks/libfdk-aac"
-        # As for the AppImage and the Flatpak: started on SDL's dummy drivers
-        # and stopped after a few seconds, it must have found its font in the
-        # bundle's own Resources.
-        # Through --logfile, and stopped with SIGTERM, which SDL turns into a
-        # quit: the program then shuts down as from its menu and closes the
-        # log. Killed outright, the log would lose what it had buffered.
-        log="$RUNNER_TEMP/font.log"
-        SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-          "$app/Contents/MacOS/psymp3" --debug=font --logfile "$log" &
-        pid=$!
-        sleep 8
-        kill -TERM "$pid"
-        for i in $(seq 20); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
-        if kill -0 "$pid" 2>/dev/null; then
-          kill -KILL "$pid"
-          echo "PsyMP3 did not quit within 20 s of SIGTERM" >&2
-          exit 1
-        fi
-        out=$(cat "$log")
-        printf "%s\n" "$out"
-        printf "%s\n" "$out" | grep -q "PsyMP3.app/Contents/Resources/data/vera.ttf"
-        printf "%s\n" "$out" | grep -q "font->isValid(): 1"
+        test "$(lipo -archs "$app/Contents/MacOS/psymp3")" = "x86_64 arm64"
+        ./package/mac/check-app.sh "$app" arm64
+        # The Intel half, under Rosetta.
+        ./package/mac/check-app.sh "$app" x86_64
 
     - name: Upload package
       uses: actions/upload-artifact@v7
