@@ -1,0 +1,54 @@
+name: macOS app
+
+# Builds PsyMP3.app and a .dmg holding it with package/mac/build-app.sh, on
+# GitHub's Apple Silicon macOS runner, against Homebrew's libraries, which the
+# script copies into the bundle.
+
+on:
+  push:
+    branches: [ "master" ]
+    tags: [ "*" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: PsyMP3.app (Apple Silicon)
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Build PsyMP3.app
+      run: |
+        set -eux
+        ./package/mac/build-app.sh --deps
+
+    - name: Verify the app runs
+      run: |
+        set -eux
+        app=package/mac/out/PsyMP3.app
+        plutil -p "$app/Contents/Info.plist"
+        "$app/Contents/MacOS/psymp3" --version
+        # AAC needs FDK-AAC, which must load from inside the bundle.
+        otool -L "$app/Contents/MacOS/psymp3" | tee /dev/stderr \
+          | grep -q "@executable_path/../Frameworks/libfdk-aac"
+        # As for the AppImage and the Flatpak: started on SDL's dummy drivers
+        # and stopped after a few seconds, it must have found its font in the
+        # bundle's own Resources.
+        out=$(SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+              perl -e 'alarm 10; exec @ARGV' "$app/Contents/MacOS/psymp3" --debug=font 2>&1 || true)
+        printf "%s\n" "$out"
+        printf "%s\n" "$out" | grep -q "PsyMP3.app/Contents/Resources/data/vera.ttf"
+        printf "%s\n" "$out" | grep -q "font->isValid(): 1"
+
+    - name: Upload package
+      uses: actions/upload-artifact@v7
+      with:
+        name: psymp3-macos
+        path: package/mac/out/*.dmg
+        if-no-files-found: error

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  package/mac/Info.plist - the PsyMP3.app bundle's Info.plist.
+
+  package/mac/build-app.sh copies it into PsyMP3.app/Contents and fills in:
+    @VERSION@        PsyMP3's version as configure.ac names it (2.4-RELEASE, 2-CURRENT)
+    @SHORT_VERSION@  the numeric release from res/psymp3.rc (2.4.0)
+    @BUILD@          the build number from res/psymp3.rc (2082)
+    @MIN_MACOS@      the oldest macOS the bundled libraries run on
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleName</key>
+  <string>PsyMP3</string>
+  <key>CFBundleDisplayName</key>
+  <string>PsyMP3</string>
+  <key>CFBundleIdentifier</key>
+  <string>io.github.segin.psymp3</string>
+  <key>CFBundleExecutable</key>
+  <string>psymp3</string>
+  <key>CFBundleIconFile</key>
+  <string>psymp3</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@SHORT_VERSION@</string>
+  <key>CFBundleVersion</key>
+  <string>@BUILD@</string>
+  <key>CFBundleGetInfoString</key>
+  <string>PsyMP3 @VERSION@</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright © 2009-2026 Kirn Gill II. ISC License.</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>@MIN_MACOS@</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.music</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <!-- Opened from Finder ("Open With"), files arrive as SDL drop events. -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Audio</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.audio</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Playlist</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.m3u-playlist</string>
+        <string>public.playlist</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

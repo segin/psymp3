@@ -165,6 +165,7 @@ vgcore.2578017
 package/dpkg/out/
 package/rpm/out/
 package/appimage/out/
+package/mac/out/
 # flatpak-builder: its build directory, the repository it exports to, its
 # cache, and the bundle.
 package/flatpak/build/
