@@ -709,6 +709,10 @@ case "$host_os" in
     # with "undefined symbol: WinMain". SDL3's own CMake adds this for MinGW.
     LDFLAGS="$LDFLAGS -municode -Wl,--dynamicbase,--nxcompat"
     ;;
+  darwin*)
+    # Mach-O: Apple's linker knows no -z (or RELRO), and makes every program
+    # position-independent already, so neither flag applies.
+    ;;
   *)
     LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now"
     if test "x$enable_pie" = "xyes"; then
