@@ -56,8 +56,6 @@ MPRIS; on macOS, PsyMP3 does the same through Now Playing.
   [macOS app](.github/workflows/macos.yml) workflow. The app is not signed with
   a Developer ID or notarized, so the first time you open it, macOS refuses;
   allow it under **System Settings → Privacy & Security → Open Anyway**.
-- The macOS port has been run on a real Mac, and every build is also started
-  on GitHub's Mac runners.
 
 ### Linux/BSD
 **Core dependencies** (always required):
