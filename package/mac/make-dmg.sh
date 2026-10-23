@@ -1,6 +1,7 @@
 #!/bin/sh
 # package/mac/make-dmg.sh - pack PsyMP3.app into a .dmg beside a link to
-# /Applications, so it installs by dragging the one onto the other.
+# /Applications, so it installs by dragging the one onto the other, and
+# "Read Me First.rtf", which tells how to open the unnotarized app.
 #
 # Usage: package/mac/make-dmg.sh PsyMP3.app OUT.dmg
 set -eu
@@ -15,6 +16,7 @@ trap 'rm -rf "$stage"' EXIT
 cp -R "$app" "$stage/PsyMP3.app"
 # A symlink, which Finder shows with the Applications folder's own icon.
 ln -s /Applications "$stage/Applications"
+cp "$(dirname "$0")/Read Me First.rtf" "$stage/"
 
 rm -f "$dmg"
 hdiutil create -volname PsyMP3 -srcfolder "$stage" -ov -format UDZO "$dmg"

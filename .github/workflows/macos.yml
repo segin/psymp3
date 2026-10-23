@@ -94,6 +94,7 @@ jobs:
         ls -la "$mnt"
         test -x "$mnt/PsyMP3.app/Contents/MacOS/psymp3"
         test "$(readlink "$mnt/Applications")" = /Applications
+        test -s "$mnt/Read Me First.rtf"
         hdiutil detach "$mnt"
 
     - name: Upload package
