@@ -489,4 +489,4 @@ is written in C++17 and runs on Linux, the BSDs, macOS and Windows.
 
 ### Generative AI Disclosure
 
-PsyMP3 was developed over 17 years using a mixture of hand-written and AI-generated code. 
+PsyMP3 was developed since 2009 using a mixture of hand-written and AI-generated code. 
