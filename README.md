@@ -486,3 +486,7 @@ the executable or in the working directory overrides the built-in copy.
 
 PsyMP3 2.x is a complete rewrite. The 1.x series was written in FreeBASIC; 2.x
 is written in C++17 and runs on Linux, the BSDs, macOS and Windows.
+
+### Generative AI Disclosure
+
+PsyMP3 was developed over 17 years using a mixture of hand-written and AI-generated code. 
