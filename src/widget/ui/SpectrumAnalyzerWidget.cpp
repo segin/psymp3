@@ -39,6 +39,8 @@ SpectrumAnalyzerWidget::SpectrumAnalyzerWidget(int width, int height)
 {
     // Initialize with empty spectrum data
     m_spectrum_data.resize(64, 0.0f); // Default to 64 bands
+    // draw() copies its opaque, black-backed spectrum over the whole surface.
+    setOpaque(true);
 }
 
 void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_bands, int scale_factor, float decay_factor)

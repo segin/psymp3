@@ -100,7 +100,10 @@ void DrawableWidget::updateSurface()
     
     // Call the subclass draw method
     draw(*surface);
-    
+    if (m_opaque) {
+        surface->makeOpaque();
+    }
+
     // Set the new surface
     setSurface(std::move(surface));
     

@@ -730,6 +730,7 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
                 auto client_surface = std::make_unique<Surface>(m_client_width, m_client_height, true);
                 uint32_t white_color = client_surface->MapRGB(255, 255, 255);
                 client_surface->FillRect(white_color);
+                client_surface->makeOpaque();
                 m_client_area->setSurface(std::move(client_surface));
             }
             
@@ -863,7 +864,8 @@ std::unique_ptr<Widget> WindowFrameWidget::createDefaultClientArea()
     auto client_surface = std::make_unique<Surface>(m_client_width, m_client_height, true);
     uint32_t white_color = client_surface->MapRGB(255, 255, 255);
     client_surface->FillRect(white_color);
-    
+    client_surface->makeOpaque();
+
     client_widget->setSurface(std::move(client_surface));
     
     // Set client area size
@@ -1030,7 +1032,8 @@ void WindowFrameWidget::rebuildSurface()
     // The control menu is not drawn here: it is a ContextMenuWidget overlay
     // child, added after the client area so it composites above it.
 
-    // Set the surface
+    // Set the surface; the grey fill leaves no pixel transparent.
+    frame_surface->makeOpaque();
     setSurface(std::move(frame_surface));
 }
 
@@ -1071,6 +1074,7 @@ void WindowFrameWidget::refresh()
         auto client_surface = std::make_unique<Surface>(m_client_width, m_client_height, true);
         uint32_t white_color = client_surface->MapRGB(255, 255, 255);
         client_surface->FillRect(white_color);
+        client_surface->makeOpaque();
         m_client_area->setSurface(std::move(client_surface));
     }
 }
@@ -1106,6 +1110,7 @@ void WindowFrameWidget::setFrameBounds(const Rect& bounds)
     if (m_client_area) {
         auto client_surface = std::make_unique<Surface>(m_client_width, m_client_height, true);
         client_surface->FillRect(client_surface->MapRGB(255, 255, 255));
+        client_surface->makeOpaque();
         m_client_area->setSurface(std::move(client_surface));
     }
 

@@ -71,23 +71,28 @@ Surface::Surface(int width, int height)
 }
 
 /**
- * @brief Creates a new 32-bit RGBA software surface optimised for text rendering.
+ * @brief Creates a new 32-bit software surface, with an alpha channel if asked.
  *
- * When `for_text` is `true`, endian-correct RGBA channel masks are used so
- * that FreeType alpha blending produces correct results on all platforms.
+ * When `for_text` is `true` the surface is ARGB8888, which has an alpha
+ * channel and otherwise the same channel layout as the XRGB8888 surfaces it
+ * is blitted onto, so SDL can use its fast blending and copying paths.
  *
  * @param width    Width in pixels.
  * @param height   Height in pixels.
- * @param for_text If `true`, use endian-aware RGBA masks; otherwise use SDL defaults.
+ * @param for_text If `true`, give the surface an alpha channel (ARGB8888); otherwise XRGB8888.
  */
 Surface::Surface(int width, int height, bool for_text)
     : m_handle(nullptr, SDL_DestroySurface)
 {
     if (for_text) {
-        // SDL_PIXELFORMAT_RGBA32 is the endian-aware 32-bit RGBA alias, giving
-        // the same channel layout the manual masks used to compute so FreeType
-        // alpha blending is correct on all platforms.
-        m_handle.reset(SDL_CreateSurface(width, height, SDL_PIXELFORMAT_RGBA32));
+        /*
+         * ARGB8888 rather than RGBA32: the screen and graph are XRGB8888, and
+         * a blit between surfaces whose colour channels sit in different
+         * places has to swap them for every pixel. Every pixel PsyMP3 writes
+         * goes through MapRGBA()/SDL_GetRGBA() on the surface's own format,
+         * so nothing depends on the byte order.
+         */
+        m_handle.reset(SDL_CreateSurface(width, height, SDL_PIXELFORMAT_ARGB8888));
     } else {
         m_handle.reset(SDL_CreateSurface(width, height, SDL_PIXELFORMAT_XRGB8888));
     }
@@ -140,6 +145,21 @@ void Surface::SetAlpha(uint32_t flags, uint8_t alpha)
     if (!m_handle) return;
     SDL_SetSurfaceBlendMode(m_handle.get(), alpha < 255 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
     SDL_SetSurfaceAlphaMod(m_handle.get(), alpha);
+}
+
+/**
+ * @brief Declares every pixel opaque, so blits copy this surface instead of blending it.
+ *
+ * SDL gives a surface with an alpha channel blending by default, which
+ * reads and mixes every destination pixel even where the source alpha is
+ * 255 throughout. Only call this when every pixel really is opaque: a
+ * transparent pixel would be copied as black. SetAlpha() with a value
+ * below 255 turns blending back on.
+ */
+void Surface::makeOpaque()
+{
+    if (!m_handle) return;
+    SDL_SetSurfaceBlendMode(m_handle.get(), SDL_BLENDMODE_NONE);
 }
 
 /**

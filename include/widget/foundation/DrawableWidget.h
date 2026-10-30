@@ -63,7 +63,15 @@ public:
      * This calls the draw() method and updates the surface.
      */
     void redraw();
-    
+
+    /**
+     * @brief Declares that draw() always covers every pixel opaquely.
+     * Each new surface is then copied, not blended, onto its target (see
+     * Surface::makeOpaque()).
+     * @param opaque true if every pixel draw() leaves is opaque.
+     */
+    void setOpaque(bool opaque) { m_opaque = opaque; }
+
     /**
      * @brief Overrides Widget::BlitTo to ensure surface is updated when needed.
      * @param target The target surface to blit to
@@ -99,7 +107,8 @@ protected:
 
 private:
     std::atomic<bool> m_needs_redraw;
-    
+    bool m_opaque = false;
+
     /**
      * @brief Internal method to create and update the widget surface.
      */

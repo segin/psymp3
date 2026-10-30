@@ -49,7 +49,7 @@ class Surface
         Surface(); 
         // Constructor for creating a new, owned surface
         Surface(int width, int height);
-        // Constructor for creating a text surface with explicit RGBA format
+        // Constructor for creating a surface with an alpha channel (ARGB8888)
         Surface(int width, int height, bool for_text);
         // Constructor for wrapping a non-owned surface (e.g., the main screen)
         explicit Surface(SDL_Surface *non_owned_sfc);
@@ -67,6 +67,7 @@ class Surface
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
         void SetAlpha(uint8_t alpha);
         void SetAlpha(uint32_t flags, uint8_t alpha); // SDL_SRCALPHA, SDL_ALPHA_OPAQUE, etc.
+        void makeOpaque(); // every pixel is opaque: blits copy rather than blend
         uint32_t MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void Blit(Surface& src, const Rect& rect); // Changed to const Rect&
         void FillRect(uint32_t color);

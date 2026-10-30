@@ -128,7 +128,8 @@ void TitlebarWidget::rebuildSurface()
         }
     }
     
-    // Set the surface
+    // Set the surface; the fill and border leave no pixel transparent.
+    titlebar_surface->makeOpaque();
     setSurface(std::move(titlebar_surface));
 }
 

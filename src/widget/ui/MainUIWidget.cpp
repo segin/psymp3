@@ -74,7 +74,8 @@ void MainUIWidget::rebuildSurface()
     
     // The child widgets (spectrum analyzer and progress bar) will render themselves
     // when BlitTo is called by the ApplicationWidget
-    
+
+    surface->makeOpaque();
     setSurface(std::move(surface));
 }
 
