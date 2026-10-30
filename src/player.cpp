@@ -2859,27 +2859,6 @@ bool Player::canSeek() const
     return stream && stream->canSeek();
 }
 
-/**
- * @brief Pre-calculates the color gradient for the spectrum analyzer.
- * This is done once at startup to avoid expensive color calculations in the main render loop.
- */
-void Player::precomputeSpectrumColors() {
-    Debug::log("player", "precomputeSpectrumColors called.");
-    if (!graph) {
-        Debug::log("player", "graph is null!");
-        return;
-    }
-    Debug::log("player", "graph is valid.");
-
-    m_spectrum_colors.resize(PsyMP3::Core::SpectrumConfig::NumBands);
-    for (uint16_t x = 0; x < PsyMP3::Core::SpectrumConfig::NumBands; ++x) {
-        auto color = PsyMP3::Core::SpectrumConfig::getBarColor(x);
-        // Debug::log("player", "x: ", x, " r: ", (int)color.r, " g: ", (int)color.g, " b: ", (int)color.b);
-        m_spectrum_colors[x] = graph->MapRGBA(color.r, color.g, color.b, 255);
-    }
-    Debug::log("player", "precomputeSpectrumColors finished.");
-}
-
 
 
 /**
@@ -2932,7 +2911,7 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
 
 
 /**
- * @brief Renders the overlay elements (pause indicator, seek indicators, windows) to the graph surface.
+ * @brief Renders the overlay elements (pause indicator, seek indicators, windows) to the screen's surface.
  * @param current_stream The current stream pointer.
  * @param current_pos_ms The current playback position in milliseconds.
  */
@@ -2945,7 +2924,7 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
 
     // Render the main widget tree
     if (m_ui_root) {
-        m_ui_root->BlitTo(*graph);
+        m_ui_root->BlitTo(*screen);
     }
     
     // The pause indicator: "PAUSED" in a bubble like the toasts' and the
@@ -3001,7 +2980,7 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
             const int h = m_pause_bubble->height();
             const float alpha = 0.85f * opacity * 255.0f;
             m_pause_bubble->SetAlpha(static_cast<uint8_t>(std::clamp(alpha, 1.0f, 254.0f)));
-            graph->Blit(*m_pause_bubble, Rect((640 - w) / 2, (354 - h) / 2, w, h));
+            screen->Blit(*m_pause_bubble, Rect((640 - w) / 2, (354 - h) / 2, w, h));
         }
     }
     
@@ -3009,20 +2988,20 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
     renderWindows();
 
     // An open combo box list floats over every window, unclipped by its own.
-    ComboBoxWidget::blitOpenList(*graph);
+    ComboBoxWidget::blitOpenList(*screen);
 
     // Always-on-top windows (toasts and the menu bar) are drawn in the
     // m_ui_root pass (before renderWindows), so re-blit them here — otherwise a
     // toast or an open dropdown would be hidden behind a floating window such as
     // the equalizer.
-    ApplicationWidget::getInstance().blitTopWindows(*graph);
+    ApplicationWidget::getInstance().blitTopWindows(*screen);
 
     // An open menu goes over everything, the menu bar included: a menu bar's
     // drop-down (not clipped by its window), then a context menu.
-    ContextMenuWidget::setScreenSize(graph->width(), graph->height());
+    ContextMenuWidget::setScreenSize(screen->width(), screen->height());
     ContextMenuWidget::setDefaultFont(font.get());
-    MenuBarWidget::blitOpenMenu(*graph);
-    ContextMenuWidget::blitOpenMenu(*graph);
+    MenuBarWidget::blitOpenMenu(*screen);
+    ContextMenuWidget::blitOpenMenu(*screen);
 }
 
 /**
@@ -3040,7 +3019,7 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
  */
 void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title)
 {
-    // Don't clear the graph surface - widgets will draw their own backgrounds
+    // Don't clear the screen's surface - widgets will draw their own backgrounds
 
     // Copy data from stream object while locked
     if (audio && audio->getCurrentStream()) {
@@ -3336,13 +3315,11 @@ bool Player::updateGUI()
         }
     }
 
-    // --- Final Scene Composition ---
-    // 1. Clear the main screen
-    screen->FillRect(screen->MapRGB(0, 0, 0));
-    // 2. Blit the entire dynamic buffer (graph) to the screen
-    screen->Blit(*graph, Rect(0, 0, graph->width(), graph->height()));
-
-    // finally, update the screen :)
+    /*
+     * renderOverlay() composed the frame straight into the screen's own
+     * surface, which keeps its pixels from one frame to the next as the
+     * widgets that erase their previous area expect.
+     */
     screen->Flip();
 
     // Measured redraw rate: tally flips and recompute once per second. Only the
@@ -4194,12 +4171,6 @@ bool Player::Initialize(const PlayerOptions& options) {
     }
 #endif // _WIN32
     Debug::log("font", "font->isValid(): ", font->isValid());
-    
-    graph = std::make_unique<Surface>(640, 404);
-    // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
-    // destination for other alpha-blended surfaces (like the fade effect, toasts, etc.).
-    graph->SetAlpha(255);
-    precomputeSpectrumColors();
 
     // Create an empty playlist. It will be populated in the background.
     playlist = std::make_unique<Playlist>();
@@ -5228,7 +5199,7 @@ void Player::renderWindows()
     
     // Render windows in z-order
     for (auto* window : sorted_windows) {
-        window->BlitTo(*graph);
+        window->BlitTo(*screen);
     }
 }
 

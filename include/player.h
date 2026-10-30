@@ -270,7 +270,6 @@ class Player
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
-        void precomputeSpectrumColors();
     private:
 
         void updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title);
@@ -429,7 +428,6 @@ class Player
         void createRandomWindows();
 
         std::unique_ptr<Display> screen;
-        std::unique_ptr<Surface> graph;
         std::unique_ptr<Playlist> playlist;
         std::unique_ptr<Font> font;
         std::unique_ptr<Font> m_large_font;
@@ -633,7 +631,6 @@ class Player
         // committed as one "Open" by openDroppedPaths().
         std::vector<std::string> m_dropped_paths;
         std::atomic<LoopMode> m_loop_mode;
-        std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;
         float m_volume = 0.75f;   // default 75%; overridden by psymp3.conf if present
 
