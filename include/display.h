@@ -42,6 +42,18 @@ class Display : public Surface
         SDL_Window* getWindowHandle() const;
         bool handleWindowEvent(const SDL_WindowEvent& event);
         bool handleRenderDeviceReset();
+        void handleRenderTargetsReset();
+
+        /*
+         * The underlay: a texture drawn on the GPU beneath the software-drawn
+         * frame, which is then premultiplied ARGB and lets it show through
+         * where transparent. The spectrum draws there. Only with a renderer.
+         */
+        bool hasUnderlay() const { return m_renderer != nullptr; }
+        SDL_Renderer* beginUnderlay(int width, int height, bool& fresh);
+        void endUnderlay();
+        void showUnderlay(const Rect& at);
+        static SDL_BlendMode fadeBlendMode();
 
         int getLogicalScale() const { return m_logical_scale; }
         void setLogicalScale(int scale);
@@ -54,11 +66,17 @@ class Display : public Surface
         SDL_Surface* m_window_surface = nullptr; // non-owned, refreshed from SDL; only without a renderer
         SDL_Renderer* m_renderer = nullptr;      // presents the frame; null means the window-surface path
         SDL_Texture* m_texture = nullptr;        // the logical frame, uploaded each Flip()
+        std::vector<uint8_t> m_uploaded;         // the frame as last uploaded, to upload only changed rows
+        SDL_Texture* m_underlay = nullptr;       // render target beneath the frame
+        bool m_underlay_lost = false;            // its contents were lost (render targets reset)
+        bool m_underlay_shown = false;           // drawn this frame: a visible widget asked for it
+        Rect m_underlay_at;                      // where, in logical pixels
         int m_logical_scale = 1;
         std::string m_caption; // last title given to SDL_SetWindowTitle
 
         bool createRenderer();
         bool createTexture();
+        void uploadChangedRows();
         void refreshWindowSurface();
         void allocateLogicalSurface();
 };

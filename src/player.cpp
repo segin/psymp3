@@ -4576,6 +4576,11 @@ void Player::EventLoop() {
                     synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
                 }
                 break;
+            case SDL_EVENT_RENDER_TARGETS_RESET:
+                if (screen) {
+                    screen->handleRenderTargetsReset();
+                }
+                break;
                 // exit if the window is closed
             case SDL_EVENT_QUIT:
                 done = true;

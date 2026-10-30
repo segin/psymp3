@@ -61,6 +61,9 @@ Display::~Display()
     // (same shutdown hazard as ~Audio's stream and ~WindowFrameWidget's
     // cursors). Only destroy while the video subsystem is still up.
     if (SDL_WasInit(SDL_INIT_VIDEO)) {
+        if (m_underlay) {
+            SDL_DestroyTexture(m_underlay);
+        }
         if (m_texture) {
             SDL_DestroyTexture(m_texture);
         }
@@ -71,13 +74,54 @@ Display::~Display()
             SDL_DestroyWindow(m_window);
         }
     }
+    m_underlay = nullptr;
     m_texture = nullptr;
     m_renderer = nullptr;
     m_window = nullptr;
 }
 
 /**
+ * @brief The blend mode that fades the spectrum's trail on the GPU.
+ *
+ * Drawn with colour (0.5/255, 0.5/255, 0.5/255, a), it leaves
+ * dst * (1 - a) - 0.5/255. A GPU rounds that to the nearest level, which
+ * is rounding dst * (1 - a) down: what SDL's own blit of a black surface
+ * at alpha a does, so a trail fades all the way to black on either path.
+ * A plain black blend rounds to nearest and leaves the last levels of a
+ * trail glowing forever.
+ * @return The custom blend mode.
+ */
+SDL_BlendMode Display::fadeBlendMode()
+{
+    return SDL_ComposeCustomBlendMode(
+        SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA, SDL_BLENDOPERATION_REV_SUBTRACT,
+        SDL_BLENDFACTOR_ZERO, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
+}
+
+namespace {
+
+/**
+ * @brief Whether a renderer can draw with Display::fadeBlendMode().
+ * @param renderer The renderer to ask.
+ * @return true if it accepts the blend mode.
+ */
+bool canFade(SDL_Renderer* renderer)
+{
+    const bool ok = SDL_SetRenderDrawBlendMode(renderer, Display::fadeBlendMode());
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    return ok;
+}
+
+} // namespace
+
+/**
  * @brief Creates the window's renderer and the texture each frame is uploaded to.
+ *
+ * SDL's own choice is kept unless it cannot do the spectrum's fade blend
+ * (SDL's desktop OpenGL renderer cannot), when OpenGL ES 2, Vulkan and
+ * SDL's GPU renderer are tried in turn. SDL_RENDER_DRIVER, if set, is
+ * obeyed as it is. The software renderer needs no custom blend: its plain
+ * blend rounds as SDL's blits do.
  * @return true if both exist; false leaves neither, for the window-surface path.
  */
 bool Display::createRenderer()
@@ -86,6 +130,32 @@ bool Display::createRenderer()
     if (!m_renderer) {
         Debug::log("display", "Display: no renderer (", SDL_GetError(), "), using the window surface");
         return false;
+    }
+    const std::string first = SDL_GetRendererName(m_renderer);
+    if (!SDL_GetHint(SDL_HINT_RENDER_DRIVER) && first != SDL_SOFTWARE_RENDERER && !canFade(m_renderer)) {
+        SDL_DestroyRenderer(m_renderer);
+        m_renderer = nullptr;
+        for (const char* name : {"opengles2", "vulkan", "gpu"}) {
+            if (first == name) {
+                continue;
+            }
+            SDL_Renderer* candidate = SDL_CreateRenderer(m_window, name);
+            if (!candidate) {
+                continue;
+            }
+            if (canFade(candidate)) {
+                m_renderer = candidate;
+                break;
+            }
+            SDL_DestroyRenderer(candidate);
+        }
+        if (!m_renderer) {
+            m_renderer = SDL_CreateRenderer(m_window, first.c_str());
+        }
+        if (!m_renderer) {
+            Debug::log("display", "Display: no renderer (", SDL_GetError(), "), using the window surface");
+            return false;
+        }
     }
     if (!createTexture()) {
         Debug::log("display", "Display: no frame texture (", SDL_GetError(), "), using the window surface");
@@ -106,15 +176,127 @@ bool Display::createTexture()
     if (m_texture) {
         SDL_DestroyTexture(m_texture);
     }
-    m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_XRGB8888,
+    m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_ARGB8888,
                                   SDL_TEXTUREACCESS_STREAMING, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    // A new texture holds nothing: upload the whole of the next frame.
+    m_uploaded.clear();
     if (!m_texture) {
         return false;
     }
     // Nearest-neighbour keeps the 2x zoom an exact pixel double.
     SDL_SetTextureScaleMode(m_texture, SDL_SCALEMODE_NEAREST);
-    SDL_SetTextureBlendMode(m_texture, SDL_BLENDMODE_NONE);
+    /*
+     * The frame is drawn over the underlay. Blending a surface onto a
+     * transparent pixel leaves its colour already multiplied by its alpha,
+     * so the frame is premultiplied, and an opaque pixel covers what is
+     * beneath as before.
+     */
+    SDL_SetTextureBlendMode(m_texture, SDL_BLENDMODE_BLEND_PREMULTIPLIED);
     return true;
+}
+
+/**
+ * @brief Uploads the rows of the frame that differ from the last upload.
+ *
+ * Most frames change a few rows (the position, the progress bar, a toast),
+ * and comparing rows on the CPU costs far less than sending all of them.
+ */
+void Display::uploadChangedRows()
+{
+    const int row_bytes = LOGICAL_WIDTH * 4;
+    const size_t size = static_cast<size_t>(row_bytes) * LOGICAL_HEIGHT;
+    const bool all = m_uploaded.size() != size;
+    if (all) {
+        m_uploaded.assign(size, 0);
+    }
+    const auto* pixels = static_cast<const uint8_t*>(m_handle->pixels);
+    int first = -1;
+    int last = -1;
+    for (int y = 0; y < LOGICAL_HEIGHT; ++y) {
+        const uint8_t* row = pixels + static_cast<size_t>(y) * m_handle->pitch;
+        uint8_t* copy = m_uploaded.data() + static_cast<size_t>(y) * row_bytes;
+        if (all || std::memcmp(row, copy, row_bytes) != 0) {
+            std::memcpy(copy, row, row_bytes);
+            if (first < 0) {
+                first = y;
+            }
+            last = y;
+        }
+    }
+    if (first >= 0) {
+        const SDL_Rect rows{0, first, LOGICAL_WIDTH, last - first + 1};
+        SDL_UpdateTexture(m_texture, &rows, pixels + static_cast<size_t>(first) * m_handle->pitch,
+                          m_handle->pitch);
+    }
+}
+
+/**
+ * @brief Starts drawing into the underlay, making it if needed.
+ * @param width Underlay width in logical pixels.
+ * @param height Underlay height in logical pixels.
+ * @param fresh Set true when the underlay is new or its contents were lost,
+ *        so the caller must draw all of it.
+ * @return The renderer, targeting the underlay; null without a renderer.
+ */
+SDL_Renderer* Display::beginUnderlay(int width, int height, bool& fresh)
+{
+    fresh = false;
+    if (!m_renderer) {
+        return nullptr;
+    }
+    float w = 0.0f;
+    float h = 0.0f;
+    if (m_underlay) {
+        SDL_GetTextureSize(m_underlay, &w, &h);
+    }
+    if (!m_underlay || m_underlay_lost || static_cast<int>(w) != width || static_cast<int>(h) != height) {
+        if (m_underlay) {
+            SDL_DestroyTexture(m_underlay);
+        }
+        m_underlay = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_XRGB8888,
+                                       SDL_TEXTUREACCESS_TARGET, width, height);
+        m_underlay_lost = false;
+        if (!m_underlay) {
+            Debug::log("display", "Display: no underlay texture: ", SDL_GetError());
+            return nullptr;
+        }
+        SDL_SetTextureScaleMode(m_underlay, SDL_SCALEMODE_NEAREST);
+        SDL_SetTextureBlendMode(m_underlay, SDL_BLENDMODE_NONE);
+        fresh = true;
+    }
+    SDL_SetRenderTarget(m_renderer, m_underlay);
+    return m_renderer;
+}
+
+/**
+ * @brief Ends drawing into the underlay; the renderer targets the window again.
+ */
+void Display::endUnderlay()
+{
+    if (m_renderer) {
+        SDL_SetRenderTarget(m_renderer, nullptr);
+    }
+}
+
+/**
+ * @brief Draws the underlay beneath this frame, at the given place.
+ *
+ * Called on every frame by the widget that owns the underlay while it is
+ * visible; a frame without the call shows black beneath the frame.
+ * @param at Where, in logical pixels.
+ */
+void Display::showUnderlay(const Rect& at)
+{
+    m_underlay_at = at;
+    m_underlay_shown = true;
+}
+
+/**
+ * @brief Notes that render targets lost their contents (SDL_EVENT_RENDER_TARGETS_RESET).
+ */
+void Display::handleRenderTargetsReset()
+{
+    m_underlay_lost = true;
 }
 
 /**
@@ -130,6 +312,7 @@ bool Display::handleRenderDeviceReset()
     if (!createTexture()) {
         Debug::log("display", "Display: could not recreate the frame texture: ", SDL_GetError());
     }
+    m_underlay_lost = true;
     return true;
 }
 
@@ -181,16 +364,21 @@ void Display::Flip()
         if (!m_texture && !createTexture()) {
             return;
         }
-        SDL_UpdateTexture(m_texture, nullptr, m_handle->pixels, m_handle->pitch);
+        uploadChangedRows();
         // Black where the window is bigger than the frame, as when a tiling
-        // window manager sizes it.
+        // window manager sizes it, and beneath the frame without an underlay.
         SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
         SDL_RenderClear(m_renderer);
+        const float scale = static_cast<float>(m_logical_scale);
+        if (m_underlay && m_underlay_shown) {
+            const SDL_FRect under{m_underlay_at.x() * scale, m_underlay_at.y() * scale,
+                                  m_underlay_at.width() * scale, m_underlay_at.height() * scale};
+            SDL_RenderTexture(m_renderer, m_underlay, nullptr, &under);
+        }
+        m_underlay_shown = false;
         // Top left at the zoom factor, as the window-surface path draws it,
         // so mouse coordinates divided by the zoom stay right.
-        const SDL_FRect dst{0.0f, 0.0f,
-                            static_cast<float>(LOGICAL_WIDTH * m_logical_scale),
-                            static_cast<float>(LOGICAL_HEIGHT * m_logical_scale)};
+        const SDL_FRect dst{0.0f, 0.0f, LOGICAL_WIDTH * scale, LOGICAL_HEIGHT * scale};
         SDL_RenderTexture(m_renderer, m_texture, nullptr, &dst);
         SDL_RenderPresent(m_renderer);
         return;
@@ -262,7 +450,17 @@ void Display::refreshWindowSurface()
 void Display::allocateLogicalSurface()
 {
     SDL_Surface* surf = nullptr;
-    if (m_window_surface) {
+    if (m_renderer) {
+        /*
+         * Drawn over the underlay, so it needs an alpha channel: zeroed, it
+         * starts transparent, which shows the black beneath as a black
+         * XRGB8888 surface did.
+         */
+        surf = SDL_CreateSurface(LOGICAL_WIDTH, LOGICAL_HEIGHT, SDL_PIXELFORMAT_ARGB8888);
+        if (surf) {
+            SDL_SetSurfaceBlendMode(surf, SDL_BLENDMODE_NONE);
+        }
+    } else if (m_window_surface) {
         // Match the window's pixel format so the stretch is zero-conversion.
         // SDL3: surface->format is the SDL_PixelFormat enum directly.
         surf = SDL_CreateSurface(LOGICAL_WIDTH, LOGICAL_HEIGHT, m_window_surface->format);
