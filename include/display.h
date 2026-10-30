@@ -41,6 +41,7 @@ class Display : public Surface
         void Flip() override;
         SDL_Window* getWindowHandle() const;
         bool handleWindowEvent(const SDL_WindowEvent& event);
+        bool handleRenderDeviceReset();
 
         int getLogicalScale() const { return m_logical_scale; }
         void setLogicalScale(int scale);
@@ -50,10 +51,14 @@ class Display : public Surface
 
     private:
         SDL_Window* m_window = nullptr;
-        SDL_Surface* m_window_surface = nullptr; // non-owned, refreshed from SDL
+        SDL_Surface* m_window_surface = nullptr; // non-owned, refreshed from SDL; only without a renderer
+        SDL_Renderer* m_renderer = nullptr;      // presents the frame; null means the window-surface path
+        SDL_Texture* m_texture = nullptr;        // the logical frame, uploaded each Flip()
         int m_logical_scale = 1;
         std::string m_caption; // last title given to SDL_SetWindowTitle
 
+        bool createRenderer();
+        bool createTexture();
         void refreshWindowSurface();
         void allocateLogicalSurface();
 };

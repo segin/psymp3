@@ -39,7 +39,16 @@ Display::Display() : Surface()
     }
     SDL_SetWindowPosition(m_window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-    refreshWindowSurface();
+    /*
+     * Present through an SDL_Renderer, which hands the copy to the screen
+     * and the 2x zoom to the GPU. SDL falls back through its renderers down
+     * to a software one, so this rarely fails; when it does, the frame goes
+     * to the window surface as before. A window can have one or the other,
+     * never both.
+     */
+    if (!createRenderer()) {
+        refreshWindowSurface();
+    }
     allocateLogicalSurface();
     Debug::log("display", "Display::Display() logical=", LOGICAL_WIDTH, "x", LOGICAL_HEIGHT,
                " handle=0x", std::hex, getHandle());
@@ -51,10 +60,77 @@ Display::~Display()
     // destructor runs; destroying it again dereferences freed SDL memory
     // (same shutdown hazard as ~Audio's stream and ~WindowFrameWidget's
     // cursors). Only destroy while the video subsystem is still up.
-    if (m_window && SDL_WasInit(SDL_INIT_VIDEO)) {
-        SDL_DestroyWindow(m_window);
+    if (SDL_WasInit(SDL_INIT_VIDEO)) {
+        if (m_texture) {
+            SDL_DestroyTexture(m_texture);
+        }
+        if (m_renderer) {
+            SDL_DestroyRenderer(m_renderer);
+        }
+        if (m_window) {
+            SDL_DestroyWindow(m_window);
+        }
     }
+    m_texture = nullptr;
+    m_renderer = nullptr;
     m_window = nullptr;
+}
+
+/**
+ * @brief Creates the window's renderer and the texture each frame is uploaded to.
+ * @return true if both exist; false leaves neither, for the window-surface path.
+ */
+bool Display::createRenderer()
+{
+    m_renderer = SDL_CreateRenderer(m_window, nullptr);
+    if (!m_renderer) {
+        Debug::log("display", "Display: no renderer (", SDL_GetError(), "), using the window surface");
+        return false;
+    }
+    if (!createTexture()) {
+        Debug::log("display", "Display: no frame texture (", SDL_GetError(), "), using the window surface");
+        SDL_DestroyRenderer(m_renderer);
+        m_renderer = nullptr;
+        return false;
+    }
+    Debug::log("display", "Display: presenting with the ", SDL_GetRendererName(m_renderer), " renderer");
+    return true;
+}
+
+/**
+ * @brief (Re)creates the streaming texture that holds the logical frame.
+ * @return true on success.
+ */
+bool Display::createTexture()
+{
+    if (m_texture) {
+        SDL_DestroyTexture(m_texture);
+    }
+    m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_XRGB8888,
+                                  SDL_TEXTUREACCESS_STREAMING, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    if (!m_texture) {
+        return false;
+    }
+    // Nearest-neighbour keeps the 2x zoom an exact pixel double.
+    SDL_SetTextureScaleMode(m_texture, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureBlendMode(m_texture, SDL_BLENDMODE_NONE);
+    return true;
+}
+
+/**
+ * @brief Recreates the frame texture after SDL_EVENT_RENDER_DEVICE_RESET.
+ * @return true if a renderer is in use (the next frame should be drawn).
+ */
+bool Display::handleRenderDeviceReset()
+{
+    // A lost device (Direct3D 9 can lose one) takes its textures with it.
+    if (!m_renderer) {
+        return false;
+    }
+    if (!createTexture()) {
+        Debug::log("display", "Display: could not recreate the frame texture: ", SDL_GetError());
+    }
+    return true;
 }
 
 void Display::setWindowIcon(const uint8_t* rgba, int width, int height)
@@ -97,7 +173,30 @@ void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 
 void Display::Flip()
 {
-    if (!m_window || !m_handle || !m_window_surface) {
+    if (!m_window || !m_handle) {
+        return;
+    }
+
+    if (m_renderer) {
+        if (!m_texture && !createTexture()) {
+            return;
+        }
+        SDL_UpdateTexture(m_texture, nullptr, m_handle->pixels, m_handle->pitch);
+        // Black where the window is bigger than the frame, as when a tiling
+        // window manager sizes it.
+        SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
+        SDL_RenderClear(m_renderer);
+        // Top left at the zoom factor, as the window-surface path draws it,
+        // so mouse coordinates divided by the zoom stay right.
+        const SDL_FRect dst{0.0f, 0.0f,
+                            static_cast<float>(LOGICAL_WIDTH * m_logical_scale),
+                            static_cast<float>(LOGICAL_HEIGHT * m_logical_scale)};
+        SDL_RenderTexture(m_renderer, m_texture, nullptr, &dst);
+        SDL_RenderPresent(m_renderer);
+        return;
+    }
+
+    if (!m_window_surface) {
         return;
     }
 
@@ -127,7 +226,9 @@ void Display::setLogicalScale(int scale)
     m_logical_scale = scale;
     if (m_window) {
         SDL_SetWindowSize(m_window, LOGICAL_WIDTH * scale, LOGICAL_HEIGHT * scale);
-        refreshWindowSurface();
+        if (!m_renderer) {
+            refreshWindowSurface();
+        }
     }
 }
 
@@ -138,7 +239,9 @@ void Display::reapplyWindowSize()
         // window rect, so re-setting the client size after SetMenu grows the
         // window to keep the drawable area at the logical size.
         SDL_SetWindowSize(m_window, LOGICAL_WIDTH * m_logical_scale, LOGICAL_HEIGHT * m_logical_scale);
-        refreshWindowSurface();
+        if (!m_renderer) {
+            refreshWindowSurface();
+        }
     }
 }
 
@@ -195,7 +298,10 @@ bool Display::handleWindowEvent(const SDL_WindowEvent& event)
     case SDL_EVENT_WINDOW_RESIZED:
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
     case SDL_EVENT_WINDOW_SHOWN:
-        refreshWindowSurface();
+        // A renderer follows the window by itself; the window surface does not.
+        if (!m_renderer) {
+            refreshWindowSurface();
+        }
         return true;
     default:
         return false;
