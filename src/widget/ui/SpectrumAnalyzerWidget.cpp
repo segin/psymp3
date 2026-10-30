@@ -139,9 +139,156 @@ void SpectrumAnalyzerWidget::setDecayFactor(float decay_factor)
  */
 std::unique_ptr<Surface> SpectrumAnalyzerWidget::createSurface(int width, int height)
 {
+    if (m_display) {
+        /*
+         * Drawing in the underlay: the surface is transparent and copied
+         * rather than blended, so each frame it clears the spectrum's area
+         * of the frame (as the opaque spectrum used to cover it) and lets
+         * the underlay show through.
+         */
+        auto surface = std::make_unique<Surface>(width, height, true);
+        surface->FillRect(surface->MapRGBA(0, 0, 0, 0));
+        SDL_SetSurfaceBlendMode(surface->getHandle(), SDL_BLENDMODE_NONE);
+        return surface;
+    }
     auto surface = std::make_unique<Surface>(width, height);
     surface->FillRect(surface->MapRGB(0, 0, 0));
     return surface;
+}
+
+/**
+ * @brief Switches to drawing in the display's underlay.
+ * @param display The display to draw in.
+ */
+void SpectrumAnalyzerWidget::useUnderlay(PsyMP3::Core::Display* display)
+{
+    m_display = display;
+    // The surface made so far (if any) was for the other way of drawing.
+    setOpaque(display == nullptr);
+    setSurface(nullptr);
+    m_precomputed_colors.clear();
+    invalidate();
+}
+
+/**
+ * @brief Shows the underlay at this widget's place this frame, then blits as usual.
+ * @param target The frame.
+ * @param parent_absolute_pos The parent's absolute position.
+ */
+void SpectrumAnalyzerWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    if (m_display && isVisible()) {
+        const Rect pos = getPos();
+        m_display->showUnderlay(Rect(parent_absolute_pos.x() + pos.x(), parent_absolute_pos.y() + pos.y(),
+                                     pos.width(), pos.height()));
+    }
+    DrawableWidget::recursiveBlitTo(target, parent_absolute_pos);
+}
+
+/**
+ * @brief The fade alpha for the current decay factor.
+ * @return 0 (no fade) to 255 (clear to black).
+ */
+uint8_t SpectrumAnalyzerWidget::fadeAlpha() const
+{
+    // Calculate alpha for fade (0-255). Original: decayfactor from 0.5 to 2.0
+    // Original formula: (255 * (decayfactor / 4.0f))  where decayfactor=1.0 gives 63 alpha
+    // Clamp before the cast: the decay factor arrives from --decay unchecked,
+    // and a float-to-uint8_t conversion of an out-of-range value (factor > 4
+    // or negative) is undefined behavior, not a saturating truncation.
+    return static_cast<uint8_t>(std::clamp(255.0f * (m_decay_factor / 4.0f), 0.0f, 255.0f));
+}
+
+/**
+ * @brief Fades the trail and draws the bars (or oscilloscope) in the underlay.
+ * @param surface The widget's surface, whose format the colours were mapped to.
+ */
+void SpectrumAnalyzerWidget::drawOnUnderlay(Surface& surface)
+{
+    const Rect pos = getPos();
+    const int width = pos.width();
+    const int height = pos.height();
+    bool fresh = false;
+    SDL_Renderer* renderer = m_display->beginUnderlay(width, height, fresh);
+    if (!renderer) {
+        return;
+    }
+
+    if (m_gpu_colors.size() != m_precomputed_colors.size()) {
+        const SDL_PixelFormatDetails* fmt = SDL_GetPixelFormatDetails(surface.getHandle()->format);
+        m_gpu_colors.resize(m_precomputed_colors.size());
+        for (size_t i = 0; i < m_precomputed_colors.size(); ++i) {
+            uint8_t r = 0, g = 0, b = 0;
+            SDL_GetRGB(m_precomputed_colors[i], fmt, nullptr, &r, &g, &b);
+            m_gpu_colors[i] = SDL_FColor{r / 255.0f, g / 255.0f, b / 255.0f, 1.0f};
+        }
+    }
+
+    if (fresh) {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+    }
+
+    // The fade, as the CPU path's blit of black at fadeAlpha() (see Display::fadeBlendMode()).
+    const uint8_t alpha = fadeAlpha();
+    if (alpha > 0) {
+        if (SDL_SetRenderDrawBlendMode(renderer, PsyMP3::Core::Display::fadeBlendMode())) {
+            const float half = 0.5f / 255.0f;
+            SDL_SetRenderDrawColorFloat(renderer, half, half, half, alpha / 255.0f);
+        } else {
+            // The software renderer's plain blend already rounds like the blit.
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha);
+        }
+        SDL_RenderFillRect(renderer, nullptr);
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    const int num_bands = static_cast<int>(m_spectrum_data.size());
+    const int draw_bands = std::min(num_bands, static_cast<int>(m_gpu_colors.size()));
+    if (m_visualization_mode == 1 && draw_bands > 1) {
+        // The oscilloscope, placed as drawOscilloscope() places it.
+        const int num_points = std::min(draw_bands, width);
+        const int center_y = height / 2;
+        const int amplitude = height / 4;
+        for (int x = 0; x < num_points - 1; ++x) {
+            const float value1 = (m_spectrum_data[x] - 0.5f) * 2.0f;
+            const float value2 = (m_spectrum_data[x + 1] - 0.5f) * 2.0f;
+            const int y1 = std::clamp(center_y - static_cast<int>(value1 * amplitude), 0, height - 1);
+            const int y2 = std::clamp(center_y - static_cast<int>(value2 * amplitude), 0, height - 1);
+            const SDL_FColor& c = m_gpu_colors[x];
+            SDL_SetRenderDrawColorFloat(renderer, c.r, c.g, c.b, 1.0f);
+            SDL_RenderLine(renderer, static_cast<float>(x * width / num_points), static_cast<float>(y1),
+                           static_cast<float>((x + 1) * width / num_points), static_cast<float>(y2));
+        }
+    } else if (draw_bands > 0) {
+        // The bars, placed as drawBars() places them, in one call.
+        const int bar_width = std::max(1, width / num_bands);
+        const int spacing = std::max(0, (width - (bar_width * num_bands)) / (num_bands + 1));
+        m_vertices.clear();
+        m_indices.clear();
+        for (int i = 0; i < draw_bands; ++i) {
+            const int y_start = std::clamp(static_cast<int>(height - (m_spectrum_data[i] * height)), 0, height - 1);
+            const float x0 = static_cast<float>(spacing + i * (bar_width + spacing));
+            const float x1 = x0 + static_cast<float>(bar_width);
+            const float y0 = static_cast<float>(y_start);
+            const float y1 = static_cast<float>(height);
+            const SDL_FColor& c = m_gpu_colors[i];
+            const int base = static_cast<int>(m_vertices.size());
+            m_vertices.push_back(SDL_Vertex{{x0, y0}, c, {0.0f, 0.0f}});
+            m_vertices.push_back(SDL_Vertex{{x1, y0}, c, {0.0f, 0.0f}});
+            m_vertices.push_back(SDL_Vertex{{x1, y1}, c, {0.0f, 0.0f}});
+            m_vertices.push_back(SDL_Vertex{{x0, y1}, c, {0.0f, 0.0f}});
+            for (int k : {0, 1, 2, 0, 2, 3}) {
+                m_indices.push_back(base + k);
+            }
+        }
+        SDL_RenderGeometry(renderer, nullptr, m_vertices.data(), static_cast<int>(m_vertices.size()),
+                           m_indices.data(), static_cast<int>(m_indices.size()));
+    }
+
+    m_display->endUnderlay();
 }
 
 void SpectrumAnalyzerWidget::draw(Surface& spectrum_surface)
@@ -151,6 +298,12 @@ void SpectrumAnalyzerWidget::draw(Surface& spectrum_surface)
 
     if (m_precomputed_colors.size() != m_spectrum_data.size() || m_precomputed_colors.empty()) {
         precomputeColors(spectrum_surface);
+        m_gpu_colors.clear();
+    }
+
+    if (m_display) {
+        drawOnUnderlay(spectrum_surface);
+        return;
     }
 
     // Create fade surface once and reuse (matches original algorithm)
@@ -161,14 +314,8 @@ void SpectrumAnalyzerWidget::draw(Surface& spectrum_surface)
     }
     Surface& fade_surface = *m_fade_surface;
     
-    // Calculate alpha for fade (0-255). Original: decayfactor from 0.5 to 2.0
-    // Original formula: (255 * (decayfactor / 4.0f))  where decayfactor=1.0 gives 63 alpha
-    // Clamp before the cast: the decay factor arrives from --decay unchecked,
-    // and a float-to-uint8_t conversion of an out-of-range value (factor > 4
-    // or negative) is undefined behavior, not a saturating truncation.
-    uint8_t fade_alpha = static_cast<uint8_t>(
-        std::clamp(255.0f * (m_decay_factor / 4.0f), 0.0f, 255.0f));
-    
+    const uint8_t fade_alpha = fadeAlpha();
+
     // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
     if (fade_alpha != m_fade_alpha_set) {
         fade_surface.SetAlpha(fade_alpha);

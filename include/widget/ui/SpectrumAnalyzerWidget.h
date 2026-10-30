@@ -78,6 +78,22 @@ public:
      */
     void setDecayFactor(float decay_factor);
 
+    /**
+     * @brief Draws the spectrum on the GPU, in the display's underlay, from now on.
+     *
+     * The widget's own surface then stays transparent and is copied over
+     * its area of the frame each time, clearing it so the underlay shows.
+     * @param display The display whose underlay to draw in (it must have a renderer).
+     */
+    void useUnderlay(PsyMP3::Core::Display* display);
+
+    /**
+     * @brief Asks the display to show the underlay this frame, then blits as usual.
+     * @param target The target surface to blit to
+     * @param parent_absolute_pos The absolute position of the parent widget
+     */
+    void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
+
 protected:
     /**
      * @brief Draws the spectrum visualization.
@@ -96,6 +112,22 @@ protected:
 private:
     std::unique_ptr<Surface> m_fade_surface; // black, alpha-modulated over the trail each frame
     uint8_t m_fade_alpha_set = 255;          // the alpha last given to m_fade_surface
+    PsyMP3::Core::Display* m_display = nullptr; // draw in its underlay, when set
+    std::vector<SDL_FColor> m_gpu_colors;    // m_precomputed_colors as renderer colours
+    std::vector<SDL_Vertex> m_vertices;      // the bars' triangles, kept to reuse the memory
+    std::vector<int> m_indices;
+
+    /**
+     * @brief Fades the trail and draws this frame into the display's underlay.
+     * @param surface The widget's own (transparent) surface, for the colours' pixel format.
+     */
+    void drawOnUnderlay(Surface& surface);
+
+    /**
+     * @brief The fade alpha for the current decay factor, as draw() has always computed it.
+     * @return 0 (no fade) to 255 (clear to black).
+     */
+    uint8_t fadeAlpha() const;
     std::vector<float> m_spectrum_data;
     int m_visualization_mode;
     int m_color_scheme;

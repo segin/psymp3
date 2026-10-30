@@ -4196,6 +4196,10 @@ bool Player::Initialize(const PlayerOptions& options) {
     // Create a spectrum analyzer widget and add it to ApplicationWidget
     auto spectrum_widget = std::make_unique<SpectrumAnalyzerWidget>(640, 354);
     spectrum_widget->setPos(Rect(0, 0, 640, 354));
+    // With a renderer, the spectrum is drawn on the GPU beneath the frame.
+    if (screen->hasUnderlay()) {
+        spectrum_widget->useUnderlay(screen.get());
+    }
     m_spectrum_widget = spectrum_widget.get(); // Keep raw pointer for updates
     app_widget.addChild(std::move(spectrum_widget)); // ApplicationWidget takes ownership
 
