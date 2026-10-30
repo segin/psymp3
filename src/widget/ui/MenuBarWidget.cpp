@@ -216,14 +216,20 @@ int MenuBarWidget::barHitTest(int x, int y) const
 void MenuBarWidget::rebuild()
 {
     const int W = getPos().width();
-    const int H = getPos().height();
-    auto surf = std::make_unique<Surface>(W, H, true);
-    surf->FillRect(surf->MapRGBA(0, 0, 0, 0)); // transparent everywhere
-
-    // --- the bar (one or more rows) ---
     const SDL_Color bar = MenuPopup::kBar;
     const SDL_Color shadow = MenuPopup::kShadow;
     const int bar_h = m_rows * BAR_H;
+    /*
+     * The widget covers the whole window so that it sees every click while a
+     * menu is open, but it only ever draws the bar: the drop-down is drawn
+     * by blitOpenMenu(). A surface the size of the widget was transparent
+     * below the bar and still alpha-blended over the whole frame, twice per
+     * frame for the main window's bar. A blit copies the source's size, so
+     * a bar-sized surface draws just the bar.
+     */
+    auto surf = std::make_unique<Surface>(W, bar_h, true);
+
+    // --- the bar (one or more rows) ---
     surf->box(0, 0, W - 1, bar_h - 1, bar.r, bar.g, bar.b, 255);
     surf->hline(0, W - 1, bar_h - 1, shadow.r, shadow.g, shadow.b, 255);
     for (int i = 0; i < static_cast<int>(m_menus.size()); ++i) {
@@ -239,6 +245,8 @@ void MenuBarWidget::rebuild()
     }
     // The open drop-down is drawn by blitOpenMenu, over everything.
 
+    // The bar's fill covers every pixel.
+    surf->makeOpaque();
     setSurface(std::move(surf));
     invalidate();
 }
