@@ -79,9 +79,20 @@ void Display::setWindowIcon(const uint8_t* rgba, int width, int height)
 void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
     (void)icon_title;
-    if (m_window) {
-        SDL_SetWindowTitle(m_window, title.toCString(true));
+    if (!m_window) {
+        return;
     }
+    /*
+     * The player calls this on every frame. Setting the title makes the
+     * window system update the window's properties and redraw its title bar,
+     * so only do it when the text has changed.
+     */
+    std::string caption = title.to8Bit(true);
+    if (caption == m_caption) {
+        return;
+    }
+    SDL_SetWindowTitle(m_window, caption.c_str());
+    m_caption = std::move(caption);
 }
 
 void Display::Flip()

@@ -52,6 +52,7 @@ class Display : public Surface
         SDL_Window* m_window = nullptr;
         SDL_Surface* m_window_surface = nullptr; // non-owned, refreshed from SDL
         int m_logical_scale = 1;
+        std::string m_caption; // last title given to SDL_SetWindowTitle
 
         void refreshWindowSurface();
         void allocateLogicalSurface();
