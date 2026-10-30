@@ -39,8 +39,9 @@ SpectrumAnalyzerWidget::SpectrumAnalyzerWidget(int width, int height)
 {
     // Initialize with empty spectrum data
     m_spectrum_data.resize(64, 0.0f); // Default to 64 bands
-    // draw() copies its opaque, black-backed spectrum over the whole surface.
+    // draw() fades and draws onto its own opaque, black-backed surface.
     setOpaque(true);
+    setRetainSurface(true);
 }
 
 void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_bands, int scale_factor, float decay_factor)
@@ -126,34 +127,39 @@ void SpectrumAnalyzerWidget::setDecayFactor(float decay_factor)
     m_decay_factor = decay_factor;
 }
 
-void SpectrumAnalyzerWidget::draw(Surface& surface)
+/**
+ * @brief Makes the spectrum's surface: opaque XRGB8888, starting black.
+ *
+ * The widget keeps this surface (setRetainSurface()), and draw() fades
+ * and draws onto it in place, so the trail of earlier frames is the
+ * surface's own pixels.
+ * @param width Surface width.
+ * @param height Surface height.
+ * @return The new surface.
+ */
+std::unique_ptr<Surface> SpectrumAnalyzerWidget::createSurface(int width, int height)
 {
-    // Maintain a persistent spectrum surface that accumulates frames over time
-    static std::unique_ptr<Surface> spectrum_surface_ptr; // Persistent across calls
-    static std::unique_ptr<Surface> fade_surface_ptr; // For fade effect
-    static uint8_t cached_fade_alpha = 255; // Cache to avoid redundant SetAlpha calls
-    
-    Rect pos = getPos();
-    int width = pos.width();
-    int height = pos.height();
-    
-    // Create persistent spectrum surface once and reuse
-    if (!spectrum_surface_ptr || spectrum_surface_ptr->width() != width || spectrum_surface_ptr->height() != height) {
-        spectrum_surface_ptr = std::make_unique<Surface>(width, height);
-        spectrum_surface_ptr->FillRect(spectrum_surface_ptr->MapRGB(0, 0, 0)); // Start with black
-        precomputeColors(*spectrum_surface_ptr);
-    } else if (m_precomputed_colors.size() != m_spectrum_data.size() || m_precomputed_colors.empty()) {
-        precomputeColors(*spectrum_surface_ptr);
+    auto surface = std::make_unique<Surface>(width, height);
+    surface->FillRect(surface->MapRGB(0, 0, 0));
+    return surface;
+}
+
+void SpectrumAnalyzerWidget::draw(Surface& spectrum_surface)
+{
+    const int width = spectrum_surface.width();
+    const int height = spectrum_surface.height();
+
+    if (m_precomputed_colors.size() != m_spectrum_data.size() || m_precomputed_colors.empty()) {
+        precomputeColors(spectrum_surface);
     }
-    Surface& spectrum_surface = *spectrum_surface_ptr;
-    
+
     // Create fade surface once and reuse (matches original algorithm)
-    if (!fade_surface_ptr || fade_surface_ptr->width() != width || fade_surface_ptr->height() != height) {
-        fade_surface_ptr = std::make_unique<Surface>(width, height);
-        fade_surface_ptr->FillRect(fade_surface_ptr->MapRGB(0, 0, 0));
-        cached_fade_alpha = 255; // Reset cache when surface is recreated
+    if (!m_fade_surface || m_fade_surface->width() != width || m_fade_surface->height() != height) {
+        m_fade_surface = std::make_unique<Surface>(width, height);
+        m_fade_surface->FillRect(m_fade_surface->MapRGB(0, 0, 0));
+        m_fade_alpha_set = 255; // a new surface has no alpha modulation
     }
-    Surface& fade_surface = *fade_surface_ptr;
+    Surface& fade_surface = *m_fade_surface;
     
     // Calculate alpha for fade (0-255). Original: decayfactor from 0.5 to 2.0
     // Original formula: (255 * (decayfactor / 4.0f))  where decayfactor=1.0 gives 63 alpha
@@ -164,9 +170,9 @@ void SpectrumAnalyzerWidget::draw(Surface& surface)
         std::clamp(255.0f * (m_decay_factor / 4.0f), 0.0f, 255.0f));
     
     // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
-    if (fade_alpha != cached_fade_alpha) {
+    if (fade_alpha != m_fade_alpha_set) {
         fade_surface.SetAlpha(fade_alpha);
-        cached_fade_alpha = fade_alpha;
+        m_fade_alpha_set = fade_alpha;
     }
     
     // Apply fade effect to the persistent spectrum surface (darkens previous content)
@@ -185,9 +191,6 @@ void SpectrumAnalyzerWidget::draw(Surface& surface)
             drawBars(spectrum_surface);
             break;
     }
-    
-    // Copy the persistent spectrum surface to the output surface
-    surface.Blit(spectrum_surface, blit_rect);
 }
 
 void SpectrumAnalyzerWidget::drawBars(Surface& surface)

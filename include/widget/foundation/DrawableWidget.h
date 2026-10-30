@@ -73,6 +73,15 @@ public:
     void setOpaque(bool opaque) { m_opaque = opaque; }
 
     /**
+     * @brief Keeps the surface between redraws instead of building a new one.
+     * draw() then gets the previous frame's pixels back, for widgets that
+     * draw on top of what they drew before. A new surface (from
+     * createSurface()) is still made when the size changes.
+     * @param retain true to keep the surface.
+     */
+    void setRetainSurface(bool retain) { m_retain_surface = retain; }
+
+    /**
      * @brief Overrides Widget::BlitTo to ensure surface is updated when needed.
      * @param target The target surface to blit to
      */
@@ -94,7 +103,15 @@ protected:
      * should implement all their custom drawing logic here.
      */
     virtual void draw(Surface& surface) = 0;
-    
+
+    /**
+     * @brief Makes a new surface for draw(); by default a transparent ARGB8888 one.
+     * @param width Surface width
+     * @param height Surface height
+     * @return The new surface.
+     */
+    virtual std::unique_ptr<Surface> createSurface(int width, int height);
+
     /**
      * @brief Called when the widget size changes. Default implementation calls invalidate().
      * @param new_width New widget width
@@ -108,6 +125,7 @@ protected:
 private:
     std::atomic<bool> m_needs_redraw;
     bool m_opaque = false;
+    bool m_retain_surface = false;
 
     /**
      * @brief Internal method to create and update the widget surface.

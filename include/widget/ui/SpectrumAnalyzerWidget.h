@@ -85,7 +85,17 @@ protected:
      */
     virtual void draw(Surface& surface) override;
 
+    /**
+     * @brief Makes the kept spectrum surface: opaque XRGB8888, starting black.
+     * @param width Surface width
+     * @param height Surface height
+     * @return The new surface.
+     */
+    std::unique_ptr<Surface> createSurface(int width, int height) override;
+
 private:
+    std::unique_ptr<Surface> m_fade_surface; // black, alpha-modulated over the trail each frame
+    uint8_t m_fade_alpha_set = 255;          // the alpha last given to m_fade_surface
     std::vector<float> m_spectrum_data;
     int m_visualization_mode;
     int m_color_scheme;

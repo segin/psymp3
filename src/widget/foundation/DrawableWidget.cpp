@@ -40,6 +40,17 @@ DrawableWidget::DrawableWidget(int width, int height)
     // called automatically on first BlitTo() when m_needs_redraw is true.
 }
 
+/**
+ * @brief Makes a transparent ARGB8888 surface of the given size.
+ * @param width Surface width.
+ * @param height Surface height.
+ * @return The new surface.
+ */
+std::unique_ptr<Surface> DrawableWidget::createSurface(int width, int height)
+{
+    return std::make_unique<Surface>(width, height, true);
+}
+
 void DrawableWidget::invalidate()
 {
     m_needs_redraw = true;
@@ -95,9 +106,16 @@ void DrawableWidget::updateSurface()
         return;
     }
     
+    // A widget that keeps its surface draws over its previous frame.
+    if (m_retain_surface && isValid() && width() == pos.width() && height() == pos.height()) {
+        draw(*this);
+        m_needs_redraw = false;
+        return;
+    }
+
     // Create new surface for drawing
-    auto surface = std::make_unique<Surface>(pos.width(), pos.height(), true);
-    
+    auto surface = createSurface(pos.width(), pos.height());
+
     // Call the subclass draw method
     draw(*surface);
     if (m_opaque) {
