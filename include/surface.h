@@ -128,6 +128,8 @@ class Surface
             bool m_locked;
         };
         
+        /** @brief The surface's clip rect, which the drawing primitives keep within as blits do. */
+        SDL_Rect drawBounds() const;
         void put_pixel_unlocked(int16_t x, int16_t y, uint32_t color);
         uint32_t get_pixel_unlocked(int16_t x, int16_t y);
         void hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color);

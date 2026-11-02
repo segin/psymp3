@@ -258,6 +258,13 @@ void Surface::Flip()
  * @param y     Pixel y-coordinate.
  * @param color Packed pixel colour appropriate for the surface's format.
  */
+SDL_Rect Surface::drawBounds() const
+{
+    SDL_Rect clip{0, 0, m_handle->w, m_handle->h};
+    SDL_GetSurfaceClipRect(m_handle.get(), &clip);
+    return clip;
+}
+
 void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
 {
     // No bounds checking here, expecting caller to handle it.
@@ -302,7 +309,9 @@ void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
  */
 void Surface::pixel(int16_t x, int16_t y, uint32_t color)
 {
-    if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
+    if (!m_handle) return;
+    const SDL_Rect clip = drawBounds();
+    if (x < clip.x || x >= clip.x + clip.w || y < clip.y || y >= clip.y + clip.h) {
         return;
     }
     SDLLockGuard lock_guard(m_handle.get());
@@ -329,7 +338,7 @@ void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8
 /**
  * @brief Draws a horizontal line without locking the surface.
  *
- * Surface @e must already be locked by the caller. Clips to surface bounds.
+ * Surface @e must already be locked by the caller. Clips to the clip rect.
  *
  * @param x1    Left x-coordinate (inclusive).
  * @param x2    Right x-coordinate (inclusive).
@@ -339,12 +348,13 @@ void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8
 void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 {
     // No surface lock/unlock, expecting caller to handle it.
-    if (y < 0 || y >= m_handle->h) return;
+    const SDL_Rect clip = drawBounds();
+    if (y < clip.y || y >= clip.y + clip.h) return;
     if (x1 > x2) std::swap(x1, x2);
-    if (x1 >= m_handle->w || x2 < 0) return;
+    if (x1 >= clip.x + clip.w || x2 < clip.x) return;
 
-    x1 = std::max<int16_t>(x1, 0);
-    x2 = std::min<int16_t>(x2, m_handle->w - 1);
+    x1 = std::max<int16_t>(x1, clip.x);
+    x2 = std::min<int16_t>(x2, clip.x + clip.w - 1);
 
     int bpp = SDL_BYTESPERPIXEL(m_handle->format);
     uint8_t *row_start = (uint8_t *)m_handle->pixels + y * m_handle->pitch + x1 * bpp;
@@ -370,7 +380,7 @@ void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 /**
  * @brief Draws a vertical line without locking the surface.
  *
- * Surface @e must already be locked by the caller. Clips to surface bounds.
+ * Surface @e must already be locked by the caller. Clips to the clip rect.
  *
  * @param x     Horizontal position.
  * @param y1    Top y-coordinate (inclusive).
@@ -380,12 +390,13 @@ void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 {
     // No surface lock/unlock, expecting caller to handle it.
-    if (x < 0 || x >= m_handle->w) return;
+    const SDL_Rect clip = drawBounds();
+    if (x < clip.x || x >= clip.x + clip.w) return;
     if (y1 > y2) std::swap(y1, y2);
-    if (y1 >= m_handle->h || y2 < 0) return;
+    if (y1 >= clip.y + clip.h || y2 < clip.y) return;
 
-    y1 = std::max<int16_t>(y1, 0);
-    y2 = std::min<int16_t>(y2, m_handle->h - 1);
+    y1 = std::max<int16_t>(y1, clip.y);
+    y2 = std::min<int16_t>(y2, clip.y + clip.h - 1);
 
     int bpp = SDL_BYTESPERPIXEL(m_handle->format);
     uint8_t *p = (uint8_t *)m_handle->pixels + y1 * m_handle->pitch + x * bpp;
@@ -603,9 +614,10 @@ void Surface::line_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, uint32_t
     int sx = (x1 < x2) ? 1 : -1;
     int sy = (y1 < y2) ? 1 : -1;
     int err = dx - dy;
+    const SDL_Rect clip = drawBounds();
 
     while (true) {
-        if (x1 >= 0 && x1 < m_handle->w && y1 >= 0 && y1 < m_handle->h) {
+        if (x1 >= clip.x && x1 < clip.x + clip.w && y1 >= clip.y && y1 < clip.y + clip.h) {
             put_pixel_unlocked(x1, y1, color);
         }
 
@@ -1030,7 +1042,8 @@ void Surface::bezierCurve_unlocked(const std::vector<std::pair<double, double>>&
     if (points.size() < 2) return;
     
     int order = points.size() - 1;
-    
+    const SDL_Rect clip = drawBounds();
+
     // Bezier curve computation using De Casteljau's algorithm - assumes surface is already locked
     for (double t = 0.0; t <= 1.0; t += step) {
         // Create working copy of points for this t value
@@ -1051,7 +1064,7 @@ void Surface::bezierCurve_unlocked(const std::vector<std::pair<double, double>>&
         int16_t px = static_cast<int16_t>(levels[order][0].first);
         int16_t py = static_cast<int16_t>(levels[order][0].second);
         
-        if (px >= 0 && px < m_handle->w && py >= 0 && py < m_handle->h) {
+        if (px >= clip.x && px < clip.x + clip.w && py >= clip.y && py < clip.y + clip.h) {
             put_pixel_unlocked(px, py, color);
         }
     }
