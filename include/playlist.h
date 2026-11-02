@@ -119,6 +119,14 @@ class Playlist
         bool retreatWouldWrap() const;
         void setShuffle(bool enabled);
         bool isShuffle() const;
+        /**
+         * @brief Under shuffle, step over upcoming tracks with the same artist
+         *        and title as the current one. No effect with shuffle off.
+         * @param enabled Whether to skip such duplicates.
+         */
+        void setAvoidDupes(bool enabled);
+        /** @brief Whether shuffle steps over duplicates of the current track. */
+        bool isAvoidDupes() const;
         static std::vector<Entry> loadPlaylistEntries(TagLib::String path);
 
         /**
@@ -164,6 +172,25 @@ class Playlist
         // leave m_shuffle_index past the end of a shrunken order. Assumes the
         // lock is held.
         long shuffleCursor_unlocked() const;
+        /**
+         * @brief The shuffle slot that follows @p cursor when @p position is
+         *        playing, stepping over duplicates of that track when Avoid
+         *        Dupes is on. Not wrapped: a result at or past the order's end
+         *        means the step wraps. Assumes the lock is held and the order
+         *        matches the track list.
+         * @param cursor The shuffle slot being played.
+         * @param position The track index being played.
+         * @return The next slot, possibly past the end of the order.
+         */
+        long nextShuffleSlot_unlocked(long cursor, long position) const;
+        /**
+         * @brief Whether two tracks share a non-empty artist and title,
+         *        ignoring case. Assumes the lock is held.
+         * @param a A track index.
+         * @param b Another track index.
+         * @return true if @p b would be a duplicate of @p a.
+         */
+        bool isDuplicate_unlocked(long a, long b) const;
 
         std::vector<track> tracks;
         long m_position = 0;
@@ -172,6 +199,7 @@ class Playlist
         bool m_shuffle = false;
         std::vector<long> m_shuffled_indices;
         long m_shuffle_index = 0;
+        bool m_avoid_dupes = false;
         std::mt19937 m_shuffle_rng; // seeded once in the ctor
 
         std::atomic<uint64_t> m_generation{0}; // bumped on track-list changes

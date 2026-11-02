@@ -532,10 +532,9 @@ TagLib::String Playlist::next()
             repopulateShuffleIndices();
         }
 
-        m_shuffle_index = shuffleCursor_unlocked() + 1;
-        if (static_cast<size_t>(m_shuffle_index) >= m_shuffled_indices.size()) {
-            m_shuffle_index = 0; // Wrap around
-        }
+        // Wrap around past the end of the order.
+        m_shuffle_index = nextShuffleSlot_unlocked(shuffleCursor_unlocked(), m_position)
+                          % static_cast<long>(m_shuffled_indices.size());
         m_position = m_shuffled_indices[m_shuffle_index];
     } else {
         m_position++;
@@ -594,10 +593,9 @@ TagLib::String Playlist::peekNext() const
 
     long next_pos;
     if (m_shuffle && m_shuffled_indices.size() == tracks.size()) {
-        long next_shuffle_idx = shuffleCursor_unlocked() + 1;
-        if (static_cast<size_t>(next_shuffle_idx) >= m_shuffled_indices.size()) {
-            next_shuffle_idx = 0; // Wrap around
-        }
+        // Wrap around past the end of the order.
+        long next_shuffle_idx = nextShuffleSlot_unlocked(shuffleCursor_unlocked(), m_position)
+                                % static_cast<long>(m_shuffled_indices.size());
         next_pos = m_shuffled_indices[next_shuffle_idx];
     } else {
         next_pos = m_position + 1;
@@ -635,6 +633,46 @@ bool Playlist::isShuffle() const
     return m_shuffle;
 }
 
+void Playlist::setAvoidDupes(bool enabled)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    m_avoid_dupes = enabled;
+}
+
+bool Playlist::isAvoidDupes() const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    return m_avoid_dupes;
+}
+
+bool Playlist::isDuplicate_unlocked(long a, long b) const
+{
+    const long size = static_cast<long>(tracks.size());
+    if (a < 0 || a >= size || b < 0 || b >= size) return false;
+    const track& x = tracks[a];
+    const track& y = tracks[b];
+    /* Untagged tracks have no artist or title to compare, and would
+     * otherwise all count as copies of each other. */
+    if (x.GetArtist().isEmpty() || x.GetTitle().isEmpty()) return false;
+    return x.GetArtist().upper() == y.GetArtist().upper() &&
+           x.GetTitle().upper() == y.GetTitle().upper();
+}
+
+long Playlist::nextShuffleSlot_unlocked(long cursor, long position) const
+{
+    const long size = static_cast<long>(m_shuffled_indices.size());
+    if (!m_avoid_dupes || size <= 1) return cursor + 1;
+    /* Look at most once around the rest of the order. If every other
+     * track is a copy of this one there is nothing better to play, so
+     * take the plain next slot. */
+    for (long slot = cursor + 1; slot < cursor + size; ++slot) {
+        if (!isDuplicate_unlocked(position, m_shuffled_indices[slot % size])) {
+            return slot;
+        }
+    }
+    return cursor + 1;
+}
+
 void Playlist::repopulateShuffleIndices()
 {
     // Assumes mutex is held
@@ -667,7 +705,16 @@ bool Playlist::advanceWouldWrap(size_t advance_count) const
         if (m_shuffled_indices.size() != tracks.size()) {
             return false;
         }
-        return static_cast<size_t>(shuffleCursor_unlocked()) + advance_count >= m_shuffled_indices.size();
+        // Step as next() would, so skipped duplicates count toward the end.
+        const long size = static_cast<long>(m_shuffled_indices.size());
+        long cursor = shuffleCursor_unlocked();
+        long position = m_position;
+        for (size_t i = 0; i < advance_count; ++i) {
+            cursor = nextShuffleSlot_unlocked(cursor, position);
+            if (cursor >= size) return true;
+            position = m_shuffled_indices[cursor];
+        }
+        return false;
     }
     return static_cast<size_t>(m_position) + advance_count >= tracks.size();
 }
