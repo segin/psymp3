@@ -57,7 +57,15 @@ public:
      * Call this when the widget's visual state has changed.
      */
     void invalidate();
-    
+
+    /**
+     * @brief Has draw() run on the next composition without marking the
+     *        widget's area of the screen as changed, for a widget whose
+     *        draw() changes nothing in its surface (the spectrum, when it
+     *        draws on the GPU).
+     */
+    void requestDraw();
+
     /**
      * @brief Forces an immediate redraw of the widget.
      * This calls the draw() method and updates the surface.

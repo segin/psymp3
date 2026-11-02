@@ -403,7 +403,47 @@ class Widget : public Surface
          * 
          * @param visible true to make the widget visible
          */
-        virtual void setVisible(bool visible) { m_visible = visible; }
+        virtual void setVisible(bool visible)
+        {
+            if (visible != m_visible) {
+                m_visible = visible;
+                damage();
+            }
+        }
+
+        /**
+         * @brief Marks an area of the screen, in screen coordinates, to be
+         *        composed again on the next frame.
+         *
+         * Frames are composed only where something changed. Whatever
+         * changes how a widget looks must report it, through this,
+         * damage(), invalidate() or setSurface(). Main thread only.
+         * @param area The area, in screen coordinates.
+         */
+        static void addDamage(const Rect& area);
+
+        /** @brief Marks the whole screen to be composed again on the next frame. */
+        static void damageAll();
+
+        /**
+         * @brief Takes the area to compose this frame and starts collecting
+         *        afresh, so that damage reported while the frame is composed
+         *        goes to the next one.
+         * @param[out] area The bounding box of everything reported; after
+         *        damageAll(), larger than any screen.
+         * @return false if nothing was reported.
+         */
+        static bool takeDamage(Rect& area);
+
+        /**
+         * @brief This widget's rectangle in screen coordinates, found by
+         *        adding up its parents' positions.
+         * @return The rectangle.
+         */
+        Rect screenRect() const;
+
+        /** @brief Marks this widget's rectangle on screen to be composed again. */
+        void damage() const;
         
         /**
          * @brief Checks if this widget is enabled.
@@ -444,7 +484,14 @@ class Widget : public Surface
          * @return Reference to this widget's surface
          */
         Surface& getSurface();
-        
+
+        /**
+         * @brief Sets the surface content without reporting damage, for a
+         *        caller that has already reported it.
+         * @param surface The new content, or null for none.
+         */
+        void adoptSurface(std::unique_ptr<Surface> surface);
+
         /**
          * @brief The position and size of this widget.
          * 

@@ -54,11 +54,17 @@ std::unique_ptr<Surface> DrawableWidget::createSurface(int width, int height)
 void DrawableWidget::invalidate()
 {
     m_needs_redraw = true;
+    Widget::invalidate();
+}
+
+void DrawableWidget::requestDraw()
+{
+    m_needs_redraw = true;
 }
 
 void DrawableWidget::redraw()
 {
-    m_needs_redraw = true;
+    invalidate();
     updateSurface();
 }
 
@@ -122,8 +128,9 @@ void DrawableWidget::updateSurface()
         surface->makeOpaque();
     }
 
-    // Set the new surface
-    setSurface(std::move(surface));
+    // Set the new surface. invalidate() reported the damage when it asked
+    // for this; requestDraw() asked for none.
+    adoptSurface(std::move(surface));
     
     m_needs_redraw = false;
 }

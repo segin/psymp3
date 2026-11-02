@@ -124,6 +124,12 @@ private:
     void drawOnUnderlay(Surface& surface);
 
     /**
+     * @brief Has the spectrum drawn again. Drawing in the underlay changes
+     *        nothing in the frame, so only on the CPU is the frame damaged.
+     */
+    void redrawSpectrum();
+
+    /**
      * @brief The fade alpha for the current decay factor, as draw() has always computed it.
      * @return 0 (no fade) to 255 (clear to black).
      */

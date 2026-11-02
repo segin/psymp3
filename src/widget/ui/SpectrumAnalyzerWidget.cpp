@@ -84,7 +84,7 @@ void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_
             m_fade_settle_start_ms = now;
         }
         if (m_fade_settle_start_ms != 0 && now - m_fade_settle_start_ms < FADE_SETTLE_MS) {
-            invalidate(); // Trigger redraw (advances the fade in draw())
+            redrawSpectrum(); // Trigger redraw (advances the fade in draw())
         }
     }
 }
@@ -109,7 +109,7 @@ void SpectrumAnalyzerWidget::setVisualizationMode(int mode)
 {
     if (m_visualization_mode != mode) {
         m_visualization_mode = mode;
-        invalidate();
+        redrawSpectrum();
     }
 }
 
@@ -118,6 +118,15 @@ void SpectrumAnalyzerWidget::setColorScheme(int color_scheme)
     if (m_color_scheme != color_scheme) {
         m_color_scheme = color_scheme;
         m_precomputed_colors.clear(); // Force re-precomputation
+        redrawSpectrum();
+    }
+}
+
+void SpectrumAnalyzerWidget::redrawSpectrum()
+{
+    if (m_display) {
+        requestDraw();
+    } else {
         invalidate();
     }
 }

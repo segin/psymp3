@@ -121,7 +121,10 @@ Widget::~Widget()
     if (s_mouse_captured_widget == this) {
         s_mouse_captured_widget = nullptr;
     }
-    
+
+    // Whatever showed through where it was must be composed again.
+    damage();
+
     // Destroy all children
     destroyChildren();
 }
@@ -184,10 +187,22 @@ void Widget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
 
 void Widget::setPos(const Rect& position)
 {
+    if (position.x() == m_pos.x() && position.y() == m_pos.y() &&
+        position.width() == m_pos.width() && position.height() == m_pos.height()) {
+        return;
+    }
+    damage(); // where it was
     m_pos = position;
+    damage(); // where it is now
 }
 
 void Widget::setSurface(std::unique_ptr<Surface> surface)
+{
+    damage();
+    adoptSurface(std::move(surface));
+}
+
+void Widget::adoptSurface(std::unique_ptr<Surface> surface)
 {
     if (surface && surface->isValid()) {
         // Since Widget IS-A Surface, we can move the handle.
@@ -201,6 +216,7 @@ void Widget::addChild(std::unique_ptr<Widget> child)
 {
     if (child) {
         child->m_parent = this; // Set parent pointer before taking ownership
+        child->damage();
         m_children.push_back(std::move(child));
     }
 }
@@ -437,16 +453,21 @@ void Widget::invalidate()
     // (like ApplicationWidget) are repainted at the application level.
     if (m_parent) {
         m_parent->invalidateArea(m_pos);
+    } else {
+        addDamage(m_pos);
     }
 }
 
 void Widget::invalidateArea(const Rect& area)
 {
-    // Propagate the invalidation upward in the parent's coordinate system.
+    // Propagate the invalidation upward in the parent's coordinate system;
+    // the root's position is in screen coordinates.
+    Rect parent_area(m_pos.x() + area.x(), m_pos.y() + area.y(),
+                     area.width(), area.height());
     if (m_parent) {
-        Rect parent_area(m_pos.x() + area.x(), m_pos.y() + area.y(),
-                         area.width(), area.height());
         m_parent->invalidateArea(parent_area);
+    } else {
+        addDamage(parent_area);
     }
 }
 
@@ -502,9 +523,53 @@ void Widget::removeChild(Widget* child)
         auto it = std::find_if(m_children.begin(), m_children.end(),
             [child](const std::unique_ptr<Widget>& c) { return c.get() == child; });
         if (it != m_children.end()) {
+            child->damage();
             m_children.erase(it);
         }
     }
+}
+
+namespace {
+// The bounding box of the damage reported since the last takeDamage().
+Rect s_widget_damage;
+bool s_widget_damaged = false;
+} // namespace
+
+void Widget::addDamage(const Rect& area)
+{
+    if (area.isEmpty()) return;
+    s_widget_damage = s_widget_damaged ? s_widget_damage.united(area) : area;
+    s_widget_damaged = true;
+}
+
+void Widget::damageAll()
+{
+    s_widget_damage = Rect(0, 0, 0x7FFF, 0x7FFF);
+    s_widget_damaged = true;
+}
+
+bool Widget::takeDamage(Rect& area)
+{
+    if (!s_widget_damaged) return false;
+    area = s_widget_damage;
+    s_widget_damaged = false;
+    return true;
+}
+
+Rect Widget::screenRect() const
+{
+    int x = m_pos.x();
+    int y = m_pos.y();
+    for (const Widget* p = m_parent; p; p = p->m_parent) {
+        x += p->m_pos.x();
+        y += p->m_pos.y();
+    }
+    return Rect(static_cast<int16_t>(x), static_cast<int16_t>(y), m_pos.width(), m_pos.height());
+}
+
+void Widget::damage() const
+{
+    addDamage(screenRect());
 }
 
 void Widget::destroy()
