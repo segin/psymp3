@@ -183,6 +183,10 @@ class Player
 
         void setShuffle(bool shuffle);
         bool getShuffle() const;
+        /** @brief Turn Avoid Dupes on or off, with a toast. */
+        void setAvoidDupes(bool avoid);
+        /** @brief Whether shuffle skips a next track that repeats the current one. */
+        bool getAvoidDupes() const;
 
         // Named player actions shared by the keyboard shortcuts and the menu
         // bar. Each corresponds to a former inline case in handleKeyPress; the
@@ -729,6 +733,7 @@ class Player
         bool m_persist_playlist = false;
         bool m_show_debug = false;
         bool m_pending_shuffle = false;
+        bool m_pending_avoid_dupes = false;
         LoopMode m_pending_loop_mode = LoopMode::None;
         // Playlist index the user was at when the previous session shut down
         // (session_track in psymp3.conf, saved alongside session.m3u8).

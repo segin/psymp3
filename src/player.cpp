@@ -4176,6 +4176,7 @@ bool Player::Initialize(const PlayerOptions& options) {
     playlist = std::make_unique<Playlist>();
     // Apply the persisted shuffle state (no toast/MPRIS churn at startup).
     playlist->setShuffle(m_pending_shuffle);
+    playlist->setAvoidDupes(m_pending_avoid_dupes);
 
     fft = std::make_unique<FastFourier>();
     mutex = std::make_unique<std::mutex>();
@@ -4369,6 +4370,11 @@ bool Player::Initialize(const PlayerOptions& options) {
         playback_items.push_back(MI::leaf("&Shuffle",
             [this]{ setShuffle(!getShuffle()); },
             [this]{ return getShuffle(); }, "S"));
+        // Only shuffle can put a copy of the current track next.
+        playback_items.push_back(MI::leaf("&Avoid Dupes",
+            [this]{ setAvoidDupes(!getAvoidDupes()); },
+            [this]{ return getAvoidDupes(); }, "",
+            [this]{ return getShuffle(); }));
         playback_items.push_back(MI::sep());
         playback_items.push_back(MI::leaf("Volume &Up", [this]{ volumeUp(); }, nullptr, "Up"));
 #ifdef PSYMP3_MAC_MENUBAR
@@ -5575,6 +5581,8 @@ void Player::loadSettings()
             m_eq_enabled = (value == "1" || value == "true");
         } else if (key == "shuffle") {
             m_pending_shuffle = (value == "1" || value == "true");
+        } else if (key == "avoid_dupes") {
+            m_pending_avoid_dupes = (value == "1" || value == "true");
         } else if (key == "loop_mode") {
             int m = 0;
             if (parseSettingDouble(value, v)) m = static_cast<int>(v);
@@ -5639,6 +5647,7 @@ void Player::saveSettings() const
     // Playback options. getShuffle() reads the live playlist when present, else
     // falls back to the value we loaded (persisted here even before playback).
     f << "shuffle=" << (getShuffle() ? 1 : 0) << "\n";
+    f << "avoid_dupes=" << (getAvoidDupes() ? 1 : 0) << "\n";
     f << "loop_mode=" << static_cast<int>(getLoopMode()) << "\n";
     f << "persist_playlist=" << (m_persist_playlist ? 1 : 0) << "\n";
     // Where the user was in the playlist. Read live at save time so the
@@ -7311,6 +7320,22 @@ bool Player::getShuffle() const {
         return playlist->isShuffle();
     }
     return false;
+}
+
+void Player::setAvoidDupes(bool avoid) {
+    if (playlist) {
+        playlist->setAvoidDupes(avoid);
+    }
+    m_pending_avoid_dupes = avoid;
+    saveSettings(); // persist the setting itself immediately
+    showToast(avoid ? "Avoid Dupes: On" : "Avoid Dupes: Off");
+}
+
+bool Player::getAvoidDupes() const {
+    if (playlist) {
+        return playlist->isAvoidDupes();
+    }
+    return m_pending_avoid_dupes;
 }
 
 /**
