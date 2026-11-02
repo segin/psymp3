@@ -55,6 +55,13 @@ class Display : public Surface
         void showUnderlay(const Rect& at);
         static SDL_BlendMode fadeBlendMode();
 
+        /**
+         * @brief Reports an area of the frame that was drawn again, to be
+         *        sent to the GPU at the next Flip(). Nothing else is sent.
+         * @param area The area, in logical pixels.
+         */
+        void markChanged(const Rect& area);
+
         int getLogicalScale() const { return m_logical_scale; }
         void setLogicalScale(int scale);
         // Re-assert the client-area size at the current scale. Call after the
@@ -66,7 +73,8 @@ class Display : public Surface
         SDL_Surface* m_window_surface = nullptr; // non-owned, refreshed from SDL; only without a renderer
         SDL_Renderer* m_renderer = nullptr;      // presents the frame; null means the window-surface path
         SDL_Texture* m_texture = nullptr;        // the logical frame, uploaded each Flip()
-        std::vector<uint8_t> m_uploaded;         // the frame as last uploaded, to upload only changed rows
+        Rect m_changed;                          // drawn since the last upload, in logical pixels
+        bool m_upload_all = true;                // the texture holds nothing yet
         SDL_Texture* m_underlay = nullptr;       // render target beneath the frame
         bool m_underlay_lost = false;            // its contents were lost (render targets reset)
         bool m_underlay_shown = false;           // drawn this frame: a visible widget asked for it
@@ -76,7 +84,7 @@ class Display : public Surface
 
         bool createRenderer();
         bool createTexture();
-        void uploadChangedRows();
+        void uploadChanged();
         void refreshWindowSurface();
         void allocateLogicalSurface();
 };

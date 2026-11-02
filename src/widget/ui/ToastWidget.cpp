@@ -132,18 +132,6 @@ void ToastWidget::refreshIfOpacityChanged()
     }
 }
 
-void ToastWidget::BlitTo(Surface& target)
-{
-    refreshIfOpacityChanged();
-    TransparentWindowWidget::BlitTo(target);
-}
-
-void ToastWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
-{
-    refreshIfOpacityChanged();
-    TransparentWindowWidget::recursiveBlitTo(target, parent_absolute_pos);
-}
-
 void ToastWidget::resetTimer()
 {
     m_start_time = std::chrono::steady_clock::now();
@@ -195,8 +183,7 @@ void ToastWidget::draw(Surface& surface)
     // shell and text fade together.
     const float animation_opacity = std::clamp(currentAnimationOpacity(), 0.0f, 1.0f);
     surface.applyRelativeOpacity(0.85f * animation_opacity);
-    m_last_drawn_opacity = animation_opacity;
-}
+    m_last_drawn_opacity = animation_opacity;}
 
 ::Rect ToastWidget::calculateSize(const std::string& message, ::Font* font, int padding)
 {

@@ -279,6 +279,14 @@ class Player
         void updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title);
         void renderSpectrum();
         void renderOverlay(Stream* current_stream, unsigned long current_pos_ms);
+        /**
+         * @brief Draws the widget tree, the pause bubble, the windows and any
+         *        open menu into the frame, within its clip rect.
+         * @param pause_opacity The pause bubble's opacity this frame.
+         */
+        void composeFrame(float pause_opacity);
+        /** @brief Where the pause bubble sits in the frame. */
+        Rect pauseBubbleRect() const;
 
         bool updateGUI();
         bool handleWindowEvent(const SDL_WindowEvent& event);
@@ -599,6 +607,7 @@ class Player
         bool m_pause_shown = false;
         Uint32 m_pause_fade_start_ms = 0;
         float m_pause_fade_anchor = 0.0f;
+        float m_pause_drawn_opacity = 0.0f; // the bubble's opacity in the frame as last composed
         FadingWidget* m_seek_left_indicator = nullptr;
         FadingWidget* m_seek_right_indicator = nullptr;
 

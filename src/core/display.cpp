@@ -179,7 +179,7 @@ bool Display::createTexture()
     m_texture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_ARGB8888,
                                   SDL_TEXTUREACCESS_STREAMING, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     // A new texture holds nothing: upload the whole of the next frame.
-    m_uploaded.clear();
+    m_upload_all = true;
     if (!m_texture) {
         return false;
     }
@@ -195,39 +195,31 @@ bool Display::createTexture()
     return true;
 }
 
-/**
- * @brief Uploads the rows of the frame that differ from the last upload.
- *
- * Most frames change a few rows (the position, the progress bar, a toast),
- * and comparing rows on the CPU costs far less than sending all of them.
- */
-void Display::uploadChangedRows()
+void Display::markChanged(const Rect& area)
 {
-    const int row_bytes = LOGICAL_WIDTH * 4;
-    const size_t size = static_cast<size_t>(row_bytes) * LOGICAL_HEIGHT;
-    const bool all = m_uploaded.size() != size;
-    if (all) {
-        m_uploaded.assign(size, 0);
+    m_changed = m_changed.united(area);
+}
+
+/**
+ * @brief Uploads the part of the frame drawn since the last upload.
+ *
+ * Most frames draw again only a small part of the frame (the position,
+ * the progress bar, a toast), and only that part is sent to the GPU.
+ */
+void Display::uploadChanged()
+{
+    const Rect frame(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+    const Rect area = m_upload_all ? frame : m_changed.intersection(frame);
+    m_upload_all = false;
+    m_changed = Rect(0, 0, 0, 0);
+    if (area.isEmpty()) {
+        return;
     }
     const auto* pixels = static_cast<const uint8_t*>(m_handle->pixels);
-    int first = -1;
-    int last = -1;
-    for (int y = 0; y < LOGICAL_HEIGHT; ++y) {
-        const uint8_t* row = pixels + static_cast<size_t>(y) * m_handle->pitch;
-        uint8_t* copy = m_uploaded.data() + static_cast<size_t>(y) * row_bytes;
-        if (all || std::memcmp(row, copy, row_bytes) != 0) {
-            std::memcpy(copy, row, row_bytes);
-            if (first < 0) {
-                first = y;
-            }
-            last = y;
-        }
-    }
-    if (first >= 0) {
-        const SDL_Rect rows{0, first, LOGICAL_WIDTH, last - first + 1};
-        SDL_UpdateTexture(m_texture, &rows, pixels + static_cast<size_t>(first) * m_handle->pitch,
-                          m_handle->pitch);
-    }
+    const SDL_Rect rect{area.x(), area.y(), area.width(), area.height()};
+    SDL_UpdateTexture(m_texture, &rect,
+                      pixels + static_cast<size_t>(area.y()) * m_handle->pitch + static_cast<size_t>(area.x()) * 4,
+                      m_handle->pitch);
 }
 
 /**
@@ -364,7 +356,7 @@ void Display::Flip()
         if (!m_texture && !createTexture()) {
             return;
         }
-        uploadChangedRows();
+        uploadChanged();
         // Black where the window is bigger than the frame, as when a tiling
         // window manager sizes it, and beneath the frame without an underlay.
         SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);

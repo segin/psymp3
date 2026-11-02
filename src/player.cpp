@@ -2922,16 +2922,12 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
         m_lyrics_widget->updatePosition(static_cast<unsigned int>(current_pos_ms));
     }
 
-    // Render the main widget tree
-    if (m_ui_root) {
-        m_ui_root->BlitTo(*screen);
-    }
-    
     // The pause indicator: "PAUSED" in a bubble like the toasts' and the
     // lyrics' (a dark rounded box with a lighter one-pixel edge, so the word
     // reads over a bright spectrum or a cover as well as over black), fading
     // in and out as a toast does: linearly, over the toast's own times, to
     // the toast's opacity.
+    float pause_opacity = 0.0f;
     {
         const bool want_shown = (state == PlayerState::Paused);
         const Uint32 now = SDL_GetTicks();
@@ -2972,18 +2968,117 @@ void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
                 m_pause_bubble->Blit(*text, Rect(kPadX, kPadY, text->width(), text->height()));
             }
         }
-
-        if (opacity > 0.0f && m_pause_bubble) {
-            // Centred in the FFT area (0,0 to 640,354). 0.85 is the toast's
-            // own peak opacity (ToastWidget's TransparentWindowWidget base).
-            const int w = m_pause_bubble->width();
-            const int h = m_pause_bubble->height();
-            const float alpha = 0.85f * opacity * 255.0f;
-            m_pause_bubble->SetAlpha(static_cast<uint8_t>(std::clamp(alpha, 1.0f, 254.0f)));
-            screen->Blit(*m_pause_bubble, Rect((640 - w) / 2, (354 - h) / 2, w, h));
-        }
+        pause_opacity = opacity;
     }
-    
+    if (m_pause_bubble && pause_opacity != m_pause_drawn_opacity) {
+        Widget::addDamage(pauseBubbleRect());
+        m_pause_drawn_opacity = pause_opacity;
+    }
+
+    /*
+     * Compose only the part of the frame where something changed (see
+     * Widget::addDamage()), clipping all drawing to it; the rest of the
+     * frame is as it was last time. Damage reported while composing goes
+     * to the next frame.
+     */
+    // Toasts that finish or move on in their fade report it now, not mid-frame.
+    ApplicationWidget::getInstance().updateWindows();
+    // PSYMP3_FULL_FRAMES=1 composes every frame whole, as before damage tracking.
+    static const bool full_frames = [] {
+        const char* value = SDL_getenv("PSYMP3_FULL_FRAMES");
+        return value && *value && *value != '0';
+    }();
+    if (full_frames) {
+        Widget::damageAll();
+    }
+    const Rect whole(0, 0, screen->width(), screen->height());
+    Rect area(0, 0, 0, 0);
+    if (Widget::takeDamage(area)) {
+        area = area.intersection(whole);
+    }
+    SDL_Surface* frame = screen->getHandle();
+    const SDL_Rect clip{area.x(), area.y(), area.width(), area.height()};
+    SDL_SetSurfaceClipRect(frame, &clip);
+    composeFrame(pause_opacity);
+
+    /*
+     * PSYMP3_DAMAGE_CHECK=1: compose the whole frame again over the partly
+     * composed one and log where they differ outside the damaged area,
+     * which is where something changed without reporting damage. (Inside
+     * it, anything that moves with time, such as scrolling text, may move
+     * between the two passes.)
+     */
+    static const bool check_damage = [] {
+        const char* value = SDL_getenv("PSYMP3_DAMAGE_CHECK");
+        return value && *value && *value != '0';
+    }();
+    if (check_damage && frame) {
+        const size_t bytes = static_cast<size_t>(frame->pitch) * frame->h;
+        std::vector<uint8_t> partial(static_cast<const uint8_t*>(frame->pixels),
+                                     static_cast<const uint8_t*>(frame->pixels) + bytes);
+        SDL_SetSurfaceClipRect(frame, nullptr);
+        composeFrame(pause_opacity);
+        int left = frame->w, top = frame->h, right = -1, bottom = -1;
+        const int bpp = SDL_BYTESPERPIXEL(frame->format);
+        for (int y = 0; y < frame->h; ++y) {
+            const uint8_t* a = partial.data() + static_cast<size_t>(y) * frame->pitch;
+            const uint8_t* b = static_cast<const uint8_t*>(frame->pixels) + static_cast<size_t>(y) * frame->pitch;
+            for (int x = 0; x < frame->w; ++x) {
+                if (area.contains(static_cast<int16_t>(x), static_cast<int16_t>(y))) {
+                    continue;
+                }
+                if (std::memcmp(a + x * bpp, b + x * bpp, bpp) != 0) {
+                    left = std::min(left, x);
+                    right = std::max(right, x);
+                    top = std::min(top, y);
+                    bottom = std::max(bottom, y);
+                }
+            }
+        }
+        if (right >= 0) {
+            Debug::log("damage", "Undamaged change at " + std::to_string(left) + "," +
+                       std::to_string(top) + " " + std::to_string(right - left + 1) + "x" +
+                       std::to_string(bottom - top + 1) + "; damaged area was " +
+                       std::to_string(area.x()) + "," + std::to_string(area.y()) + " " +
+                       std::to_string(area.width()) + "x" + std::to_string(area.height()));
+        }
+        area = whole;
+    }
+    SDL_SetSurfaceClipRect(frame, nullptr);
+    Debug::log("damage", "Composed " + std::to_string(area.x()) + "," + std::to_string(area.y()) +
+               " " + std::to_string(area.width()) + "x" + std::to_string(area.height()));
+    screen->markChanged(area);
+}
+
+/**
+ * @brief Where the pause bubble sits: centred in the FFT area (0,0 to 640,354).
+ * @return The bubble's rectangle, or an empty one before it is made.
+ */
+Rect Player::pauseBubbleRect() const
+{
+    if (!m_pause_bubble) {
+        return Rect(0, 0, 0, 0);
+    }
+    const int w = m_pause_bubble->width();
+    const int h = m_pause_bubble->height();
+    return Rect((640 - w) / 2, (354 - h) / 2, w, h);
+}
+
+void Player::composeFrame(float pause_opacity)
+{
+    // Render the main widget tree
+    if (m_ui_root) {
+        m_ui_root->BlitTo(*screen);
+    }
+
+    if (pause_opacity > 0.0f && m_pause_bubble) {
+        // 0.85 is the toast's own peak opacity (ToastWidget's
+        // TransparentWindowWidget base).
+        const float alpha = 0.85f * pause_opacity * 255.0f;
+        m_pause_bubble->SetAlpha(static_cast<uint8_t>(std::clamp(alpha, 1.0f, 254.0f)));
+        screen->Blit(*m_pause_bubble, pauseBubbleRect());
+    }
+
     // Render floating windows (test windows, equalizer)
     renderWindows();
 
@@ -3200,6 +3295,14 @@ bool Player::updateGUI()
     if (m_stream_art_changed) {
         m_stream_art_changed = false;
         onStreamArtworkChanged();
+    }
+
+    /*
+     * A held button scrolls lists, steps scrollbars and drags with no event
+     * to say so while the pointer is still, so compose the whole frame then.
+     */
+    if (SDL_GetMouseState(nullptr, nullptr) != 0) {
+        Widget::damageAll();
     }
 
     // Render the overlay and widget tree regardless of stream state so
@@ -4567,6 +4670,17 @@ void Player::EventLoop() {
                             break;
                     }
                 }
+            }
+
+            /*
+             * Frames are composed only where something changed. Input,
+             * window events and the player's own events can change anything
+             * on screen, so the next frame is composed whole; between them
+             * only the frame tick arrives, and the widgets report what
+             * changes over time themselves.
+             */
+            if (event.type != SDL_EVENT_USER || event.user.code != RUN_GUI_ITERATION) {
+                Widget::damageAll();
             }
 
             switch (event.type) {

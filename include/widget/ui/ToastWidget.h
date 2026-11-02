@@ -135,17 +135,11 @@ public:
     void resetTimer();
 
     /**
-     * @brief Ensures animated toasts redraw while blitting.
-     * @param target Surface to draw into
+     * @brief Brings the fade up to date before the frame is composed, so
+     *        that its damage is part of this frame's. ApplicationWidget's
+     *        updateWindows() calls it for every toast once a frame.
      */
-    virtual void BlitTo(Surface& target) override;
-
-    /**
-     * @brief Ensures animated toasts redraw while recursively blitting.
-     * @param target Surface to draw into
-     * @param parent_absolute_pos Absolute parent position
-     */
-    virtual void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
+    void tick() { refreshIfOpacityChanged(); }
 
 protected:
     /**

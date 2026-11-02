@@ -292,8 +292,11 @@ Widget* ApplicationWidget::findWindowAt(int x, int y) const
 
 void ApplicationWidget::BlitTo(Surface& target)
 {
-    // Process scheduled window removals and toast expirations before rendering
-    updateWindows();
+    /*
+     * Scheduled window removals and toast fades are brought up to date by
+     * updateWindows() before the frame's damage is collected, not here: a
+     * change made while composing would land outside the damaged area.
+     */
 
     // ApplicationWidget acts as the desktop - render all child widgets first
     // This includes spectrum analyzer, progress bar, labels, etc.
@@ -356,10 +359,18 @@ void ApplicationWidget::updateWindows()
             toast->dismiss(); // Call dismiss callback (m_windows is now stable)
         }
     }
+
+    // Fades move with time: report the change before the frame is composed.
+    for (const auto& window : m_windows) {
+        if (auto* toast = dynamic_cast<ToastWidget*>(window.get())) {
+            toast->tick();
+        }
+    }
 }
 
 void ApplicationWidget::removeAllToasts(int fade_out_ms)
 {
+    damageAll();
     // Remove all existing toasts immediately, or let them crossfade out.
     m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
         [fade_out_ms](const std::unique_ptr<Widget>& window) {
@@ -397,6 +408,8 @@ void ApplicationWidget::rebuildSurface()
     // ApplicationWidget doesn't need its own surface - it just acts as a transparent container
     // The background is handled by the display/graph surface itself
     // Child widgets and windows will be rendered directly during BlitTo()
+    // A window came, went or changed places in the stacking order.
+    damageAll();
 }
 
 } // namespace UI
