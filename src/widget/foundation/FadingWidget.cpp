@@ -131,6 +131,9 @@ void FadingWidget::BlitTo(Surface& target)
     } else { // Visible
         alpha_f = MAX_ALPHA;
     }
+    if (m_state != FadeState::Visible) {
+        damage(); // the fade goes on next frame
+    }
 
     getSurface().SetAlpha(static_cast<Uint8>(alpha_f));
     clearLastDrawnArea(target);

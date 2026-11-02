@@ -480,6 +480,9 @@ void Label::blitWithBackgroundClear(Surface& target, const Rect& absolute_pos)
                target.MapRGB(m_background_color.r, m_background_color.g, m_background_color.b));
 
     if (should_marquee) {
+        // The text scrolls with time, so it changes on every frame.
+        addDamage(Rect(absolute_pos.x(), absolute_pos.y(),
+                       static_cast<uint16_t>(viewport_width), static_cast<uint16_t>(viewport_height)));
         auto viewport_surface = createViewportSurface(viewport_width, viewport_height);
         if (viewport_surface && viewport_surface->isValid()) {
             target.Blit(*viewport_surface,
