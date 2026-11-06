@@ -1518,6 +1518,7 @@ void Player::handleTrackSeamlessSwapEvent() {
                                             std::move(m_next_stream_primed_samples),
                                             m_next_stream_primed_eof);
             audio->setVolume(m_volume);
+            audio->setFFTEnabled(!m_power_saver);
             applyEqStateToAudio();
         } else {
             // Same audio format, can seamlessly switch streams
@@ -3227,8 +3228,9 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
             }
         }
 
-        // Update spectrum data in the widget - it will render itself via the widget tree
-        if (m_spectrum_widget && audio) {
+        // Update spectrum data in the widget - it will render itself via the
+        // widget tree. Power Saver computes no spectrum and shows the cover.
+        if (m_spectrum_widget && audio && !m_power_saver) {
             std::lock_guard<std::mutex> fft_lock(audio->getFFTMutex());
             float *spectrum = fft->getFFT();
             // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
@@ -3330,8 +3332,22 @@ bool Player::updateGUI()
         m_playback_indicators->setState(m_loop_mode.load(), getShuffle());
     }
 
+    /*
+     * Power Saver refreshes the position label and the bar every
+     * kPowerSaverPositionMs. A new stream, a held seek key and a drag on the
+     * bar still show at once.
+     */
+    const Uint32 position_now_ms = SDL_GetTicks();
+    const bool refresh_position = !m_power_saver || m_is_dragging || m_seek_direction != 0
+        || current_stream != m_position_shown_stream
+        || position_now_ms - m_position_shown_ms >= kPowerSaverPositionMs;
+    if (refresh_position) {
+        m_position_shown_ms = position_now_ms;
+        m_position_shown_stream = current_stream;
+    }
+
     // Now use the copied data for rendering, outside the lock.
-    if(current_stream) {
+    if (current_stream && refresh_position) {
         // A track with no length (internet radio) shows how long it has
         // played, and dashes for the length it does not have.
         const std::string length_text = total_len_ms == 0
@@ -3348,7 +3364,7 @@ bool Player::updateGUI()
         // every multi-byte character became mojibake in the titlebar.
         screen->SetCaption(TagLib::String("PsyMP3 " PSYMP3_VERSION " -:[ ") + artist +
                         " ]:- -- -:[ " + title + " ]:-", "PsyMP3 " PSYMP3_VERSION);
-    } else {
+    } else if (!current_stream) {
         m_labels.at("position")->setText("Position: -:--.-- / -:--.--");
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
     }
@@ -3394,7 +3410,7 @@ bool Player::updateGUI()
     }
 
     // Update progress bar widget
-    if (m_progress_widget) {
+    if (m_progress_widget && refresh_position) {
         /*
          * Internet radio: the bar is drawn full and cannot be seeked. A drag
          * that was under way when it began is dropped.
@@ -3481,6 +3497,12 @@ void Player::applyTargetFps(int fps)
     if (fps < 0) fps = 0; // 0 = unlimited
     if (fps > 1000) fps = 1000;
     m_target_fps = fps;
+    applyFrameRate();
+}
+
+void Player::applyFrameRate()
+{
+    const int fps = m_power_saver ? kPowerSaverFps : m_target_fps;
     if (fps == 0) {
         // Unlimited: the GUI loop drives itself (see handleRunGuiIterationEvent);
         // the timer only runs the restart watchdog, so slow it to that cadence.
@@ -3502,12 +3524,30 @@ void Player::setTargetFps(int fps)
     if (m_target_fps == 0) {
         // Kick off the self-driving iteration chain right away; the watchdog
         // would otherwise take up to kUnlimitedWatchdogMs to start it.
-        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+        if (!m_power_saver) {
+            synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+        }
         showToast("Target FPS: Unlimited");
     } else {
         showToast("Target FPS: " + std::to_string(m_target_fps));
     }
     saveSettings();
+}
+
+void Player::togglePowerSaver()
+{
+    m_power_saver = !m_power_saver;
+    applyFrameRate();
+    if (!m_power_saver && m_target_fps == 0) {
+        // Back to Unlimited: start the self-driving chain, as setTargetFps does.
+        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+    }
+    if (audio) {
+        audio->setFFTEnabled(!m_power_saver);
+    }
+    refreshAlbumArt();
+    saveSettings();
+    showToast(m_power_saver ? "Power Saver: On" : "Power Saver: Off");
 }
 
 void Player::cycleFFTMode()
@@ -4496,8 +4536,10 @@ bool Player::Initialize(const PlayerOptions& options) {
         // The Album Art window (toggleAlbumArtWindow) is hidden: it has no
         // menu item and no key, and Album Art Mode is the way to see a cover.
         // The window's code is kept so that it can be offered again.
+        // Power Saver holds Album Art Mode on, ticked and greyed out.
         playback_items.push_back(MI::leaf("Album Art M&ode", [this]{ toggleAlbumArtMode(); },
-            [this]{ return m_album_art_mode; }, "A"));
+            [this]{ return albumArtModeShown(); }, "A",
+            [this]{ return !m_power_saver; }));
         menu_bar->addMenu("&Playback", std::move(playback_items));
 
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
@@ -4515,10 +4557,12 @@ bool Player::Initialize(const PlayerOptions& options) {
                 [this, value]{ setIntensity(value); },
                 [this, value]{ return scalefactor == value; });
         };
+        // Greyed out under Power Saver, still ticking the user's choice.
         auto fps_item = [this](const char* label, int fps) {
             return MI::leaf(label,
                 [this, fps]{ setTargetFps(fps); },
-                [this, fps]{ return m_target_fps == fps; });
+                [this, fps]{ return m_target_fps == fps; }, "",
+                [this]{ return !m_power_saver; });
         };
 
         std::vector<MI> settings_items;
@@ -4547,6 +4591,8 @@ bool Player::Initialize(const PlayerOptions& options) {
         settings_items.push_back(MI::sep());
         settings_items.push_back(MI::leaf("2x &Zoom", [this]{ toggleZoom(); },
             [this]{ return screen && screen->getLogicalScale() == 2; }, "G"));
+        settings_items.push_back(MI::leaf("&Power Saver", [this]{ togglePowerSaver(); },
+            [this]{ return m_power_saver; }));
         settings_items.push_back(MI::leaf("Show L&yrics", [this]{ toggleShowLyrics(); },
             [this]{ return m_show_lyrics; }, "Y"));
         settings_items.push_back(MI::leaf("Show &Debug", [this]{ toggleShowDebug(); },
@@ -5717,6 +5763,8 @@ void Player::loadSettings()
             m_show_lyrics = (value == "1" || value == "true");
         } else if (key == "album_art_mode") {
             m_album_art_mode = (value == "1" || value == "true");
+        } else if (key == "power_saver") {
+            m_power_saver = (value == "1" || value == "true");
         } else if (key == "zoom") {
             if (parseSettingDouble(value, v)) {
                 m_pending_scale = (static_cast<int>(v) >= 2) ? 2 : 1;
@@ -5742,6 +5790,7 @@ void Player::loadSettings()
             }
         }
     }
+    applyFrameRate(); // power_saver may follow target_fps in the file
     Debug::log("player", "Settings loaded: volume=", m_volume, ", eq_enabled=", m_eq_enabled);
 }
 
@@ -5771,6 +5820,7 @@ void Player::saveSettings() const
     f << "show_debug=" << (m_show_debug ? 1 : 0) << "\n";
     f << "show_lyrics=" << (m_show_lyrics ? 1 : 0) << "\n";
     f << "album_art_mode=" << (m_album_art_mode ? 1 : 0) << "\n";
+    f << "power_saver=" << (m_power_saver ? 1 : 0) << "\n";
     f << "discord_presence=" << (m_discord_presence ? 1 : 0) << "\n";
     for (size_t i = 0; i < m_eq_gains.size(); ++i)
         f << "eq_band_" << i << "=" << m_eq_gains[i] << "\n";
@@ -6510,7 +6560,7 @@ void Player::toggleMediaInfoWindow()
 void Player::refreshAlbumArt()
 {
     AlbumArtWidget* const window_art = m_albumart_window ? m_albumart_widget : nullptr;
-    AlbumArtWidget* const visualizer_art = m_album_art_mode ? m_visualizer_art : nullptr;
+    AlbumArtWidget* const visualizer_art = albumArtModeShown() ? m_visualizer_art : nullptr;
 
     if (window_art || visualizer_art) {
         const std::optional<PsyMP3::Tag::Picture> cover =
@@ -6543,6 +6593,11 @@ void Player::refreshAlbumArt()
 
 void Player::toggleAlbumArtMode()
 {
+    if (m_power_saver) {
+        // Power Saver holds the cover up; the A key says why it stays.
+        showToast("Album Art Mode: On (Power Saver)");
+        return;
+    }
     m_album_art_mode = !m_album_art_mode;
     saveSettings();
     refreshAlbumArt();
@@ -7552,6 +7607,7 @@ void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
                                             std::move(primed_samples),
                                             primed_eof);
             audio->setVolume(m_volume);
+            audio->setFFTEnabled(!m_power_saver);
             applyEqStateToAudio();
         } else {
             Debug::log("audio", "Track load reusing existing Audio device.");
@@ -7709,6 +7765,7 @@ void Player::reopenAudioForFormatChange()
         return;
     }
     audio->setVolume(m_volume);
+    audio->setFFTEnabled(!m_power_saver);
     applyEqStateToAudio();
     stream = audio->getCurrentStream();
     if (state == PlayerState::Playing) {

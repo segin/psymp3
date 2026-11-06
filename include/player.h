@@ -699,9 +699,28 @@ class Player
         // Unlimited FPS mode, where the fade strength is derived from measured
         // elapsed time instead of the fixed frame period. 0 = not yet primed.
         Uint32 m_unlimited_fade_last_ms = 0;
+        /*
+         * Settings -> Power Saver: draws at kPowerSaverFps whatever Target FPS
+         * says (m_target_fps keeps the user's choice), computes no spectrum,
+         * holds Album Art Mode on and refreshes the position every
+         * kPowerSaverPositionMs. Persisted in psymp3.conf.
+         */
+        bool m_power_saver = false;
+        static constexpr int kPowerSaverFps = 15;
+        static constexpr Uint32 kPowerSaverPositionMs = 250;
+        // When the position label and bar were last refreshed, and for which
+        // stream, so Power Saver can hold them between refreshes.
+        Uint32 m_position_shown_ms = 0;
+        const Stream* m_position_shown_stream = nullptr;
         // Shared by setTargetFps() and loadSettings(): sets m_target_fps and
         // derives the app-loop timer state (period or unlimited watchdog).
         void applyTargetFps(int fps);
+        /** @brief Sets the app-loop timer for the rate in effect: m_target_fps, or kPowerSaverFps under Power Saver. */
+        void applyFrameRate();
+        /** @brief Settings -> Power Saver: turns it on or off, saves and shows a toast. */
+        void togglePowerSaver();
+        /** @brief Whether the cover takes the spectrum's place: Album Art Mode, or Power Saver, which holds it on. */
+        bool albumArtModeShown() const { return m_album_art_mode || m_power_saver; }
         void toggleEqualizerWindow();
         void toggleLastFmCredentialsWindow();
         void toggleMediaInfoWindow();
