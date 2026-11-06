@@ -4504,13 +4504,13 @@ bool Player::Initialize(const PlayerOptions& options) {
     // its last digit at the old width.
     add_label(*hud_panel_ptr, "position", Rect(400, 3, 165, 16));
 
-    // Repeat/Shuffle/Power Saver indicators: right-aligned to the progress
-    // bar's right edge (x=399+222=621), in the row above it, to the right of
-    // the position text.
+    // Repeat/Shuffle/Power Saver indicators: in the row above the progress
+    // bar, right of the position text, 2 pixels in from the window's right
+    // edge, so the position text keeps its room.
     {
         constexpr int w = PlaybackIndicatorsWidget::kWidth;
         auto indicators = std::make_unique<PlaybackIndicatorsWidget>(w, 16);
-        indicators->setPos(Rect(621 - w, 1, w, 16));
+        indicators->setPos(Rect(640 - 2 - w, 1, w, 16));
         indicators->setCallbacks(
             [this]{ cycleLoopMode(); },
             [this]{ setShuffle(!getShuffle()); },
