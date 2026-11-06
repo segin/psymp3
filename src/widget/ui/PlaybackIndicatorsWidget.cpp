@@ -1,5 +1,5 @@
 /*
- * PlaybackIndicatorsWidget.cpp - Repeat/Shuffle status indicators.
+ * PlaybackIndicatorsWidget.cpp - Repeat/Shuffle/Power Saver status indicators.
  * This file is part of PsyMP3.
  * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
  *
@@ -70,10 +70,32 @@ constexpr uint32_t kShuffleBits[kShuffleH] = {
     8,      // .............#...
 };
 
+// Power Saver: a battery, its lower part charged, and a leaf. 18 wide x 13 tall.
+constexpr int kPowerSaverW = 18, kPowerSaverH = 13;
+constexpr uint32_t kPowerSaverBits[kPowerSaverH] = {
+    12296,  // ....##........#...
+    130588, // .########....###..
+    131370, // #........#..#.#.#.
+    131370, // #........#..#.#.#.
+    132957, // #......###.#.###.#
+    139081, // #....#####.#..#..#
+    163691, // #..#######.##.#.##
+    261981, // ##########.#.###.#
+    261930, // ##########..#.#.#.
+    261916, // ##########...###..
+    261896, // ##########....#...
+    261896, // ##########....#...
+    130568, // .########.....#...
+};
+// Green when Power Saver is on.
+constexpr uint8_t kSaverOnR = 64, kSaverOnG = 220, kSaverOnB = 64;
+
 // Vertical offsets inside the widget, matching the reference: the taller
-// shuffle glyph rides 1px lower than the repeat loop.
+// shuffle glyph rides 1px lower than the repeat loop, and the Power Saver
+// glyph is centred on the shuffle glyph.
 constexpr int kRepeatY = 0;
 constexpr int kShuffleY = 1;
+constexpr int kPowerSaverY = 2;
 }
 
 PlaybackIndicatorsWidget::PlaybackIndicatorsWidget(int width, int height)
@@ -81,21 +103,24 @@ PlaybackIndicatorsWidget::PlaybackIndicatorsWidget(int width, int height)
 {
 }
 
-void PlaybackIndicatorsWidget::setState(LoopMode loop, bool shuffle)
+void PlaybackIndicatorsWidget::setState(LoopMode loop, bool shuffle, bool power_saver)
 {
-    if (loop == m_loop && shuffle == m_shuffle) {
+    if (loop == m_loop && shuffle == m_shuffle && power_saver == m_power_saver) {
         return;
     }
     m_loop = loop;
     m_shuffle = shuffle;
+    m_power_saver = power_saver;
     invalidate();
 }
 
 void PlaybackIndicatorsWidget::setCallbacks(std::function<void()> on_repeat,
-                                            std::function<void()> on_shuffle)
+                                            std::function<void()> on_shuffle,
+                                            std::function<void()> on_power_saver)
 {
     m_on_repeat_click = std::move(on_repeat);
     m_on_shuffle_click = std::move(on_shuffle);
+    m_on_power_saver_click = std::move(on_power_saver);
 }
 
 bool PlaybackIndicatorsWidget::handleMouseDown(const SDL_MouseButtonEvent& event,
@@ -104,15 +129,18 @@ bool PlaybackIndicatorsWidget::handleMouseDown(const SDL_MouseButtonEvent& event
     if (event.button != SDL_BUTTON_LEFT) {
         return false;
     }
-    // Split the strip: left half is the repeat glyph, right half the shuffle
-    // glyph. kShuffleX is where the shuffle glyph begins.
+    // Split the strip into columns, each from where its glyph begins.
     if (relative_x < kShuffleX) {
         if (m_on_repeat_click) {
             m_on_repeat_click();
         }
-    } else {
+    } else if (relative_x < kPowerSaverX) {
         if (m_on_shuffle_click) {
             m_on_shuffle_click();
+        }
+    } else {
+        if (m_on_power_saver_click) {
+            m_on_power_saver_click();
         }
     }
     return true;
@@ -151,6 +179,12 @@ void PlaybackIndicatorsWidget::drawShuffle(Surface& s, int xoff, uint8_t r, uint
     blitGlyph(s, kShuffleBits, kShuffleW, kShuffleH, xoff, kShuffleY, packed);
 }
 
+void PlaybackIndicatorsWidget::drawPowerSaver(Surface& s, int xoff, uint8_t r, uint8_t g, uint8_t b)
+{
+    const uint32_t packed = s.MapRGB(r, g, b);
+    blitGlyph(s, kPowerSaverBits, kPowerSaverW, kPowerSaverH, xoff, kPowerSaverY, packed);
+}
+
 void PlaybackIndicatorsWidget::draw(Surface& surface)
 {
     surface.FillRect(surface.MapRGBA(0, 0, 0, 0)); // transparent over the HUD
@@ -165,6 +199,11 @@ void PlaybackIndicatorsWidget::draw(Surface& surface)
         drawShuffle(surface, kShuffleX, kOnR, kOnG, kOnB);
     } else {
         drawShuffle(surface, kShuffleX, kOffR, kOffG, kOffB);
+    }
+    if (m_power_saver) {
+        drawPowerSaver(surface, kPowerSaverX, kSaverOnR, kSaverOnG, kSaverOnB);
+    } else {
+        drawPowerSaver(surface, kPowerSaverX, kOffR, kOffG, kOffB);
     }
 }
 

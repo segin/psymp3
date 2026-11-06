@@ -436,6 +436,14 @@ class Widget : public Surface
         static bool takeDamage(Rect& area);
 
         /**
+         * @brief Whether damage has been reported since the last
+         *        takeDamage(). Asked right after composing, it says whether
+         *        something that moves with time drew itself and wants the
+         *        next frame too.
+         */
+        static bool hasDamage();
+
+        /**
          * @brief This widget's rectangle in screen coordinates, found by
          *        adding up its parents' positions.
          * @return The rectangle.

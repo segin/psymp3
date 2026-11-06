@@ -356,6 +356,14 @@ void Display::Flip()
         if (!m_texture && !createTexture()) {
             return;
         }
+        /*
+         * Nothing drawn since the last frame and no underlay drawn this
+         * frame: the window already shows this frame, so don't present it
+         * again.
+         */
+        if (!m_upload_all && m_changed.isEmpty() && !m_underlay_shown) {
+            return;
+        }
         uploadChanged();
         // Black where the window is bigger than the frame, as when a tiling
         // window manager sizes it, and beneath the frame without an underlay.
@@ -379,6 +387,11 @@ void Display::Flip()
     if (!m_window_surface) {
         return;
     }
+    // As above: a frame with nothing drawn is already on the window.
+    if (m_changed.isEmpty()) {
+        return;
+    }
+    m_changed = Rect(0, 0, 0, 0);
 
     if (m_logical_scale == 1) {
         SDL_BlitSurface(m_handle.get(), nullptr, m_window_surface, nullptr);

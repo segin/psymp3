@@ -72,6 +72,18 @@ public:
 
     std::mutex& getFFTMutex() const { return m_fft_mutex; }
 
+    /** @brief Whether the callback computes the spectrum of what it plays (off under Power Saver). */
+    void setFFTEnabled(bool on) { m_fft_enabled.store(on, std::memory_order_relaxed); }
+
+    /**
+     * @brief Power Saver buffering: a device buffer of kPowerSaverDeviceFrames,
+     *        so the callback runs less often, and a decoder that wakes at half a
+     *        second queued and reads ahead to a second. Opens the device again
+     *        when its buffer size changes.
+     */
+    void setPowerSaver(bool on);
+    static constexpr int kPowerSaverDeviceFrames = 4096;
+
     /// Read up to @p max_samples (0: half a second) from @p stream ahead of
     /// playback, in whole frames. Returns the samples and whether the stream
     /// ended.
@@ -89,6 +101,12 @@ public:
 
 private:
     void setup();
+    /** @brief Opens the default playback device at the stream's format, with Power Saver's buffer size if it is on. */
+    void openDevice();
+    /** @brief Under Power Saver, the queued samples below which the callback wakes the decoder: half a second. */
+    size_t powerSaverRefillBelow() const {
+        return static_cast<size_t>(std::max(0, m_rate)) * static_cast<size_t>(std::max(0, m_channels)) / 2;
+    }
     // SDL3 audio-stream "get more data" callback (pull model): assemble PCM
     // into a scratch buffer and push it with SDL_PutAudioStreamData.
     static void SDLCALL callback(void *userdata, SDL_AudioStream *stream,
@@ -140,6 +158,9 @@ private:
     int m_device_channels = 0;
     SDL_AudioStream* m_stream = nullptr;  // SDL3: owns the bound playback device
     std::atomic<float> m_volume{1.0f};
+    std::atomic<bool> m_fft_enabled{true};
+    std::atomic<bool> m_power_saver{false};
+    bool m_device_power_saver = false; // the buffer size the device was opened with
     std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};
     std::atomic<bool> m_stream_eof{false};

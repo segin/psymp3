@@ -120,7 +120,10 @@ public:
      * Call this regularly from the main loop.
      */
     void updateWindows();
-    
+
+    /** @brief Whether a toast is on screen, which wants frames for its fades and its dismissal. */
+    bool hasToasts() const;
+
     /**
      * @brief Removes all toast windows, optionally fading them out first.
      * Used when showing a new toast to replace existing ones.

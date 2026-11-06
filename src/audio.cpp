@@ -134,8 +134,6 @@ Audio::~Audio() {
  * of the current stream and registers the static `callback` function to be called by SDL.
  */
 void Audio::setup() {
-    SDL_AudioSpec desired{};
-
     if (!ensureSDLAudioSubsystem()) {
         // No usable audio backend (no ALSA/Pulse/PipeWire, etc.). Throw like the
         // other setup() failure paths so the Player catch handler skips the track
@@ -150,10 +148,10 @@ void Audio::setup() {
     System::lockMemory();
 
     // Use m_current_stream_raw_ptr to get rate and channels
-    desired.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
-    desired.format = SDL_AUDIO_S32; /* native-endian signed 32-bit, full scale */
-    desired.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
-    Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: SDL_AUDIO_S32");
+    m_rate = m_current_stream_raw_ptr.load()->getRate();
+    m_channels = m_current_stream_raw_ptr.load()->getChannels();
+    // Opened as native-endian signed 32-bit, full scale (openDevice()).
+    Debug::log("audio", "Audio::setup: Requested format - rate: ", m_rate, "Hz, channels: ", m_channels, ", format: SDL_AUDIO_S32");
 
     // A stream reporting zero rate or channels is malformed; opening the device
     // would let the audio callback divide by zero (SIGFPE). Throw so the caller
@@ -163,6 +161,29 @@ void Audio::setup() {
         throw InvalidMediaException("Audio::setup: invalid stream format (rate=" +
                                     std::to_string(m_rate) + ", channels=" +
                                     std::to_string(m_channels) + ")");
+    }
+
+    openDevice();
+
+    // The equalizer processes decoded PCM at the stream's own rate/channels
+    // (the callback's `buf` is pre-device-conversion), so key it off those.
+    m_eq.configure(m_rate, m_channels);
+}
+
+void Audio::openDevice()
+{
+    SDL_AudioSpec desired{};
+    desired.freq = m_rate;
+    desired.format = SDL_AUDIO_S32;
+    desired.channels = m_channels;
+
+    // Power Saver asks for a larger device buffer, so the callback runs less
+    // often; otherwise SDL's default. The hint is read when the device opens.
+    m_device_power_saver = m_power_saver.load(std::memory_order_relaxed);
+    if (m_device_power_saver) {
+        SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, std::to_string(kPowerSaverDeviceFrames).c_str());
+    } else {
+        SDL_ResetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES);
     }
 
     // SDL3: open the default playback device with our source format and attach
@@ -189,10 +210,31 @@ void Audio::setup() {
         m_device_rate = m_rate;
         m_device_channels = m_channels;
     }
+}
 
-    // The equalizer processes decoded PCM at the stream's own rate/channels
-    // (the callback's `buf` is pre-device-conversion), so key it off those.
-    m_eq.configure(m_rate, m_channels);
+void Audio::setPowerSaver(bool on)
+{
+    m_power_saver.store(on, std::memory_order_relaxed);
+    m_buffer_cv.notify_all(); // the decoder's read-ahead mark changes
+    if (!m_stream || on == m_device_power_saver || !SDL_WasInit(SDL_INIT_AUDIO)) {
+        return;
+    }
+    /*
+     * Open the device again for its new buffer size. What the old device
+     * had queued is dropped (one device buffer at most); the decoded queue
+     * here is kept, so playback carries on where it was.
+     */
+    SDL_DestroyAudioStream(m_stream);
+    m_stream = nullptr;
+    try {
+        openDevice();
+    } catch (const std::exception& e) {
+        Debug::log("audio", "Audio::setPowerSaver: could not open the device again: ", e.what());
+        return;
+    }
+    if (m_playing) {
+        SDL_ResumeAudioStreamDevice(m_stream);
+    }
 }
 
 /**
@@ -355,8 +397,11 @@ void Audio::decoderThreadLoop() {
     // The high water mark stops the decoder reading too far ahead, which keeps
     // seeks and track changes responsive: a quarter of a second at any channel
     // count, and never less than two reads.
-    const size_t buffer_high_water_mark = std::max<size_t>(
+    const size_t normal_high_water_mark = std::max<size_t>(
         static_cast<size_t>(std::max(0, m_rate)) * channels / 4, 2 * decode_chunk.size());
+    // Under Power Saver, a second, read in bursts (see the callback).
+    const size_t power_saver_high_water_mark = std::max<size_t>(
+        static_cast<size_t>(std::max(0, m_rate)) * channels, 2 * decode_chunk.size());
     // The part of a frame a read ended inside, waiting for the rest of it; see
     // appendWholeFrames(). Only meaningful for the stream and seek epoch it
     // was read in.
@@ -386,6 +431,8 @@ void Audio::decoderThreadLoop() {
         while (local_stream && m_active) {
             {
                 std::unique_lock<std::mutex> lock(m_buffer_mutex);
+                const size_t buffer_high_water_mark = m_power_saver.load(std::memory_order_relaxed)
+                    ? power_saver_high_water_mark : normal_high_water_mark;
                 m_buffer_cv.wait(lock, [this, buffer_high_water_mark] {
                     // Backpressure: only decode when the buffer is below the high
                     // water mark (or on shutdown). Do NOT also wake on !m_playing:
@@ -554,6 +601,7 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
 
     Audio *self = static_cast<Audio *>(userdata);
     size_t bytes_copied = 0;
+    size_t buffered_after = 0;
 
     {
         std::lock_guard<std::mutex> lock(self->m_buffer_mutex);
@@ -594,8 +642,17 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
             }
         }
         // If no data available, bytes_copied remains 0, and we'll fill with silence below
+        buffered_after = self->bufferedSamples_unlocked();
     }
-    self->m_buffer_cv.notify_one(); // Notify decoder thread that there is space
+    /*
+     * Notify decoder thread that there is space. Under Power Saver it is
+     * woken only once the queue is down to half a second, and then fills it
+     * to a second in one go, rather than topping it up every callback.
+     */
+    if (!self->m_power_saver.load(std::memory_order_relaxed) ||
+        buffered_after < self->powerSaverRefillBelow()) {
+        self->m_buffer_cv.notify_one();
+    }
 
     // Fill remaining buffer with silence if we couldn't provide enough data
     if (bytes_copied < static_cast<size_t>(len)) {
@@ -607,7 +664,8 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
     // above, so the FFT sees real silence and the spectrum decays instead of
     // freezing on the last frame. (The callback only runs while the device is
     // unpaused, i.e. during active playback.)
-    if (self->m_channels > 0) { // Always compute FFT, regardless of GUI state
+    // Power Saver turns it off, as nothing shows the spectrum then.
+    if (self->m_channels > 0 && self->m_fft_enabled.load(std::memory_order_relaxed)) {
         std::lock_guard<std::mutex> lock(self->m_fft_mutex);
         // Convert only the frames SDL actually handed us (the whole `len`-byte
         // buffer, data + silence), never the full FFT window — SDL may negotiate

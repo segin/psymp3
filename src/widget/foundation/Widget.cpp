@@ -556,6 +556,11 @@ bool Widget::takeDamage(Rect& area)
     return true;
 }
 
+bool Widget::hasDamage()
+{
+    return s_widget_damaged;
+}
+
 Rect Widget::screenRect() const
 {
     int x = m_pos.x();
