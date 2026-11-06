@@ -196,6 +196,8 @@ class Player
         void setIntensity(int factor);      // spectrum scale factor (1-4 keys)
         void setDelay(float factor);        // spectrum decay factor (Z/X/C)
         void setFFTMode(FFTMode mode);      // set + toast + refresh
+        /** @brief Under Power Saver, shows a toast and returns true: the spectrum's settings are locked. */
+        bool spectrumLockedByPowerSaver();
         void setTargetFps(int fps);         // redraw cadence: 30/60/120 + persist
         void cycleFFTMode();                // F key: advance to the next mode
         void cycleLoopMode();               // E key: None -> All -> One -> None

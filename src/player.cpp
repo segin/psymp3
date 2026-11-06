@@ -2536,16 +2536,12 @@ void Player::handleWin32MenuCommand(unsigned int id)
             if (id >= IDM_FFT_FIRST && id < IDM_FFT_FIRST + 4) {
                 static const FFTMode modes[] = { FFTMode::Original, FFTMode::Optimized,
                                                  FFTMode::NeomatIn, FFTMode::NeomatOut };
-                fft->setFFTMode(modes[id - IDM_FFT_FIRST]);
-                showToast("FFT Mode: " + fft->getFFTModeName());
-                updateInfo();
+                setFFTMode(modes[id - IDM_FFT_FIRST]);
             } else if (id >= IDM_DELAY_FIRST && id < IDM_DELAY_FIRST + 3) {
                 static const float delays[] = { 0.5f, 1.0f, 2.0f };
-                decayfactor = delays[id - IDM_DELAY_FIRST];
-                updateInfo();
+                setDelay(delays[id - IDM_DELAY_FIRST]);
             } else if (id >= IDM_INTENSITY_FIRST && id < IDM_INTENSITY_FIRST + 4) {
-                scalefactor = static_cast<int>(id - IDM_INTENSITY_FIRST) + 1;
-                updateInfo();
+                setIntensity(static_cast<int>(id - IDM_INTENSITY_FIRST) + 1);
             }
             break;
     }
@@ -3504,20 +3500,39 @@ bool Player::updateGUI()
 void Player::volumeUp()   { setVolume(getVolume() + 0.05); }
 void Player::volumeDown() { setVolume(getVolume() - 0.05); }
 
+bool Player::spectrumLockedByPowerSaver()
+{
+    if (!m_power_saver) {
+        return false;
+    }
+    // Power Saver draws no spectrum; its keys say why they do nothing.
+    showToast("Spectrum: Off (Power Saver)");
+    return true;
+}
+
 void Player::setIntensity(int factor)
 {
+    if (spectrumLockedByPowerSaver()) {
+        return;
+    }
     scalefactor = factor;
     updateInfo();
 }
 
 void Player::setDelay(float factor)
 {
+    if (spectrumLockedByPowerSaver()) {
+        return;
+    }
     decayfactor = factor;
     updateInfo();
 }
 
 void Player::setFFTMode(FFTMode mode)
 {
+    if (spectrumLockedByPowerSaver()) {
+        return;
+    }
     fft->setFFTMode(mode);
     showToast("FFT Mode: " + fft->getFFTModeName());
     updateInfo();
@@ -4637,22 +4652,29 @@ bool Player::Initialize(const PlayerOptions& options) {
             [this]{ return !m_power_saver; }));
         menu_bar->addMenu("&Playback", std::move(playback_items));
 
+        /*
+         * The spectrum's settings and Target FPS are greyed out under Power
+         * Saver, which draws no spectrum and sets its own frame rate; they
+         * still tick the user's choices.
+         */
         auto fft_mode_item = [this](const char* label, FFTMode mode) {
             return MI::leaf(label,
                 [this, mode]{ setFFTMode(mode); },
-                [this, mode]{ return fft->getFFTMode() == mode; });
+                [this, mode]{ return fft->getFFTMode() == mode; }, "",
+                [this]{ return !m_power_saver; });
         };
         auto delay_item = [this](const char* label, float value, const char* sc = "") {
             return MI::leaf(label,
                 [this, value]{ setDelay(value); },
-                [this, value]{ return decayfactor == value; }, sc);
+                [this, value]{ return decayfactor == value; }, sc,
+                [this]{ return !m_power_saver; });
         };
         auto intensity_item = [this](const char* label, int value) {
             return MI::leaf(label,
                 [this, value]{ setIntensity(value); },
-                [this, value]{ return scalefactor == value; });
+                [this, value]{ return scalefactor == value; }, "",
+                [this]{ return !m_power_saver; });
         };
-        // Greyed out under Power Saver, still ticking the user's choice.
         auto fps_item = [this](const char* label, int fps) {
             return MI::leaf(label,
                 [this, fps]{ setTargetFps(fps); },
