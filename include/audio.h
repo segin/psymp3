@@ -72,6 +72,9 @@ public:
 
     std::mutex& getFFTMutex() const { return m_fft_mutex; }
 
+    /** @brief Whether the callback computes the spectrum of what it plays (off under Power Saver). */
+    void setFFTEnabled(bool on) { m_fft_enabled.store(on, std::memory_order_relaxed); }
+
     /// Read up to @p max_samples (0: half a second) from @p stream ahead of
     /// playback, in whole frames. Returns the samples and whether the stream
     /// ended.
@@ -140,6 +143,7 @@ private:
     int m_device_channels = 0;
     SDL_AudioStream* m_stream = nullptr;  // SDL3: owns the bound playback device
     std::atomic<float> m_volume{1.0f};
+    std::atomic<bool> m_fft_enabled{true};
     std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};
     std::atomic<bool> m_stream_eof{false};

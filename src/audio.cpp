@@ -607,7 +607,8 @@ void SDLCALL Audio::callback(void *userdata, SDL_AudioStream *stream,
     // above, so the FFT sees real silence and the spectrum decays instead of
     // freezing on the last frame. (The callback only runs while the device is
     // unpaused, i.e. during active playback.)
-    if (self->m_channels > 0) { // Always compute FFT, regardless of GUI state
+    // Power Saver turns it off, as nothing shows the spectrum then.
+    if (self->m_channels > 0 && self->m_fft_enabled.load(std::memory_order_relaxed)) {
         std::lock_guard<std::mutex> lock(self->m_fft_mutex);
         // Convert only the frames SDL actually handed us (the whole `len`-byte
         // buffer, data + silence), never the full FFT window — SDL may negotiate
