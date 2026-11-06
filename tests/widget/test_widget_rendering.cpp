@@ -341,18 +341,23 @@ protected:
         // A toast fades in over FADE_IN_MS and is therefore fully transparent
         // at the moment it is constructed, by design. Asserting it is visible
         // before the entrance has run asserts the opposite of what the widget
-        // is specified to do, so wait the fade out first.
+        // is specified to do, so wait the fade out first. Each frame ticks
+        // the toast before composing it (ApplicationWidget::updateWindows()),
+        // and the blit draws the fade as of that tick, so do the same here.
         SDL_Delay(ToastWidget::FADE_IN_MS + 40);
+        toast.tick();
         toast.BlitTo(target);
         ASSERT_TRUE(countNonTransparentPixels(toast) > 0,
                     "A toast should be fully visible once its fade-in has finished");
 
         toast.beginDismiss(ToastWidget::CROSSFADE_MS);
+        toast.tick();
         toast.BlitTo(target);
         ASSERT_TRUE(countNonTransparentPixels(toast) > 0,
                     "A toast beginning dismissal should remain visible during the crossfade");
 
         SDL_Delay(ToastWidget::CROSSFADE_MS + 40);
+        toast.tick();
         toast.BlitTo(target);
         ASSERT_TRUE(countNonTransparentPixels(toast) == 0,
                     "A toast should become fully transparent after its fade-out finishes");
