@@ -49,9 +49,8 @@ MPRIS; on macOS, PsyMP3 does the same through Now Playing.
   CPU with SSE2) and `winxp64` (XP x64 and Server 2003 x64)
 
 ### macOS
-- macOS 14 (Sonoma) or later on Apple Silicon, macOS 15 (Sequoia) or later
-  on Intel. These are the oldest versions the Homebrew libraries bundled into
-  the app support.
+- macOS 15 (Sequoia) or later, on Apple Silicon or Intel. This is the oldest
+  version the Homebrew libraries bundled into the app support.
 - Official builds are a universal `PsyMP3.app` in a `.dmg`, built by the
   [macOS app](.github/workflows/macos.yml) workflow. The app is not signed with
   a Developer ID or notarized, so the first time you open it, macOS refuses;
@@ -220,7 +219,7 @@ built by hand with `makepkg`:
 | `.rpm` | Fedora, openSUSE Tumbleweed |
 | `.pkg.tar.zst` | Arch Linux (`package/arch/PKGBUILD`) |
 | `.AppImage` | any x86_64 distribution with glibc 2.35 or later (Ubuntu 22.04, Linux Mint 21, and newer) |
-| `.dmg` | macOS: a `PsyMP3.app` for Apple Silicon (macOS 14+) and Intel (macOS 15+) |
+| `.dmg` | macOS: a `PsyMP3.app` for Apple Silicon and Intel (macOS 15+) |
 
 ```bash
 ./package/dpkg/build-deb.sh      # -> package/dpkg/out/*.deb
