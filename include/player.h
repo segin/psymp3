@@ -721,6 +721,34 @@ class Player
         void togglePowerSaver();
         /** @brief Whether the cover takes the spectrum's place: Album Art Mode, or Power Saver, which holds it on. */
         bool albumArtModeShown() const { return m_album_art_mode || m_power_saver; }
+        /** @brief Whether the spectrum can be seen: not behind the cover, and the window not minimized, hidden or covered. */
+        bool spectrumShown() const { return !albumArtModeShown() && !m_window_hidden; }
+        /** @brief Has the audio callback compute the spectrum only while spectrumShown(). */
+        void applySpectrumFeed();
+        /** @brief Gives the audio its Power Saver buffering: a larger device buffer and a decoder that reads ahead in bursts. */
+        void applyAudioPowerSaver();
+
+        /*
+         * Frame pacing. With nothing moving on screen, frames come every
+         * kIdleFrameMs instead of at the frame rate in effect: under Power
+         * Saver, while paused or stopped, and while the window cannot be
+         * seen. Anything that moves (a toast, the pause bubble's fade,
+         * scrolling text, the playing spectrum, a held seek key or mouse
+         * button, input in the last kActiveAfterInputMs) or the last
+         * kActiveBeforeEndMs of a track, for a prompt change of tracks,
+         * brings the full rate back; input does so at once.
+         */
+        static constexpr Uint32 kIdleFrameMs = 250;
+        static constexpr Uint32 kActiveAfterInputMs = 1000;
+        static constexpr unsigned long kActiveBeforeEndMs = 2000;
+        bool m_frame_idle = false;      // pacing at kIdleFrameMs now
+        Uint32 m_last_input_ms = 0;     // last event other than the frame tick
+        bool m_window_hidden = false;   // minimized, hidden or covered: nothing is drawn
+        bool m_pause_fading = false;    // the pause bubble is part way through a fade
+        /** @brief Decides from this frame whether the next ones can come at kIdleFrameMs, and switches the timer if that changed. */
+        void updateFramePacing(bool animating, unsigned long pos_ms, unsigned long total_ms);
+        /** @brief Notes input, and if frames were idle, brings the full rate back and runs a frame at once. */
+        void noteInput();
         void toggleEqualizerWindow();
         void toggleLastFmCredentialsWindow();
         void toggleMediaInfoWindow();
