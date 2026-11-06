@@ -31,7 +31,7 @@ jobs:
           # the macOS it runs on, and the bundled libraries set the oldest
           # macOS each half will start on.
           - arch: arm64
-            runner: macos-14
+            runner: macos-15
           - arch: x86_64
             runner: macos-15-intel
     runs-on: ${{ matrix.runner }}
@@ -60,7 +60,7 @@ jobs:
   universal:
     name: PsyMP3.app (universal)
     needs: app
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
     - uses: actions/checkout@v7
 
