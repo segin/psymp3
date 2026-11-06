@@ -368,6 +368,13 @@ void ApplicationWidget::updateWindows()
     }
 }
 
+bool ApplicationWidget::hasToasts() const
+{
+    return std::any_of(m_windows.begin(), m_windows.end(), [](const std::unique_ptr<Widget>& window) {
+        return dynamic_cast<const ToastWidget*>(window.get()) != nullptr;
+    });
+}
+
 void ApplicationWidget::removeAllToasts(int fade_out_ms)
 {
     damageAll();
