@@ -10,7 +10,7 @@ dist_data_DATA = vera.ttf extra.ttf psymp3.rgba
 # Windows resource files
 if HAVE_WINDRES
 noinst_DATA = psymp3.res
-psymp3.res: psymp3.rc psymp3.ico music.ico xpmanifest.xml
+psymp3.res: psymp3.rc psymp3.ico music.ico xpmanifest.xml vera.ttf extra.ttf
 	$(WINDRES) $(srcdir)/psymp3.rc -O coff -o psymp3.res
 endif
 
