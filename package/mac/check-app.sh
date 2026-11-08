@@ -49,6 +49,8 @@ fi
 cat "$log"
 grep -q "PsyMP3.app/Contents/Resources/data/vera.ttf" "$log" \
     || { echo "check-app.sh: the font was not loaded from the bundle" >&2; exit 1; }
+grep -q "addFallback: added .*PsyMP3.app/Contents/Resources/data/extra.ttf" "$log" \
+    || { echo "check-app.sh: the CJK fallback font was not loaded from the bundle" >&2; exit 1; }
 grep -q "font->isValid(): 1" "$log" \
     || { echo "check-app.sh: the font did not load" >&2; exit 1; }
 rm -f "$log"
