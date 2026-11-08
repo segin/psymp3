@@ -439,33 +439,39 @@ overlapping glyph boxes so the stroke that joins one letter to the next
 survives instead of being overwritten by its neighbour. Hebrew and N'Ko read
 right to left.
 
-Scripts that DejaVu Sans does not cover draw as empty boxes — Chinese,
-Japanese and Korean are the most common example, along with many Indic and
-Southeast Asian scripts, among others — until you give PsyMP3 a second font.
+Chinese, Japanese and Korean, which DejaVu Sans does not cover, come from a
+second bundled font, `extra.ttf`: Noto Sans CJK JP, cut down to the CJK
+ideographs, Kana and Hangul (SIL Open Font License 1.1). Han characters take
+their Japanese forms. Scripts that neither font covers, such as many Indic and
+Southeast Asian ones, draw as empty boxes until you give PsyMP3 a different
+`extra.ttf`.
 
-### Adding languages with `extra.ttf`
+### Changing languages with `extra.ttf`
 
-`extra.ttf` is an optional second font. PsyMP3 uses it for any character
-`vera.ttf` cannot draw, so a single file can add whichever languages you need.
-Any TrueType or OpenType font works; a family with broad coverage, such as
-Noto, covers most scripts at once. Without an `extra.ttf`, nothing changes.
+`extra.ttf` is the second font. PsyMP3 uses it for any character `vera.ttf`
+cannot draw, so a single file decides which further languages you get. Any
+TrueType or OpenType font works; a family with broad coverage, such as Noto,
+covers most scripts at once. Your own `extra.ttf` takes the place of the
+bundled one, so pick a font that also covers Chinese, Japanese and Korean if
+you still want them.
 
-Where PsyMP3 looks for it:
+Where PsyMP3 looks for it, in order:
 
 | Platform | Location |
 |---|---|
-| Windows | next to `psymp3.exe`; otherwise `extra.ttf` or `res\extra.ttf` in the working directory |
+| Windows | next to `psymp3.exe`; otherwise `extra.ttf` or `res\extra.ttf` in the working directory; otherwise the copy built into the executable |
 | Linux/BSD | the installed data directory, `$(prefix)/share/psymp3/data/extra.ttf` (`/usr/local/share/psymp3/data` for a default install); otherwise `res/extra.ttf` in the working directory, for running from the source tree |
+| macOS | `PsyMP3.app/Contents/Resources/data/extra.ttf` |
 
-On Linux/BSD the environment variable `PSYMP3_DATADIR`, when set, names the
-data directory in place of the installed one. The AppImage sets it to the copy
-inside itself, which cannot be written to, so with the AppImage use
-`res/extra.ttf` in the working directory or point `PSYMP3_DATADIR` at a
-directory of your own holding `vera.ttf`, `psymp3.rgba` and your `extra.ttf`.
+On Linux/BSD and macOS the environment variable `PSYMP3_DATADIR`, when set,
+names the data directory in place of the installed one. The AppImage sets it
+to the copy inside itself, which cannot be written to, so to use a different
+`extra.ttf` with the AppImage, point `PSYMP3_DATADIR` at a directory of your
+own holding `vera.ttf`, `psymp3.rgba` and your `extra.ttf`.
 
 How it works alongside `vera.ttf`:
 
-- **It adds to the bundled font rather than replacing it.** On Windows that
+- **It adds to `vera.ttf` rather than replacing it.** On Windows that
   includes the copy of `vera.ttf` built into the executable, so no rebuild is
   needed.
 - **Anything `vera.ttf` can draw keeps `vera.ttf`**, so adding a font for one
