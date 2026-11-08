@@ -1,9 +1,11 @@
 datadir=$(prefix)/share/psymp3/data
-# vera.ttf: embedded UI font. psymp3.rgba: raw RGBA8888 (128x128) of the app
-# icon, loaded at runtime for the SDL window icon on Unix (no PNG decoder needed).
+# vera.ttf: embedded UI font. extra.ttf: CJK, Kana and Hangul fallback font
+# (a Noto Sans CJK subset, see scripts/subset-extra-font.sh). psymp3.rgba: raw
+# RGBA8888 (128x128) of the app icon, loaded at runtime for the SDL window icon
+# on Unix (no PNG decoder needed).
 # dist_ prefix: plain _DATA primaries are installed but NOT distributed, which
 # broke `make distcheck` (vera.ttf absent from the tarball).
-dist_data_DATA = vera.ttf psymp3.rgba
+dist_data_DATA = vera.ttf extra.ttf psymp3.rgba
 
 # Windows resource files
 if HAVE_WINDRES
