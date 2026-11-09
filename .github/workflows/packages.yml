@@ -102,7 +102,7 @@ jobs:
         DEBIAN_FRONTEND=noninteractive apt-get install -y ./package/dpkg/out/*.deb
         psymp3 --version
         test -f /usr/share/psymp3/data/vera.ttf
-        test -f /usr/share/psymp3/data/extra.ttf
+        test -f /usr/share/psymp3/data/notocjk.ttf
         test -f /usr/share/applications/psymp3.desktop
         test -f /usr/share/icons/hicolor/48x48/apps/psymp3.png
 
@@ -192,7 +192,7 @@ jobs:
         fi
         psymp3 --version
         test -f /usr/share/psymp3/data/vera.ttf
-        test -f /usr/share/psymp3/data/extra.ttf
+        test -f /usr/share/psymp3/data/notocjk.ttf
         test -f /usr/share/applications/psymp3.desktop
         test -f /usr/share/icons/hicolor/48x48/apps/psymp3.png
 
@@ -245,7 +245,7 @@ jobs:
                   stdbuf -oL "/a/$APPIMAGE_NAME" --debug=font 2>&1 || true)
             printf "%s\n" "$out"
             printf "%s\n" "$out" | grep -q "usr/share/psymp3/data/vera.ttf"
-            printf "%s\n" "$out" | grep -q "addFallback: added .*usr/share/psymp3/data/extra.ttf"
+            printf "%s\n" "$out" | grep -q "addFallback: added .*usr/share/psymp3/data/notocjk.ttf"
             printf "%s\n" "$out" | grep -q "font->isValid(): 1"
           '
 
@@ -308,7 +308,7 @@ jobs:
                 io.github.segin.psymp3 --debug=font 2>&1 || true)
           printf "%s\n" "$out"
           printf "%s\n" "$out" | grep -q "/app/share/psymp3/data/vera.ttf"
-          printf "%s\n" "$out" | grep -q "addFallback: added /app/share/psymp3/data/extra.ttf"
+          printf "%s\n" "$out" | grep -q "addFallback: added /app/share/psymp3/data/notocjk.ttf"
           printf "%s\n" "$out" | grep -q "font->isValid(): 1"
         '
 
