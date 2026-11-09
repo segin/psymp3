@@ -479,16 +479,98 @@ TagLib::String System::getHome() {
 #endif
 }
 
-/* This function returns the storage path. This is determined based on
- * the %AppData% environment variable on Windows, and the $HOME
- * environment variable on Unix.
+#ifndef _WIN32
+namespace {
+
+/**
+ * @brief Returns `$<var>/psymp3` when the variable is set and non-empty,
+ *        otherwise `~/.config/psymp3`.
  */
+std::string xdgConfigPsymp3(const char *var) {
+  const char *dir = getenv(var);
+  if (dir && *dir) {
+    return std::string(dir) + "/psymp3";
+  }
+  return System::getHome().to8Bit(true) + "/.config/psymp3";
+}
+
+#ifdef __APPLE__
+/**
+ * @brief Moves settings an older PsyMP3 kept under `~/.config/psymp3` (or
+ *        `$XDG_CONFIG_HOME/psymp3`) to `~/Library/Application Support/PsyMP3`.
+ *
+ * Only when the new folder does not exist yet, so it happens once. A failed
+ * move leaves the old folder where it was.
+ */
+void migrateMacStorage(const std::string &target) {
+  std::error_code ec;
+  if (std::filesystem::exists(target, ec)) {
+    return;
+  }
+  const std::string old = xdgConfigPsymp3("XDG_CONFIG_HOME");
+  if (!std::filesystem::is_directory(old, ec)) {
+    return;
+  }
+  std::filesystem::create_directories(
+      std::filesystem::path(target).parent_path(), ec);
+  std::filesystem::rename(old, target, ec);
+  if (ec) {
+    Debug::log("system", "Could not move ", old, " to ", target, ": ",
+               ec.message());
+  } else {
+    Debug::log("system", "Moved settings from ", old, " to ", target);
+  }
+}
+#else
+/**
+ * @brief Copies settings an earlier PsyMP3 Flatpak kept in its sandbox
+ *        (`~/.var/app/<id>/config/psymp3`) to the host's folder.
+ *
+ * Only when the host folder is missing or empty, so settings an installed
+ * PsyMP3 already has are never mixed with or overwritten by the Flatpak's.
+ * The sandbox copy is left in place.
+ */
+void migrateFlatpakStorage(const std::string &target) {
+  std::error_code ec;
+  const std::string old = xdgConfigPsymp3("XDG_CONFIG_HOME");
+  if (old == target || !std::filesystem::is_directory(old, ec) ||
+      std::filesystem::is_empty(old, ec)) {
+    return;
+  }
+  if (std::filesystem::exists(target, ec) &&
+      !std::filesystem::is_empty(target, ec)) {
+    return;
+  }
+  std::filesystem::create_directories(target, ec);
+  std::filesystem::copy(old, target,
+                        std::filesystem::copy_options::recursive |
+                            std::filesystem::copy_options::skip_existing,
+                        ec);
+  if (ec) {
+    Debug::log("system", "Could not copy ", old, " to ", target, ": ",
+               ec.message());
+  } else {
+    Debug::log("system", "Copied Flatpak settings from ", old, " to ", target);
+  }
+}
+#endif
+
+} // namespace
+#endif
 
 /**
  * @brief Returns the path where PsyMP3 stores its configuration and data.
  *
- * On Windows: `%%APPDATA%%\PsyMP3`. On POSIX: `$XDG_CONFIG_HOME/psymp3`
- * (or `~/.config/psymp3` if `XDG_CONFIG_HOME` is unset).
+ * - Windows: `%%APPDATA%%\PsyMP3`.
+ * - macOS: `~/Library/Application Support/PsyMP3`. Settings from an older
+ *   PsyMP3 in `~/.config/psymp3` are moved there the first time.
+ * - Flatpak: the host's `~/.config/psymp3` (`$HOST_XDG_CONFIG_HOME/psymp3`
+ *   when the host sets it), the same folder as an installed PsyMP3; the
+ *   manifest grants `xdg-config/psymp3`. Flatpak points `XDG_CONFIG_HOME`
+ *   into the sandbox, so it is not used, and settings an earlier Flatpak kept
+ *   there are copied over the first time.
+ * - Other POSIX: `$XDG_CONFIG_HOME/psymp3`, or `~/.config/psymp3` when it is
+ *   unset.
  *
  * @return Storage path as a `TagLib::String`.
  */
@@ -500,14 +582,21 @@ TagLib::String System::getStoragePath() {
   spath = env; // Changed this line, it was not returning from the right spot.
   spath += L"\\PsyMP3";
   return spath;
+#elif defined(__APPLE__)
+  const std::string path =
+      getHome().to8Bit(true) + "/Library/Application Support/PsyMP3";
+  static std::once_flag migrated;
+  std::call_once(migrated, migrateMacStorage, path);
+  return TagLib::String(path, TagLib::String::UTF8);
 #else
-  // Use XDG config directory for unified storage
-  const char *xdg_config = getenv("XDG_CONFIG_HOME");
-  if (xdg_config && strlen(xdg_config) > 0) {
-    return TagLib::String(xdg_config, TagLib::String::UTF8) + "/psymp3";
-  } else {
-    return getHome() + "/.config/psymp3";
+  const char *flatpak_id = getenv("FLATPAK_ID");
+  if (flatpak_id && *flatpak_id) {
+    const std::string path = xdgConfigPsymp3("HOST_XDG_CONFIG_HOME");
+    static std::once_flag migrated;
+    std::call_once(migrated, migrateFlatpakStorage, path);
+    return TagLib::String(path, TagLib::String::UTF8);
   }
+  return TagLib::String(xdgConfigPsymp3("XDG_CONFIG_HOME"), TagLib::String::UTF8);
 #endif
 }
 

@@ -6,7 +6,12 @@
 
 int main() {
     const char* test_root = "/tmp/psymp3_test_perms";
+#ifdef __APPLE__
+    const char* storage_path =
+        "/tmp/psymp3_test_perms/Library/Application Support/PsyMP3";
+#else
     const char* storage_path = "/tmp/psymp3_test_perms/psymp3";
+#endif
 
     // Clean up from previous runs if any
     system("rm -rf /tmp/psymp3_test_perms");
@@ -16,6 +21,8 @@ int main() {
     }
 
     setenv("XDG_CONFIG_HOME", test_root, 1);
+    setenv("HOME", test_root, 1); // macOS keeps settings under ~/Library
+    unsetenv("FLATPAK_ID");
 
     std::cout << "Target storage path: " << System::getStoragePath().to8Bit(true) << std::endl;
 
