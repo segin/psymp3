@@ -35,11 +35,11 @@ Files: res/vera.ttf
 Copyright: 2003 Bitstream, Inc.
 License: Bitstream-Vera
 
-Files: res/extra.ttf
+Files: res/notocjk.ttf
 Copyright: 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'
 License: OFL-1.1
 Comment: A subset of Noto Sans CJK JP Regular 2.004, made by
- scripts/subset-extra-font.sh.
+ scripts/subset-notocjk-font.sh.
 
 License: ISC
  Permission to use, copy, modify, and/or distribute this software for any

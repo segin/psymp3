@@ -1,16 +1,18 @@
 datadir=$(prefix)/share/psymp3/data
-# vera.ttf: embedded UI font. extra.ttf: CJK, Kana and Hangul fallback font
-# (a Noto Sans CJK subset, see scripts/subset-extra-font.sh). psymp3.rgba: raw
+# vera.ttf: embedded UI font. notocjk.ttf: CJK, Kana and Hangul fallback font
+# (a Noto Sans CJK subset, see scripts/subset-notocjk-font.sh). It is not named
+# extra.ttf: that name is the user's own optional font, which may sit in this
+# directory too, and a package must never install over it. psymp3.rgba: raw
 # RGBA8888 (128x128) of the app icon, loaded at runtime for the SDL window icon
 # on Unix (no PNG decoder needed).
 # dist_ prefix: plain _DATA primaries are installed but NOT distributed, which
 # broke `make distcheck` (vera.ttf absent from the tarball).
-dist_data_DATA = vera.ttf extra.ttf psymp3.rgba
+dist_data_DATA = vera.ttf notocjk.ttf psymp3.rgba
 
 # Windows resource files
 if HAVE_WINDRES
 noinst_DATA = psymp3.res
-psymp3.res: psymp3.rc psymp3.ico music.ico xpmanifest.xml vera.ttf extra.ttf
+psymp3.res: psymp3.rc psymp3.ico music.ico xpmanifest.xml vera.ttf notocjk.ttf
 	$(WINDRES) $(srcdir)/psymp3.rc -O coff -o psymp3.res
 endif
 
