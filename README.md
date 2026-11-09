@@ -383,9 +383,16 @@ revoke PsyMP3's access on Last.fm, enter your password again under
 **Settings → Last.fm Credentials...**.
 
 Configuration lives in:
-- **Linux/Unix and macOS**: `~/.config/psymp3/lastfm.conf` (or under
-  `$XDG_CONFIG_HOME/psymp3/` when that is set)
+- **Linux/BSD, including the Flatpak and AppImage**: `~/.config/psymp3/lastfm.conf`
+  (or under `$XDG_CONFIG_HOME/psymp3/` when that is set)
+- **macOS**: `~/Library/Application Support/PsyMP3/lastfm.conf`
 - **Windows**: `%APPDATA%\PsyMP3\lastfm.conf`
+
+The Flatpak shares this folder with an installed PsyMP3. Settings an earlier
+Flatpak kept in `~/.var/app/io.github.segin.psymp3/config/psymp3` are copied
+over the first time, when `~/.config/psymp3` is still empty. On macOS,
+settings an earlier PsyMP3 kept in `~/.config/psymp3` are moved to
+`~/Library/Application Support/PsyMP3` the first time.
 
 and can also be created by hand:
 ```ini
@@ -460,8 +467,8 @@ which takes any number of fonts and which no install or upgrade touches:
 | Platform | Fonts folder |
 |---|---|
 | Windows | `%APPDATA%\PsyMP3\fonts` |
-| Linux/BSD, macOS, AppImage | `$XDG_CONFIG_HOME/psymp3/fonts`, which is `~/.config/psymp3/fonts` when `XDG_CONFIG_HOME` is unset |
-| Flatpak | `~/.var/app/io.github.segin.psymp3/config/psymp3/fonts` |
+| Linux/BSD, Flatpak, AppImage | `$XDG_CONFIG_HOME/psymp3/fonts`, which is `~/.config/psymp3/fonts` when `XDG_CONFIG_HOME` is unset |
+| macOS | `~/Library/Application Support/PsyMP3/fonts` |
 
 Create the folder if it isn't there. Fonts in it are used in order of file
 name, so where two cover the same characters, the one whose name sorts first
