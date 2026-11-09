@@ -22,6 +22,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # The runner image the toolchain is built on and used on. llvm-mingw's
+  # binaries link the host's shared libraries (libxml2 among them), so a
+  # toolchain cached on one Ubuntu does not start on the next: 24.04's needs
+  # libxml2.so.2, which 26.04 does not have. The image is named outright,
+  # not as ubuntu-latest, so both jobs land on the same one, and it is part
+  # of the cache key, so moving to a new image rebuilds the toolchain.
+  RUNNER_IMAGE: "ubuntu-26.04"
   LLVM_MINGW_TAG: "20260826"
   # Bump DEPS_REV to force a dependency-stack rebuild without version changes.
   DEPS_REV: "2"
@@ -40,14 +47,14 @@ env:
 jobs:
   toolchain:
     name: llvm-mingw toolchain
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 330
     outputs:
       cache-key: ${{ steps.key.outputs.key }}
     steps:
     - name: Compute cache key
       id: key
-      run: echo "key=llvm-mingw-${LLVM_MINGW_TAG}-ucrt-3arch-v1" >> "$GITHUB_OUTPUT"
+      run: echo "key=llvm-mingw-${LLVM_MINGW_TAG}-${RUNNER_IMAGE}-ucrt-3arch-v1" >> "$GITHUB_OUTPUT"
 
     - name: Check toolchain cache
       id: cache
@@ -78,7 +85,7 @@ jobs:
   windows:
     name: PsyMP3 ${{ matrix.arch }}
     needs: toolchain
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 150
     strategy:
       fail-fast: false
