@@ -254,6 +254,7 @@ EXTRA_DIST = \
 	scripts/analyze_threading_safety.py \
 	scripts/check_threading_patterns.py \
 	scripts/gen-third-party-licenses.sh \
+	scripts/subset-extra-font.sh \
 	third_party/alac/ALACAudioTypes.h \
 	third_party/alac/ALACBitUtilities.c \
 	third_party/alac/ALACBitUtilities.h \

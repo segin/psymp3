@@ -76,10 +76,11 @@ static bool readFileW(const std::wstring& path, std::vector<uint8_t>& out)
 // default. Always returns a non-null Font (an invalid one as last resort) so
 // callers keep the "font is never null" invariant. The file Font ctor throws,
 // so those attempts are guarded. (Windows only — Linux loads from the data dir.)
-// Adds extra.ttf as a fallback face if one is on disk. It supplements whichever
-// vera.ttf was chosen -- including the copy embedded in the executable, so a
-// user can add scripts DejaVu lacks (CJK, Kana, Hangul) by dropping one file
-// beside the exe, without replacing the bundled font.
+// Adds extra.ttf as a fallback face for the scripts DejaVu lacks (CJK, Kana,
+// Hangul). It supplements whichever vera.ttf was chosen. Like vera.ttf, a copy
+// on disk -- beside the exe, then in the working directory -- wins over the one
+// embedded in the exe (RCDATA IDR_EXTRA_TTF = 2001), so a user can swap in a
+// font of their own by dropping one file beside the exe.
 void addExtraFont(Font& font)
 {
     HMODULE mod = GetModuleHandleW(nullptr);
@@ -98,6 +99,16 @@ void addExtraFont(Font& font)
     for (const char* path : {"./extra.ttf", "./res/extra.ttf"}) {
         if (font.addFallback(TagLib::String(path))) {
             return;
+        }
+    }
+    if (HRSRC res = FindResourceW(mod, MAKEINTRESOURCEW(2001),
+                                  reinterpret_cast<LPCWSTR>(RT_RCDATA))) {
+        if (HGLOBAL h = LoadResource(mod, res)) {
+            const void* data = LockResource(h);
+            DWORD size = SizeofResource(mod, res);
+            if (data && size) {
+                font.addFallback(static_cast<const uint8_t*>(data), static_cast<size_t>(size));
+            }
         }
     }
 }
