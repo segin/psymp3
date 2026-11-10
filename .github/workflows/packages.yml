@@ -285,16 +285,25 @@ jobs:
     - name: Build Flatpak
       run: |
         set -eux
+        # A release tag is a stable build, anything else a 2-CURRENT one: the
+        # Flatpak branch says which, so a release never installs as "master".
+        case "$GITHUB_REF" in
+          refs/tags/*-RELEASE) branch=stable ;;
+          *) branch=master ;;
+        esac
         flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse \
+          --default-branch="$branch" \
           --repo=package/flatpak/repo package/flatpak/build package/flatpak/io.github.segin.psymp3.yml
         mkdir -p package/flatpak/out
         flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
-          package/flatpak/repo package/flatpak/out/psymp3.flatpak io.github.segin.psymp3
+          package/flatpak/repo package/flatpak/out/psymp3.flatpak io.github.segin.psymp3 "$branch"
+        echo "FLATPAK_BRANCH=$branch" >> "$GITHUB_ENV"
 
     - name: Verify the Flatpak runs
       run: |
         set -eux
         flatpak install --user -y --noninteractive package/flatpak/out/psymp3.flatpak
+        flatpak info --user io.github.segin.psymp3 | grep -E "^ *Branch: $FLATPAK_BRANCH\$"
         # flatpak run needs a session bus, which a runner does not have.
         # As for the AppImage: started on SDL's dummy drivers and stopped after
         # a few seconds, it must have found its font in the app's own data.
