@@ -383,9 +383,16 @@ revoke PsyMP3's access on Last.fm, enter your password again under
 **Settings → Last.fm Credentials...**.
 
 Configuration lives in:
-- **Linux/Unix and macOS**: `~/.config/psymp3/lastfm.conf` (or under
-  `$XDG_CONFIG_HOME/psymp3/` when that is set)
+- **Linux/BSD, including the Flatpak and AppImage**: `~/.config/psymp3/lastfm.conf`
+  (or under `$XDG_CONFIG_HOME/psymp3/` when that is set)
+- **macOS**: `~/Library/Application Support/PsyMP3/lastfm.conf`
 - **Windows**: `%APPDATA%\PsyMP3\lastfm.conf`
+
+The Flatpak shares this folder with an installed PsyMP3. Settings an earlier
+Flatpak kept in `~/.var/app/io.github.segin.psymp3/config/psymp3` are copied
+over the first time, when `~/.config/psymp3` is still empty. On macOS,
+settings an earlier PsyMP3 kept in `~/.config/psymp3` are moved to
+`~/Library/Application Support/PsyMP3` the first time.
 
 and can also be created by hand:
 ```ini
@@ -440,45 +447,58 @@ survives instead of being overwritten by its neighbour. Hebrew and N'Ko read
 right to left.
 
 Chinese, Japanese and Korean, which DejaVu Sans does not cover, come from a
-second bundled font, `extra.ttf`: Noto Sans CJK JP, cut down to the CJK
+second bundled font, `notocjk.ttf`: Noto Sans CJK JP, cut down to the CJK
 ideographs, Kana and Hangul (SIL Open Font License 1.1). Han characters take
 their Japanese forms. Scripts that neither font covers, such as many Indic and
-Southeast Asian ones, draw as empty boxes until you give PsyMP3 a different
-`extra.ttf`.
+Southeast Asian ones, draw as empty boxes until you add fonts of your own.
 
-### Changing languages with `extra.ttf`
+### Adding languages with your own fonts
 
-`extra.ttf` is the second font. PsyMP3 uses it for any character `vera.ttf`
-cannot draw, so a single file decides which further languages you get. Any
-TrueType or OpenType font works; a family with broad coverage, such as Noto,
-covers most scripts at once. Your own `extra.ttf` takes the place of the
-bundled one, so pick a font that also covers Chinese, Japanese and Korean if
-you still want them.
+PsyMP3 uses your fonts for any character `vera.ttf` cannot draw, ahead of the
+bundled `notocjk.ttf`, which still supplies Chinese, Japanese and Korean for
+anything your fonts lack. So a font for one script, such as Noto Sans Thai or
+Noto Sans Devanagari, adds that script and takes nothing away. Any TrueType or
+OpenType font works (`.ttf`, `.otf`, `.ttc`, `.otc`). Without fonts of your
+own, nothing changes.
 
-Where PsyMP3 looks for it, in order:
+The easiest place for them is the `fonts` folder beside PsyMP3's settings,
+which takes any number of fonts and which no install or upgrade touches:
+
+| Platform | Fonts folder |
+|---|---|
+| Windows | `%APPDATA%\PsyMP3\fonts` |
+| Linux/BSD, Flatpak, AppImage | `$XDG_CONFIG_HOME/psymp3/fonts`, which is `~/.config/psymp3/fonts` when `XDG_CONFIG_HOME` is unset |
+| macOS | `~/Library/Application Support/PsyMP3/fonts` |
+
+Create the folder if it isn't there. Fonts in it are used in order of file
+name, so where two cover the same characters, the one whose name sorts first
+wins.
+
+A single font named `extra.ttf` also works, as in earlier versions, and comes
+ahead of the fonts folder. Where PsyMP3 looks for it, in order:
 
 | Platform | Location |
 |---|---|
-| Windows | next to `psymp3.exe`; otherwise `extra.ttf` or `res\extra.ttf` in the working directory; otherwise the copy built into the executable |
-| Linux/BSD | the installed data directory, `$(prefix)/share/psymp3/data/extra.ttf` (`/usr/local/share/psymp3/data` for a default install); otherwise `res/extra.ttf` in the working directory, for running from the source tree |
-| macOS | `PsyMP3.app/Contents/Resources/data/extra.ttf` |
+| Windows | next to `psymp3.exe`; otherwise `extra.ttf` or `res\extra.ttf` in the working directory |
+| Linux/BSD | the installed data directory, `$(prefix)/share/psymp3/data/extra.ttf` (`/usr/local/share/psymp3/data` for a default install); otherwise `res/extra.ttf` in the working directory |
+| macOS | `PsyMP3.app/Contents/Resources/data/extra.ttf`; otherwise `res/extra.ttf` in the working directory |
 
-On Linux/BSD and macOS the environment variable `PSYMP3_DATADIR`, when set,
-names the data directory in place of the installed one. The AppImage sets it
-to the copy inside itself, which cannot be written to, so to use a different
-`extra.ttf` with the AppImage, point `PSYMP3_DATADIR` at a directory of your
-own holding `vera.ttf`, `psymp3.rgba` and your `extra.ttf`.
+No package installs a file named `extra.ttf`, so one you put in the data
+directory survives upgrades. On Linux/BSD and macOS the environment variable
+`PSYMP3_DATADIR`, when set, names the data directory in place of the
+installed one. The AppImage sets it to the copy inside itself, which cannot be
+written to, so with the AppImage use the fonts folder.
 
-How it works alongside `vera.ttf`:
+How your fonts work alongside `vera.ttf`:
 
-- **It adds to `vera.ttf` rather than replacing it.** On Windows that
+- **They add to `vera.ttf` rather than replacing it.** On Windows that
   includes the copy of `vera.ttf` built into the executable, so no rebuild is
   needed.
 - **Anything `vera.ttf` can draw keeps `vera.ttf`**, so adding a font for one
   language does not restyle the rest of the interface.
 - **One exception: scripts that are shaped or reordered.** For right-to-left
   scripts such as Arabic and Hebrew, and scripts that combine or rearrange
-  characters, such as the Indic ones, `extra.ttf` is used wherever it covers
+  characters, such as the Indic ones, your fonts are used wherever they cover
   the script, even for characters `vera.ttf` also has. A font added for one
   language can therefore change how those scripts look, if it happens to cover
   them too. They render correctly with DejaVu Sans alone, so this changes which

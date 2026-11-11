@@ -43,6 +43,53 @@ bool widgetBelongsToWindow(const Widget* candidate, const WindowFrameWidget* win
     return false;
 }
 
+/**
+ * @brief Adds every font in the user's own fonts folder as a fallback face.
+ *
+ * The folder is `fonts` in PsyMP3's storage path: `%APPDATA%\PsyMP3\fonts` on
+ * Windows, `$XDG_CONFIG_HOME/psymp3/fonts` (`~/.config/psymp3/fonts`)
+ * elsewhere. It lives outside the install, so no package upgrade can replace
+ * or collide with it, and unlike extra.ttf it takes any number of fonts: one
+ * per script, which is how Noto ships them. They are added after extra.ttf and
+ * before the bundled notocjk.ttf, so each comes ahead of notocjk.ttf for the
+ * codepoints it covers, while notocjk.ttf still supplies CJK, Kana and Hangul
+ * for the rest. Files are taken in name order, so a user can rank
+ * overlapping fonts by naming them.
+ *
+ * @param font The font to add the faces to.
+ */
+void addUserFonts(Font& font)
+{
+    const std::filesystem::path dir =
+        System::pathFromUtf8(System::getStoragePath().to8Bit(true) + "/fonts");
+    std::error_code ec;
+    std::vector<std::filesystem::path> files;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if ((ext == ".ttf" || ext == ".otf" || ext == ".ttc" || ext == ".otc") &&
+            entry.is_regular_file(ec)) {
+            files.push_back(entry.path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    for (const auto& path : files) {
+#if defined(_WIN32)
+        // FreeType opens files through the narrow API, which cannot reach a
+        // non-ASCII path on Windows; read it through a wide path instead.
+        const std::string name = TagLib::String(path.wstring()).to8Bit(true);
+        std::ifstream in(path, std::ios::binary);
+        std::vector<uint8_t> buf((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        const bool added = !buf.empty() && font.addFallback(buf.data(), buf.size());
+#else
+        const std::string name = path.string();
+        const bool added = font.addFallback(TagLib::String(name, TagLib::String::UTF8));
+#endif
+        Debug::log("font", added ? "addUserFonts: added " : "addUserFonts: could not load ", name);
+    }
+}
+
 #if defined(_WIN32)
 // Read a whole file addressed by a wide path into `out`. Uses the wide Win32
 // file API so non-ASCII install paths work (FreeType's narrow FT_New_Face path
@@ -76,14 +123,23 @@ static bool readFileW(const std::wstring& path, std::vector<uint8_t>& out)
 // default. Always returns a non-null Font (an invalid one as last resort) so
 // callers keep the "font is never null" invariant. The file Font ctor throws,
 // so those attempts are guarded. (Windows only — Linux loads from the data dir.)
-// Adds extra.ttf as a fallback face for the scripts DejaVu lacks (CJK, Kana,
-// Hangul). It supplements whichever vera.ttf was chosen. Like vera.ttf, a copy
-// on disk -- beside the exe, then in the working directory -- wins over the one
-// embedded in the exe (RCDATA IDR_EXTRA_TTF = 2001), so a user can swap in a
-// font of their own by dropping one file beside the exe.
-void addExtraFont(Font& font)
+/**
+ * @brief Adds the fallback faces for the scripts DejaVu lacks, to whichever
+ *        vera.ttf was chosen.
+ *
+ * First the user's own extra.ttf, if there is one -- beside the exe, then in
+ * the working directory -- and the fonts in their fonts folder (see
+ * addUserFonts), so that those come first for whatever they cover. Then the
+ * bundled notocjk.ttf (RCDATA IDR_NOTOCJK_TTF = 2001), which always supplies
+ * CJK, Kana and Hangul: a user's font for another script adds that script
+ * without taking these away.
+ *
+ * @param font The font to add the faces to.
+ */
+void addFallbackFonts(Font& font)
 {
     HMODULE mod = GetModuleHandleW(nullptr);
+    bool have_extra = false;
     wchar_t exePath[MAX_PATH];
     DWORD n = GetModuleFileNameW(mod, exePath, MAX_PATH);
     if (n > 0 && n < MAX_PATH) {
@@ -91,16 +147,16 @@ void addExtraFont(Font& font)
             std::wstring fontPath(exePath, slash + 1);
             fontPath += L"extra.ttf";
             std::vector<uint8_t> buf;
-            if (readFileW(fontPath, buf) && font.addFallback(buf.data(), buf.size())) {
-                return;
-            }
+            have_extra = readFileW(fontPath, buf) && font.addFallback(buf.data(), buf.size());
         }
     }
     for (const char* path : {"./extra.ttf", "./res/extra.ttf"}) {
-        if (font.addFallback(TagLib::String(path))) {
-            return;
+        if (have_extra) {
+            break;
         }
+        have_extra = font.addFallback(TagLib::String(path));
     }
+    addUserFonts(font);
     if (HRSRC res = FindResourceW(mod, MAKEINTRESOURCEW(2001),
                                   reinterpret_cast<LPCWSTR>(RT_RCDATA))) {
         if (HGLOBAL h = LoadResource(mod, res)) {
@@ -127,7 +183,7 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
             std::vector<uint8_t> buf;
             if (readFileW(fontPath, buf)) {
                 auto f = std::make_unique<Font>(buf.data(), buf.size(), ptsize);
-                if (f->isValid()) { addExtraFont(*f); return f; }
+                if (f->isValid()) { addFallbackFonts(*f); return f; }
             }
         }
     }
@@ -136,7 +192,7 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
     for (const char* path : {"./vera.ttf", "./res/vera.ttf"}) {
         try {
             auto f = std::make_unique<Font>(TagLib::String(path), ptsize);
-            if (f->isValid()) { addExtraFont(*f); return f; }
+            if (f->isValid()) { addFallbackFonts(*f); return f; }
         } catch (const std::exception&) { /* try next source */ }
     }
 
@@ -149,7 +205,7 @@ std::unique_ptr<Font> loadUiFont(int ptsize)
             if (data && size) {
                 auto f = std::make_unique<Font>(static_cast<const uint8_t*>(data),
                                                 static_cast<size_t>(size), ptsize);
-                if (f->isValid()) { addExtraFont(*f); return f; }
+                if (f->isValid()) { addFallbackFonts(*f); return f; }
             }
         }
     }
@@ -4422,13 +4478,20 @@ bool Player::Initialize(const PlayerOptions& options) {
     font = std::make_unique<Font>(TagLib::String(data_dir + "/vera.ttf", TagLib::String::UTF8), 12);
     // Create a larger font for status indicators like the pause message.
     m_large_font = std::make_unique<Font>(TagLib::String(data_dir + "/vera.ttf", TagLib::String::UTF8), 36);
-    // An optional extra.ttf supplies scripts DejaVu lacks -- CJK, Kana, Hangul
-    // -- which would otherwise draw as rows of .notdef boxes. Absent, nothing
-    // changes. The source-tree path keeps this working when running uninstalled.
-    for (Font* f : {font.get(), m_large_font.get()}) {
-        if (!f->addFallback(TagLib::String(data_dir + "/extra.ttf", TagLib::String::UTF8))) {
-            f->addFallback(TagLib::String("res/extra.ttf"));
+    // Fallback faces for the scripts DejaVu lacks, which would otherwise draw
+    // as rows of .notdef boxes. The user's own fonts -- extra.ttf, then their
+    // fonts folder -- come first so they win for whatever they cover; the
+    // bundled notocjk.ttf always follows with CJK, Kana and Hangul. The
+    // source-tree paths keep both files working when running uninstalled.
+    const auto addDataFont = [&data_dir](Font* f, const std::string& name) {
+        if (!f->addFallback(TagLib::String(data_dir + "/" + name, TagLib::String::UTF8))) {
+            f->addFallback(TagLib::String("res/" + name, TagLib::String::UTF8));
         }
+    };
+    for (Font* f : {font.get(), m_large_font.get()}) {
+        addDataFont(f, "extra.ttf");
+        addUserFonts(*f);
+        addDataFont(f, "notocjk.ttf");
     }
 #endif // _WIN32
     Debug::log("font", "font->isValid(): ", font->isValid());

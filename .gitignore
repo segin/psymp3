@@ -180,9 +180,11 @@ package/arch/psymp3/
 package/arch/*.pkg.tar.zst
 package/arch/*.log
 
-# A user's own fallback font dropped into the top of the tree (see README,
-# Unicode Support). The bundled one is res/extra.ttf.
-/extra.ttf
+# A user's own fallback font (see README, Unicode Support), dropped in beside
+# vera.ttf at runtime; never part of the source tree. The bundled one is
+# res/notocjk.ttf.
+res/extra.ttf
+extra.ttf
 
 # Code::Blocks generated dependency cache
 ref/psymp3.depend

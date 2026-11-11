@@ -1568,8 +1568,8 @@
     "18. Noto Sans CJK JP (CJK fallback font) -- SIL Open Font License 1.1\n" \
     "==============================================================================\n" \
     "\n" \
-    "res/extra.ttf is a subset of Noto Sans CJK JP Regular, version 2.004, cut\n" \
-    "down to its CJK, Kana and Hangul characters by scripts/subset-extra-font.sh.\n" \
+    "res/notocjk.ttf is a subset of Noto Sans CJK JP Regular, version 2.004, cut\n" \
+    "down to its CJK, Kana and Hangul characters by scripts/subset-notocjk-font.sh.\n" \
     "\n" \
     "Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name\n" \
     "'Source'.\n" \

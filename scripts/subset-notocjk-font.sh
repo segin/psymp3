@@ -1,12 +1,12 @@
 #!/bin/sh
-# subset-extra-font.sh - regenerate res/extra.ttf, the bundled CJK fallback font.
+# subset-notocjk-font.sh - regenerate res/notocjk.ttf, the bundled CJK fallback font.
 # This file is part of PsyMP3.
 # Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
 #
 # PsyMP3 is free software. You may redistribute and/or modify it under
 # the terms of the ISC License <https://opensource.org/licenses/ISC>
 #
-# res/extra.ttf is Noto Sans CJK JP Regular (Sans 2.004, SIL OFL 1.1), cut
+# res/notocjk.ttf is Noto Sans CJK JP Regular (Sans 2.004, SIL OFL 1.1), cut
 # down to the CJK ideographs, Kana and Hangul that DejaVu Sans lacks. The
 # full face is about 16 MB; this one is about 10 MB. Latin, Greek and
 # Cyrillic are dropped because vera.ttf already draws them, and the vertical
@@ -20,12 +20,12 @@
 # Its first face is the JP one. Needs fontTools (pyftsubset). Commit the
 # result.
 #
-# Usage: scripts/subset-extra-font.sh NotoSansCJK-Regular.ttc [out]
+# Usage: scripts/subset-notocjk-font.sh NotoSansCJK-Regular.ttc [out]
 
 set -eu
 
 src=${1:?usage: $0 NotoSansCJK-Regular.ttc [out]}
-out=${2:-$(dirname "$0")/../res/extra.ttf}
+out=${2:-$(dirname "$0")/../res/notocjk.ttf}
 
 # CJK: radicals, ideographic description, symbols and punctuation, Bopomofo,
 # Kanbun, strokes, enclosed and compatibility characters, the unified

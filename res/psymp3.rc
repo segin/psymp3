@@ -10,7 +10,7 @@
 #define IDC_PLAYLIST_OK 1103
 #define IDC_PLAYLIST_CANCEL 1104
 #define IDR_VERA_TTF 2000
-#define IDR_EXTRA_TTF 2001
+#define IDR_NOTOCJK_TTF 2001
 
 FB_PROGRAM_ICON ICON DISCARDABLE "psymp3.ico"
 FileIcon ICON DISCARDABLE "music.ico"
@@ -19,13 +19,13 @@ FileIcon ICON DISCARDABLE "music.ico"
    exe is self-contained (no external vera.ttf needed). See src/player.cpp. */
 IDR_VERA_TTF RCDATA "vera.ttf"
 
-/* The CJK, Kana and Hangul fallback font, loaded the same way; an extra.ttf
-   beside the exe takes its place. See addExtraFont in src/player.cpp. */
-IDR_EXTRA_TTF RCDATA "extra.ttf"
+/* The CJK, Kana and Hangul fallback font, loaded the same way. A user's own
+   extra.ttf is added ahead of it. See addFallbackFonts in src/player.cpp. */
+IDR_NOTOCJK_TTF RCDATA "notocjk.ttf"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 2,5,0,2153
-PRODUCTVERSION 2,5,0,2153
+FILEVERSION 2,5,0,2161
+PRODUCTVERSION 2,5,0,2161
 FILEOS 0x00040004
 FILETYPE 0x00000001
 BEGIN
@@ -36,7 +36,7 @@ BEGIN
       VALUE "Comments", "This is PsyMP3 version 2-CURRENT\0"
       VALUE "CompanyName", "None\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
-      VALUE "FileVersion", "2, 5, 0, 2153\0"
+      VALUE "FileVersion", "2, 5, 0, 2161\0"
       VALUE "InternalName", "PsyMP3\0"
       VALUE "LegalCopyright", "ISC License\0"
       VALUE "OriginalFilename", "psymp3.exe\0"

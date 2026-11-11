@@ -60,7 +60,7 @@ class Font
 
         /// Adds a face consulted whenever the primary one lacks a codepoint.
         /// DejaVu Sans carries no CJK, Kana or Hangul, so those titles would
-        /// otherwise draw as rows of .notdef boxes; an extra.ttf alongside it
+        /// otherwise draw as rows of .notdef boxes; notocjk.ttf alongside it
         /// fills them in. Faces are consulted in the order added, and the
         /// primary still decides line height and baseline so that mixed text
         /// stays on one grid. Returns false if the file could not be loaded.
